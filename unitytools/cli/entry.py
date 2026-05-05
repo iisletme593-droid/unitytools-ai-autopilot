@@ -107,9 +107,10 @@ def cmd_install_unity_plugin(args: argparse.Namespace) -> int:
         console.print(f"[red][ERR] Not a Unity project: {project}[/red]")
         return 1
     repo_root = Path(__file__).resolve().parents[2]
-    source = repo_root / "unity_plugin" / "Editor" / "Bridge"
-    if not source.exists():
-        source = Path.cwd() / "unity_plugin" / "Editor" / "Bridge"
+    plugin_root = repo_root / "unity_plugin"
+    if not plugin_root.exists():
+        plugin_root = Path.cwd() / "unity_plugin"
+    source = plugin_root / "Editor" / "Bridge"
     if not source.exists():
         console.print("[red][ERR] Could not find unity_plugin/Editor/Bridge in this checkout.[/red]")
         return 1
@@ -118,6 +119,20 @@ def cmd_install_unity_plugin(args: argparse.Namespace) -> int:
     for item in source.iterdir():
         if item.is_file():
             shutil.copy2(item, target / item.name)
+    installed_targets = [target]
+
+    autopilot_source = plugin_root / "Scripts" / "Autopilot"
+    if autopilot_source.exists():
+        autopilot_target = assets / "Scripts" / "Autopilot"
+        _copy_tree_files(autopilot_source, autopilot_target, suffixes={".cs"})
+        installed_targets.append(autopilot_target)
+
+    autopilot_editor_source = plugin_root / "Editor" / "Autopilot"
+    if autopilot_editor_source.exists():
+        autopilot_editor_target = assets / "Editor" / "UnityToolsAutopilot"
+        _copy_tree_files(autopilot_editor_source, autopilot_editor_target, suffixes={".cs"})
+        installed_targets.append(autopilot_editor_target)
+
     if manifest.exists():
         data = json.loads(manifest.read_text(encoding="utf-8-sig"))
         deps = data.setdefault("dependencies", {})
@@ -127,9 +142,27 @@ def cmd_install_unity_plugin(args: argparse.Namespace) -> int:
     env_target = project / ".env"
     if env_example.exists() and not env_target.exists():
         shutil.copy2(env_example, env_target)
-    console.print(f"[green][OK] Installed UnityToolsBridge to:[/green] {target}")
+    console.print("[green][OK] Installed UnityTools Unity package files:[/green]")
+    for installed in installed_targets:
+        console.print(f"  - {installed}")
     console.print("[dim]Open Unity, then Window > UnityTools AI > Autopilot Chat.[/dim]")
     return 0
+
+
+def _copy_tree_files(source: Path, target: Path, suffixes: set[str] | None = None) -> None:
+    """Copy a Unity plugin subtree without .meta files from another project."""
+    target.mkdir(parents=True, exist_ok=True)
+    for item in source.rglob("*"):
+        if not item.is_file():
+            continue
+        if item.name.endswith(".meta"):
+            continue
+        if suffixes and item.suffix.lower() not in suffixes:
+            continue
+        relative = item.relative_to(source)
+        destination = target / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(item, destination)
 
 
 def cmd_chat(args: argparse.Namespace) -> int:
@@ -203,7 +236,7 @@ def main() -> int:
     sub.add_parser("doctor", help="Run local provider, Unity, and Blender diagnostics")
     sub.add_parser("chat", help="Start the terminal chat REPL")
     sub.add_parser("unity-ping", help="Test the Unity Editor bridge")
-    p_install = sub.add_parser("install-unity-plugin", help="Copy the Unity Editor panel into a Unity project")
+    p_install = sub.add_parser("install-unity-plugin", help="Copy the Unity Editor panel, bridge, and Autopilot scripts into a Unity project")
     p_install.add_argument("--project", required=True, help="Path to the Unity project root")
     p_export = sub.add_parser("blender-export", help="Export FBX from Blender")
     p_export.add_argument("--blend", required=True, help="Path to .blend file")

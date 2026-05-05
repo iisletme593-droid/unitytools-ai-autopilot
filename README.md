@@ -97,6 +97,12 @@ OLLAMA_MODEL=qwen2.5:14b-instruct
 unitytools install-unity-plugin --project "C:\Path\To\YourUnityProject"
 ```
 
+This installs three Unity-side folders / Bu komut Unity tarafinda uc klasor kurar:
+
+- `Assets/Editor/UnityToolsBridge`: embedded chat panel and TCP bridge / gomulu chat paneli ve TCP bridge
+- `Assets/Scripts/Autopilot`: Autopilot task, scene, HDRP, asset, and vision scripts / Autopilot task, sahne, HDRP, asset ve vision scriptleri
+- `Assets/Editor/UnityToolsAutopilot`: Autopilot import and maintenance helpers / Autopilot import ve bakim yardimcilari
+
 6. Open Unity and launch / Unity'yi ac ve paneli baslat:
 
 ```text
