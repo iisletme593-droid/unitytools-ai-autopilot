@@ -49,6 +49,8 @@ uretken ol.
 - Procedural generation: grid, dairesel dizi, scatter, merdiven, duvar, oda olusturma
 - Menu item calistirma, sahne kaydetme, asset import etme
 - Obje detaylari, component bilgisi, tag ile arama, asset arama
+- Semantic asset catalogue: realistic/misspelled isteklerde proje asset'lerini bulma,
+  kategori/folder olarak gruplama ve en iyi asset'i sahneye yerlestirme
 
 === UNITY BILGISI ===
 Primitive tipler: Cube, Sphere, Cylinder, Capsule, Plane, Quad
@@ -61,6 +63,8 @@ Tag'ler: Untagged, MainCamera, Player, Respawn, Finish, EditorOnly, GameControll
 Layer'lar: 0=Default, 1=TransparentFX, 2=IgnoreRaycast, 4=Water, 5=UI, 8-31=Custom
 
 === DAVRANIS KURALLARI ===
+0. Kullanici bir seyi yapma derse (ornegin "sahneye koyma", "silme", "degistirme"),
+   bu negatif talimat en yuksek onceliktir. Planinda bile yasaklanan islemi yazma.
 1. Once kisa bir plan acikla, sonra tool'lari cagir.
 2. Bir tool hata donerse, hatayi kullaniciya acikla, alternatif dene. HATADA HEMEN VAZGECME.
 3. Dosya yollari her zaman proje root'una gore relative olsun.
@@ -74,6 +78,19 @@ Layer'lar: 0=Default, 1=TransparentFX, 2=IgnoreRaycast, 4=Water, 5=UI, 8-31=Cust
    kompleks yapilar olusturabilirsin.
 9. Her onemli islem sonrasi sahne durumunu kontrol et (list_scene_objects, get_object_details).
 10. Eger bir islem icin tool yoksa, kullaniciya bunu soyle ve bir workaround oner.
+11. KULLANICI realistic/real/relis/realist, tree, rock, grass, prop, building, character,
+    weapon, material, texture gibi gercek asset isteyen kelimeler kullanirsa ONCE semantic
+    asset tool'larini cagir: unity_search_assets_semantic, unity_find_tree_assets,
+    unity_find_rock_assets, unity_find_prop_assets, unity_instantiate_best_asset,
+    unity_scatter_best_assets, unity_create_forest_from_assets vb.
+12. Primitiveleri (Cube/Sphere) sadece prototip veya fallback icin kullan. Uygun real asset
+    bulunursa agac/kaya/karakter/prop icin asla kup yaratma; gercek asset instantiate et.
+13. Yazim hatalarini tolere et: "real relis realist tree" gibi istekler realistic tree olarak
+    yorumlanmali ve proje icindeki PolyHaven/Sketchfab/FantasyRPG asset'leri aranmalidir.
+14. Kullanici "sahneye koyma", "sadece listele", "only list" derse instantiate/place/scatter
+    tool'u cagirmazsin. Sadece arama/gruplama tool'u kullan ve sonucu listele.
+15. Yapmadigin islemi yapmis gibi soyleme. Sadece instantiate/scatter/create tool'u basarili
+    donduyse "sahneye yerlestirdim" de. Arama tool'u calistiysa "buldum/listeledim" de.
 
 === ONEMLI ===
 - Sen bir OBSERVER degil, bir ACTOR'sun. Unity Editor'de degisiklik yapma yetkin var.
@@ -175,7 +192,7 @@ class Orchestrator:
 
             if response.stop_reason != "tool_use":
                 return OrchestratorResult(
-                    text=final_text.strip(),
+                    text=_guard_final_text(user_message, final_text.strip(), tool_calls_log),
                     tool_calls=tool_calls_log,
                     stop_reason=response.stop_reason or "end_turn",
                 )
@@ -239,7 +256,7 @@ class Orchestrator:
             self.history.append(ChatMessage(role="user", content=tool_results))
 
         return OrchestratorResult(
-            text=(final_text + "\n[Warning: max iterations reached]").strip(),
+            text=_guard_final_text(user_message, (final_text + "\n[Warning: max iterations reached]").strip(), tool_calls_log),
             tool_calls=tool_calls_log,
             stop_reason="max_iterations",
         )
@@ -280,7 +297,9 @@ class Orchestrator:
 
             if not tool_calls:
                 return OrchestratorResult(
-                    text=final_text.strip(), tool_calls=tool_calls_log, stop_reason="stop"
+                    text=_guard_final_text(user_message, final_text.strip(), tool_calls_log),
+                    tool_calls=tool_calls_log,
+                    stop_reason="stop",
                 )
 
             for call in tool_calls:
@@ -343,7 +362,7 @@ class Orchestrator:
                 )
 
         return OrchestratorResult(
-            text=(final_text + "\n[Warning: max iterations reached]").strip(),
+            text=_guard_final_text(user_message, (final_text + "\n[Warning: max iterations reached]").strip(), tool_calls_log),
             tool_calls=tool_calls_log,
             stop_reason="max_iterations",
         )
@@ -459,6 +478,66 @@ class Orchestrator:
             while tail and tail[0].get("role") == "tool":
                 tail.pop(0)
         self.ollama_messages = head + tail
+
+
+def _guard_final_text(user_message: Any, text: str, tool_calls: list[dict[str, Any]]) -> str:
+    """Prevent local models from claiming scene edits after search-only requests."""
+    user_text = str(user_message).lower()
+    no_place_terms = (
+        "sahneye koyma",
+        "sahneye yerlestirme",
+        "sahneye yerleştirme",
+        "yerlestirme",
+        "yerleştirme",
+        "sadece listele",
+        "only list",
+        "do not place",
+        "don't place",
+        "dont place",
+    )
+    if not any(term in user_text for term in no_place_terms):
+        return text
+
+    mutating_prefixes = (
+        "unity_create_primitive",
+        "unity_instantiate",
+        "unity_scatter",
+        "unity_create_asset_",
+        "unity_place_asset_",
+        "unity_create_forest",
+        "unity_create_rock_field",
+        "unity_create_prop_cluster",
+        "unity_delete",
+        "unity_duplicate",
+        "unity_set_",
+        "unity_add_",
+        "unity_remove_",
+    )
+    if any(call.get("ok") and str(call.get("name", "")).startswith(mutating_prefixes) for call in tool_calls):
+        return text
+
+    for call in reversed(tool_calls):
+        result = call.get("result")
+        if not isinstance(result, dict):
+            continue
+        rows = result.get("results")
+        if not isinstance(rows, list) or not rows:
+            continue
+        lines = ["Sahneye yerlestirme yapmadim; sadece bulunan assetleri listeliyorum:"]
+        for index, row in enumerate(rows[:5], start=1):
+            if not isinstance(row, dict):
+                continue
+            name = row.get("name") or str(row.get("path", "")).split("/")[-1]
+            path = row.get("path", "")
+            score = row.get("score")
+            suffix = f" (score: {score})" if score is not None else ""
+            lines.append(f"{index}. {name}{suffix} - {path}")
+        return "\n".join(lines)
+
+    lowered = text.lower()
+    if "yerleştirdim" in lowered or "yerlestirdim" in lowered:
+        return "Sahneye yerlestirme yapmadim; sadece arama/listeleme yaptim.\n\n" + text
+    return text
 
 
 def _serialize_for_llm(value: Any) -> str:
