@@ -210,6 +210,9 @@ Asistan artik 70+ tool sunar; buna semantic asset kesfi, scene intelligence, ren
 - `unity_find_scene_objects_semantic`
 - `unity_delete_scene_objects_semantic`
 - `unity_apply_material_palette`
+- `unity_diagnose_material_issues`
+- `unity_repair_material_issues`
+- `unity_repair_texture_import_settings`
 - `unity_create_optimized_forest_scene`
 - `unity_optimize_editor_performance`
 - `unity_export_scene_knowledge_base`

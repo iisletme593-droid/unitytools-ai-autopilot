@@ -82,3 +82,23 @@ su sekilde calisir:
 This prevents useful scene operations from failing just because one argument name was slightly different.
 
 Bu sayede faydali sahne islemleri sadece bir arguman adi farkli geldi diye hata vermez.
+
+## Pink Materials and Broken Textures / Pembe Material ve Bozuk Texture
+
+In HDRP/URP projects, magenta or pink objects usually mean the material shader is missing or incompatible with the active render pipeline. UnityTools can now diagnose and repair these materials without throwing away the original texture links.
+
+HDRP/URP projelerinde magenta/pembe objeler genelde material shader'inin eksik veya aktif render pipeline ile uyumsuz oldugunu gosterir. UnityTools artik bu materiallari orijinal texture baglantilarini atmadan diagnose/repair edebilir.
+
+Use:
+
+Kullan:
+
+```text
+unity_diagnose_material_issues
+unity_repair_material_issues
+unity_repair_texture_import_settings
+```
+
+The repair flow preserves common maps such as base color/albedo, normal, mask, metallic, occlusion, and emission maps when converting to an HDRP/URP/Built-in safe Lit shader.
+
+Repair akisi HDRP/URP/Built-in uyumlu Lit shader'a donustururken base color/albedo, normal, mask, metallic, occlusion ve emission map gibi yaygin texture baglarini korur.

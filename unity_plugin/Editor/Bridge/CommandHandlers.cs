@@ -54,6 +54,9 @@ namespace UnityTools.Bridge
                 case "find_scene_objects_semantic": return FindSceneObjectsSemantic(p);
                 case "delete_scene_objects_semantic": return DeleteSceneObjectsSemantic(p);
                 case "apply_material_palette": return ApplyMaterialPalette(p);
+                case "diagnose_material_issues": return DiagnoseMaterialIssues(p);
+                case "repair_material_issues": return RepairMaterialIssues(p);
+                case "repair_texture_import_settings": return RepairTextureImportSettings(p);
                 case "create_optimized_forest_scene": return CreateOptimizedForestScene(p);
                 case "optimize_editor_performance": return OptimizeEditorPerformance(p);
                 default: throw new InvalidOperationException($"Unknown method: {method}");
@@ -235,7 +238,7 @@ namespace UnityTools.Bridge
             if (rend == null) throw new InvalidOperationException($"Renderer not found: {name}");
             Undo.RecordObject(rend, "Bridge: material color");
             var mat = rend.material;
-            mat.color = new Color(r, g, b, a);
+            SetMaterialBaseColor(mat, new Color(r, g, b, a));
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             return new { ok = true };
         }
@@ -790,24 +793,224 @@ namespace UnityTools.Bridge
                 ? UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include).AsEnumerable()
                 : FindSemanticObjects(query, category);
             int changed = 0;
+            int repaired = 0;
+            int preservedTextures = 0;
             foreach (var go in targets.Take(max))
             {
+                if (go == null || !go.scene.IsValid()) continue;
                 string cat = GuessCategory(go);
                 Color color = colors.TryGetValue(cat, out var c) ? c : colors["default"];
                 foreach (var renderer in go.GetComponentsInChildren<Renderer>(true))
                 {
                     if (renderer == null) continue;
-                    var shader = Shader.Find("Standard") ?? renderer.sharedMaterial?.shader ?? Shader.Find("Universal Render Pipeline/Lit");
-                    var mat = new Material(shader);
-                    mat.name = $"UnityTools_{palette}_{cat}";
-                    mat.color = color;
-                    mat.SetFloat("_Glossiness", cat == "water" ? 0.65f : 0.15f);
+                    Material source = renderer.sharedMaterial;
+                    bool hadTexture = HasAnyTexture(source);
+                    bool wasBroken = IsBrokenMaterial(source);
+                    var mat = CreatePaletteMaterial(source, $"UnityTools_{palette}_{cat}", color, cat == "water" ? 0.65f : 0.15f);
+                    Undo.RecordObject(renderer, "UnityTools: apply material palette");
                     renderer.sharedMaterial = mat;
+                    if (wasBroken) repaired++;
+                    if (hadTexture && HasAnyTexture(mat)) preservedTextures++;
                     changed++;
                 }
             }
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
-            return new { ok = true, query, category, palette, changed_renderers = changed };
+            return new { ok = true, query, category, palette, changed_renderers = changed, repaired_materials = repaired, preserved_texture_materials = preservedTextures, pipeline = ActivePipelineName() };
+        }
+
+        private static object DiagnoseMaterialIssues(JObject p)
+        {
+            string query = p["query"]?.ToString() ?? "";
+            string category = p["category"]?.ToString() ?? "";
+            int max = Mathf.Clamp(p["max"]?.ToObject<int>() ?? 2000, 1, 10000);
+            var targets = string.IsNullOrWhiteSpace(query) && string.IsNullOrWhiteSpace(category)
+                ? UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include).AsEnumerable()
+                : FindSemanticObjects(query, category);
+
+            int renderers = 0;
+            int missingMaterials = 0;
+            int brokenMaterials = 0;
+            int textureMaterials = 0;
+            var samples = new List<object>();
+
+            foreach (var go in targets.Take(max))
+            {
+                if (go == null || !go.scene.IsValid()) continue;
+                foreach (var renderer in go.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (renderer == null) continue;
+                    renderers++;
+                    foreach (var mat in renderer.sharedMaterials)
+                    {
+                        if (mat == null)
+                        {
+                            missingMaterials++;
+                            if (samples.Count < 20) samples.Add(new { object_name = go.name, issue = "missing_material", path = GetHierarchyPath(go.transform) });
+                            continue;
+                        }
+                        if (HasAnyTexture(mat)) textureMaterials++;
+                        if (IsBrokenMaterial(mat))
+                        {
+                            brokenMaterials++;
+                            if (samples.Count < 20)
+                            {
+                                samples.Add(new
+                                {
+                                    object_name = go.name,
+                                    material = mat.name,
+                                    shader = mat.shader != null ? mat.shader.name : "(null)",
+                                    issue = "broken_or_unsupported_shader",
+                                    path = GetHierarchyPath(go.transform)
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            return new
+            {
+                ok = true,
+                query,
+                category,
+                pipeline = ActivePipelineName(),
+                renderers,
+                missing_materials = missingMaterials,
+                broken_materials = brokenMaterials,
+                materials_with_textures = textureMaterials,
+                samples
+            };
+        }
+
+        private static object RepairMaterialIssues(JObject p)
+        {
+            string query = p["query"]?.ToString() ?? "";
+            string category = p["category"]?.ToString() ?? "";
+            bool tint = p["tint"]?.ToObject<bool>() ?? false;
+            string palette = p["palette"]?.ToString() ?? "forest";
+            bool includeUnsupported = p["include_unsupported"]?.ToObject<bool>() ?? false;
+            int max = Mathf.Clamp(p["max"]?.ToObject<int>() ?? 2000, 1, 10000);
+            var colors = PaletteColors(palette);
+            var targets = string.IsNullOrWhiteSpace(query) && string.IsNullOrWhiteSpace(category)
+                ? UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include).AsEnumerable()
+                : FindSemanticObjects(query, category);
+
+            int scanned = 0;
+            int repaired = 0;
+            int created = 0;
+            int preservedTextures = 0;
+            var samples = new List<object>();
+
+            foreach (var go in targets.Take(max))
+            {
+                if (go == null || !go.scene.IsValid()) continue;
+                string cat = GuessCategory(go);
+                Color color = colors.TryGetValue(cat, out var c) ? c : colors["default"];
+                foreach (var renderer in go.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (renderer == null) continue;
+                    scanned++;
+                    var materials = renderer.sharedMaterials;
+                    bool changedRenderer = false;
+                    for (int i = 0; i < materials.Length; i++)
+                    {
+                        Material source = materials[i];
+                        bool needsRepair = source == null || IsBrokenMaterial(source) || (includeUnsupported && !IsPipelineCompatible(source.shader));
+                        if (!needsRepair && !tint) continue;
+
+                        bool hadTexture = HasAnyTexture(source);
+                        Material mat = needsRepair
+                            ? CreatePipelineMaterialFrom(source, $"UnityTools_Repaired_{cat}")
+                            : new Material(source) { name = $"UnityTools_Tinted_{cat}" };
+                        if (tint) SetMaterialBaseColor(mat, color);
+                        SetMaterialSmoothness(mat, cat == "water" ? 0.65f : 0.15f);
+                        materials[i] = mat;
+                        changedRenderer = true;
+                        if (needsRepair) repaired++;
+                        if (source == null) created++;
+                        if (hadTexture && HasAnyTexture(mat)) preservedTextures++;
+                        if (samples.Count < 20)
+                        {
+                            samples.Add(new
+                            {
+                                object_name = go.name,
+                                material = mat.name,
+                                shader = mat.shader != null ? mat.shader.name : "(null)",
+                                path = GetHierarchyPath(go.transform)
+                            });
+                        }
+                    }
+                    if (changedRenderer)
+                    {
+                        Undo.RecordObject(renderer, "UnityTools: repair materials");
+                        renderer.sharedMaterials = materials;
+                    }
+                }
+            }
+
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                query,
+                category,
+                palette,
+                pipeline = ActivePipelineName(),
+                scanned_renderers = scanned,
+                repaired_materials = repaired,
+                created_materials = created,
+                preserved_texture_materials = preservedTextures,
+                samples
+            };
+        }
+
+        private static object RepairTextureImportSettings(JObject p)
+        {
+            string query = p["query"]?.ToString() ?? "texture";
+            int max = Mathf.Clamp(p["max"]?.ToObject<int>() ?? 500, 1, 5000);
+            string[] guids = AssetDatabase.FindAssets(query);
+            int changed = 0;
+            var samples = new List<object>();
+            foreach (string guid in guids.Take(max))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+                if (importer == null) continue;
+                bool isNormal = LooksLikeNormalMap(path);
+                bool isLinear = isNormal || LooksLikeLinearMap(path);
+                bool dirty = false;
+                if (importer.textureType != (isNormal ? TextureImporterType.NormalMap : TextureImporterType.Default))
+                {
+                    importer.textureType = isNormal ? TextureImporterType.NormalMap : TextureImporterType.Default;
+                    dirty = true;
+                }
+                if (importer.sRGBTexture == isLinear)
+                {
+                    importer.sRGBTexture = !isLinear;
+                    dirty = true;
+                }
+                if (!importer.mipmapEnabled)
+                {
+                    importer.mipmapEnabled = true;
+                    dirty = true;
+                }
+                if (importer.maxTextureSize < 2048)
+                {
+                    importer.maxTextureSize = 2048;
+                    dirty = true;
+                }
+                if (importer.textureCompression == TextureImporterCompression.Uncompressed)
+                {
+                    importer.textureCompression = TextureImporterCompression.CompressedHQ;
+                    dirty = true;
+                }
+                if (!dirty) continue;
+                importer.SaveAndReimport();
+                changed++;
+                if (samples.Count < 20) samples.Add(new { path, normal_map = isNormal, linear_map = isLinear });
+            }
+            AssetDatabase.Refresh();
+            return new { ok = true, query, scanned = Math.Min(guids.Length, max), changed_textures = changed, samples };
         }
 
         private static object CreateOptimizedForestScene(JObject p)
@@ -1080,12 +1283,176 @@ namespace UnityTools.Bridge
 
         private static Material MakeMaterial(string name, Color color, float smoothness)
         {
-            var shader = Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit");
+            var shader = PipelineLitShader();
             var mat = new Material(shader);
             mat.name = name;
-            mat.color = color;
-            mat.SetFloat("_Glossiness", smoothness);
+            SetMaterialBaseColor(mat, color);
+            SetMaterialSmoothness(mat, smoothness);
             return mat;
+        }
+
+        private static Material CreatePaletteMaterial(Material source, string name, Color color, float smoothness)
+        {
+            Material mat;
+            if (source != null && !IsBrokenMaterial(source) && IsPipelineCompatible(source.shader))
+            {
+                mat = new Material(source);
+                mat.name = name;
+            }
+            else
+            {
+                mat = CreatePipelineMaterialFrom(source, name);
+            }
+            SetMaterialBaseColor(mat, color);
+            SetMaterialSmoothness(mat, smoothness);
+            return mat;
+        }
+
+        private static Material CreatePipelineMaterialFrom(Material source, string name)
+        {
+            var shader = PipelineLitShader();
+            var mat = new Material(shader);
+            mat.name = name;
+            if (source != null)
+            {
+                CopyKnownMaterialTextures(source, mat);
+                Color baseColor = GetMaterialBaseColor(source);
+                SetMaterialBaseColor(mat, baseColor);
+            }
+            return mat;
+        }
+
+        private static Shader PipelineLitShader()
+        {
+            string pipeline = ActivePipelineName();
+            if (pipeline == "HDRP")
+                return Shader.Find("HDRP/Lit") ?? Shader.Find("Hidden/HDRP/Lit") ?? Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard") ?? Shader.Find("Legacy Shaders/Diffuse") ?? Shader.Find("Unlit/Color");
+            if (pipeline == "URP")
+                return Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("HDRP/Lit") ?? Shader.Find("Standard") ?? Shader.Find("Legacy Shaders/Diffuse") ?? Shader.Find("Unlit/Color");
+            return Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("HDRP/Lit") ?? Shader.Find("Legacy Shaders/Diffuse") ?? Shader.Find("Unlit/Color");
+        }
+
+        private static string ActivePipelineName()
+        {
+            var pipeline = GraphicsSettings.currentRenderPipeline;
+            if (pipeline == null) return "BuiltIn";
+            string type = pipeline.GetType().FullName ?? "";
+            if (type.Contains("HighDefinition")) return "HDRP";
+            if (type.Contains("Universal")) return "URP";
+            return pipeline.GetType().Name;
+        }
+
+        private static bool IsPipelineCompatible(Shader shader)
+        {
+            if (shader == null) return false;
+            if (IsBrokenShader(shader)) return false;
+            string pipeline = ActivePipelineName();
+            string name = shader.name ?? "";
+            if (pipeline == "HDRP")
+                return name.StartsWith("HDRP/", StringComparison.OrdinalIgnoreCase) || name.IndexOf("High Definition", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (pipeline == "URP")
+                return name.StartsWith("Universal Render Pipeline/", StringComparison.OrdinalIgnoreCase) || name.StartsWith("Shader Graphs/", StringComparison.OrdinalIgnoreCase);
+            return true;
+        }
+
+        private static bool IsBrokenMaterial(Material mat)
+        {
+            if (mat == null || mat.shader == null) return true;
+            return IsBrokenShader(mat.shader);
+        }
+
+        private static bool IsBrokenShader(Shader shader)
+        {
+            if (shader == null) return true;
+            string name = shader.name ?? "";
+            return name.IndexOf("InternalError", StringComparison.OrdinalIgnoreCase) >= 0
+                || name.IndexOf("Hidden/InternalError", StringComparison.OrdinalIgnoreCase) >= 0
+                || name.IndexOf("Error", StringComparison.OrdinalIgnoreCase) >= 0
+                || name.IndexOf("pink", StringComparison.OrdinalIgnoreCase) >= 0
+                || !shader.isSupported;
+        }
+
+        private static bool HasAnyTexture(Material mat)
+        {
+            if (mat == null) return false;
+            try
+            {
+                return mat.GetTexturePropertyNames().Any(prop => mat.GetTexture(prop) != null);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static Color GetMaterialBaseColor(Material mat)
+        {
+            if (mat == null) return Color.white;
+            if (mat.HasProperty("_BaseColor")) return mat.GetColor("_BaseColor");
+            if (mat.HasProperty("_Color")) return mat.GetColor("_Color");
+            return Color.white;
+        }
+
+        private static void SetMaterialBaseColor(Material mat, Color color)
+        {
+            if (mat == null) return;
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+            if (mat.HasProperty("_Color")) mat.SetColor("_Color", color);
+        }
+
+        private static void SetMaterialSmoothness(Material mat, float smoothness)
+        {
+            if (mat == null) return;
+            if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", smoothness);
+            if (mat.HasProperty("_Glossiness")) mat.SetFloat("_Glossiness", smoothness);
+        }
+
+        private static void CopyKnownMaterialTextures(Material source, Material target)
+        {
+            if (source == null || target == null) return;
+            CopyTexture(source, target, new[] { "_BaseColorMap", "_BaseMap", "_MainTex", "_Albedo", "_DiffuseMap" }, new[] { "_BaseColorMap", "_BaseMap", "_MainTex" });
+            CopyTexture(source, target, new[] { "_NormalMap", "_BumpMap", "_Normal" }, new[] { "_NormalMap", "_BumpMap" });
+            CopyTexture(source, target, new[] { "_MaskMap", "_MetallicGlossMap", "_MetallicMap", "_OcclusionMap" }, new[] { "_MaskMap", "_MetallicGlossMap", "_OcclusionMap" });
+            CopyTexture(source, target, new[] { "_EmissionMap" }, new[] { "_EmissionMap" });
+        }
+
+        private static void CopyTexture(Material source, Material target, string[] sourceProps, string[] targetProps)
+        {
+            Texture texture = null;
+            Vector2 scale = Vector2.one;
+            Vector2 offset = Vector2.zero;
+            foreach (string prop in sourceProps)
+            {
+                if (!source.HasProperty(prop)) continue;
+                texture = source.GetTexture(prop);
+                if (texture == null) continue;
+                scale = source.GetTextureScale(prop);
+                offset = source.GetTextureOffset(prop);
+                break;
+            }
+            if (texture == null) return;
+            foreach (string prop in targetProps)
+            {
+                if (!target.HasProperty(prop)) continue;
+                target.SetTexture(prop, texture);
+                target.SetTextureScale(prop, scale);
+                target.SetTextureOffset(prop, offset);
+            }
+        }
+
+        private static bool LooksLikeNormalMap(string path)
+        {
+            string n = Normalize(Path.GetFileNameWithoutExtension(path));
+            return n.EndsWith(" n") || n.Contains(" normal") || n.Contains(" normalmap") || n.Contains(" norm") || n.Contains(" bump");
+        }
+
+        private static bool LooksLikeLinearMap(string path)
+        {
+            string n = Normalize(Path.GetFileNameWithoutExtension(path));
+            return n.EndsWith(" r") || n.EndsWith(" m") || n.Contains(" rough") || n.Contains(" roughness")
+                || n.Contains(" metallic") || n.Contains(" metalness") || n.Contains(" mask")
+                || n.Contains(" occlusion") || n.Contains(" ambientocclusion") || n.Contains(" ao")
+                || n.Contains(" height") || n.Contains(" displacement");
         }
 
         private static GameObject BuildTerrain(float size, Transform parent, Material material, System.Random rng)

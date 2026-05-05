@@ -40,9 +40,10 @@ namespace UnityTools.Bridge
             }
         }
 
-        public static void Start(int port = DefaultPort)
+        public static void Start(int port = -1)
         {
             if (IsRunning) return;
+            if (port <= 0) port = ResolveDefaultPort();
             Port = port;
             try
             {
@@ -60,6 +61,32 @@ namespace UnityTools.Bridge
                 Debug.LogWarning($"[UnityTools] BridgeServer could not start: {e.Message}");
                 IsRunning = false;
             }
+        }
+
+        private static int ResolveDefaultPort()
+        {
+            string envPort = Environment.GetEnvironmentVariable("UNITY_BRIDGE_PORT");
+            if (int.TryParse(envPort, out int fromEnv) && fromEnv > 0) return fromEnv;
+
+            try
+            {
+                string projectRoot = Directory.GetParent(Application.dataPath)?.FullName ?? "";
+                string envPath = Path.Combine(projectRoot, ".env");
+                if (File.Exists(envPath))
+                {
+                    foreach (string raw in File.ReadAllLines(envPath))
+                    {
+                        string line = raw.Trim();
+                        if (line.StartsWith("#") || !line.StartsWith("UNITY_BRIDGE_PORT=", StringComparison.Ordinal))
+                            continue;
+                        string value = line.Substring("UNITY_BRIDGE_PORT=".Length).Trim();
+                        if (int.TryParse(value, out int fromFile) && fromFile > 0) return fromFile;
+                    }
+                }
+            }
+            catch { }
+
+            return DefaultPort;
         }
 
         public static void Stop()

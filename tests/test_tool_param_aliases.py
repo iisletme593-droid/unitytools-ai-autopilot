@@ -36,6 +36,19 @@ def run_test():
         "category": "ground",
     }
 
+    repair_spec = get_tool("unity_repair_material_issues")
+    assert repair_spec is not None
+    normalized = orch._normalize_tool_params(
+        "unity_repair_material_issues",
+        {"object": "trees", "color_palette": "forest", "recolor": True, "repair_all": True},
+        repair_spec.fn,
+    )
+    assert normalized["query"] == "trees"
+    assert normalized["category"] == "tree"
+    assert normalized["palette"] == "forest"
+    assert normalized["tint"] is True
+    assert normalized["include_unsupported"] is True
+
     print("OK tool argument aliases")
 
 

@@ -79,6 +79,68 @@ def unity_apply_material_palette(query: str = "", category: str = "", palette: s
         return {"ok": False, "error": str(e)}
 
 
+@tool(description="Diagnose pink/magenta/missing-shader material issues in the active scene, grouped by semantic query/category. Use before material repair.")
+def unity_diagnose_material_issues(query: str = "", category: str = "", max: int = 2000) -> dict:
+    ok, error = _ensure_unity()
+    if not ok:
+        return {"ok": False, "error": error}
+    try:
+        result = _UNITY.call(
+            "diagnose_material_issues",
+            {"query": query, "category": category, "max": max},
+            timeout=90,
+        )
+        return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Repair pink/magenta/missing-shader materials while preserving textures. Set tint=true only when user asks to recolor; include_unsupported=true to convert non-pipeline shaders.")
+def unity_repair_material_issues(
+    query: str = "",
+    category: str = "",
+    tint: bool = False,
+    palette: str = "forest",
+    include_unsupported: bool = False,
+    max: int = 2000,
+) -> dict:
+    ok, error = _ensure_unity()
+    if not ok:
+        return {"ok": False, "error": error}
+    try:
+        result = _UNITY.call(
+            "repair_material_issues",
+            {
+                "query": query,
+                "category": category,
+                "tint": tint,
+                "palette": palette,
+                "include_unsupported": include_unsupported,
+                "max": max,
+            },
+            timeout=180,
+        )
+        return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Repair texture import settings for shifted/broken-looking textures: normal maps, sRGB/linear flags, mipmaps, compression, and max texture size.")
+def unity_repair_texture_import_settings(query: str = "t:Texture2D", max: int = 500) -> dict:
+    ok, error = _ensure_unity()
+    if not ok:
+        return {"ok": False, "error": error}
+    try:
+        result = _UNITY.call(
+            "repair_texture_import_settings",
+            {"query": query, "max": max},
+            timeout=240,
+        )
+        return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @tool(description="Create a complete optimized forest scene in one Unity call: terrain, 80-120 mixed pine/dead trees, rocks, fog, light, camera, names, and materials. Prefer this for large forest prompts to avoid timeouts.")
 def unity_create_optimized_forest_scene(
     tree_count: int = 100,

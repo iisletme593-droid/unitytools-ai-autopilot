@@ -54,6 +54,8 @@ uretken ol.
   kategori/folder olarak gruplama ve en iyi asset'i sahneye yerlestirme
 - Scene intelligence: sahnedeki objeleri tag'e guvenmeden isim, hierarchy, material,
   component ve kategori uzerinden kataloglama/bulma/silme/renklendirme
+- Material/texture repair: pink/magenta shader hatalarini diagnose/repair etme,
+  HDRP/URP/Built-in uyumlu shader'a donustururken texture/normal map baglarini koruma
 
 === UNITY BILGISI ===
 Primitive tipler: Cube, Sphere, Cylinder, Capsule, Plane, Quad
@@ -101,6 +103,11 @@ Layer'lar: 0=Default, 1=TransparentFX, 2=IgnoreRaycast, 4=Water, 5=UI, 8-31=Cust
 16b. Kullanici palette belirtmeden "agaclari boya/renklendir" derse geri soru sorma;
      varsayilan olarak category="tree", palette="forest" kullan. "taslari boya" icin
      category="rock", palette="rocks"; "zemini boya" icin category="ground", palette="ground".
+16c. Kullanici "pembe oldu", "pink/magenta", "material bozuk", "texture kaydi/bozuldu",
+     "kendi goruntusunu vermiyor" derse once unity_diagnose_material_issues kullan.
+     Sonra unity_repair_material_issues ile shader/material tamir et. Kullanici renklendirme
+     istemediyse tint=false kullan; texture'lari koru. Texture import sorunu varsa
+     unity_repair_texture_import_settings kullan.
 17. Buyuk isteklerde (80-120 agac, terrain, sis, kamera, isik) tek tek obje/tool cagirma.
     unity_create_optimized_forest_scene gibi bulk/high-level tool kullan; timeout ve kasmayi
     onlemek icin once/sonra unity_optimize_editor_performance uygula.
@@ -428,7 +435,9 @@ class Orchestrator:
             "unity", "sahne", "scene", "asset", "prefab", "obje", "object",
             "agac", "ağaç", "tree", "rock", "kaya", "ground", "zemin",
             "terrain", "forest", "orman", "material", "renk", "color",
-            "palette", "boya", "delete", "sil", "kaldir", "kaldır",
+            "palette", "boya", "pink", "pembe", "magenta", "shader",
+            "texture", "resim", "kayma", "bozuk", "repair", "fix", "onar",
+            "delete", "sil", "kaldir", "kaldır",
             "create", "olustur", "oluştur", "yerlestir", "yerleştir",
             "light", "isik", "ışık", "camera", "kamera", "fog", "sis",
             "blender", "fbx", "export", "import",
@@ -477,6 +486,15 @@ class Orchestrator:
             )
         if any(word in text for word in ("renk", "color", "palette", "material", "boya", "dark", "forest", "ground", "zemin", "rock", "kaya", "tree", "agac", "ağaç")):
             selected.update({"unity_apply_material_palette", "unity_set_material_color"})
+        if any(word in text for word in ("pink", "pembe", "magenta", "shader", "material", "texture", "resim", "kayma", "bozuk", "repair", "fix", "onar")):
+            selected.update(
+                {
+                    "unity_diagnose_material_issues",
+                    "unity_repair_material_issues",
+                    "unity_repair_texture_import_settings",
+                    "unity_apply_material_palette",
+                }
+            )
         if any(word in text for word in ("delete", "sil", "kaldir", "kaldır", "remove", "clear", "temizle")):
             selected.update({"unity_delete_scene_objects_semantic", "unity_delete_object"})
         if any(word in text for word in ("list", "liste", "show", "goster", "göster", "find", "bul", "count", "say")):
@@ -562,6 +580,45 @@ class Orchestrator:
                 "count": "max",
                 "max_results": "max",
             },
+            "unity_repair_material_issues": {
+                "object": "query",
+                "objects": "query",
+                "target": "query",
+                "name": "query",
+                "object_type": "category",
+                "target_category": "category",
+                "type": "category",
+                "color_palette": "palette",
+                "palette_name": "palette",
+                "colors": "palette",
+                "recolor": "tint",
+                "paint": "tint",
+                "convert_all": "include_unsupported",
+                "repair_all": "include_unsupported",
+                "limit": "max",
+                "count": "max",
+                "max_results": "max",
+            },
+            "unity_diagnose_material_issues": {
+                "object": "query",
+                "objects": "query",
+                "target": "query",
+                "name": "query",
+                "object_type": "category",
+                "target_category": "category",
+                "type": "category",
+                "limit": "max",
+                "count": "max",
+                "max_results": "max",
+            },
+            "unity_repair_texture_import_settings": {
+                "target": "query",
+                "name": "query",
+                "texture_query": "query",
+                "limit": "max",
+                "count": "max",
+                "max_results": "max",
+            },
         }
         for source, target in aliases.get(name, {}).items():
             if source in normalized and target not in normalized:
@@ -571,6 +628,8 @@ class Orchestrator:
             "unity_apply_material_palette",
             "unity_find_scene_objects_semantic",
             "unity_delete_scene_objects_semantic",
+            "unity_diagnose_material_issues",
+            "unity_repair_material_issues",
         }:
             category = str(normalized.get("category") or "").lower()
             query = str(normalized.get("query") or "").lower()
