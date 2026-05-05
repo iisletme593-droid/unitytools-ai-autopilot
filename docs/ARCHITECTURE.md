@@ -1,6 +1,8 @@
-# Architecture
+﻿# Architecture
 
 UnityTools AI has three local runtime layers.
+
+UnityTools AI uc lokal runtime katmanindan olusur.
 
 ```text
 Unity Editor panel
@@ -52,9 +54,13 @@ Unity Editor API calls must run on the main thread. The bridge accepts TCP reque
 
 Ollama is the default because it is local and free. Anthropic remains available for stronger reasoning.
 
+Ollama varsayilandir cunku lokal ve ucretsiz calisir. Daha guclu muhakeme isteyenler icin Anthropic destegi opsiyonel olarak korunur.
+
+Recommended local model / Onerilen lokal model: `qwen2.5:14b-instruct`.
+
 ```env
 UNITYTOOLS_PROVIDER=ollama
-OLLAMA_MODEL=qwen3:4b
+OLLAMA_MODEL=qwen2.5:14b-instruct
 ```
 
 or:
@@ -64,3 +70,4 @@ UNITYTOOLS_PROVIDER=anthropic
 ANTHROPIC_API_KEY=<your key>
 UNITYTOOLS_MODEL=claude-sonnet-4-20250514
 ```
+

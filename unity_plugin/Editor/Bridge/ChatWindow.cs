@@ -68,7 +68,7 @@ namespace UnityTools.Bridge
             _serverHost = EditorPrefs.GetString(PrefHostKey, "127.0.0.1");
             _serverPort = EditorPrefs.GetInt(PrefPortKey, 7778);
             _autoConnectEnabled = EditorPrefs.GetBool(PrefAutoConnectKey, true);
-            _providerLabel = ReadEnvValue("UNITYTOOLS_PROVIDER", "ollama") + " / " + ReadEnvValue("OLLAMA_MODEL", "qwen3:4b");
+            _providerLabel = ReadEnvValue("UNITYTOOLS_PROVIDER", "ollama") + " / " + ReadEnvValue("OLLAMA_MODEL", "qwen2.5:14b-instruct");
             EditorApplication.update += OnEditorUpdate;
             AddSystemMessage("UnityTools AI is ready. The embedded core starts automatically.");
             _nextConnectAttempt = EditorApplication.timeSinceStartup + 0.25f;

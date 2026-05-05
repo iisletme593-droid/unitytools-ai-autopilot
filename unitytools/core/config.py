@@ -19,7 +19,7 @@ class Config:
     model: str = "claude-sonnet-4-20250514"
     provider: str = "ollama"  # "anthropic" | "ollama"
     ollama_host: str = "http://127.0.0.1:11434"
-    ollama_model: str = "qwen3:4b"
+    ollama_model: str = "qwen2.5:14b-instruct"
 
     # Üretim parametreleri
     max_tokens: int = 8192
@@ -56,7 +56,7 @@ class Config:
             model=os.getenv("UNITYTOOLS_MODEL", "claude-sonnet-4-20250514"),
             provider=os.getenv("UNITYTOOLS_PROVIDER", "ollama").lower(),
             ollama_host=os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434"),
-            ollama_model=os.getenv("OLLAMA_MODEL", "qwen3:4b"),
+            ollama_model=os.getenv("OLLAMA_MODEL", "qwen2.5:14b-instruct"),
             max_tokens=_int_env("UNITYTOOLS_MAX_TOKENS", 8192),
             history_turn_limit=_int_env("UNITYTOOLS_HISTORY_LIMIT", 40),
             unity_bridge_port=_int_env("UNITY_BRIDGE_PORT", 7777),
@@ -90,7 +90,7 @@ class Config:
             problems.append("OLLAMA_MODEL bos olamaz.")
         if self.provider == "ollama":
             # Bilinen küçük modeller için uyarı
-            risky = ("qwen3:1b", "qwen3:4b", "llama3.2:1b", "llama3.2:3b", "phi3:mini")
+            risky = ("qwen3:1b", "llama3.2:1b", "llama3.2:3b", "phi3:mini")
             if any(self.ollama_model.startswith(r) for r in risky):
                 problems.append(
                     f"OLLAMA_MODEL='{self.ollama_model}' tool calling icin guvenilir degildir. "

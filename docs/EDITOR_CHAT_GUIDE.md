@@ -2,6 +2,8 @@
 
 UnityTools AI is designed to feel like a native Unity Editor tool.
 
+UnityTools AI, Unity Editor'in kendi araci gibi hissettirecek sekilde tasarlanmistir.
+
 Open it from:
 
 ```text
@@ -17,6 +19,8 @@ Tools > UnityTools > Open AI Autopilot
 ## How It Works
 
 The Editor panel starts the Python chat core silently in the background. You do not need to open a terminal for normal chat usage.
+
+Editor paneli Python chat core'u arka planda sessizce baslatir. Normal chat kullanimi icin terminal acman gerekmez.
 
 Flow:
 
@@ -40,23 +44,31 @@ UnityTools AI panel
 
 ## Recommended Local Provider
 
+## Onerilen Lokal Provider
+
 ```env
 UNITYTOOLS_PROVIDER=ollama
 OLLAMA_HOST=http://127.0.0.1:11434
-OLLAMA_MODEL=qwen3:4b
+OLLAMA_MODEL=qwen2.5:14b-instruct
 ```
 
-Install the model:
+Install the model / Modeli indir:
 
 ```powershell
-ollama pull qwen3:4b
+ollama pull qwen2.5:14b-instruct
 ```
 
 ## Example Prompts
 
+## Ornek Promptlar
+
 ```text
 List the active scene objects.
+Aktif sahnedeki objeleri listele.
 Create 5 cubes along the X axis.
+X ekseninde 5 kup olustur.
+real relis realist tree assetlerini bul, sahneye koyma, sadece en iyi 5 tanesini listele.
+Gercek tree assetlerinden kucuk bir orman yap.
 Move Player_Start to x=0 y=1 z=0.
 Export Assets/Source/Barbar.blend as an FBX and import it under Models.
 ```
@@ -79,6 +91,7 @@ If Ollama is offline:
 
 ```powershell
 ollama serve
-ollama pull qwen3:4b
+ollama pull qwen2.5:14b-instruct
 unitytools doctor
 ```
+
