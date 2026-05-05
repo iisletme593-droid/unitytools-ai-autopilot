@@ -1,0 +1,16 @@
+﻿name: Feature request
+description: Suggest a new tool, workflow, or improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea
+      description: What should UnityTools AI do next?
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow
+      description: Describe the Unity or Blender workflow this would improve.

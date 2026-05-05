@@ -1,0 +1,27 @@
+﻿name: Bug report
+description: Report a problem with UnityTools AI
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste Unity Console, embedded core log, or unitytools doctor output.
+      render: text
+  - type: input
+    id: unity-version
+    attributes:
+      label: Unity version
+      placeholder: 6000.4.5f1
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and model
+      placeholder: ollama / qwen3:4b
