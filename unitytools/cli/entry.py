@@ -4,7 +4,9 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import shutil
+import subprocess
 import sys
 import urllib.request
 from pathlib import Path
@@ -96,6 +98,36 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         f"  Blender run:  {'[green][OK] available[/green]' if blender.is_available() else '[red][ERR] unavailable[/red]'}"
     )
     return 0
+
+
+def cmd_cleanup_processes(args: argparse.Namespace) -> int:
+    """Stop stale embedded chat-server processes left after Unity quits."""
+    if os.name != "nt":
+        console.print("[yellow]cleanup-processes is currently Windows-only.[/yellow]")
+        return 0
+    ps = r"""
+$items = Get-CimInstance Win32_Process |
+  Where-Object { ($_.Name -in @('unitytools.exe','python.exe')) -and ($_.CommandLine -match 'unitytools(\.exe)?"? chat-server|-m unitytools\.cli\.entry chat-server') }
+foreach ($item in $items) {
+  try {
+    Stop-Process -Id $item.ProcessId -Force -ErrorAction Stop
+    Write-Output "stopped $($item.ProcessId) $($item.Name)"
+  } catch {
+    Write-Output "already stopped $($item.ProcessId) $($item.Name)"
+  }
+}
+"""
+    proc = subprocess.run(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
+        capture_output=True,
+        text=True,
+    )
+    output = (proc.stdout or "").strip()
+    if output:
+        console.print(output)
+    else:
+        console.print("[green][OK] No stale UnityTools chat-server processes found.[/green]")
+    return 0 if proc.returncode == 0 else proc.returncode
 
 
 def cmd_install_unity_plugin(args: argparse.Namespace) -> int:
@@ -222,6 +254,18 @@ def cmd_chat(args: argparse.Namespace) -> int:
     return run_chat(config, blender, unity)
 
 
+def cmd_dual_chat(args: argparse.Namespace) -> int:
+    config, blender, unity = _bootstrap()
+    # Dual-agent only works with Ollama
+    if config.provider != "ollama":
+        console.print("[red]Dual-agent mode requires UNITYTOOLS_PROVIDER=ollama[/red]")
+        return 1
+    from .dual_chat import run_dual_chat
+    master = args.master or "qwen2.5:14b-instruct"
+    worker = args.worker or "qwen2.5:14b-instruct"
+    return run_dual_chat(config, master, worker)
+
+
 def cmd_blender_export(args: argparse.Namespace) -> int:
     from pathlib import Path as _Path
     config, blender, unity = _bootstrap()
@@ -259,13 +303,56 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
     config, blender, unity = _bootstrap()
     problems = config.validate()
     api_problems = [p for p in problems if "ANTHROPIC_API_KEY" in p]
-    if api_problems:
+    if api_problems and config.provider == "anthropic":
         console.print(f"[red]{api_problems[0]}[/red]")
         return 1
+    
+    # Check if dual-agent mode is enabled
+    force_single = getattr(args, 'no_dual_agent', False)
+    use_dual = False if force_single else getattr(args, 'use_dual_agent', False)
+    master_model = getattr(args, 'master', "qwen2.5:14b-instruct")
+    worker_model = getattr(args, 'worker', "qwen2.5:14b-instruct")
+    enable_memory = getattr(args, 'enable_memory', True)
+    enable_context = getattr(args, 'enable_context', True)
+    
+    # Auto-detect from environment
+    if not use_dual and not force_single:
+        import os
+        use_dual_env = os.getenv("USE_DUAL_AGENT", "").lower()
+        use_dual = use_dual_env in ("true", "1", "yes")
+        if use_dual:
+            master_model = os.getenv("DUAL_AGENT_MASTER", master_model)
+            worker_model = os.getenv("DUAL_AGENT_WORKER", worker_model)
+    
     from ..core.chat_server import ChatServer
-    server = ChatServer(config, host=args.host, port=args.port)
-    console.print(f"[cyan]Starting chat server: {args.host}:{args.port}[/cyan]")
+    server = ChatServer(
+        config,
+        host=args.host,
+        port=args.port,
+        use_dual_agent=use_dual,
+        master_model=master_model,
+        worker_model=worker_model,
+        enable_memory=enable_memory,
+        enable_context=enable_context,
+    )
+    
+    mode_label = f"dual-agent (Master: {master_model}, Worker: {worker_model})" if use_dual else "single-agent"
+    if use_dual and (enable_memory or enable_context):
+        features = []
+        if enable_memory:
+            features.append("Memory")
+        if enable_context:
+            features.append("Context")
+        mode_label += f" + {', '.join(features)}"
+    
+    console.print(f"[cyan]Starting chat server: {args.host}:{args.port} ({mode_label})[/cyan]")
     console.print("[dim]In Unity: Tools > UnityTools > Open Chat, then Connect.[/dim]")
+    if use_dual:
+        console.print("[yellow]Dual-agent mode: Master plans, Worker executes. Use it for complex tasks; single-agent is faster for simple edits.[/yellow]")
+        if enable_memory:
+            console.print("[green]Memory enabled: Learning from experiences[/green]")
+        if enable_context:
+            console.print("[green]Context enabled: Scene-aware planning[/green]")
     console.print("[dim]Press Ctrl+C to stop.[/dim]")
     try:
         server.start_blocking()
@@ -280,7 +367,11 @@ def main() -> int:
     sub = parser.add_subparsers(dest="cmd")
     sub.add_parser("status", help="Show bridge and config status")
     sub.add_parser("doctor", help="Run local provider, Unity, and Blender diagnostics")
+    sub.add_parser("cleanup-processes", help="Stop stale embedded UnityTools chat-server processes")
     sub.add_parser("chat", help="Start the terminal chat REPL")
+    p_dual = sub.add_parser("dual-chat", help="Start dual-agent chat (Qwen 2.5 Master + Qwen 2.5 Worker by default)")
+    p_dual.add_argument("--master", default="qwen2.5:14b-instruct", help="Master model for planning (default: qwen2.5:14b-instruct)")
+    p_dual.add_argument("--worker", default="qwen2.5:14b-instruct", help="Worker model for execution (default: qwen2.5:14b-instruct)")
     sub.add_parser("unity-ping", help="Test the Unity Editor bridge")
     p_install = sub.add_parser("install-unity-plugin", help="Copy the Unity Editor panel, bridge, and Autopilot scripts into a Unity project")
     p_install.add_argument("--project", required=True, help="Path to the Unity project root")
@@ -292,11 +383,21 @@ def main() -> int:
     p_chat_srv = sub.add_parser("chat-server", help="Start the TCP chat server for the Editor window")
     p_chat_srv.add_argument("--host", default="127.0.0.1")
     p_chat_srv.add_argument("--port", type=int, default=7778)
+    p_chat_srv.add_argument("--use-dual-agent", action="store_true", help="Enable dual-agent mode")
+    p_chat_srv.add_argument("--no-dual-agent", action="store_true", help="Force fast single-agent mode even if USE_DUAL_AGENT=true")
+    p_chat_srv.add_argument("--master", default="qwen2.5:14b-instruct", help="Master model (dual-agent only)")
+    p_chat_srv.add_argument("--worker", default="qwen2.5:14b-instruct", help="Worker model (dual-agent only)")
+    p_chat_srv.add_argument("--enable-memory", action="store_true", default=True, help="Enable memory system (default: true)")
+    p_chat_srv.add_argument("--enable-context", action="store_true", default=True, help="Enable context management (default: true)")
+    p_chat_srv.add_argument("--no-memory", dest="enable_memory", action="store_false", help="Disable memory system")
+    p_chat_srv.add_argument("--no-context", dest="enable_context", action="store_false", help="Disable context management")
     args = parser.parse_args()
     handlers = {
         "status": cmd_status,
         "doctor": cmd_doctor,
+        "cleanup-processes": cmd_cleanup_processes,
         "chat": cmd_chat,
+        "dual-chat": cmd_dual_chat,
         "unity-ping": cmd_unity_ping,
         "install-unity-plugin": cmd_install_unity_plugin,
         "blender-export": cmd_blender_export,

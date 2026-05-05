@@ -23,7 +23,7 @@ from typing import Any, Callable, Optional
 from anthropic import Anthropic
 
 from .config import Config
-from .tool_registry import get_tool, to_anthropic_format, to_openai_tool_format
+from .tool_registry import get_all_tools, get_tool, to_anthropic_format
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,8 @@ uretken ol.
 - Obje detaylari, component bilgisi, tag ile arama, asset arama
 - Semantic asset catalogue: realistic/misspelled isteklerde proje asset'lerini bulma,
   kategori/folder olarak gruplama ve en iyi asset'i sahneye yerlestirme
+- Scene intelligence: sahnedeki objeleri tag'e guvenmeden isim, hierarchy, material,
+  component ve kategori uzerinden kataloglama/bulma/silme/renklendirme
 
 === UNITY BILGISI ===
 Primitive tipler: Cube, Sphere, Cylinder, Capsule, Plane, Quad
@@ -91,6 +93,15 @@ Layer'lar: 0=Default, 1=TransparentFX, 2=IgnoreRaycast, 4=Water, 5=UI, 8-31=Cust
     tool'u cagirmazsin. Sadece arama/gruplama tool'u kullan ve sonucu listele.
 15. Yapmadigin islemi yapmis gibi soyleme. Sadece instantiate/scatter/create tool'u basarili
     donduyse "sahneye yerlestirdim" de. Arama tool'u calistiysa "buldum/listeledim" de.
+16. Kullanici "agaclari sil", "taslari boya", "zemini renklendir", "koy/camp/fire bul" gibi
+    sahne objesi istegi yaparsa tag arama kullanma. Once unity_get_scene_catalog veya
+    unity_find_scene_objects_semantic kullan. Sonra unity_delete_scene_objects_semantic,
+    unity_apply_material_palette gibi semantic tool'larla uygula.
+17. Buyuk isteklerde (80-120 agac, terrain, sis, kamera, isik) tek tek obje/tool cagirma.
+    unity_create_optimized_forest_scene gibi bulk/high-level tool kullan; timeout ve kasmayi
+    onlemek icin once/sonra unity_optimize_editor_performance uygula.
+18. Sahne bilgisi yetersizse unity_export_scene_knowledge_base ile AutopilotData altina
+    scene_knowledge dosyasi olustur; sonraki aramalarda bu katalog mantigini kullan.
 
 === ONEMLI ===
 - Sen bir OBSERVER degil, bir ACTOR'sun. Unity Editor'de degisiklik yapma yetkin var.
@@ -168,7 +179,7 @@ class Orchestrator:
 
         self.history.append(ChatMessage(role="user", content=user_message))
         tools = to_anthropic_format()
-        if not tools:
+        if not get_all_tools():
             logger.warning("Tool registry bos - LLM tool cagiramayacak.")
 
         final_text = ""
@@ -276,7 +287,7 @@ class Orchestrator:
 
         final_text = ""
         tool_calls_log: list[dict[str, Any]] = []
-        tools = to_openai_tool_format()
+        tools = self._select_ollama_tools(user_message)
         if not tools:
             logger.warning("Tool registry bos - LLM tool cagiramayacak.")
 
@@ -400,6 +411,90 @@ class Orchestrator:
                 f"Ollama'ya baglanilamadi: {exc}. Ollama kurulu ve calisir durumda mi? "
                 f"Beklenen adres: {host}"
             ) from exc
+
+    def _select_ollama_tools(self, user_message: str) -> list[dict[str, Any]]:
+        """Send Ollama only the tools that are relevant to the current request.
+
+        Local models slow down dramatically when every function schema is sent
+        on every turn. A small intent-based subset keeps chat responsive while
+        still giving Unity requests the right capabilities.
+        """
+        text = (user_message or "").lower()
+        action_words = (
+            "unity", "sahne", "scene", "asset", "prefab", "obje", "object",
+            "agac", "ağaç", "tree", "rock", "kaya", "ground", "zemin",
+            "terrain", "forest", "orman", "material", "renk", "color",
+            "palette", "boya", "delete", "sil", "kaldir", "kaldır",
+            "create", "olustur", "oluştur", "yerlestir", "yerleştir",
+            "light", "isik", "ışık", "camera", "kamera", "fog", "sis",
+            "blender", "fbx", "export", "import",
+        )
+        if not any(word in text for word in action_words):
+            return []
+
+        selected: set[str] = {
+            "unity_ping",
+            "unity_get_scene_catalog",
+            "unity_find_scene_objects_semantic",
+            "unity_export_scene_knowledge_base",
+            "unity_optimize_editor_performance",
+            "unity_save_scene",
+        }
+        if any(word in text for word in ("asset", "prefab", "real", "realistic", "relis", "tree", "agac", "ağaç", "rock", "kaya", "prop", "character", "weapon", "material", "texture")):
+            selected.update(
+                {
+                    "unity_search_assets_semantic",
+                    "unity_find_tree_assets",
+                    "unity_find_rock_assets",
+                    "unity_find_prop_assets",
+                    "unity_find_character_assets",
+                    "unity_find_weapon_assets",
+                    "unity_find_material_assets",
+                    "unity_get_asset_catalog_summary",
+                    "unity_instantiate_best_asset",
+                    "unity_scatter_best_assets",
+                    "unity_create_forest_from_assets",
+                    "unity_create_rock_field_from_assets",
+                }
+            )
+        if any(word in text for word in ("forest", "orman", "terrain", "zemin", "ground", "tree", "agac", "ağaç", "rock", "kaya", "fog", "sis")):
+            selected.update(
+                {
+                    "unity_create_optimized_forest_scene",
+                    "unity_apply_material_palette",
+                    "unity_create_primitive",
+                    "unity_create_light",
+                    "unity_set_camera",
+                    "unity_create_empty",
+                    "unity_set_parent",
+                    "unity_set_position",
+                    "unity_set_scale",
+                }
+            )
+        if any(word in text for word in ("renk", "color", "palette", "material", "boya", "dark", "forest", "ground", "zemin", "rock", "kaya", "tree", "agac", "ağaç")):
+            selected.update({"unity_apply_material_palette", "unity_set_material_color"})
+        if any(word in text for word in ("delete", "sil", "kaldir", "kaldır", "remove", "clear", "temizle")):
+            selected.update({"unity_delete_scene_objects_semantic", "unity_delete_object"})
+        if any(word in text for word in ("list", "liste", "show", "goster", "göster", "find", "bul", "count", "say")):
+            selected.update({"unity_list_scene_objects", "unity_find_scene_objects", "unity_find_scene_objects_semantic"})
+        if any(word in text for word in ("cube", "kup", "küp", "sphere", "primitive", "plane", "quad", "capsule", "cylinder")):
+            selected.update({"unity_create_primitive", "unity_set_position", "unity_set_scale", "unity_set_material_color"})
+        if any(word in text for word in ("blender", "fbx", "blend", "export", "import")):
+            selected.update({"blender_export_fbx", "blender_list_objects", "pipeline_blend_to_unity", "unity_import_asset"})
+
+        by_name = {tool.name: tool for tool in get_all_tools()}
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": by_name[name].description,
+                    "parameters": by_name[name].input_schema,
+                },
+            }
+            for name in sorted(selected)
+            if name in by_name
+        ]
 
     # ------------------------------------------------------------- helpers
 

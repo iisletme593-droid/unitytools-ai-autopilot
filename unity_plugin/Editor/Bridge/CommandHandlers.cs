@@ -7,6 +7,7 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 namespace UnityTools.Bridge
 {
@@ -49,6 +50,12 @@ namespace UnityTools.Bridge
                 case "find_assets": return FindAssets(p);
                 case "list_prefabs": return ListPrefabs(p);
                 case "get_editor_state": return GetEditorState();
+                case "get_scene_catalog": return GetSceneCatalog(p);
+                case "find_scene_objects_semantic": return FindSceneObjectsSemantic(p);
+                case "delete_scene_objects_semantic": return DeleteSceneObjectsSemantic(p);
+                case "apply_material_palette": return ApplyMaterialPalette(p);
+                case "create_optimized_forest_scene": return CreateOptimizedForestScene(p);
+                case "optimize_editor_performance": return OptimizeEditorPerformance(p);
                 default: throw new InvalidOperationException($"Unknown method: {method}");
             }
         }
@@ -682,6 +689,517 @@ namespace UnityTools.Bridge
                 list.Add(new { name = go.name, instance_id = go.GetHashCode() });
             }
             return new { tag = tag, count = list.Count, objects = list };
+        }
+
+        private static object GetSceneCatalog(JObject p)
+        {
+            int max = Mathf.Clamp(p["max_results"]?.ToObject<int>() ?? 1000, 1, 10000);
+            var all = UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include);
+            var rows = new List<object>();
+            var groups = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var go in all.Take(max))
+            {
+                if (!go.scene.IsValid()) continue;
+                string category = GuessCategory(go);
+                groups[category] = groups.TryGetValue(category, out int n) ? n + 1 : 1;
+                var renderers = go.GetComponentsInChildren<Renderer>(true);
+                rows.Add(new
+                {
+                    name = go.name,
+                    path = GetHierarchyPath(go.transform),
+                    category,
+                    active = go.activeSelf,
+                    tag = go.tag,
+                    layer = LayerMask.LayerToName(go.layer),
+                    position = new { x = go.transform.position.x, y = go.transform.position.y, z = go.transform.position.z },
+                    renderer_count = renderers.Length,
+                    materials = renderers.SelectMany(r => r.sharedMaterials)
+                        .Where(m => m != null)
+                        .Select(m => m.name)
+                        .Distinct()
+                        .Take(8)
+                        .ToArray(),
+                    components = go.GetComponents<Component>().Where(c => c != null).Select(c => c.GetType().Name).Take(12).ToArray()
+                });
+            }
+            return new
+            {
+                ok = true,
+                scene = SceneManager.GetActiveScene().name,
+                total_objects = all.Length,
+                returned = rows.Count,
+                groups = groups.OrderByDescending(kv => kv.Value).ToDictionary(kv => kv.Key, kv => kv.Value),
+                objects = rows
+            };
+        }
+
+        private static object FindSceneObjectsSemantic(JObject p)
+        {
+            string query = p["query"]?.ToString() ?? "";
+            string category = p["category"]?.ToString() ?? "";
+            int max = Mathf.Clamp(p["max_results"]?.ToObject<int>() ?? 100, 1, 2000);
+            var matches = FindSemanticObjects(query, category).Take(max).ToList();
+            return new
+            {
+                ok = true,
+                query,
+                category,
+                count = matches.Count,
+                objects = matches.Select(go => new
+                {
+                    name = go.name,
+                    path = GetHierarchyPath(go.transform),
+                    category = GuessCategory(go),
+                    position = new { x = go.transform.position.x, y = go.transform.position.y, z = go.transform.position.z },
+                    renderer_count = go.GetComponentsInChildren<Renderer>(true).Length
+                }).ToArray()
+            };
+        }
+
+        private static object DeleteSceneObjectsSemantic(JObject p)
+        {
+            string query = p["query"]?.ToString() ?? "";
+            string category = p["category"]?.ToString() ?? "";
+            int max = Mathf.Clamp(p["max"]?.ToObject<int>() ?? 500, 1, 5000);
+            var matches = FindSemanticObjects(query, category)
+                .Where(go => go != null)
+                .Take(max)
+                .ToList();
+            matches = matches
+                .Where(go => !matches.Any(other => other != go && go.transform.IsChildOf(other.transform)))
+                .ToList();
+            var deleted = new List<string>();
+            foreach (var go in matches)
+            {
+                if (go == null) continue;
+                deleted.Add(go.name);
+                Undo.DestroyObjectImmediate(go);
+            }
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new { ok = true, query, category, deleted_count = deleted.Count, deleted };
+        }
+
+        private static object ApplyMaterialPalette(JObject p)
+        {
+            string query = p["query"]?.ToString() ?? "";
+            string category = p["category"]?.ToString() ?? "";
+            string palette = p["palette"]?.ToString() ?? "forest";
+            int max = Mathf.Clamp(p["max"]?.ToObject<int>() ?? 2000, 1, 10000);
+            var colors = PaletteColors(palette);
+            var targets = string.IsNullOrWhiteSpace(query) && string.IsNullOrWhiteSpace(category)
+                ? UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include).AsEnumerable()
+                : FindSemanticObjects(query, category);
+            int changed = 0;
+            foreach (var go in targets.Take(max))
+            {
+                string cat = GuessCategory(go);
+                Color color = colors.TryGetValue(cat, out var c) ? c : colors["default"];
+                foreach (var renderer in go.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (renderer == null) continue;
+                    var shader = Shader.Find("Standard") ?? renderer.sharedMaterial?.shader ?? Shader.Find("Universal Render Pipeline/Lit");
+                    var mat = new Material(shader);
+                    mat.name = $"UnityTools_{palette}_{cat}";
+                    mat.color = color;
+                    mat.SetFloat("_Glossiness", cat == "water" ? 0.65f : 0.15f);
+                    renderer.sharedMaterial = mat;
+                    changed++;
+                }
+            }
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new { ok = true, query, category, palette, changed_renderers = changed };
+        }
+
+        private static object CreateOptimizedForestScene(JObject p)
+        {
+            bool clear = p["clear_scene"]?.ToObject<bool>() ?? true;
+            int treeCount = Mathf.Clamp(p["tree_count"]?.ToObject<int>() ?? 100, 1, 300);
+            int rockCount = Mathf.Clamp(p["rock_count"]?.ToObject<int>() ?? 18, 0, 120);
+            float size = Mathf.Clamp(p["terrain_size"]?.ToObject<float>() ?? 120f, 20f, 500f);
+            int seed = p["seed"]?.ToObject<int>() ?? 12345;
+            var rng = new System.Random(seed);
+
+            if (clear)
+            {
+                foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects().ToList())
+                {
+                    Undo.DestroyObjectImmediate(root);
+                }
+            }
+
+            OptimizeEditorPerformance(new JObject());
+
+            var rootGo = new GameObject("UnityTools_ForestScene");
+            Undo.RegisterCreatedObjectUndo(rootGo, "UnityTools: forest scene root");
+
+            var groundMat = MakeMaterial("ForestGround_DarkGrassDirt", new Color(0.16f, 0.20f, 0.10f), 0.05f);
+            var pineMat = MakeMaterial("PineNeedles_DeepGreen", new Color(0.05f, 0.27f, 0.09f), 0.12f);
+            var trunkMat = MakeMaterial("TreeTrunk_WarmBrown", new Color(0.28f, 0.16f, 0.08f), 0.10f);
+            var deadMat = MakeMaterial("DeadTree_DryGreyBrown", new Color(0.20f, 0.17f, 0.14f), 0.08f);
+            var rockMat = MakeMaterial("Rock_CoolGrey", new Color(0.28f, 0.29f, 0.27f), 0.18f);
+
+            var terrain = BuildTerrain(size, rootGo.transform, groundMat, rng);
+            var terrainData = terrain.GetComponent<Terrain>()?.terrainData;
+            int pineCount = Mathf.RoundToInt(treeCount * 0.68f);
+            int deadCount = treeCount - pineCount;
+            var created = new List<string>();
+
+            for (int i = 0; i < pineCount; i++)
+            {
+                Vector3 pos = RandomGroundPosition(size, terrainData, rng);
+                string name = $"SparseTallPine_{i + 1:00}";
+                CreateSimplePine(name, pos, RandomRange(rng, 0.75f, 1.45f), rootGo.transform, trunkMat, pineMat, rng);
+                created.Add(name);
+            }
+            for (int i = 0; i < deadCount; i++)
+            {
+                Vector3 pos = RandomGroundPosition(size, terrainData, rng);
+                string name = $"DeadTree_Silhouette_{i + 1:00}";
+                CreateDeadTree(name, pos, RandomRange(rng, 0.8f, 1.35f), rootGo.transform, deadMat, rng);
+                created.Add(name);
+            }
+            for (int i = 0; i < rockCount; i++)
+            {
+                Vector3 pos = RandomGroundPosition(size, terrainData, rng);
+                string name = $"Rock_{i + 1:00}";
+                CreateRock(name, pos, RandomRange(rng, 0.6f, 1.8f), rootGo.transform, rockMat, rng);
+                created.Add(name);
+            }
+
+            RenderSettings.fog = true;
+            RenderSettings.fogColor = new Color(0.38f, 0.42f, 0.38f);
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogDensity = 0.018f;
+            RenderSettings.ambientLight = new Color(0.22f, 0.24f, 0.20f);
+
+            var lightGo = new GameObject("DirectionalLight_ForestMorning");
+            lightGo.transform.rotation = Quaternion.Euler(42f, -35f, 0f);
+            var light = lightGo.AddComponent<Light>();
+            light.type = LightType.Directional;
+            light.intensity = 1.15f;
+            light.color = new Color(1.0f, 0.92f, 0.78f);
+            light.shadows = LightShadows.None;
+            lightGo.transform.SetParent(rootGo.transform);
+
+            var cameraGo = new GameObject("Camera_ForestOverview");
+            var cam = cameraGo.AddComponent<Camera>();
+            cam.fieldOfView = 50f;
+            cam.farClipPlane = 350f;
+            cam.transform.position = new Vector3(0f, 32f, -72f);
+            cam.transform.rotation = Quaternion.Euler(24f, 0f, 0f);
+            cameraGo.tag = "MainCamera";
+            cameraGo.transform.SetParent(rootGo.transform);
+
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                root = rootGo.name,
+                terrain = terrain.name,
+                tree_count = treeCount,
+                pine_count = pineCount,
+                dead_tree_count = deadCount,
+                rock_count = rockCount,
+                created_count = created.Count,
+                sample_names = created.Take(20).ToArray(),
+                performance = "Editor quality lowered, shadows disabled for generated forest objects."
+            };
+        }
+
+        private static object OptimizeEditorPerformance(JObject p)
+        {
+            QualitySettings.vSyncCount = 0;
+            QualitySettings.antiAliasing = 0;
+            QualitySettings.shadowDistance = p["shadow_distance"]?.ToObject<float>() ?? 25f;
+            QualitySettings.lodBias = p["lod_bias"]?.ToObject<float>() ?? 0.55f;
+            QualitySettings.maximumLODLevel = 1;
+            foreach (var light in UnityEngine.Object.FindObjectsByType<Light>(FindObjectsInactive.Include))
+            {
+                light.shadows = LightShadows.None;
+                if (light.type == LightType.Directional && light.intensity > 1.25f) light.intensity = 1.0f;
+            }
+            foreach (var renderer in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include))
+            {
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+            }
+            return new { ok = true, anti_aliasing = QualitySettings.antiAliasing, shadow_distance = QualitySettings.shadowDistance, lod_bias = QualitySettings.lodBias };
+        }
+
+        private static IEnumerable<GameObject> FindSemanticObjects(string query, string category)
+        {
+            var queryTokens = Tokenize(query);
+            string wantedCategory = Normalize(category);
+            foreach (var go in UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include))
+            {
+                if (!go.scene.IsValid()) continue;
+                string cat = GuessCategory(go);
+                if (!string.IsNullOrWhiteSpace(wantedCategory) && !CategoryMatches(cat, wantedCategory))
+                    continue;
+                if (queryTokens.Count == 0)
+                {
+                    yield return go;
+                    continue;
+                }
+                string hay = Normalize($"{go.name} {go.tag} {LayerMask.LayerToName(go.layer)} {cat} {RendererWords(go)} {ComponentWords(go)}");
+                bool any = queryTokens.Any(t => hay.Contains(t) || SynonymsFor(t).Any(s => hay.Contains(s)));
+                if (any) yield return go;
+            }
+        }
+
+        private static List<string> Tokenize(string value)
+        {
+            return Normalize(value)
+                .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(t => t.Length > 1)
+                .Distinct()
+                .ToList();
+        }
+
+        private static string Normalize(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "";
+            value = value.ToLowerInvariant()
+                .Replace("ı", "i").Replace("ğ", "g").Replace("ü", "u")
+                .Replace("ş", "s").Replace("ö", "o").Replace("ç", "c");
+            var chars = value.Select(ch => char.IsLetterOrDigit(ch) ? ch : ' ').ToArray();
+            return new string(chars);
+        }
+
+        private static IEnumerable<string> SynonymsFor(string token)
+        {
+            switch (token)
+            {
+                case "forest":
+                case "orman":
+                case "agac":
+                case "tree":
+                case "trees":
+                    return new[] { "tree", "pine", "fir", "forest", "trunk", "stump", "deadtree", "sparse", "silhouette" };
+                case "kaya":
+                case "tas":
+                case "rock":
+                    return new[] { "rock", "stone", "boulder", "cliff" };
+                case "zemin":
+                case "terrain":
+                case "ground":
+                case "ova":
+                    return new[] { "terrain", "ground", "grass", "dirt", "floor", "plane" };
+                case "koy":
+                case "village":
+                    return new[] { "village", "house", "hut", "camp", "cabin" };
+                case "ates":
+                case "campfire":
+                    return new[] { "fire", "campfire", "torch", "flame" };
+                default:
+                    return Array.Empty<string>();
+            }
+        }
+
+        private static bool CategoryMatches(string actualCategory, string wantedCategory)
+        {
+            string actual = Normalize(actualCategory);
+            string wanted = Normalize(wantedCategory);
+            if (string.IsNullOrWhiteSpace(wanted) || actual == wanted) return true;
+            if ((wanted == "forest" || wanted == "orman" || wanted == "agac" || wanted == "trees") && actual == "tree") return true;
+            if ((wanted == "tas" || wanted == "kaya" || wanted == "stone" || wanted == "boulder") && actual == "rock") return true;
+            if ((wanted == "terrain" || wanted == "zemin" || wanted == "floor" || wanted == "grass" || wanted == "dirt") && actual == "ground") return true;
+            if ((wanted == "campfire" || wanted == "ates" || wanted == "fire" || wanted == "flame") && actual == "camp") return true;
+            if ((wanted == "village" || wanted == "koy" || wanted == "house" || wanted == "hut") && actual == "building") return true;
+            return false;
+        }
+
+        private static string GuessCategory(GameObject go)
+        {
+            string hay = Normalize($"{go.name} {RendererWords(go)} {ComponentWords(go)}");
+            if (hay.Contains("tree") || hay.Contains("pine") || hay.Contains("fir") || hay.Contains("trunk") || hay.Contains("stump") || hay.Contains("forest")) return "tree";
+            if (hay.Contains("rock") || hay.Contains("stone") || hay.Contains("boulder") || hay.Contains("cliff")) return "rock";
+            if (hay.Contains("terrain") || hay.Contains("ground") || hay.Contains("grass") || hay.Contains("dirt") || hay.Contains("floor")) return "ground";
+            if (hay.Contains("camera")) return "camera";
+            if (hay.Contains("light") || hay.Contains("sun")) return "light";
+            if (hay.Contains("fire") || hay.Contains("torch") || hay.Contains("camp")) return "camp";
+            if (hay.Contains("house") || hay.Contains("village") || hay.Contains("hut") || hay.Contains("castle")) return "building";
+            if (hay.Contains("enemy") || hay.Contains("player") || hay.Contains("hero") || hay.Contains("character")) return "character";
+            if (hay.Contains("water")) return "water";
+            return "other";
+        }
+
+        private static string RendererWords(GameObject go)
+        {
+            var renderers = go.GetComponentsInChildren<Renderer>(true);
+            return string.Join(" ", renderers.SelectMany(r => r.sharedMaterials)
+                .Where(m => m != null)
+                .Select(m => m.name)
+                .Concat(renderers.Select(r => r.GetType().Name)));
+        }
+
+        private static string ComponentWords(GameObject go)
+        {
+            return string.Join(" ", go.GetComponents<Component>().Where(c => c != null).Select(c => c.GetType().Name));
+        }
+
+        private static string GetHierarchyPath(Transform t)
+        {
+            var names = new List<string>();
+            while (t != null)
+            {
+                names.Add(t.name);
+                t = t.parent;
+            }
+            names.Reverse();
+            return string.Join("/", names);
+        }
+
+        private static Dictionary<string, Color> PaletteColors(string palette)
+        {
+            palette = Normalize(palette);
+            if (palette.Contains("village") || palette.Contains("koy"))
+            {
+                return new Dictionary<string, Color>
+                {
+                    ["tree"] = new Color(0.07f, 0.25f, 0.08f),
+                    ["rock"] = new Color(0.36f, 0.34f, 0.30f),
+                    ["ground"] = new Color(0.24f, 0.18f, 0.10f),
+                    ["building"] = new Color(0.42f, 0.28f, 0.16f),
+                    ["camp"] = new Color(0.95f, 0.32f, 0.08f),
+                    ["default"] = new Color(0.32f, 0.28f, 0.22f),
+                };
+            }
+            return new Dictionary<string, Color>
+            {
+                ["tree"] = new Color(0.05f, 0.24f, 0.08f),
+                ["rock"] = new Color(0.30f, 0.31f, 0.29f),
+                ["ground"] = new Color(0.16f, 0.20f, 0.10f),
+                ["building"] = new Color(0.25f, 0.18f, 0.12f),
+                ["camp"] = new Color(0.9f, 0.28f, 0.06f),
+                ["character"] = new Color(0.32f, 0.25f, 0.20f),
+                ["water"] = new Color(0.08f, 0.20f, 0.26f),
+                ["default"] = new Color(0.22f, 0.22f, 0.18f),
+            };
+        }
+
+        private static Material MakeMaterial(string name, Color color, float smoothness)
+        {
+            var shader = Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit");
+            var mat = new Material(shader);
+            mat.name = name;
+            mat.color = color;
+            mat.SetFloat("_Glossiness", smoothness);
+            return mat;
+        }
+
+        private static GameObject BuildTerrain(float size, Transform parent, Material material, System.Random rng)
+        {
+            int resolution = 129;
+            float maxHeight = 4.0f;
+            var data = new TerrainData
+            {
+                heightmapResolution = resolution,
+                size = new Vector3(size, maxHeight, size)
+            };
+            float[,] heights = new float[resolution, resolution];
+            for (int z = 0; z < resolution; z++)
+            {
+                for (int x = 0; x < resolution; x++)
+                {
+                    float nx = x / (float)(resolution - 1);
+                    float nz = z / (float)(resolution - 1);
+                    float h = Mathf.PerlinNoise(nx * 5.1f + 17.3f, nz * 5.1f + 9.7f) * 0.055f;
+                    h += Mathf.PerlinNoise(nx * 13.0f, nz * 13.0f) * 0.018f;
+                    heights[z, x] = h;
+                }
+            }
+            data.SetHeights(0, 0, heights);
+            var go = Terrain.CreateTerrainGameObject(data);
+            go.name = $"Terrain_ForestGround_{Mathf.RoundToInt(size)}x{Mathf.RoundToInt(size)}";
+            go.transform.position = new Vector3(-size * 0.5f, 0f, -size * 0.5f);
+            go.transform.SetParent(parent);
+            var terrain = go.GetComponent<Terrain>();
+            terrain.materialTemplate = material;
+            terrain.drawInstanced = false;
+            var collider = go.GetComponent<TerrainCollider>();
+            if (collider != null) collider.terrainData = data;
+            return go;
+        }
+
+        private static Vector3 RandomGroundPosition(float size, TerrainData terrainData, System.Random rng)
+        {
+            float x = RandomRange(rng, -size * 0.46f, size * 0.46f);
+            float z = RandomRange(rng, -size * 0.46f, size * 0.46f);
+            float y = terrainData != null ? terrainData.GetInterpolatedHeight((x + size * 0.5f) / size, (z + size * 0.5f) / size) : 0f;
+            return new Vector3(x, y, z);
+        }
+
+        private static float RandomRange(System.Random rng, float min, float max)
+        {
+            return min + (float)rng.NextDouble() * (max - min);
+        }
+
+        private static void CreateSimplePine(string name, Vector3 pos, float scale, Transform parent, Material trunkMat, Material foliageMat, System.Random rng)
+        {
+            var root = new GameObject(name);
+            root.transform.SetParent(parent);
+            root.transform.position = pos;
+            root.transform.rotation = Quaternion.Euler(0f, RandomRange(rng, 0f, 360f), 0f);
+            var trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            trunk.name = "Trunk";
+            trunk.transform.SetParent(root.transform);
+            trunk.transform.localPosition = new Vector3(0f, 1.15f * scale, 0f);
+            trunk.transform.localScale = new Vector3(0.18f * scale, 1.15f * scale, 0.18f * scale);
+            trunk.GetComponent<Renderer>().sharedMaterial = trunkMat;
+            var crown = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            crown.name = "PineNeedles";
+            crown.transform.SetParent(root.transform);
+            crown.transform.localPosition = new Vector3(0f, 2.65f * scale, 0f);
+            crown.transform.localScale = new Vector3(1.05f * scale, 1.55f * scale, 1.05f * scale);
+            crown.GetComponent<Renderer>().sharedMaterial = foliageMat;
+            DisableExpensiveRendererFeatures(root);
+        }
+
+        private static void CreateDeadTree(string name, Vector3 pos, float scale, Transform parent, Material deadMat, System.Random rng)
+        {
+            var root = new GameObject(name);
+            root.transform.SetParent(parent);
+            root.transform.position = pos;
+            root.transform.rotation = Quaternion.Euler(0f, RandomRange(rng, 0f, 360f), RandomRange(rng, -4f, 4f));
+            var trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            trunk.name = "DryTrunk";
+            trunk.transform.SetParent(root.transform);
+            trunk.transform.localPosition = new Vector3(0f, 1.55f * scale, 0f);
+            trunk.transform.localScale = new Vector3(0.16f * scale, 1.55f * scale, 0.16f * scale);
+            trunk.GetComponent<Renderer>().sharedMaterial = deadMat;
+            for (int i = 0; i < 2; i++)
+            {
+                var branch = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                branch.name = $"DryBranch_{i + 1}";
+                branch.transform.SetParent(root.transform);
+                branch.transform.localPosition = new Vector3((i == 0 ? 0.22f : -0.20f) * scale, (2.15f + i * 0.25f) * scale, 0f);
+                branch.transform.localRotation = Quaternion.Euler(0f, 0f, i == 0 ? -45f : 40f);
+                branch.transform.localScale = new Vector3(0.055f * scale, 0.62f * scale, 0.055f * scale);
+                branch.GetComponent<Renderer>().sharedMaterial = deadMat;
+            }
+            DisableExpensiveRendererFeatures(root);
+        }
+
+        private static void CreateRock(string name, Vector3 pos, float scale, Transform parent, Material rockMat, System.Random rng)
+        {
+            var rock = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            rock.name = name;
+            rock.transform.SetParent(parent);
+            rock.transform.position = pos + new Vector3(0f, 0.18f * scale, 0f);
+            rock.transform.rotation = Quaternion.Euler(RandomRange(rng, 0f, 20f), RandomRange(rng, 0f, 360f), RandomRange(rng, 0f, 20f));
+            rock.transform.localScale = new Vector3(RandomRange(rng, 0.8f, 1.8f) * scale, RandomRange(rng, 0.25f, 0.75f) * scale, RandomRange(rng, 0.7f, 1.6f) * scale);
+            rock.GetComponent<Renderer>().sharedMaterial = rockMat;
+            DisableExpensiveRendererFeatures(rock);
+        }
+
+        private static void DisableExpensiveRendererFeatures(GameObject root)
+        {
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+            }
         }
 
         private static object FindAssets(JObject p)

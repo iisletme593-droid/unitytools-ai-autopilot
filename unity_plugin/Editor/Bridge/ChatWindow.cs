@@ -49,6 +49,9 @@ namespace UnityTools.Bridge
         private string _serverHost = "127.0.0.1";
         private int _serverPort = 7778;
         private string _providerLabel = "Local core";
+        private string _agentMode = "single";
+        private string _masterModel = "";
+        private string _workerModel = "";
 
         private const string PrefHostKey = "UnityTools.Chat.Host";
         private const string PrefPortKey = "UnityTools.Chat.Port";
@@ -130,6 +133,44 @@ namespace UnityTools.Bridge
                 case "assistant_done":
                     _serverThinking = false;
                     break;
+                case "master_thinking":
+                    _items.Add(new ChatItem
+                    {
+                        Kind = ItemKind.System,
+                        Text = "🧠 Master: " + (msg["message"]?.ToString() ?? "Planning..."),
+                    });
+                    break;
+                case "worker_executing":
+                    _items.Add(new ChatItem
+                    {
+                        Kind = ItemKind.System,
+                        Text = "⚙️ Worker: " + (msg["message"]?.ToString() ?? "Executing..."),
+                    });
+                    break;
+                case "dual_agent_plan":
+                    var plan = msg["plan"] as JObject;
+                    if (plan != null)
+                    {
+                        string taskDesc = plan["task"]?.ToString() ?? "Unknown task";
+                        int stepCount = (plan["steps"] as JArray)?.Count ?? 0;
+                        _items.Add(new ChatItem
+                        {
+                            Kind = ItemKind.System,
+                            Text = $"📋 Master Plan: {taskDesc} ({stepCount} steps)",
+                        });
+                    }
+                    break;
+                case "dual_agent_reports":
+                    var reports = msg["reports"] as JArray;
+                    if (reports != null && reports.Count > 0)
+                    {
+                        _items.Add(new ChatItem
+                        {
+                            Kind = ItemKind.System,
+                            Text = $"✓ Worker completed {reports.Count} step(s)",
+                        });
+                    }
+                    break;
                 case "error":
                     _serverThinking = false;
                     _items.Add(new ChatItem
@@ -145,11 +186,29 @@ namespace UnityTools.Bridge
                     int toolsLoaded = msg["tools_loaded"]?.ToObject<int>() ?? 0;
                     string provider = msg["provider"]?.ToString() ?? "?";
                     string model = msg["model"]?.ToString() ?? "?";
+                    _agentMode = msg["mode"]?.ToString() ?? "single-agent";
+                    _masterModel = msg["master_model"]?.ToString() ?? "";
+                    _workerModel = msg["worker_model"]?.ToString() ?? "";
+                    
+                    string modeInfo = _agentMode == "dual-agent" 
+                        ? $"DUAL-AGENT: Master={_masterModel}, Worker={_workerModel}"
+                        : $"Model: {model}";
+                    
                     _items.Add(new ChatItem
                     {
                         Kind = ItemKind.System,
-                        Text = $"Connected. Provider: {provider}, model: {model}, {toolsLoaded} tools loaded.",
+                        Text = $"Connected. Provider: {provider}, {modeInfo}, {toolsLoaded} tools loaded.",
                     });
+                    
+                    if (_agentMode == "dual-agent")
+                    {
+                        _items.Add(new ChatItem
+                        {
+                            Kind = ItemKind.System,
+                            Text = "Dual-agent mode: Master plans (30-60s), Worker executes. Good planning = better results!",
+                        });
+                    }
+                    
                     if (toolsLoaded == 0)
                     {
                         _items.Add(new ChatItem
@@ -180,13 +239,27 @@ namespace UnityTools.Bridge
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 EditorGUILayout.LabelField("UnityTools AI Autopilot", _headerStyle);
-                EditorGUILayout.LabelField("Chat inside the Unity Editor. Local Ollama or cloud models can call Unity and Blender tools.", _subtleStyle);
+                
+                string subtitle = _agentMode == "dual-agent"
+                    ? "Dual-Agent: Master plans deeply, Worker executes fast. Better results!"
+                    : "Chat inside the Unity Editor. Local Ollama or cloud models can call Unity and Blender tools.";
+                
+                EditorGUILayout.LabelField(subtitle, _subtleStyle);
+                
                 using (new EditorGUILayout.HorizontalScope())
                 {
                     DrawChip(IsConnected() ? "AI Connected" : "AI Offline", IsConnected());
                     DrawChip(BridgeServer.IsRunning ? "Unity Bridge OK" : "Unity Bridge Off", BridgeServer.IsRunning);
                     DrawChip(ChatServerProcess.IsOwnedProcessRunning ? "Core Managed" : "Core Local", ChatServerProcess.IsOwnedProcessRunning || ChatServerProcess.IsPortOpen(_serverHost, _serverPort));
-                    DrawChip(_providerLabel, true);
+                    
+                    if (_agentMode == "dual-agent")
+                    {
+                        DrawChip("Dual-Agent", true);
+                    }
+                    else
+                    {
+                        DrawChip(_providerLabel, true);
+                    }
                 }
             }
         }

@@ -6,6 +6,8 @@ messages, and receives tool-call progress plus final assistant text.
 İlk bağlantı kurulduğunda istemciye bir `hello` mesajı gönderilir; böylece
 Unity tarafı süreç başarıyla ayağa kalkmış mı yoksa import sırasında ölmüş mü
 olduğunu anlayabilir.
+
+Supports both single-agent and dual-agent modes.
 """
 from __future__ import annotations
 
@@ -35,19 +37,31 @@ class ChatServer:
 
     Each client gets an isolated orchestrator instance so chat history does not
     leak between Unity windows or test clients.
+    
+    Supports dual-agent mode when use_dual_agent=True.
     """
 
-    SERVER_VERSION = "2.0.0"
+    SERVER_VERSION = "2.1.0"
 
     def __init__(
         self,
         config: Config,
         host: str = "127.0.0.1",
         port: int = 7778,
+        use_dual_agent: bool = False,
+        master_model: str = "qwen2.5:14b-instruct",
+        worker_model: str = "qwen2.5:14b-instruct",
+        enable_memory: bool = True,
+        enable_context: bool = True,
     ) -> None:
         self.config = config
         self.host = host
         self.port = port
+        self.use_dual_agent = use_dual_agent
+        self.master_model = master_model
+        self.worker_model = worker_model
+        self.enable_memory = enable_memory
+        self.enable_context = enable_context
         self._listen_sock: Optional[socket.socket] = None
         self._running = False
         self._client_threads: list[threading.Thread] = []
@@ -92,7 +106,23 @@ class ChatServer:
         self._listen_sock = None
 
     def _serve_client(self, client: ClientHandle) -> None:
-        orch = Orchestrator(self.config)
+        # Create orchestrator based on mode
+        if self.use_dual_agent:
+            from .dual_agent import DualAgentOrchestrator
+            orch = DualAgentOrchestrator(
+                self.config,
+                self.master_model,
+                self.worker_model,
+                enable_memory=self.enable_memory,
+                enable_context=self.enable_context,
+            )
+            mode = "dual-agent"
+            if self.enable_memory or self.enable_context:
+                mode += " (enhanced)"
+        else:
+            orch = Orchestrator(self.config)
+            mode = "single-agent"
+        
         send = self._make_sender(client)
 
         # İlk handshake: Unity tarafı süreç sağlığını bundan anlar.
@@ -108,8 +138,11 @@ class ChatServer:
                 {
                     "type": "hello",
                     "version": self.SERVER_VERSION,
+                    "mode": mode,
                     "provider": self.config.provider,
                     "model": self.config.model if self.config.provider == "anthropic" else self.config.ollama_model,
+                    "master_model": self.master_model if self.use_dual_agent else None,
+                    "worker_model": self.worker_model if self.use_dual_agent else None,
                     "tools_loaded": tool_count,
                 }
             )
@@ -169,7 +202,7 @@ class ChatServer:
             return
 
         if msg_type == "user_message":
-            content = (msg.get("content") or "").strip()
+            content = (msg.get("content") or msg.get("text") or "").strip()
             if not content:
                 send({"type": "error", "message": "Empty message"})
                 return
@@ -216,7 +249,7 @@ class ChatServer:
     def _process_user_message(
         self,
         content: Any,
-        orch: Orchestrator,
+        orch: Any,  # Can be Orchestrator or DualAgentOrchestrator
         send: Callable[[dict], None],
     ) -> None:
         send({"type": "thinking"})
@@ -240,12 +273,30 @@ class ChatServer:
                 }
             )
 
+        def on_master_thinking(msg: str) -> None:
+            send({"type": "master_thinking", "message": msg})
+
+        def on_worker_executing(msg: str) -> None:
+            send({"type": "worker_executing", "message": msg})
+
         try:
-            result = orch.chat(
-                content,
-                on_tool_call=on_tool_call,
-                on_tool_result=on_tool_result,
-            )
+            # Check if dual-agent
+            if hasattr(orch, 'master') and hasattr(orch, 'worker'):
+                # Dual-agent mode
+                result = orch.chat(
+                    content,
+                    on_master_thinking=on_master_thinking,
+                    on_worker_executing=on_worker_executing,
+                    on_tool_call=on_tool_call,
+                    on_tool_result=on_tool_result,
+                )
+            else:
+                # Single-agent mode
+                result = orch.chat(
+                    content,
+                    on_tool_call=on_tool_call,
+                    on_tool_result=on_tool_result,
+                )
         except Exception as e:
             logger.exception("Orchestrator error")
             send({"type": "error", "message": str(e), "error_type": type(e).__name__})
@@ -253,7 +304,15 @@ class ChatServer:
 
         if result.text:
             send({"type": "assistant_text", "content": result.text, "done": True})
-        send({"type": "assistant_done", "stop_reason": result.stop_reason})
+        
+        # Send additional dual-agent info if available
+        if hasattr(result, 'master_plan') and result.master_plan:
+            send({"type": "dual_agent_plan", "plan": result.master_plan})
+        if hasattr(result, 'worker_reports') and result.worker_reports:
+            send({"type": "dual_agent_reports", "reports": result.worker_reports})
+        
+        stop_reason = getattr(result, 'stop_reason', 'end_turn')
+        send({"type": "assistant_done", "stop_reason": stop_reason})
 
     @staticmethod
     def _make_sender(client: ClientHandle) -> Callable[[dict], None]:

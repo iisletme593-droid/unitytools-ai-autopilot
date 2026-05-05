@@ -4,15 +4,26 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 namespace UnityTools.Bridge
 {
+    [InitializeOnLoad]
+    internal static class ChatServerProcessLifecycle
+    {
+        static ChatServerProcessLifecycle()
+        {
+            EditorApplication.quitting += ChatServerProcess.StopKnownProcesses;
+        }
+    }
+
     public static class ChatServerProcess
     {
         private const string PrefCommandKey = "UnityTools.Chat.Command";
         private const string PrefArgsKey = "UnityTools.Chat.Args";
+        private static readonly string PidPath = Path.Combine(Path.GetTempPath(), "unitytools-editor-chat.pid");
 
         private static Process _process;
         private static string _lastLogPath;
@@ -28,7 +39,7 @@ namespace UnityTools.Bridge
 
         public static string Arguments
         {
-            get => EditorPrefs.GetString(PrefArgsKey, "chat-server");
+            get => EditorPrefs.GetString(PrefArgsKey, ResolveDefaultArguments());
             set => EditorPrefs.SetString(PrefArgsKey, value);
         }
 
@@ -55,6 +66,7 @@ namespace UnityTools.Bridge
         {
             if (IsPortOpen(host, port)) return true;
             if (IsOwnedProcessRunning) return false;
+            StopKnownProcesses();
             StartHidden(workingDirectory);
             return true;
         }
@@ -68,6 +80,7 @@ namespace UnityTools.Bridge
             if (IsPortOpen(host, port)) return true;
             if (!IsOwnedProcessRunning)
             {
+                StopKnownProcesses();
                 StartHidden(workingDirectory);
             }
             // Port'u poll et
@@ -118,6 +131,7 @@ namespace UnityTools.Bridge
                 _process.ErrorDataReceived += (_, e) => AppendLog(e.Data);
                 _process.Exited += (_, __) => AppendLog($"[UnityTools] chat-server exited with code {_process.ExitCode}");
                 _process.Start();
+                WritePidFile(_process.Id);
                 _process.BeginOutputReadLine();
                 _process.BeginErrorReadLine();
                 AppendLog($"[UnityTools] started: {command} {args}");
@@ -132,7 +146,11 @@ namespace UnityTools.Bridge
 
         public static void StopOwnedProcess()
         {
-            if (!IsOwnedProcessRunning) return;
+            if (!IsOwnedProcessRunning)
+            {
+                StopKnownProcesses();
+                return;
+            }
             try
             {
                 _process.Kill();
@@ -142,7 +160,24 @@ namespace UnityTools.Bridge
             finally
             {
                 _process = null;
+                DeletePidFile();
             }
+        }
+
+        public static void StopKnownProcesses()
+        {
+            var ids = ReadPidFile();
+            foreach (int id in ids)
+            {
+                try
+                {
+                    var p = Process.GetProcessById(id);
+                    if (!p.HasExited) p.Kill();
+                    p.Dispose();
+                }
+                catch { }
+            }
+            DeletePidFile();
         }
 
         private static void AppendLog(string line)
@@ -155,6 +190,41 @@ namespace UnityTools.Bridge
             catch { }
         }
 
+        private static void WritePidFile(int pid)
+        {
+            try
+            {
+                File.WriteAllLines(PidPath, new[] { pid.ToString() });
+            }
+            catch { }
+        }
+
+        private static int[] ReadPidFile()
+        {
+            try
+            {
+                if (!File.Exists(PidPath)) return Array.Empty<int>();
+                return File.ReadAllLines(PidPath)
+                    .Select(line => int.TryParse(line.Trim(), out int id) ? id : -1)
+                    .Where(id => id > 0)
+                    .Distinct()
+                    .ToArray();
+            }
+            catch
+            {
+                return Array.Empty<int>();
+            }
+        }
+
+        private static void DeletePidFile()
+        {
+            try
+            {
+                if (File.Exists(PidPath)) File.Delete(PidPath);
+            }
+            catch { }
+        }
+
         private static string ResolveDefaultCommand()
         {
 #if UNITY_EDITOR_WIN
@@ -162,15 +232,20 @@ namespace UnityTools.Bridge
             string programs = Path.Combine(localAppData, "Programs", "Python");
             if (Directory.Exists(programs))
             {
-                foreach (string candidate in Directory.GetFiles(programs, "unitytools.exe", SearchOption.AllDirectories))
+                foreach (string candidate in Directory.GetFiles(programs, "python.exe", SearchOption.AllDirectories))
                 {
-                    if (candidate.Contains("Scripts")) return candidate;
+                    return candidate;
                 }
             }
-            return "unitytools";
+            return "python";
 #else
-            return "unitytools";
+            return "python";
 #endif
+        }
+
+        private static string ResolveDefaultArguments()
+        {
+            return "-m unitytools.cli.entry chat-server --no-dual-agent";
         }
     }
 }
