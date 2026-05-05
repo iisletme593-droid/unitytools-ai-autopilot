@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import inspect
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -97,6 +98,9 @@ Layer'lar: 0=Default, 1=TransparentFX, 2=IgnoreRaycast, 4=Water, 5=UI, 8-31=Cust
     sahne objesi istegi yaparsa tag arama kullanma. Once unity_get_scene_catalog veya
     unity_find_scene_objects_semantic kullan. Sonra unity_delete_scene_objects_semantic,
     unity_apply_material_palette gibi semantic tool'larla uygula.
+16b. Kullanici palette belirtmeden "agaclari boya/renklendir" derse geri soru sorma;
+     varsayilan olarak category="tree", palette="forest" kullan. "taslari boya" icin
+     category="rock", palette="rocks"; "zemini boya" icin category="ground", palette="ground".
 17. Buyuk isteklerde (80-120 agac, terrain, sis, kamera, isik) tek tek obje/tool cagirma.
     unity_create_optimized_forest_scene gibi bulk/high-level tool kullan; timeout ve kasmayi
     onlemek icin once/sonra unity_optimize_editor_performance uygula.
@@ -502,7 +506,93 @@ class Orchestrator:
         spec = get_tool(name)
         if spec is None:
             raise ValueError(f"Bilinmeyen tool: {name}")
+        params = self._normalize_tool_params(name, params, spec.fn)
         return spec.fn(**params)
+
+    def _normalize_tool_params(self, name: str, params: dict[str, Any], fn: Any) -> dict[str, Any]:
+        """Accept common local-model argument aliases before calling Python tools.
+
+        Ollama models sometimes infer natural names like `object`, `target`, or
+        `color_palette` even when the schema says `query`, `category`, `palette`.
+        We normalize those aliases here so a useful tool call does not fail just
+        because one argument name was slightly off.
+        """
+        if not isinstance(params, dict):
+            return {}
+
+        normalized = dict(params)
+        aliases: dict[str, dict[str, str]] = {
+            "unity_apply_material_palette": {
+                "object": "query",
+                "objects": "query",
+                "target": "query",
+                "target_query": "query",
+                "name": "query",
+                "object_type": "category",
+                "target_category": "category",
+                "type": "category",
+                "color_palette": "palette",
+                "palette_name": "palette",
+                "colors": "palette",
+                "limit": "max",
+                "count": "max",
+                "max_results": "max",
+            },
+            "unity_find_scene_objects_semantic": {
+                "object": "query",
+                "objects": "query",
+                "target": "query",
+                "name": "query",
+                "object_type": "category",
+                "target_category": "category",
+                "type": "category",
+                "limit": "max_results",
+                "count": "max_results",
+                "max": "max_results",
+            },
+            "unity_delete_scene_objects_semantic": {
+                "object": "query",
+                "objects": "query",
+                "target": "query",
+                "name": "query",
+                "object_type": "category",
+                "target_category": "category",
+                "type": "category",
+                "limit": "max",
+                "count": "max",
+                "max_results": "max",
+            },
+        }
+        for source, target in aliases.get(name, {}).items():
+            if source in normalized and target not in normalized:
+                normalized[target] = normalized[source]
+
+        if name in {
+            "unity_apply_material_palette",
+            "unity_find_scene_objects_semantic",
+            "unity_delete_scene_objects_semantic",
+        }:
+            category = str(normalized.get("category") or "").lower()
+            query = str(normalized.get("query") or "").lower()
+            combined = f"{category} {query}"
+            if any(token in combined for token in ("tree", "trees", "agac", "ağaç", "forest", "orman")):
+                normalized.setdefault("category", "tree")
+            elif any(token in combined for token in ("rock", "stone", "boulder", "kaya", "tas", "taş")):
+                normalized.setdefault("category", "rock")
+            elif any(token in combined for token in ("ground", "terrain", "zemin", "grass", "dirt")):
+                normalized.setdefault("category", "ground")
+            elif any(token in combined for token in ("fire", "campfire", "ates", "ateş", "torch")):
+                normalized.setdefault("category", "camp")
+
+        if name == "unity_apply_material_palette":
+            normalized.setdefault("palette", "forest")
+
+        sig = inspect.signature(fn)
+        accepts_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+        if accepts_kwargs:
+            return normalized
+        allowed = set(sig.parameters.keys())
+        return {key: value for key, value in normalized.items() if key in allowed}
 
     def _build_anthropic_messages(self) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []

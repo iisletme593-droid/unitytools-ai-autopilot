@@ -63,7 +63,7 @@ def unity_delete_scene_objects_semantic(query: str, category: str = "", max: int
         return {"ok": False, "error": str(e)}
 
 
-@tool(description="Apply a coherent material/color palette to scene objects by semantic category: forest, village, dark_fantasy, ground, rocks, trees, campfire.")
+@tool(description="Apply a coherent material/color palette to scene objects. For 'paint/recolor all trees', call query='tree', category='tree', palette='forest'. Valid palettes include forest, village, dark_fantasy, ground, rocks, trees, campfire.")
 def unity_apply_material_palette(query: str = "", category: str = "", palette: str = "forest", max: int = 2000) -> dict:
     ok, error = _ensure_unity()
     if not ok:

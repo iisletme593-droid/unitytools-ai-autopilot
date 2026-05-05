@@ -60,3 +60,25 @@ For large prompts like `create 100 trees, terrain, fog, camera`, the assistant s
 Use `unity_optimize_editor_performance` when the scene becomes heavy. It lowers anti-aliasing, LOD bias, shadow distance, and disables expensive renderer shadows where possible.
 
 Sahne agirlasinca `unity_optimize_editor_performance` kullan. Anti-aliasing, LOD bias, shadow distance ve pahali shadow ayarlarini dusurur.
+
+## Tool Argument Tolerance / Tool Arguman Toleransi
+
+Local models sometimes call tools with natural argument names such as `object`, `target`, `object_type`, `color_palette`, or `max_results`. UnityTools normalizes these aliases before execution, so a call like this:
+
+Lokal modeller bazen `object`, `target`, `object_type`, `color_palette` veya `max_results` gibi dogal arguman isimleri kullanir. UnityTools bunlari calistirmadan once normalize eder; yani su cagri:
+
+```json
+{"object": "trees", "color_palette": "forest", "max_results": 50}
+```
+
+is executed as:
+
+su sekilde calisir:
+
+```json
+{"query": "trees", "category": "tree", "palette": "forest", "max": 50}
+```
+
+This prevents useful scene operations from failing just because one argument name was slightly different.
+
+Bu sayede faydali sahne islemleri sadece bir arguman adi farkli geldi diye hata vermez.
