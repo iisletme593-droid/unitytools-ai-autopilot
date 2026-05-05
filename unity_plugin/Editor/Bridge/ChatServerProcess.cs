@@ -1,4 +1,4 @@
-﻿// Starts and monitors the Python chat server without opening a terminal window.
+// Starts and monitors the Python chat server without opening a terminal window.
 
 using System;
 using System.Diagnostics;
@@ -7,7 +7,6 @@ using System.Net.Sockets;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
-
 namespace UnityTools.Bridge
 {
     public static class ChatServerProcess
@@ -58,6 +57,41 @@ namespace UnityTools.Bridge
             if (IsOwnedProcessRunning) return false;
             StartHidden(workingDirectory);
             return true;
+        }
+
+        /// <summary>
+        /// Process'i başlat ve `timeoutMs` içinde port açılana kadar bekle.
+        /// Açılmazsa Editor Console'a hata mesajı bas.
+        /// </summary>
+        public static bool EnsureRunningAndWait(string host, int port, string workingDirectory, int timeoutMs = 8000)
+        {
+            if (IsPortOpen(host, port)) return true;
+            if (!IsOwnedProcessRunning)
+            {
+                StartHidden(workingDirectory);
+            }
+            // Port'u poll et
+            int elapsed = 0;
+            const int step = 200;
+            while (elapsed < timeoutMs)
+            {
+                if (IsPortOpen(host, port, 100)) return true;
+                if (_process != null && _process.HasExited)
+                {
+                    Debug.LogError(
+                        $"[UnityTools] chat-server crashed during startup (exit {_process.ExitCode}). " +
+                        $"Log: {_lastLogPath}"
+                    );
+                    return false;
+                }
+                System.Threading.Thread.Sleep(step);
+                elapsed += step;
+            }
+            Debug.LogError(
+                $"[UnityTools] chat-server did not open port {host}:{port} within {timeoutMs}ms. " +
+                $"Log: {_lastLogPath}"
+            );
+            return false;
         }
 
         public static void StartHidden(string workingDirectory)

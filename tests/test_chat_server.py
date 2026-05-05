@@ -1,4 +1,4 @@
-﻿"""End-to-end ChatServer protocol test with a stubbed orchestrator."""
+"""End-to-end ChatServer protocol test with a stubbed orchestrator."""
 import json
 import socket
 import threading
@@ -52,6 +52,10 @@ def run_test():
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect(("127.0.0.1", 17778))
+
+        msgs = recv_messages(s, 1)
+        assert msgs[0]["type"] == "hello", f"Hello failed: {msgs}"
+        print("OK hello")
 
         s.sendall(b'{"type":"ping"}\n')
         msgs = recv_messages(s, 1)

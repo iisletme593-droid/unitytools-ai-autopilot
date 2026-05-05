@@ -1,14 +1,4 @@
-"""İnteraktif chat REPL'i. prompt_toolkit + rich kullanır.
-
-Slash komutlar:
-    /help        komutları göster
-    /clear       konuşma geçmişini sıfırla
-    /tools       mevcut tool'ları listele
-    /status      bridge durumunu göster
-    /quit        çık
-
-Slash olmayan her şey LLM'e gider.
-"""
+﻿"""Interactive terminal chat REPL for UnityTools."""
 from __future__ import annotations
 
 import logging
@@ -41,25 +31,23 @@ def run_chat(config: Config, blender: BlenderBridge, unity: UnityBridge) -> int:
     while True:
         try:
             user_in = session.prompt(
-                [("class:prompt", "❯ ")],
+                [("class:prompt", "> ")],
                 style=PROMPT_STYLE,
                 multiline=False,
             ).strip()
         except (EOFError, KeyboardInterrupt):
-            console.print("\n[dim]Çıkılıyor...[/dim]")
+            console.print("\n[dim]Exiting...[/dim]")
             return 0
 
         if not user_in:
             continue
 
-        # Slash komutları
         if user_in.startswith("/"):
             cmd_result = _handle_slash(user_in, orch, blender, unity)
             if cmd_result == "quit":
                 return 0
             continue
 
-        # LLM'e gönder
         _send_to_llm(orch, user_in)
 
 
@@ -70,19 +58,19 @@ def _handle_slash(line: str, orch: Orchestrator, blender: BlenderBridge, unity: 
     cmd = parts[0].lower()
 
     if cmd in ("quit", "exit", "q"):
-        console.print("[dim]Görüşürüz.[/dim]")
+        console.print("[dim]Goodbye.[/dim]")
         return "quit"
 
     if cmd == "help":
         console.print(
             Panel(
-                "[cyan]/help[/cyan]    bu yardımı göster\n"
-                "[cyan]/clear[/cyan]   konuşma geçmişini temizle\n"
-                "[cyan]/tools[/cyan]   tüm tool'ları listele\n"
-                "[cyan]/status[/cyan]  bridge durumunu göster\n"
-                "[cyan]/quit[/cyan]    çık\n\n"
-                "[dim]Slash olmayan her mesaj Claude'a gider, gerekirse tool çağırır.[/dim]",
-                title="Komutlar",
+                "[cyan]/help[/cyan]    show this help\n"
+                "[cyan]/clear[/cyan]   clear chat history\n"
+                "[cyan]/tools[/cyan]   list registered tools\n"
+                "[cyan]/status[/cyan]  show bridge status\n"
+                "[cyan]/quit[/cyan]    exit\n\n"
+                "[dim]Any non-slash message goes to the selected AI provider.[/dim]",
+                title="Commands",
                 border_style="cyan",
             )
         )
@@ -90,56 +78,56 @@ def _handle_slash(line: str, orch: Orchestrator, blender: BlenderBridge, unity: 
 
     if cmd == "clear":
         orch.reset()
-        console.print("[green]✓ Geçmiş temizlendi.[/green]")
+        console.print("[green][OK] History cleared.[/green]")
         return None
 
     if cmd == "tools":
-        table = Table(title="Kayıtlı Tool'lar", show_lines=False)
-        table.add_column("İsim", style="cyan")
-        table.add_column("Açıklama")
+        table = Table(title="Registered Tools", show_lines=False)
+        table.add_column("Name", style="cyan")
+        table.add_column("Description")
         for spec in get_all_tools():
             table.add_row(spec.name, spec.description)
         console.print(table)
         return None
 
     if cmd == "status":
-        console.print(f"  Blender: {'✓' if blender.is_available() else '✗'}")
-        console.print(f"  Unity:   {'✓ bağlı' if unity.connect(timeout=1.0) else '✗ Editor kapalı'}")
+        console.print(f"  Blender: {'[OK]' if blender.is_available() else '[ERR]'}")
+        console.print(f"  Unity:   {'[OK] connected' if unity.connect(timeout=1.0) else '[WAIT] Editor offline'}")
         return None
 
-    console.print(f"[red]Bilinmeyen komut: /{cmd}[/red]")
+    console.print(f"[red]Unknown command: /{cmd}[/red]")
     return None
 
 
 def _send_to_llm(orch: Orchestrator, message: str) -> None:
     def on_tool_call(name: str, params: dict) -> None:
-        # Compact gösterim
         params_short = ", ".join(f"{k}={v!r}" for k, v in list(params.items())[:3])
         if len(params) > 3:
             params_short += ", ..."
-        console.print(f"  [dim]→ tool:[/dim] [yellow]{name}[/yellow]({params_short})")
+        console.print(f"  [dim]-> tool:[/dim] [yellow]{name}[/yellow]({params_short})")
 
     def on_tool_result(name: str, result) -> None:
         ok = isinstance(result, dict) and result.get("ok", True)
-        marker = "[green]✓[/green]" if ok else "[red]✗[/red]"
-        console.print(f"  [dim]← {marker} {name}[/dim]")
+        marker = "[green][OK][/green]" if ok else "[red][ERR][/red]"
+        console.print(f"  [dim]<- {marker} {name}[/dim]")
 
-    with console.status("[cyan]düşünüyor...[/cyan]", spinner="dots"):
+    with console.status("[cyan]Thinking...[/cyan]", spinner="dots"):
         try:
             result = orch.chat(message, on_tool_call=on_tool_call, on_tool_result=on_tool_result)
         except Exception as e:
-            console.print(f"[red]Hata:[/red] {e}")
+            console.print(f"[red]Error:[/red] {e}")
             return
 
     if result.text:
-        console.print(Panel(Markdown(result.text), border_style="green", title="Claude"))
+        console.print(Panel(Markdown(result.text), border_style="green", title="UnityTools AI"))
     if result.stop_reason == "max_iterations":
-        console.print("[yellow]⚠ Max iterasyon limitine ulaşıldı.[/yellow]")
+        console.print("[yellow]Warning: max iteration limit reached.[/yellow]")
 
 
 def _print_welcome(config: Config, blender: BlenderBridge, unity: UnityBridge) -> None:
-    blender_ok = "✓" if blender.is_available() else "✗"
-    unity_ok = "✓ bağlı" if unity.connect(timeout=1.0) else "○ kapalı (sonra bağlanırız)"
+    blender_ok = "[OK]" if blender.is_available() else "[ERR]"
+    unity_ok = "[OK] connected" if unity.connect(timeout=1.0) else "[WAIT] offline"
+    model_label = config.ollama_model if config.provider == "ollama" else config.model
     console.print(
         Panel(
             f"[bold]UnityTools Chat[/bold]\n"
@@ -147,7 +135,7 @@ def _print_welcome(config: Config, blender: BlenderBridge, unity: UnityBridge) -
             f"Model: [cyan]{model_label}[/cyan]   "
             f"Blender: [cyan]{blender_ok}[/cyan]   "
             f"Unity: [cyan]{unity_ok}[/cyan]\n\n"
-            f"[dim]/help yazarak komutları gör, /quit ile çık.[/dim]",
+            f"[dim]Type /help for commands, /quit to exit.[/dim]",
             border_style="cyan",
         )
     )

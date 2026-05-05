@@ -1,10 +1,15 @@
-﻿"""TCP chat server used by the embedded Unity Editor AI panel.
+"""TCP chat server used by the embedded Unity Editor AI panel.
 
 Unity connects to this process on port 7778, sends newline-delimited JSON
 messages, and receives tool-call progress plus final assistant text.
+
+İlk bağlantı kurulduğunda istemciye bir `hello` mesajı gönderilir; böylece
+Unity tarafı süreç başarıyla ayağa kalkmış mı yoksa import sırasında ölmüş mü
+olduğunu anlayabilir.
 """
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import socket
@@ -32,6 +37,8 @@ class ChatServer:
     leak between Unity windows or test clients.
     """
 
+    SERVER_VERSION = "2.0.0"
+
     def __init__(
         self,
         config: Config,
@@ -48,7 +55,11 @@ class ChatServer:
     def start_blocking(self) -> None:
         self._listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._listen_sock.bind((self.host, self.port))
+        try:
+            self._listen_sock.bind((self.host, self.port))
+        except OSError as e:
+            logger.error("ChatServer port'u acilamadi %s:%d -> %s", self.host, self.port, e)
+            raise
         self._listen_sock.listen(5)
         self._running = True
         logger.info("ChatServer listening: %s:%d", self.host, self.port)
@@ -83,8 +94,29 @@ class ChatServer:
     def _serve_client(self, client: ClientHandle) -> None:
         orch = Orchestrator(self.config)
         send = self._make_sender(client)
-        buffer = b""
 
+        # İlk handshake: Unity tarafı süreç sağlığını bundan anlar.
+        try:
+            tool_count = 0
+            try:
+                from .tool_registry import get_all_tools
+
+                tool_count = len(get_all_tools())
+            except Exception:
+                pass
+            send(
+                {
+                    "type": "hello",
+                    "version": self.SERVER_VERSION,
+                    "provider": self.config.provider,
+                    "model": self.config.model if self.config.provider == "anthropic" else self.config.ollama_model,
+                    "tools_loaded": tool_count,
+                }
+            )
+        except Exception:
+            logger.exception("hello sent failed")
+
+        buffer = b""
         try:
             while client.alive and self._running:
                 try:
@@ -101,7 +133,10 @@ class ChatServer:
                     self._handle_line(line, orch, send)
         except Exception as e:
             logger.exception("Client error: %s", client.addr)
-            send({"type": "error", "message": str(e)})
+            try:
+                send({"type": "error", "message": str(e)})
+            except Exception:
+                pass
         finally:
             try:
                 client.sock.close()
@@ -134,18 +169,53 @@ class ChatServer:
             return
 
         if msg_type == "user_message":
-            content = msg.get("content", "").strip()
+            content = (msg.get("content") or "").strip()
             if not content:
                 send({"type": "error", "message": "Empty message"})
                 return
             self._process_user_message(content, orch, send)
             return
 
+        if msg_type == "user_message_with_images":
+            content = (msg.get("content") or "").strip()
+            images = msg.get("images") or []
+            if not content and not images:
+                send({"type": "error", "message": "Empty message"})
+                return
+            if self.config.provider != "anthropic":
+                send(
+                    {
+                        "type": "error",
+                        "message": "Image input requires UNITYTOOLS_PROVIDER=anthropic (Claude vision).",
+                    }
+                )
+                return
+            blocks: list[dict[str, Any]] = []
+            if content:
+                blocks.append({"type": "text", "text": content})
+            for img in images:
+                try:
+                    mime = str(img.get("mime") or "image/png")
+                    data_b64 = str(img.get("data_base64") or "")
+                    if not data_b64.strip():
+                        continue
+                    base64.b64decode(data_b64, validate=False)
+                    blocks.append(
+                        {
+                            "type": "image",
+                            "source": {"type": "base64", "media_type": mime, "data": data_b64},
+                        }
+                    )
+                except Exception:
+                    continue
+            self._process_user_message(blocks, orch, send)
+            return
+
         send({"type": "error", "message": f"Unknown message type: {msg_type}"})
 
     def _process_user_message(
         self,
-        content: str,
+        content: Any,
         orch: Orchestrator,
         send: Callable[[dict], None],
     ) -> None:
@@ -178,7 +248,7 @@ class ChatServer:
             )
         except Exception as e:
             logger.exception("Orchestrator error")
-            send({"type": "error", "message": str(e)})
+            send({"type": "error", "message": str(e), "error_type": type(e).__name__})
             return
 
         if result.text:

@@ -1,4 +1,4 @@
-﻿// TCP listener used by the Python UnityBridge.
+// TCP listener used by the Python UnityBridge.
 // Protocol: newline-delimited JSON. One request line, one response line.
 
 using System;
@@ -13,7 +13,6 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
-
 namespace UnityTools.Bridge
 {
     [InitializeOnLoad]
@@ -33,6 +32,8 @@ namespace UnityTools.Bridge
         static BridgeServer()
         {
             EditorApplication.update += OnEditorUpdate;
+            AssemblyReloadEvents.beforeAssemblyReload += Stop;
+            EditorApplication.quitting += Stop;
             if (EditorPrefs.GetBool(PrefsKey, true))
             {
                 Start();
@@ -56,7 +57,7 @@ namespace UnityTools.Bridge
             }
             catch (Exception e)
             {
-                Debug.LogError($"[UnityTools] BridgeServer could not start: {e.Message}");
+                Debug.LogWarning($"[UnityTools] BridgeServer could not start: {e.Message}");
                 IsRunning = false;
             }
         }
@@ -86,9 +87,11 @@ namespace UnityTools.Bridge
                     conn.Start();
                 }
                 catch (SocketException) { }
+                catch (ThreadAbortException) { break; }
+                catch (ObjectDisposedException) { break; }
                 catch (Exception e)
                 {
-                    if (IsRunning) Debug.LogError($"[UnityTools] Accept error: {e.Message}");
+                    if (IsRunning) Debug.LogWarning($"[UnityTools] Accept warning: {e.Message}");
                 }
             }
         }

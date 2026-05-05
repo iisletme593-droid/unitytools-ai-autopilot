@@ -1,6 +1,5 @@
-﻿// Native-feeling Unity Editor AI panel for UnityTools Autopilot.
+// Native-feeling Unity Editor AI panel for UnityTools Autopilot.
 // The panel starts the Python chat core in the background and connects automatically.
-
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,7 +8,6 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
-
 namespace UnityTools.Bridge
 {
     public class ChatWindow : EditorWindow
@@ -22,19 +20,16 @@ namespace UnityTools.Bridge
             win.minSize = new Vector2(420, 520);
             win.Show();
         }
-
         [MenuItem("Tools/UnityTools/Bridge Status", false, 100)]
         public static void OpenBridgeStatus()
         {
             BridgeStatusWindow.Open();
         }
-
         [MenuItem("Tools/UnityTools/Start Embedded Chat Core", false, 200)]
         public static void StartEmbeddedCore()
         {
             ChatServerProcess.EnsureRunning("127.0.0.1", 7778, ProjectRoot);
         }
-
         [MenuItem("Tools/UnityTools/Stop Embedded Chat Core", false, 201)]
         public static void StopEmbeddedCore()
         {
@@ -45,6 +40,7 @@ namespace UnityTools.Bridge
 
         private ChatClient _client;
         private string _input = "";
+        private readonly List<SelectedImage> _selectedImages = new List<SelectedImage>();
         private Vector2 _scrollPos;
         private readonly List<ChatItem> _items = new List<ChatItem>();
         private bool _serverThinking;
@@ -91,9 +87,7 @@ namespace UnityTools.Bridge
                 _nextConnectAttempt = EditorApplication.timeSinceStartup + 2.5f;
                 EnsureCoreAndConnect(silent: true);
             }
-
             if (_client == null) return;
-
             bool changed = false;
             while (_client.InboundMessages.TryDequeue(out var msg))
             {
@@ -147,6 +141,24 @@ namespace UnityTools.Bridge
                 case "pong":
                     _items.Add(new ChatItem { Kind = ItemKind.System, Text = "Core responded." });
                     break;
+                case "hello":
+                    int toolsLoaded = msg["tools_loaded"]?.ToObject<int>() ?? 0;
+                    string provider = msg["provider"]?.ToString() ?? "?";
+                    string model = msg["model"]?.ToString() ?? "?";
+                    _items.Add(new ChatItem
+                    {
+                        Kind = ItemKind.System,
+                        Text = $"Connected. Provider: {provider}, model: {model}, {toolsLoaded} tools loaded.",
+                    });
+                    if (toolsLoaded == 0)
+                    {
+                        _items.Add(new ChatItem
+                        {
+                            Kind = ItemKind.Error,
+                            Text = "WARNING: No tools loaded! AI cannot make Unity changes. Check the chat-server log.",
+                        });
+                    }
+                    break;
                 default:
                     Debug.LogWarning($"[UnityTools.Chat] Unknown message type: {type}");
                     break;
@@ -189,29 +201,23 @@ namespace UnityTools.Bridge
                     if (connected) Disconnect();
                     else EnsureCoreAndConnect(silent: false);
                 }
-
                 if (GUILayout.Button("Restart Core", EditorStyles.toolbarButton, GUILayout.Width(95)))
                 {
                     RestartCore();
                 }
-
                 _autoConnectEnabled = GUILayout.Toggle(_autoConnectEnabled, "Auto", EditorStyles.toolbarButton, GUILayout.Width(52));
                 EditorPrefs.SetBool(PrefAutoConnectKey, _autoConnectEnabled);
-
                 GUILayout.FlexibleSpace();
-
                 if (GUILayout.Button("Clear", EditorStyles.toolbarButton, GUILayout.Width(55)))
                 {
                     _items.Clear();
                     if (connected) _client.SendReset();
                     AddSystemMessage("History cleared.");
                 }
-
                 if (GUILayout.Button("Log", EditorStyles.toolbarButton, GUILayout.Width(40)))
                 {
                     OpenLog();
                 }
-
                 if (GUILayout.Button("Settings", EditorStyles.toolbarButton, GUILayout.Width(70)))
                 {
                     ShowSettingsPopup();
@@ -222,24 +228,20 @@ namespace UnityTools.Bridge
         private void DrawMessages()
         {
             _scrollPos = EditorGUILayout.BeginScrollView(_scrollPos, GUILayout.ExpandHeight(true));
-
             if (_items.Count == 0)
             {
                 GUILayout.Space(12);
                 EditorGUILayout.HelpBox("Try: 'Create 5 cubes along the X axis' or 'List scene objects'.", MessageType.Info);
             }
-
             foreach (var item in _items)
             {
                 DrawItem(item);
                 EditorGUILayout.Space(5);
             }
-
             if (_serverThinking)
             {
                 GUILayout.Label("AI is thinking and may call tools...", _toolStyle);
             }
-
             EditorGUILayout.EndScrollView();
         }
 
@@ -276,7 +278,6 @@ namespace UnityTools.Bridge
                 {
                     GUI.SetNextControlName("UnityToolsAIInput");
                     _input = EditorGUILayout.TextArea(_input, GUILayout.MinHeight(48), GUILayout.MaxHeight(140));
-
                     using (new EditorGUI.DisabledScope(!CanSend()))
                     {
                         if (GUILayout.Button("Send", GUILayout.Width(86), GUILayout.Height(48)))
@@ -285,7 +286,22 @@ namespace UnityTools.Bridge
                         }
                     }
                 }
-
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button("Upload Image", GUILayout.Width(110)))
+                    {
+                        PickImage();
+                    }
+                    if (_selectedImages.Count > 0)
+                    {
+                        GUILayout.Label($"{_selectedImages.Count} image(s) attached", _subtleStyle);
+                        GUILayout.FlexibleSpace();
+                        if (GUILayout.Button("Clear Images", GUILayout.Width(100)))
+                        {
+                            _selectedImages.Clear();
+                        }
+                    }
+                }
                 Event e = Event.current;
                 if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Return && (e.control || e.command))
                 {
@@ -295,7 +311,6 @@ namespace UnityTools.Bridge
                         e.Use();
                     }
                 }
-
                 EditorGUILayout.LabelField("Ctrl+Enter sends. Tools run through Undo-aware Unity Editor commands.", _subtleStyle);
             }
         }
@@ -313,12 +328,29 @@ namespace UnityTools.Bridge
         private void SendCurrent()
         {
             string text = _input.Trim();
-            if (string.IsNullOrEmpty(text)) return;
-
+            if (string.IsNullOrEmpty(text) && _selectedImages.Count == 0) return;
             _items.Add(new ChatItem { Kind = ItemKind.User, Text = text });
             try
             {
-                _client.SendUserMessage(text);
+                if (_selectedImages.Count > 0)
+                {
+                    var images = new JArray();
+                    foreach (var img in _selectedImages)
+                    {
+                        images.Add(new JObject
+                        {
+                            ["mime"] = img.Mime,
+                            ["data_base64"] = img.Base64,
+                            ["name"] = img.Name,
+                        });
+                    }
+                    _client.SendUserMessageWithImages(text, images);
+                    _selectedImages.Clear();
+                }
+                else
+                {
+                    _client.SendUserMessage(text);
+                }
                 _input = "";
                 _serverThinking = true;
                 _scrollPos.y = float.MaxValue;
@@ -365,7 +397,6 @@ namespace UnityTools.Bridge
                     Repaint();
                 };
             };
-
             bool ok = _client.Connect();
             if (!ok)
             {
@@ -472,40 +503,34 @@ namespace UnityTools.Bridge
         private void EnsureStyles()
         {
             if (_stylesReady) return;
-
             _headerStyle = new GUIStyle(EditorStyles.boldLabel)
             {
                 fontSize = 18,
                 padding = new RectOffset(4, 4, 3, 0),
             };
-
             _subtleStyle = new GUIStyle(EditorStyles.miniLabel)
             {
                 wordWrap = true,
                 normal = { textColor = new Color(0.62f, 0.67f, 0.72f) },
             };
-
             _bubbleUserStyle = new GUIStyle(EditorStyles.textArea)
             {
                 wordWrap = true,
                 fontSize = 12,
                 padding = new RectOffset(10, 10, 8, 8),
             };
-
             _bubbleAiStyle = new GUIStyle(EditorStyles.textArea)
             {
                 wordWrap = true,
                 fontSize = 12,
                 padding = new RectOffset(10, 10, 8, 8),
             };
-
             _toolStyle = new GUIStyle(EditorStyles.miniLabel)
             {
                 fontSize = 11,
                 normal = { textColor = new Color(0.55f, 0.75f, 0.95f) },
                 padding = new RectOffset(12, 4, 2, 2),
             };
-
             _errorStyle = new GUIStyle(EditorStyles.miniLabel)
             {
                 fontSize = 11,
@@ -513,14 +538,12 @@ namespace UnityTools.Bridge
                 normal = { textColor = new Color(1f, 0.45f, 0.45f) },
                 padding = new RectOffset(12, 4, 2, 2),
             };
-
             _chipStyle = new GUIStyle(EditorStyles.toolbarButton)
             {
                 fontSize = 10,
                 padding = new RectOffset(8, 8, 2, 2),
                 margin = new RectOffset(2, 2, 2, 2),
             };
-
             _stylesReady = true;
         }
 
@@ -531,6 +554,38 @@ namespace UnityTools.Bridge
             public ItemKind Kind;
             public string Text;
             public bool Ok;
+        }
+
+        private struct SelectedImage
+        {
+            public string Name;
+            public string Mime;
+            public string Base64;
+        }
+
+        private void PickImage()
+        {
+            string path = EditorUtility.OpenFilePanel("Select reference image", ProjectRoot, "png,jpg,jpeg,webp");
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
+            try
+            {
+                byte[] bytes = File.ReadAllBytes(path);
+                string ext = Path.GetExtension(path).ToLowerInvariant();
+                string mime = "image/png";
+                if (ext == ".jpg" || ext == ".jpeg") mime = "image/jpeg";
+                else if (ext == ".webp") mime = "image/webp";
+                string b64 = Convert.ToBase64String(bytes);
+                _selectedImages.Add(new SelectedImage
+                {
+                    Name = Path.GetFileName(path),
+                    Mime = mime,
+                    Base64 = b64,
+                });
+            }
+            catch (Exception ex)
+            {
+                AddErrorMessage("Image load failed: " + ex.Message);
+            }
         }
     }
 
@@ -562,7 +617,6 @@ namespace UnityTools.Bridge
             EditorGUILayout.LabelField("Embedded Python Core", EditorStyles.boldLabel);
             _command = EditorGUILayout.TextField("Command", _command);
             _arguments = EditorGUILayout.TextField("Arguments", _arguments);
-
             EditorGUILayout.Space(10);
             using (new EditorGUILayout.HorizontalScope())
             {
@@ -593,7 +647,6 @@ namespace UnityTools.Bridge
             EditorGUILayout.LabelField("Command bridge port:", BridgeServer.Port.ToString());
             EditorGUILayout.LabelField("Embedded chat core:", ChatServerProcess.IsPortOpen("127.0.0.1", 7778) ? "OK Listening" : "ERR Offline");
             EditorGUILayout.LabelField("Chat core port:", "7778");
-
             EditorGUILayout.Space();
             using (new EditorGUILayout.HorizontalScope())
             {
@@ -608,7 +661,6 @@ namespace UnityTools.Bridge
                     ChatServerProcess.StartHidden(Path.GetDirectoryName(Application.dataPath));
                 }
             }
-
             EditorGUILayout.Space();
             EditorGUILayout.HelpBox("The AI panel starts the Python core silently. No terminal window is required.", MessageType.Info);
         }

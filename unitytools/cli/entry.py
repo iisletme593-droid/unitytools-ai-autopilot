@@ -1,4 +1,4 @@
-﻿"""unitytools CLI entry point."""
+"""unitytools CLI entry point."""
 from __future__ import annotations
 
 import argparse
@@ -63,7 +63,6 @@ def cmd_status(args: argparse.Namespace) -> int:
     console.print(
         f"  Unity:        {'[green][OK] connected (port ' + str(config.unity_bridge_port) + ')[/green]' if unity_ok else '[yellow][WAIT] Editor not connected yet[/yellow]'}"
     )
-
     problems = config.validate()
     if problems:
         console.print("\n[yellow]Warnings:[/yellow]")
@@ -75,7 +74,6 @@ def cmd_status(args: argparse.Namespace) -> int:
 def cmd_doctor(args: argparse.Namespace) -> int:
     config, blender, unity = _bootstrap()
     cmd_status(args)
-
     console.print("\n[bold cyan]Doctor checks[/bold cyan]")
     if config.provider == "ollama":
         try:
@@ -91,7 +89,6 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                 console.print(f"  Hint:         ollama pull {config.ollama_model}")
         except Exception as exc:
             console.print(f"  Ollama API:   [red][ERR] {exc}[/red]")
-
     console.print(
         f"  Unity ping:   {'[green][OK] responded[/green]' if unity.ping() else '[yellow][WAIT] not responding[/yellow]'}"
     )
@@ -109,7 +106,6 @@ def cmd_install_unity_plugin(args: argparse.Namespace) -> int:
     if not assets.exists() or not packages.exists():
         console.print(f"[red][ERR] Not a Unity project: {project}[/red]")
         return 1
-
     repo_root = Path(__file__).resolve().parents[2]
     source = repo_root / "unity_plugin" / "Editor" / "Bridge"
     if not source.exists():
@@ -117,24 +113,20 @@ def cmd_install_unity_plugin(args: argparse.Namespace) -> int:
     if not source.exists():
         console.print("[red][ERR] Could not find unity_plugin/Editor/Bridge in this checkout.[/red]")
         return 1
-
     target = assets / "Editor" / "UnityToolsBridge"
     target.mkdir(parents=True, exist_ok=True)
     for item in source.iterdir():
         if item.is_file():
             shutil.copy2(item, target / item.name)
-
     if manifest.exists():
         data = json.loads(manifest.read_text(encoding="utf-8-sig"))
         deps = data.setdefault("dependencies", {})
         deps.setdefault("com.unity.nuget.newtonsoft-json", "3.2.1")
         manifest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-
     env_example = repo_root / ".env.example"
     env_target = project / ".env"
     if env_example.exists() and not env_target.exists():
         shutil.copy2(env_example, env_target)
-
     console.print(f"[green][OK] Installed UnityToolsBridge to:[/green] {target}")
     console.print("[dim]Open Unity, then Window > UnityTools AI > Autopilot Chat.[/dim]")
     return 0
@@ -191,9 +183,7 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
     if api_problems:
         console.print(f"[red]{api_problems[0]}[/red]")
         return 1
-
     from ..core.chat_server import ChatServer
-
     server = ChatServer(config, host=args.host, port=args.port)
     console.print(f"[cyan]Starting chat server: {args.host}:{args.port}[/cyan]")
     console.print("[dim]In Unity: Tools > UnityTools > Open Chat, then Connect.[/dim]")
@@ -209,27 +199,21 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(prog="unitytools", description="Unity + Blender Autopilot")
     sub = parser.add_subparsers(dest="cmd")
-
     sub.add_parser("status", help="Show bridge and config status")
     sub.add_parser("doctor", help="Run local provider, Unity, and Blender diagnostics")
     sub.add_parser("chat", help="Start the terminal chat REPL")
     sub.add_parser("unity-ping", help="Test the Unity Editor bridge")
-
     p_install = sub.add_parser("install-unity-plugin", help="Copy the Unity Editor panel into a Unity project")
     p_install.add_argument("--project", required=True, help="Path to the Unity project root")
-
     p_export = sub.add_parser("blender-export", help="Export FBX from Blender")
     p_export.add_argument("--blend", required=True, help="Path to .blend file")
     p_export.add_argument("--output", required=True, help="Output .fbx file")
     p_export.add_argument("--slot", default=None, help="Only export objects whose name contains this slot")
     p_export.add_argument("--scale", type=float, default=1.0, help="Export scale factor")
-
     p_chat_srv = sub.add_parser("chat-server", help="Start the TCP chat server for the Editor window")
     p_chat_srv.add_argument("--host", default="127.0.0.1")
     p_chat_srv.add_argument("--port", type=int, default=7778)
-
     args = parser.parse_args()
-
     handlers = {
         "status": cmd_status,
         "doctor": cmd_doctor,
@@ -239,11 +223,9 @@ def main() -> int:
         "blender-export": cmd_blender_export,
         "chat-server": cmd_chat_server,
     }
-
     if args.cmd is None:
         parser.print_help()
         return 0
-
     handler = handlers.get(args.cmd)
     if handler is None:
         parser.print_help()
@@ -253,7 +235,6 @@ def main() -> int:
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted.[/yellow]")
         return 130
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -1,4 +1,4 @@
-"""Config yükleme: .env + config.yaml + environment variables."""
+"""Config yükleme: .env + environment variables."""
 from __future__ import annotations
 
 import os
@@ -14,16 +14,21 @@ from dotenv import load_dotenv
 class Config:
     """Çalışma zamanı yapılandırması."""
 
-    # Anthropic API
+    # LLM provider
     api_key: str = ""
     model: str = "claude-sonnet-4-20250514"
-    provider: str = "ollama"
+    provider: str = "ollama"  # "anthropic" | "ollama"
     ollama_host: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen3:4b"
+
+    # Üretim parametreleri
+    max_tokens: int = 8192
+    history_turn_limit: int = 40
 
     # Bridge ayarları
     unity_bridge_port: int = 7777
     unity_bridge_host: str = "127.0.0.1"
+    unity_rpc_timeout: float = 180.0
 
     # Executable yolları
     blender_executable: Optional[str] = None
@@ -52,8 +57,11 @@ class Config:
             provider=os.getenv("UNITYTOOLS_PROVIDER", "ollama").lower(),
             ollama_host=os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434"),
             ollama_model=os.getenv("OLLAMA_MODEL", "qwen3:4b"),
-            unity_bridge_port=int(os.getenv("UNITY_BRIDGE_PORT", "7777")),
+            max_tokens=_int_env("UNITYTOOLS_MAX_TOKENS", 8192),
+            history_turn_limit=_int_env("UNITYTOOLS_HISTORY_LIMIT", 40),
+            unity_bridge_port=_int_env("UNITY_BRIDGE_PORT", 7777),
             unity_bridge_host=os.getenv("UNITY_BRIDGE_HOST", "127.0.0.1"),
+            unity_rpc_timeout=_float_env("UNITY_RPC_TIMEOUT", 180.0),
             blender_executable=os.getenv("BLENDER_EXECUTABLE") or _autodetect_blender(),
             unity_executable=os.getenv("UNITY_EXECUTABLE"),
             project_root=root,
@@ -62,13 +70,17 @@ class Config:
         return cfg
 
     def validate(self) -> list[str]:
-        """Eksik/hatal? ayarlar? liste olarak d?nd?r."""
+        """Eksik/hatalı ayarları liste olarak döndür."""
         problems: list[str] = []
         if self.provider not in {"anthropic", "ollama"}:
-            problems.append("UNITYTOOLS_PROVIDER 'anthropic' veya 'ollama' olmali.")
+            problems.append(
+                f"UNITYTOOLS_PROVIDER 'anthropic' veya 'ollama' olmali (suanki: {self.provider!r})."
+            )
         if self.provider == "anthropic":
             if not self.api_key:
-                problems.append("ANTHROPIC_API_KEY .env dosyas?nda veya environment'ta yok.")
+                problems.append(
+                    "ANTHROPIC_API_KEY .env dosyasinda veya environment'ta yok."
+                )
             elif not self.api_key.startswith("sk-ant-"):
                 problems.append(
                     "ANTHROPIC_API_KEY mevcut ama Anthropic API anahtari gibi gorunmuyor "
@@ -76,19 +88,52 @@ class Config:
                 )
         if self.provider == "ollama" and not self.ollama_model:
             problems.append("OLLAMA_MODEL bos olamaz.")
+        if self.provider == "ollama":
+            # Bilinen küçük modeller için uyarı
+            risky = ("qwen3:1b", "qwen3:4b", "llama3.2:1b", "llama3.2:3b", "phi3:mini")
+            if any(self.ollama_model.startswith(r) for r in risky):
+                problems.append(
+                    f"OLLAMA_MODEL='{self.ollama_model}' tool calling icin guvenilir degildir. "
+                    f"Onerilen: qwen2.5:7b-instruct, llama3.1:8b, ya da daha buyuk."
+                )
         if not self.blender_executable:
             problems.append(
-                "Blender bulunamad?. .env'de BLENDER_EXECUTABLE'? set et veya "
-                "blender'? PATH'e ekle."
+                "Blender bulunamadi. .env'de BLENDER_EXECUTABLE'i set et veya "
+                "blender'i PATH'e ekle."
             )
         elif not Path(self.blender_executable).exists():
-            problems.append(f"BLENDER_EXECUTABLE yolu mevcut de?il: {self.blender_executable}")
+            problems.append(
+                f"BLENDER_EXECUTABLE yolu mevcut degil: {self.blender_executable}"
+            )
+        if self.max_tokens < 512:
+            problems.append("UNITYTOOLS_MAX_TOKENS cok dusuk (<512).")
+        if self.history_turn_limit < 4:
+            problems.append("UNITYTOOLS_HISTORY_LIMIT cok dusuk (<4).")
         return problems
+
+
+def _int_env(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def _float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
 
 
 def _autodetect_blender() -> Optional[str]:
     """PATH'te ve standart konumlarda Blender'ı ara."""
-    # PATH
     found = shutil.which("blender")
     if found:
         return found

@@ -29,15 +29,12 @@ class UnityNotConnectedError(RuntimeError):
 
 class UnityBridge:
     """Tek istemcili, senkron TCP client. Editor tarafı listener yapar."""
-
     def __init__(self, config: Config) -> None:
         self.config = config
         self._sock: Optional[socket.socket] = None
         self._lock = threading.Lock()
         self._buffer = b""
-
     # ---------- bağlantı yönetimi ----------
-
     def connect(self, timeout: float = 2.0) -> bool:
         """Editor listener'a bağlanmayı dene. True dönerse bağlandı demektir."""
         with self._lock:
@@ -59,7 +56,6 @@ class UnityBridge:
                 logger.debug("Unity bridge bağlantı hatası: %s", e)
                 self._sock = None
                 return False
-
     def disconnect(self) -> None:
         with self._lock:
             if self._sock is not None:
@@ -68,29 +64,24 @@ class UnityBridge:
                 except Exception:
                     pass
                 self._sock = None
-
     def is_connected(self) -> bool:
         if self._sock is not None:
             return True
         return self.connect()
-
     # ---------- RPC ----------
-
-    def call(self, method: str, params: Optional[dict[str, Any]] = None, timeout: float = 30.0) -> Any:
+    def call(self, method: str, params: Optional[dict[str, Any]] = None, timeout: Optional[float] = None) -> Any:
         """Editor'da bir method çağır, sonucu döndür. Hata varsa exception fırlatır."""
+        timeout = float(timeout if timeout is not None else self.config.unity_rpc_timeout)
         if not self.is_connected():
             raise UnityNotConnectedError(
                 "Unity Editor'a bağlanılamadı. Editor'ün açık olduğundan ve "
                 "BridgeServer'ın çalıştığından emin ol."
             )
-
         request = RpcRequest(id=str(uuid.uuid4())[:8], method=method, params=params or {})
         response = self._send_and_receive(request, timeout=timeout)
-
         if response.error:
             raise RuntimeError(f"Unity RPC hatası ({response.error.code}): {response.error.message}")
         return response.result
-
     def _send_and_receive(self, request: RpcRequest, timeout: float) -> RpcResponse:
         with self._lock:
             assert self._sock is not None
@@ -99,16 +90,18 @@ class UnityBridge:
                 self._sock.sendall(payload)
                 self._sock.settimeout(timeout)
                 line = self._read_line()
-            except (BrokenPipeError, ConnectionResetError, socket.timeout) as e:
+            except socket.timeout as e:
+                raise TimeoutError(
+                    f"Unity RPC zaman aşımı ({timeout:.1f}s). Unity Editor muhtemelen meşgul (compile/import/playmode)."
+                ) from e
+            except (BrokenPipeError, ConnectionResetError) as e:
                 self._sock = None
                 raise UnityNotConnectedError(f"Bağlantı koptu: {e}") from e
             finally:
                 if self._sock is not None:
                     self._sock.settimeout(None)
-
         data = json.loads(line.decode("utf-8"))
         return RpcResponse.model_validate(data)
-
     def _read_line(self) -> bytes:
         """Newline'a kadar oku. Buffer'ı state olarak tut."""
         assert self._sock is not None
@@ -120,9 +113,7 @@ class UnityBridge:
         line, _, rest = self._buffer.partition(b"\n")
         self._buffer = rest
         return line
-
     # ---------- yüksek seviye yardımcılar ----------
-
     def ping(self) -> bool:
         try:
             result = self.call("ping", timeout=2.0)

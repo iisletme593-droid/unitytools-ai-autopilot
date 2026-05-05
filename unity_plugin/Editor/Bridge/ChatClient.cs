@@ -1,5 +1,4 @@
-﻿// TCP client used by the embedded Unity Editor chat window.
-
+// TCP client used by the embedded Unity Editor chat window.
 using System;
 using System.Collections.Concurrent;
 using System.IO;
@@ -8,7 +7,6 @@ using System.Text;
 using System.Threading;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
-
 namespace UnityTools.Bridge
 {
     public class ChatClient
@@ -46,11 +44,9 @@ namespace UnityTools.Bridge
                     _tcp = null;
                     return false;
                 }
-
                 _tcp.EndConnect(asyncResult);
                 _stream = _tcp.GetStream();
                 _running = true;
-
                 _readThread = new Thread(ReadLoop) { IsBackground = true, Name = "UnityToolsChatClient" };
                 _readThread.Start();
                 return true;
@@ -99,6 +95,16 @@ namespace UnityTools.Bridge
             });
         }
 
+        public void SendUserMessageWithImages(string content, JArray images)
+        {
+            Send(new JObject
+            {
+                ["type"] = "user_message_with_images",
+                ["content"] = content,
+                ["images"] = images ?? new JArray(),
+            });
+        }
+
         public void SendReset()
         {
             Send(new JObject { ["type"] = "reset" });
@@ -120,7 +126,6 @@ namespace UnityTools.Bridge
                     int n = _stream.Read(buffer, 0, buffer.Length);
                     if (n <= 0) break;
                     pending.Write(buffer, 0, n);
-
                     byte[] data = pending.ToArray();
                     int start = 0;
                     for (int i = 0; i < data.Length; i++)
@@ -139,7 +144,6 @@ namespace UnityTools.Bridge
                             Debug.LogWarning($"[UnityTools.ChatClient] Parse error: {e.Message}");
                         }
                     }
-
                     pending.Position = 0;
                     pending.SetLength(0);
                     if (start < data.Length) pending.Write(data, start, data.Length - start);
