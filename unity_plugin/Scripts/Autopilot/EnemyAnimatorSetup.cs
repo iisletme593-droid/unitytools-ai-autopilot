@@ -15,6 +15,7 @@ namespace Autopilot
 
         static EnemyAnimatorSetup()
         {
+            if (!AutopilotExecutionMode.ShouldRunAutomatic("EnemyAnimatorSetup")) return;
             if (SessionState.GetBool(DoneKey, false)) return;
             EditorApplication.delayCall += AutoSetup;
         }

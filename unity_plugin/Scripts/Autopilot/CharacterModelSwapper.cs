@@ -21,6 +21,7 @@ namespace Autopilot
 
         static CharacterModelSwapper()
         {
+            if (!AutopilotExecutionMode.ShouldRunAutomatic("CharacterModelSwapper")) return;
             // Zaten bu session'da yapildiysa tekrar calisma
             if (SessionState.GetBool(DoneKey, false)) return;
             // Modeller mevcutsa otomatik calistir

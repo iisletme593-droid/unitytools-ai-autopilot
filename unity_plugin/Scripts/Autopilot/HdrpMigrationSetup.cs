@@ -18,6 +18,7 @@ namespace Autopilot
 
         static HdrpMigrationSetup()
         {
+            if (!AutopilotExecutionMode.ShouldRunAutomatic("HdrpMigrationSetup")) return;
             if (SessionState.GetBool(DoneKey, false)) return;
             if (!IsHdrpAvailable()) return;
             EditorApplication.delayCall += RunMigration;

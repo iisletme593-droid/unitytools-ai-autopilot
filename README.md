@@ -97,11 +97,15 @@ OLLAMA_MODEL=qwen2.5:14b-instruct
 unitytools install-unity-plugin --project "C:\Path\To\YourUnityProject"
 ```
 
-This installs three Unity-side folders / Bu komut Unity tarafinda uc klasor kurar:
+This installs Unity-side files safely / Bu komut Unity tarafindaki dosyalari guvenli kurar:
 
 - `Assets/Editor/UnityToolsBridge`: embedded chat panel and TCP bridge / gomulu chat paneli ve TCP bridge
 - `Assets/Scripts/Autopilot`: Autopilot task, scene, HDRP, asset, and vision scripts / Autopilot task, sahne, HDRP, asset ve vision scriptleri
-- `Assets/Editor/UnityToolsAutopilot`: Autopilot import and maintenance helpers / Autopilot import ve bakim yardimcilari
+- `Assets/Editor/UnityToolsAutopilot`: Autopilot import and maintenance helpers, only when matching root-level helpers do not already exist / Autopilot import ve bakim yardimcilari, sadece ayni helper'lar root `Assets/Editor` altinda yoksa
+
+Autopilot runs in manual/chat-controlled mode by default. It will not run scene builders, migrations, material swaps, or brain loops automatically on Unity reload. Use chat commands or explicit menu items when you want it to act.
+
+Autopilot varsayilan olarak manuel/chat kontrollu modda calisir. Unity reload sonrasi kendi kendine scene builder, migration, material swap veya brain loop calistirmaz. Bir islem istediginde chat komutu ya da acik menu komutu kullan.
 
 6. Open Unity and launch / Unity'yi ac ve paneli baslat:
 

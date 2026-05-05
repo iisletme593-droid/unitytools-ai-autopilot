@@ -130,8 +130,20 @@ def cmd_install_unity_plugin(args: argparse.Namespace) -> int:
     autopilot_editor_source = plugin_root / "Editor" / "Autopilot"
     if autopilot_editor_source.exists():
         autopilot_editor_target = assets / "Editor" / "UnityToolsAutopilot"
-        _copy_tree_files(autopilot_editor_source, autopilot_editor_target, suffixes={".cs"})
-        installed_targets.append(autopilot_editor_target)
+        duplicate_names = _existing_editor_script_names(
+            assets / "Editor",
+            autopilot_editor_target,
+            {p.name for p in autopilot_editor_source.rglob("*.cs")},
+        )
+        if duplicate_names:
+            _remove_duplicate_editor_targets(autopilot_editor_target, duplicate_names)
+            console.print(
+                "[yellow][WAIT] Skipped Autopilot editor helpers because matching scripts already exist under Assets/Editor:[/yellow] "
+                + ", ".join(sorted(duplicate_names))
+            )
+        else:
+            _copy_tree_files(autopilot_editor_source, autopilot_editor_target, suffixes={".cs"})
+            installed_targets.append(autopilot_editor_target)
 
     if manifest.exists():
         data = json.loads(manifest.read_text(encoding="utf-8-sig"))
@@ -163,6 +175,40 @@ def _copy_tree_files(source: Path, target: Path, suffixes: set[str] | None = Non
         destination = target / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(item, destination)
+
+
+def _existing_editor_script_names(editor_root: Path, intended_target: Path, names: set[str]) -> set[str]:
+    """Find same-named editor scripts outside our intended target to avoid CS0101 duplicates."""
+    if not editor_root.exists():
+        return set()
+    intended = intended_target.resolve()
+    found: set[str] = set()
+    for item in editor_root.rglob("*.cs"):
+        if item.name not in names:
+            continue
+        try:
+            item.resolve().relative_to(intended)
+            continue
+        except ValueError:
+            found.add(item.name)
+    return found
+
+
+def _remove_duplicate_editor_targets(target: Path, names: set[str]) -> None:
+    """Clean stale copies from previous installs when root-level scripts already exist."""
+    if not target.exists():
+        return
+    for item in target.rglob("*.cs"):
+        if item.name in names:
+            item.unlink(missing_ok=True)
+            meta = item.with_suffix(item.suffix + ".meta")
+            if meta.exists():
+                meta.unlink(missing_ok=True)
+    try:
+        if not any(target.rglob("*")):
+            target.rmdir()
+    except OSError:
+        pass
 
 
 def cmd_chat(args: argparse.Namespace) -> int:

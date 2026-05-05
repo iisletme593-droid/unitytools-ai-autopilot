@@ -5,6 +5,9 @@ using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 
+
+namespace UnityTools.Autopilot.Editor
+{
 public static class AutopilotProjectMaintenance
 {
     [MenuItem("Tools/Autopilot/Maintenance/Clean Model Import Settings")]
@@ -104,4 +107,6 @@ public static class AutopilotProjectMaintenance
         ClearConsole();
         Debug.Log("[Autopilot] Console cleanup finished.");
     }
+}
+
 }

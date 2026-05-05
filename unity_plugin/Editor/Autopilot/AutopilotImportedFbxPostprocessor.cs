@@ -1,19 +1,22 @@
-using UnityEditor;
+﻿using UnityEditor;
 
-public sealed class AutopilotImportedFbxPostprocessor : AssetPostprocessor
+namespace UnityTools.Autopilot.Editor
 {
-    private void OnPreprocessModel()
+    public sealed class AutopilotImportedFbxPostprocessor : AssetPostprocessor
     {
-        if (!assetPath.StartsWith("Assets/Art/Characters/Imported/"))
-            return;
+        private void OnPreprocessModel()
+        {
+            if (!assetPath.StartsWith("Assets/Art/Characters/Imported/"))
+                return;
 
-        if (!assetPath.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase))
-            return;
+            if (!assetPath.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase))
+                return;
 
-        ModelImporter importer = (ModelImporter)assetImporter;
-        importer.animationType = ModelImporterAnimationType.Generic;
-        importer.avatarSetup = ModelImporterAvatarSetup.NoAvatar;
-        importer.importAnimation = false;
-        importer.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
+            ModelImporter importer = (ModelImporter)assetImporter;
+            importer.animationType = ModelImporterAnimationType.Generic;
+            importer.avatarSetup = ModelImporterAvatarSetup.NoAvatar;
+            importer.importAnimation = false;
+            importer.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
+        }
     }
 }

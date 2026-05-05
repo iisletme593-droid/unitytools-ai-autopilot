@@ -15,6 +15,7 @@ namespace Autopilot
 
         static EnemyMaterialSetup()
         {
+            if (!AutopilotExecutionMode.ShouldRunAutomatic("EnemyMaterialSetup")) return;
             if (SessionState.GetBool(DoneKey, false)) return;
             EditorApplication.delayCall += AutoApply;
         }

@@ -43,6 +43,11 @@ namespace Autopilot
 
         static AutopilotBrainLoop()
         {
+            if (!AutopilotExecutionMode.ShouldRunAutomatic("BrainLoop"))
+            {
+                SessionState.SetBool(KeyEnabled, false);
+                return;
+            }
             EditorApplication.update += Tick;
             // Ä°lk aÃ§Ä±lÄ±ÅŸta otomatik baÅŸlat (session baÅŸÄ±na bir kez)
             if (!SessionState.GetBool(KeyAutoStart, false))
@@ -54,6 +59,12 @@ namespace Autopilot
 
         internal static void SetEnabled(bool on, float intervalMinutes = 10f)
         {
+            if (on && !AutopilotExecutionMode.AllowAutomaticLoops)
+            {
+                SessionState.SetBool(KeyEnabled, false);
+                Debug.Log("[BrainLoop] Otomatik dongu kapali. Chat/menu komutlari manuel calisir. Etkinlestirmek icin Tools > Autopilot > Mode > Enable Automatic Loops.");
+                return;
+            }
             SessionState.SetBool (KeyEnabled,  on);
             SessionState.SetFloat(KeyInterval, intervalMinutes);
             if (on)

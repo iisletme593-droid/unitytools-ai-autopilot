@@ -42,6 +42,7 @@ namespace Autopilot
 
         static SceneBuilder()
         {
+            if (!AutopilotExecutionMode.ShouldRunAutomatic("SceneBuilder.ImportAssets")) return;
             if (SessionState.GetBool(DoneKey, false)) return;
             EditorApplication.delayCall += AutoRun;
         }
