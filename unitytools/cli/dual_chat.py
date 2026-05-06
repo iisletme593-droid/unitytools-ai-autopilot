@@ -1,7 +1,7 @@
-"""Dual-agent interactive chat REPL.
+﻿"""Dual-agent interactive chat REPL.
 
-Master and Worker default to qwen2.5:14b-instruct for the fastest installed
-local setup. You can still pass different models with --master/--worker.
+Reader and Worker default to qwen2.5:14b-instruct for fast scene/context work.
+Master defaults to qwen3.6:latest for planning when installed.
 """
 from __future__ import annotations
 
@@ -23,13 +23,15 @@ console = Console()
 
 def run_dual_chat(
     config: Config,
-    master_model: str = "qwen2.5:14b-instruct",
+    master_model: str = "qwen3.6:latest",
     worker_model: str = "qwen2.5:14b-instruct",
+    reader_model: str = "qwen2.5:14b-instruct",
 ) -> int:
     """Run dual-agent interactive chat."""
     console.print(
         Panel.fit(
             "[bold cyan]UnityTools Dual-Agent Chat[/bold cyan]\n"
+            f"[dim]Reader:[/dim] {reader_model} [dim](fast scene/context scan)[/dim]\n"
             f"[dim]Master:[/dim] {master_model} [dim](planner)[/dim]\n"
             f"[dim]Worker:[/dim] {worker_model} [dim](executor, fast)[/dim]\n"
             "[bold yellow]Use dual-agent for complex scenes; single-agent is faster for quick edits.[/bold yellow]\n"
@@ -38,17 +40,17 @@ def run_dual_chat(
         )
     )
 
-    dual = DualAgentOrchestrator(config, master_model, worker_model)
+    dual = DualAgentOrchestrator(config, master_model, worker_model, reader_model=reader_model)
     session: PromptSession = PromptSession(history=InMemoryHistory())
 
     def on_master_thinking(msg: str) -> None:
-        console.print(f"[bold magenta]🧠 Master:[/bold magenta] [dim]{msg}[/dim]")
+        console.print(f"[bold magenta]ğŸ§  Master:[/bold magenta] [dim]{msg}[/dim]")
 
     def on_worker_executing(msg: str) -> None:
-        console.print(f"[bold blue]⚙️  Worker:[/bold blue] [dim]{msg}[/dim]")
+        console.print(f"[bold blue]âš™ï¸  Worker:[/bold blue] [dim]{msg}[/dim]")
 
     def on_tool_call(name: str, params: dict) -> None:
-        console.print(f"[yellow]🔧 Tool:[/yellow] {name}")
+        console.print(f"[yellow]ğŸ”§ Tool:[/yellow] {name}")
         if params:
             syntax = Syntax(
                 str(params),
@@ -63,12 +65,12 @@ def run_dual_chat(
         if isinstance(result, dict):
             ok = result.get("ok", True)
             if ok:
-                console.print(f"[green]✓ {name} succeeded[/green]")
+                console.print(f"[green]âœ“ {name} succeeded[/green]")
             else:
                 error = result.get("error", "Unknown error")
-                console.print(f"[red]✗ {name} failed: {error}[/red]")
+                console.print(f"[red]âœ— {name} failed: {error}[/red]")
         else:
-            console.print(f"[green]✓ {name} completed[/green]")
+            console.print(f"[green]âœ“ {name} completed[/green]")
 
     while True:
         try:
@@ -101,14 +103,14 @@ def run_dual_chat(
             )
 
             # Show final result
-            console.print("\n[bold green]📊 Result:[/bold green]")
+            console.print("\n[bold green]ğŸ“Š Result:[/bold green]")
             console.print(Panel(result.text, border_style="green"))
 
             # Show stats
             console.print(
                 f"[dim]Steps: {len(result.worker_reports)} | "
                 f"Tools: {len(result.tool_calls)} | "
-                f"Success: {'✓' if result.success else '✗'}[/dim]"
+                f"Success: {'âœ“' if result.success else 'âœ—'}[/dim]"
             )
 
         except Exception as e:

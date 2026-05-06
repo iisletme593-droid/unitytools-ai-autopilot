@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
@@ -32,6 +33,19 @@ from .memory_system import MemorySystem, MemoryEntry
 from .context_manager import ContextManager
 
 logger = logging.getLogger(__name__)
+
+
+READER_SYSTEM_PROMPT = """You are the FAST READER agent for UnityTools.
+
+Role:
+- Read the user's request and the live Unity context.
+- Identify relevant scene objects, assets, categories, performance risks, and likely tools.
+- Do not write JSON. Do not claim edits were made.
+- Produce a short Turkish briefing for the planner/executor.
+
+Good output:
+"Sahnede 517 obje var. Kullanici agac/kaya optimizasyonu istiyor. Tree category icin LOD planner, material QA ve scene snapshot gerekli."
+"""
 
 
 MASTER_SYSTEM_PROMPT = """Sen bir MASTER PLANNER ve ARCHITECT'sin. Unity Editor iÃ§in gÃ¶revleri planlayan Ã¼st dÃ¼zey bir AI'sÄ±n.
@@ -303,6 +317,7 @@ HÄ±z, doÄŸruluk, gÃ¼venilirlik senin Ã¶nceliÄŸin.
 class DualAgentResult:
     """Dual-agent execution result."""
     text: str
+    reader_brief: str = ""
     master_plan: dict[str, Any] = field(default_factory=dict)
     worker_reports: list[dict[str, Any]] = field(default_factory=list)
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
@@ -321,14 +336,21 @@ class DualAgentOrchestrator:
     def __init__(
         self,
         config: Config,
-        master_model: str = "qwen2.5:14b-instruct",
+        master_model: str = "qwen3.6:latest",
         worker_model: str = "qwen2.5:14b-instruct",
+        reader_model: str = "qwen2.5:14b-instruct",
         enable_memory: bool = True,
         enable_context: bool = True,
     ) -> None:
         self.config = config
         self.master_model = master_model
         self.worker_model = worker_model
+        self.reader_model = reader_model
+
+        # Reader orchestrator (fast context interpretation, no writes)
+        reader_config = self._clone_config(config, reader_model)
+        self.reader = Orchestrator(reader_config)
+        self.reader.max_tokens = 2048
 
         # Master orchestrator (planning, no tools)
         master_config = self._clone_config(config, master_model)
@@ -347,7 +369,8 @@ class DualAgentOrchestrator:
         self.context = ContextManager() if enable_context else None
 
         logger.info(
-            "DualAgent initialized: Master=%s, Worker=%s, Memory=%s, Context=%s",
+            "DualAgent initialized: Reader=%s, Master=%s, Worker=%s, Memory=%s, Context=%s",
+            reader_model,
             master_model,
             worker_model,
             enable_memory,
@@ -356,6 +379,7 @@ class DualAgentOrchestrator:
 
     def reset(self) -> None:
         """Reset both agents' history."""
+        self.reader.reset()
         self.master.reset()
         self.worker.reset()
 
@@ -385,6 +409,8 @@ class DualAgentOrchestrator:
         all_tool_calls: list[dict[str, Any]] = []
         worker_reports: list[dict[str, Any]] = []
         master_plan: dict[str, Any] = {}
+        reader_brief = ""
+        live_context: dict[str, Any] = {}
 
         # Phase 0: Gather context and recall similar experiences
         context_info = ""
@@ -407,6 +433,21 @@ class DualAgentOrchestrator:
             if learned_lessons and on_master_thinking:
                 on_master_thinking(f"Found {len(learned_lessons)} lessons from past mistakes")
 
+        # Phase 0b: Fast deterministic read pass + qwen2.5 reader brief.
+        # This keeps the stronger planner from guessing and keeps read-heavy
+        # scene/asset discovery away from the execution step.
+        if on_master_thinking:
+            on_master_thinking("Reader agent scanning scene/assets...")
+        live_context = self._gather_live_context(
+            user_message,
+            on_tool_call=on_tool_call,
+            on_tool_result=on_tool_result,
+        )
+        if live_context:
+            reader_brief = self._reader_brief(user_message, live_context)
+            if on_master_thinking and reader_brief:
+                on_master_thinking("Reader brief ready")
+
         # Phase 1: Master creates plan (with context and memory)
         if on_master_thinking:
             on_master_thinking("Master agent analyzing request...")
@@ -416,6 +457,8 @@ class DualAgentOrchestrator:
             context_info,
             similar_experiences,
             learned_lessons,
+            reader_brief,
+            live_context,
         )
 
         try:
@@ -491,6 +534,7 @@ EÄŸer hata varsa, ne olduÄŸunu aÃ§Ä±kla.
 
             summary_result = self._master_plan(summary_prompt)
             final_text = summary_result.text
+            final_text = _humanize_final_text(final_text, worker_reports, all_tool_calls)
             
             # Phase 4: Learn from this experience
             duration = time.time() - start_time
@@ -531,6 +575,7 @@ EÄŸer hata varsa, ne olduÄŸunu aÃ§Ä±kla.
 
             return DualAgentResult(
                 text=final_text,
+                reader_brief=reader_brief,
                 master_plan=master_plan,
                 worker_reports=worker_reports,
                 tool_calls=all_tool_calls,
@@ -557,6 +602,7 @@ EÄŸer hata varsa, ne olduÄŸunu aÃ§Ä±kla.
             
             return DualAgentResult(
                 text=f"Hata oluÅŸtu: {e}",
+                reader_brief=reader_brief,
                 master_plan=master_plan,
                 worker_reports=worker_reports,
                 tool_calls=all_tool_calls,
@@ -617,9 +663,21 @@ EÄŸer hata varsa, ne olduÄŸunu aÃ§Ä±kla.
         context_info: str,
         similar_experiences: list,
         learned_lessons: list[str],
+        reader_brief: str = "",
+        live_context: dict[str, Any] | None = None,
     ) -> str:
         """Build enhanced master prompt with context and memory."""
         prompt_parts = [f"KullanÄ±cÄ± isteÄŸi: {user_message}\n"]
+
+        if reader_brief:
+            prompt_parts.append(f"\n=== FAST READER BRIEF ===\n{reader_brief}\n")
+
+        if live_context:
+            prompt_parts.append(
+                "\n=== LIVE READ TOOL SNAPSHOT ===\n"
+                + json.dumps(_compact_live_context(live_context), ensure_ascii=False, indent=2, default=str)
+                + "\n"
+            )
         
         # Add context
         if context_info:
@@ -673,6 +731,70 @@ PlanÄ± ÅŸu formatta JSON olarak ver:
 """)
         
         return "\n".join(prompt_parts)
+
+    def _gather_live_context(
+        self,
+        user_message: str,
+        on_tool_call: Optional[Callable[[str, dict], None]] = None,
+        on_tool_result: Optional[Callable[[str, Any], None]] = None,
+    ) -> dict[str, Any]:
+        """Run bounded read-only tools before planning.
+
+        The reader phase is deterministic on purpose: qwen2.5 gets a compact
+        snapshot to interpret, while mutating tools stay reserved for Worker.
+        """
+        from .tool_registry import get_tool
+
+        text = (user_message or "").lower()
+        plan: list[tuple[str, dict[str, Any]]] = [
+            ("unity_get_project_info", {}),
+            ("unity_get_scene_catalog", {"max": 350}),
+        ]
+        if any(w in text for w in ("asset", "prefab", "tree", "agac", "ağaç", "rock", "kaya", "prop", "real", "realistic", "relis")):
+            plan.append(("unity_get_asset_catalog_summary", {}))
+        if any(w in text for w in ("kas", "kasma", "performans", "performance", "triangle", "poly", "lod", "optimize")):
+            plan.append(("unity_profile_scene_performance", {"max_objects": 10000}))
+
+        results: dict[str, Any] = {}
+        for tool_name, params in plan:
+            spec = get_tool(tool_name)
+            if spec is None:
+                continue
+            if on_tool_call:
+                on_tool_call(tool_name, params)
+            try:
+                result = spec.fn(**params)
+            except Exception as exc:
+                result = {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
+            results[tool_name] = result
+            if on_tool_result:
+                on_tool_result(tool_name, result)
+            if self.context and tool_name == "unity_get_scene_catalog" and isinstance(result, dict):
+                objects = result.get("objects") or result.get("items") or []
+                if isinstance(objects, list):
+                    self.context.update_scene(objects)
+        return results
+
+    def _reader_brief(self, user_message: str, live_context: dict[str, Any]) -> str:
+        prompt = f"""Kullanici istegi:
+{user_message}
+
+Canli okuma sonuclari:
+{json.dumps(_compact_live_context(live_context), ensure_ascii=False, indent=2, default=str)}
+
+Planner icin kisa Turkce briefing yaz. JSON yazma. Sadece ne var, ne yapilmali, hangi riskler var."""
+        try:
+            response = self.reader._ollama_chat(
+                [
+                    {"role": "system", "content": READER_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                tools=[],
+            )
+            return (response.get("message", {}) or {}).get("content", "").strip()
+        except Exception as exc:
+            logger.warning("Reader brief failed: %s", exc)
+            return ""
     
     def _update_context_from_tools(self, tool_calls: list[dict[str, Any]]) -> None:
         """Update context manager from tool results."""
@@ -708,3 +830,60 @@ PlanÄ± ÅŸu formatta JSON olarak ver:
                 success=success,
             )
 
+
+def _compact_live_context(context: dict[str, Any]) -> dict[str, Any]:
+    compact: dict[str, Any] = {}
+    for name, result in context.items():
+        if not isinstance(result, dict):
+            compact[name] = result
+            continue
+        row = {k: v for k, v in result.items() if k not in {"objects", "results", "groups", "samples", "catalog"}}
+        for key in ("objects", "results", "groups", "samples", "catalog"):
+            value = result.get(key)
+            if isinstance(value, list):
+                row[key] = value[:12]
+            elif isinstance(value, dict):
+                row[key] = dict(list(value.items())[:12])
+        compact[name] = row
+    return compact
+
+
+def _humanize_final_text(text: str, worker_reports: list[dict[str, Any]], tool_calls: list[dict[str, Any]]) -> str:
+    stripped = (text or "").strip()
+    if not stripped:
+        return _fallback_summary(worker_reports, tool_calls)
+    if _looks_like_json(stripped):
+        return _fallback_summary(worker_reports, tool_calls)
+    return stripped
+
+
+def _looks_like_json(text: str) -> bool:
+    if text.startswith("```json"):
+        return True
+    if not (text.startswith("{") or text.startswith("[")):
+        return False
+    try:
+        json.loads(re.sub(r"^```json\s*|\s*```$", "", text, flags=re.IGNORECASE | re.DOTALL))
+        return True
+    except Exception:
+        return False
+
+
+def _fallback_summary(worker_reports: list[dict[str, Any]], tool_calls: list[dict[str, Any]]) -> str:
+    ok_calls = [c for c in tool_calls if c.get("ok", True)]
+    bad_calls = [c for c in tool_calls if not c.get("ok", True)]
+    lines = [
+        "Islem akisi tamamlandi.",
+        f"Calisan adim sayisi: {len(worker_reports)}",
+        f"Basarili tool sayisi: {len(ok_calls)}",
+    ]
+    if bad_calls:
+        lines.append(f"Hata veren tool sayisi: {len(bad_calls)}")
+        for call in bad_calls[:3]:
+            lines.append(f"- {call.get('name')}: {call.get('error') or call.get('result', {}).get('error')}")
+    else:
+        lines.append("Hata raporlanmadi.")
+    if ok_calls:
+        names = ", ".join(dict.fromkeys(str(c.get("name", "")) for c in ok_calls if c.get("name")))
+        lines.append(f"Kullanilan tool'lar: {names}")
+    return "\n".join(lines)

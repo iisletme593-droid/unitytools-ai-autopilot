@@ -39,7 +39,16 @@ namespace UnityTools.Bridge
 
         public static string Arguments
         {
-            get => EditorPrefs.GetString(PrefArgsKey, ResolveDefaultArguments());
+            get
+            {
+                string value = EditorPrefs.GetString(PrefArgsKey, ResolveDefaultArguments());
+                if (value.Contains("--no-dual-agent"))
+                {
+                    value = ResolveDefaultArguments();
+                    EditorPrefs.SetString(PrefArgsKey, value);
+                }
+                return value;
+            }
             set => EditorPrefs.SetString(PrefArgsKey, value);
         }
 
@@ -245,7 +254,7 @@ namespace UnityTools.Bridge
 
         private static string ResolveDefaultArguments()
         {
-            return "-m unitytools.cli.entry chat-server --no-dual-agent";
+            return "-m unitytools.cli.entry chat-server --use-dual-agent";
         }
     }
 }

@@ -27,6 +27,8 @@ Bir cok Unity AI akisi sadece konusur. Bu proje aksiyona odaklanir:
 ## v2.6 Highlights
 
 - 90+ tools exposed to the AI
+- Hierarchical local dual-agent mode: Qwen 2.5 Reader, Qwen 3 Master, Qwen 2.5 Worker
+- JSON tool-call rescue: if a local model prints tool JSON, UnityTools executes it instead of showing JSON spam
 - Visual QA with SceneView screenshot capture
 - Persistent asset knowledge base under `AutopilotData`
 - Prefab/model quality ranking for realistic asset placement

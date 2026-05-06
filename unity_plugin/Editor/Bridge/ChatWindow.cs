@@ -153,6 +153,13 @@ namespace UnityTools.Bridge
                         Text = "⚙️ Worker: " + (msg["message"]?.ToString() ?? "Executing..."),
                     });
                     break;
+                case "reader_brief":
+                    _items.Add(new ChatItem
+                    {
+                        Kind = ItemKind.System,
+                        Text = "Reader: " + (msg["brief"]?.ToString() ?? ""),
+                    });
+                    break;
                 case "dual_agent_plan":
                     var plan = msg["plan"] as JObject;
                     if (plan != null)
@@ -193,11 +200,13 @@ namespace UnityTools.Bridge
                     string provider = msg["provider"]?.ToString() ?? "?";
                     string model = msg["model"]?.ToString() ?? "?";
                     _agentMode = msg["mode"]?.ToString() ?? "single-agent";
+                    string readerModel = msg["reader_model"]?.ToString() ?? "";
                     _masterModel = msg["master_model"]?.ToString() ?? "";
                     _workerModel = msg["worker_model"]?.ToString() ?? "";
                     
-                    string modeInfo = _agentMode == "dual-agent" 
-                        ? $"DUAL-AGENT: Master={_masterModel}, Worker={_workerModel}"
+                    bool isDualMode = _agentMode.StartsWith("dual-agent", StringComparison.OrdinalIgnoreCase);
+                    string modeInfo = isDualMode
+                        ? $"DUAL-AGENT: Reader={readerModel}, Master={_masterModel}, Worker={_workerModel}"
                         : $"Model: {model}";
                     
                     _items.Add(new ChatItem
@@ -206,7 +215,7 @@ namespace UnityTools.Bridge
                         Text = $"Connected. Provider: {provider}, {modeInfo}, {toolsLoaded} tools loaded.",
                     });
                     
-                    if (_agentMode == "dual-agent")
+                    if (isDualMode)
                     {
                         _items.Add(new ChatItem
                         {
@@ -247,7 +256,7 @@ namespace UnityTools.Bridge
             {
                 EditorGUILayout.LabelField("UnityTools AI Autopilot", _headerStyle);
                 
-                string subtitle = _agentMode == "dual-agent"
+                string subtitle = _agentMode.StartsWith("dual-agent", StringComparison.OrdinalIgnoreCase)
                     ? "Cift Agent: Master derin planlar, Worker hizli uygular."
                     : "Unity Editor icinde sohbet. Local Ollama veya cloud modeller Unity/Blender tool'larini cagirir.";
                 

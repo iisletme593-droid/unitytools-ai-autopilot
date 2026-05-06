@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import inspect
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -331,13 +332,20 @@ class Orchestrator:
             message = response.get("message") or {}
             content = message.get("content") or ""
             tool_calls = message.get("tool_calls") or []
+            synthetic_tool_calls = False
+            if not tool_calls:
+                tool_calls = _extract_text_tool_calls(content)
+                synthetic_tool_calls = bool(tool_calls)
 
-            assistant_message: dict[str, Any] = {"role": "assistant", "content": content}
+            assistant_message: dict[str, Any] = {
+                "role": "assistant",
+                "content": "" if synthetic_tool_calls else content,
+            }
             if tool_calls:
                 assistant_message["tool_calls"] = tool_calls
             self.ollama_messages.append(assistant_message)
 
-            if content:
+            if content and not synthetic_tool_calls:
                 final_text += content + "\n"
 
             if not tool_calls:
@@ -873,6 +881,76 @@ def _guard_final_text(user_message: Any, text: str, tool_calls: list[dict[str, A
     if "yerleştirdim" in lowered or "yerlestirdim" in lowered:
         return "Sahneye yerlestirme yapmadim; sadece arama/listeleme yaptim.\n\n" + text
     return text
+
+
+def _extract_text_tool_calls(text: str) -> list[dict[str, Any]]:
+    """Recover tool calls when a local model prints JSON instead of using tools.
+
+    Some Ollama models occasionally output:
+      {"tool": "unity_apply_material_palette", "input": {...}}
+    as plain assistant text. Returning that to the Unity panel looks like "JSON
+    spam" and no scene action happens. This parser only accepts JSON objects that
+    name a registered tool, then converts them to Ollama tool_call shape.
+    """
+    if not text or "unity_" not in text and "blender_" not in text and "pipeline_" not in text:
+        return []
+
+    candidates: list[str] = []
+    fenced = re.findall(r"```(?:json)?\s*(\{.*?\}|\[.*?\])\s*```", text, re.DOTALL | re.IGNORECASE)
+    candidates.extend(fenced)
+    stripped = text.strip()
+    if stripped.startswith("{") or stripped.startswith("["):
+        candidates.append(stripped)
+    candidates.extend(re.findall(r"(\{[^{}]*(?:\"tool\"|\"name\"|\"tool_calls\"|\"function\")[\s\S]*\})", text))
+
+    recovered: list[dict[str, Any]] = []
+    for raw in candidates:
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            continue
+        recovered.extend(_tool_calls_from_json_payload(payload))
+        if recovered:
+            break
+    return recovered
+
+
+def _tool_calls_from_json_payload(payload: Any) -> list[dict[str, Any]]:
+    rows: list[Any]
+    if isinstance(payload, list):
+        rows = payload
+    elif isinstance(payload, dict) and isinstance(payload.get("tool_calls"), list):
+        rows = payload["tool_calls"]
+    else:
+        rows = [payload]
+
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        function = row.get("function") if isinstance(row.get("function"), dict) else {}
+        name = (
+            function.get("name")
+            or row.get("tool")
+            or row.get("name")
+            or row.get("tool_name")
+        )
+        if not isinstance(name, str) or get_tool(name) is None:
+            continue
+        args = (
+            function.get("arguments")
+            if "arguments" in function
+            else row.get("input", row.get("arguments", row.get("params", {})))
+        )
+        if isinstance(args, str):
+            try:
+                args = json.loads(args) if args.strip() else {}
+            except Exception:
+                args = {}
+        if not isinstance(args, dict):
+            args = {}
+        out.append({"function": {"name": name, "arguments": args}})
+    return out
 
 
 def _serialize_for_llm(value: Any) -> str:

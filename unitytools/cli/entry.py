@@ -1,4 +1,4 @@
-"""unitytools CLI entry point."""
+﻿"""unitytools CLI entry point."""
 from __future__ import annotations
 
 import argparse
@@ -18,6 +18,32 @@ from ..bridges import BlenderBridge, UnityBridge
 from ..tools import init_tools
 
 console = Console()
+
+
+def _ollama_installed_models(config: Config) -> set[str]:
+    try:
+        with urllib.request.urlopen(f"{config.ollama_host.rstrip('/')}/api/tags", timeout=3) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return {m.get("name", "") for m in data.get("models", []) if isinstance(m, dict)}
+    except Exception:
+        return set()
+
+
+def _resolve_ollama_model(config: Config, requested: str, fallback: str) -> str:
+    requested = requested or fallback
+    fallback = fallback or config.ollama_model
+    installed = _ollama_installed_models(config)
+    if not installed:
+        return requested
+    if requested in installed:
+        return requested
+    if fallback in installed:
+        console.print(f"[yellow]Model {requested!r} not installed; falling back to {fallback!r}.[/yellow]")
+        return fallback
+    if config.ollama_model in installed:
+        console.print(f"[yellow]Model {requested!r} not installed; falling back to {config.ollama_model!r}.[/yellow]")
+        return config.ollama_model
+    return requested
 
 
 def _setup_logging(level: str) -> None:
@@ -261,9 +287,13 @@ def cmd_dual_chat(args: argparse.Namespace) -> int:
         console.print("[red]Dual-agent mode requires UNITYTOOLS_PROVIDER=ollama[/red]")
         return 1
     from .dual_chat import run_dual_chat
-    master = args.master or "qwen2.5:14b-instruct"
+    master = args.master or "qwen3.6:latest"
     worker = args.worker or "qwen2.5:14b-instruct"
-    return run_dual_chat(config, master, worker)
+    reader = getattr(args, "reader", None) or "qwen2.5:14b-instruct"
+    master = _resolve_ollama_model(config, master, config.ollama_model)
+    worker = _resolve_ollama_model(config, worker, config.ollama_model)
+    reader = _resolve_ollama_model(config, reader, config.ollama_model)
+    return run_dual_chat(config, master, worker, reader)
 
 
 def cmd_blender_export(args: argparse.Namespace) -> int:
@@ -310,8 +340,9 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
     # Check if dual-agent mode is enabled
     force_single = getattr(args, 'no_dual_agent', False)
     use_dual = False if force_single else getattr(args, 'use_dual_agent', False)
-    master_model = getattr(args, 'master', "qwen2.5:14b-instruct")
+    master_model = getattr(args, 'master', "qwen3.6:latest")
     worker_model = getattr(args, 'worker', "qwen2.5:14b-instruct")
+    reader_model = getattr(args, 'reader', "qwen2.5:14b-instruct")
     enable_memory = getattr(args, 'enable_memory', True)
     enable_context = getattr(args, 'enable_context', True)
     
@@ -323,6 +354,12 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
         if use_dual:
             master_model = os.getenv("DUAL_AGENT_MASTER", master_model)
             worker_model = os.getenv("DUAL_AGENT_WORKER", worker_model)
+            reader_model = os.getenv("DUAL_AGENT_READER", reader_model)
+
+    if use_dual and config.provider == "ollama":
+        master_model = _resolve_ollama_model(config, master_model, config.ollama_model)
+        worker_model = _resolve_ollama_model(config, worker_model, config.ollama_model)
+        reader_model = _resolve_ollama_model(config, reader_model, config.ollama_model)
     
     from ..core.chat_server import ChatServer
     server = ChatServer(
@@ -332,11 +369,12 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
         use_dual_agent=use_dual,
         master_model=master_model,
         worker_model=worker_model,
+        reader_model=reader_model,
         enable_memory=enable_memory,
         enable_context=enable_context,
     )
     
-    mode_label = f"dual-agent (Master: {master_model}, Worker: {worker_model})" if use_dual else "single-agent"
+    mode_label = f"dual-agent (Reader: {reader_model}, Master: {master_model}, Worker: {worker_model})" if use_dual else "single-agent"
     if use_dual and (enable_memory or enable_context):
         features = []
         if enable_memory:
@@ -369,9 +407,10 @@ def main() -> int:
     sub.add_parser("doctor", help="Run local provider, Unity, and Blender diagnostics")
     sub.add_parser("cleanup-processes", help="Stop stale embedded UnityTools chat-server processes")
     sub.add_parser("chat", help="Start the terminal chat REPL")
-    p_dual = sub.add_parser("dual-chat", help="Start dual-agent chat (Qwen 2.5 Master + Qwen 2.5 Worker by default)")
-    p_dual.add_argument("--master", default="qwen2.5:14b-instruct", help="Master model for planning (default: qwen2.5:14b-instruct)")
+    p_dual = sub.add_parser("dual-chat", help="Start dual-agent chat (Qwen 3.6 planner + Qwen 2.5 reader/worker by default)")
+    p_dual.add_argument("--master", default="qwen3.6:latest", help="Master model for planning (default: qwen3.6:latest, falls back if missing)")
     p_dual.add_argument("--worker", default="qwen2.5:14b-instruct", help="Worker model for execution (default: qwen2.5:14b-instruct)")
+    p_dual.add_argument("--reader", default="qwen2.5:14b-instruct", help="Fast reader/context model (default: qwen2.5:14b-instruct)")
     sub.add_parser("unity-ping", help="Test the Unity Editor bridge")
     p_install = sub.add_parser("install-unity-plugin", help="Copy the Unity Editor panel, bridge, and Autopilot scripts into a Unity project")
     p_install.add_argument("--project", required=True, help="Path to the Unity project root")
@@ -385,8 +424,9 @@ def main() -> int:
     p_chat_srv.add_argument("--port", type=int, default=7778)
     p_chat_srv.add_argument("--use-dual-agent", action="store_true", help="Enable dual-agent mode")
     p_chat_srv.add_argument("--no-dual-agent", action="store_true", help="Force fast single-agent mode even if USE_DUAL_AGENT=true")
-    p_chat_srv.add_argument("--master", default="qwen2.5:14b-instruct", help="Master model (dual-agent only)")
+    p_chat_srv.add_argument("--master", default="qwen3.6:latest", help="Master model (dual-agent only; default: qwen3.6:latest, falls back if missing)")
     p_chat_srv.add_argument("--worker", default="qwen2.5:14b-instruct", help="Worker model (dual-agent only)")
+    p_chat_srv.add_argument("--reader", default="qwen2.5:14b-instruct", help="Fast reader/context model (dual-agent only)")
     p_chat_srv.add_argument("--enable-memory", action="store_true", default=True, help="Enable memory system (default: true)")
     p_chat_srv.add_argument("--enable-context", action="store_true", default=True, help="Enable context management (default: true)")
     p_chat_srv.add_argument("--no-memory", dest="enable_memory", action="store_false", help="Disable memory system")

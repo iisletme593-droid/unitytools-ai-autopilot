@@ -80,33 +80,42 @@ winget install --id Ollama.Ollama -e
 ollama pull qwen2.5:14b-instruct
 ```
 
-**Optional: Dual-Agent Mode / Opsiyonel Dual-Agent**
+**Default: Hierarchical Dual-Agent Mode / Varsayilan: Hiyerarsik Dual-Agent**
 
-For advanced users, you can use a planner/executor setup. The default is now the installed fast local model.
+The embedded Unity panel now starts a three-role local hierarchy by default:
 
-Gelismis kullanim icin planner/executor kurulumu acilabilir. Varsayilan artik kurulu hizli lokal modeldir.
+Unity icindeki panel artik varsayilan olarak uc rollu lokal hiyerarsi baslatir:
+
+- Reader: fast scene/asset/context scan, default `qwen2.5:14b-instruct`
+- Master: deeper planning, default `qwen3.6:latest` with automatic fallback if missing
+- Worker: tool execution / Unity changes, default `qwen2.5:14b-instruct`
+
+- Reader: hizli sahne/asset/context okuma, varsayilan `qwen2.5:14b-instruct`
+- Master: daha derin planlama, varsayilan `qwen3.6:latest`; kurulu degilse otomatik fallback
+- Worker: tool execution / Unity degisiklikleri, varsayilan `qwen2.5:14b-instruct`
 
 ```powershell
-# Same model for both agents by default
 ollama pull qwen2.5:14b-instruct
+ollama pull qwen3.6:latest
 
 # Optional terminal mode
-unitytools dual-chat --master qwen2.5:14b-instruct --worker qwen2.5:14b-instruct
+unitytools dual-chat --reader qwen2.5:14b-instruct --master qwen3.6:latest --worker qwen2.5:14b-instruct
 ```
 
-In the embedded Unity panel, enable it through `.env` only when you need deeper planning:
+In the embedded Unity panel, dual-agent is enabled by default. You can override roles through `.env`:
 
-Unity icindeki gomulu panelde sadece derin planlama istediginde `.env` ile ac:
+Unity icindeki gomulu panelde dual-agent varsayilan aciktir. Rolleri `.env` ile degistirebilirsin:
 
 ```env
 USE_DUAL_AGENT=true
-DUAL_AGENT_MASTER=qwen2.5:14b-instruct
+DUAL_AGENT_READER=qwen2.5:14b-instruct
+DUAL_AGENT_MASTER=qwen3.6:latest
 DUAL_AGENT_WORKER=qwen2.5:14b-instruct
 ```
 
-Single-agent remains recommended for quick Unity edits because it has lower latency.
+If `qwen3.6:latest` is not installed, the CLI falls back to the configured `OLLAMA_MODEL`.
 
-Kisa Unity duzenlemeleri icin single-agent onerilir; gecikmesi daha dusuktur.
+`qwen3.6:latest` kurulu degilse CLI otomatik olarak `OLLAMA_MODEL` degerine duser.
 
 3. Install the Python package from this repository / Python paketini bu repodan kur:
 
@@ -179,9 +188,10 @@ UnityTools supports an advanced hierarchical dual-agent system with learning cap
 - ✅ **[Integration Report](FINAL_INTEGRATION_REPORT.md)** - Full test results
 
 **TL;DR**: 
-- Qwen 2.5:14b-instruct is the default local model for both agents
-- Single-agent is fastest for simple Unity edits
-- Dual-agent is optional for complex scene planning
+- Reader/Worker default to Qwen 2.5:14b-instruct for fast scene reading and tool execution
+- Master defaults to Qwen 3.6 for deeper planning, with fallback if missing
+- The Unity panel starts dual-agent mode by default
+- JSON tool-call rescue converts printed tool JSON into real Unity tool calls
 - **Memory system** learns from every task
 - **Context manager** tracks scene state
 - Gets **22% faster** on repeated tasks
@@ -311,4 +321,3 @@ Deneyen, geri bildirim veren ve gelismesine destek olan herkese tesekkurler. Sev
 ## License
 
 MIT. See `LICENSE`.
-

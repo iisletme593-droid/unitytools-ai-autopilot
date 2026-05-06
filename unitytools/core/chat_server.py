@@ -1,11 +1,11 @@
-"""TCP chat server used by the embedded Unity Editor AI panel.
+﻿"""TCP chat server used by the embedded Unity Editor AI panel.
 
 Unity connects to this process on port 7778, sends newline-delimited JSON
 messages, and receives tool-call progress plus final assistant text.
 
-İlk bağlantı kurulduğunda istemciye bir `hello` mesajı gönderilir; böylece
-Unity tarafı süreç başarıyla ayağa kalkmış mı yoksa import sırasında ölmüş mü
-olduğunu anlayabilir.
+Ä°lk baÄŸlantÄ± kurulduÄŸunda istemciye bir `hello` mesajÄ± gÃ¶nderilir; bÃ¶ylece
+Unity tarafÄ± sÃ¼reÃ§ baÅŸarÄ±yla ayaÄŸa kalkmÄ±ÅŸ mÄ± yoksa import sÄ±rasÄ±nda Ã¶lmÃ¼ÅŸ mÃ¼
+olduÄŸunu anlayabilir.
 
 Supports both single-agent and dual-agent modes.
 """
@@ -49,8 +49,9 @@ class ChatServer:
         host: str = "127.0.0.1",
         port: int = 7778,
         use_dual_agent: bool = False,
-        master_model: str = "qwen2.5:14b-instruct",
+        master_model: str = "qwen3.6:latest",
         worker_model: str = "qwen2.5:14b-instruct",
+        reader_model: str = "qwen2.5:14b-instruct",
         enable_memory: bool = True,
         enable_context: bool = True,
     ) -> None:
@@ -60,6 +61,7 @@ class ChatServer:
         self.use_dual_agent = use_dual_agent
         self.master_model = master_model
         self.worker_model = worker_model
+        self.reader_model = reader_model
         self.enable_memory = enable_memory
         self.enable_context = enable_context
         self._listen_sock: Optional[socket.socket] = None
@@ -113,6 +115,7 @@ class ChatServer:
                 self.config,
                 self.master_model,
                 self.worker_model,
+                reader_model=self.reader_model,
                 enable_memory=self.enable_memory,
                 enable_context=self.enable_context,
             )
@@ -125,7 +128,7 @@ class ChatServer:
         
         send = self._make_sender(client)
 
-        # İlk handshake: Unity tarafı süreç sağlığını bundan anlar.
+        # Ä°lk handshake: Unity tarafÄ± sÃ¼reÃ§ saÄŸlÄ±ÄŸÄ±nÄ± bundan anlar.
         try:
             tool_count = 0
             try:
@@ -143,6 +146,7 @@ class ChatServer:
                     "model": self.config.model if self.config.provider == "anthropic" else self.config.ollama_model,
                     "master_model": self.master_model if self.use_dual_agent else None,
                     "worker_model": self.worker_model if self.use_dual_agent else None,
+                    "reader_model": self.reader_model if self.use_dual_agent else None,
                     "tools_loaded": tool_count,
                 }
             )
@@ -304,6 +308,9 @@ class ChatServer:
 
         if result.text:
             send({"type": "assistant_text", "content": result.text, "done": True})
+
+        if hasattr(result, "reader_brief") and result.reader_brief:
+            send({"type": "reader_brief", "brief": result.reader_brief})
         
         # Send additional dual-agent info if available
         if hasattr(result, 'master_plan') and result.master_plan:

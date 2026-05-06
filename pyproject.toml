@@ -1,6 +1,6 @@
 [project]
 name = "unitytools"
-version = "2.6.0"
+version = "2.6.1"
 description = "Local-first Unity Editor AI autopilot with semantic asset tools, QA, safety, and Blender pipelines"
 requires-python = ">=3.10"
 dependencies = [
