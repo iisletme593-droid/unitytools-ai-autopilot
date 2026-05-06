@@ -125,6 +125,10 @@ Layer'lar: 0=Default, 1=TransparentFX, 2=IgnoreRaycast, 4=Water, 5=UI, 8-31=Cust
     prefab/model sec; pembe/bozuk cikarsa material repair ile devam et.
 21. "Kasiyor", "timeout", "agir", "bayiliyor", "optimize" gibi isteklerde unity_profile_scene_performance
     ile olc, sonra unity_optimize_editor_performance uygula.
+21b. Triangle/poly/mesh sayisi cok yuksekse veya sahne 10M+ triangle ise
+     unity_analyze_lod_decimation_candidates ve unity_create_lod_decimation_plan kullan.
+     Guvenli varsayilan: proxy LOD ekle, original rendererlari kapatma. Agresif
+     replace_with_proxy modunu sadece kullanici acikca kalite kaybini kabul ederse calistir.
 22. Gorsel sonuc onemliyse veya kullanici "resim/kayma/bozuk/pembe" diyorsa unity_run_visual_qa
     ile screenshot + QA al; sadece tahmin etme.
 23. Uzun islerde unity_create_task_queue / unity_update_task_status ile gorevleri izlenebilir yap.
@@ -459,6 +463,8 @@ class Orchestrator:
             "texture", "resim", "kayma", "bozuk", "repair", "fix", "onar",
             "qa", "visual", "screenshot", "gorsel", "görsel", "profil", "profile",
             "performance", "performans", "kasma", "kasiyor", "kasıyor", "timeout",
+            "triangle", "poly", "polygon", "mesh", "lod", "decimation", "decimate",
+            "lowpoly", "proxy", "optimizasyon",
             "snapshot", "backup", "yedek", "safety", "guvenlik", "güvenlik",
             "task", "queue", "plan", "preset", "quality", "kalite",
             "delete", "sil", "kaldir", "kaldır",
@@ -540,7 +546,9 @@ class Orchestrator:
         if any(word in text for word in ("qa", "visual", "screenshot", "gorsel", "görsel", "kontrol", "bozuk", "pembe")):
             selected.update({"unity_run_visual_qa", "unity_diagnose_material_issues"})
         if any(word in text for word in ("performance", "performans", "profil", "profile", "kas", "kasma", "kasıyor", "kasiyor", "timeout", "optimize")):
-            selected.update({"unity_profile_scene_performance", "unity_optimize_editor_performance"})
+            selected.update({"unity_profile_scene_performance", "unity_optimize_editor_performance", "unity_analyze_lod_decimation_candidates", "unity_create_lod_decimation_plan"})
+        if any(word in text for word in ("triangle", "poly", "polygon", "mesh", "lod", "decimation", "decimate", "lowpoly", "proxy", "55m", "55 m")):
+            selected.update({"unity_profile_scene_performance", "unity_analyze_lod_decimation_candidates", "unity_create_lod_decimation_plan", "unity_apply_lod_decimation_plan", "unity_create_scene_snapshot", "unity_run_visual_qa"})
         if any(word in text for word in ("snapshot", "backup", "yedek", "geri", "restore")):
             selected.update({"unity_create_scene_snapshot", "unity_restore_scene_snapshot"})
         if any(word in text for word in ("task", "queue", "gorev", "görev", "progress", "ilerleme")):

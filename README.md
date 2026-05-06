@@ -24,6 +24,8 @@ Varsayilan kurulum Ollama ile `qwen2.5:14b-instruct` kullanir; bu yuzden ucretli
 - Semantic Unity asset katalogu: `real relis realist tree` gibi bozuk/fuzzy promptlarda bile gercek asset bulur
 - v2.5 Autopilot Quality Layer: visual QA screenshots, asset knowledge base, prefab quality ranking, safety modes, scene snapshots, task queue, and scene performance profiler
 - v2.5 Autopilot Kalite Katmani: gorsel QA screenshot, asset bilgi tabani, prefab kalite siralama, safety mode, scene snapshot, task queue ve performans profiler
+- v2.6 LOD/Decimation Planner: finds high-poly mesh groups and adds safe proxy LODs for heavy tree/rock scenes
+- v2.6 LOD/Decimation Plani: yuksek poly mesh gruplarini bulur ve agir tree/rock sahneleri icin guvenli proxy LOD ekler
 - Batch placement tools for forests, rock fields, prop clusters, asset grids, lines, and rings
 - Orman, kaya alani, prop kumesi, asset grid/line/ring icin batch yerlestirme tool'lari
 - Blender headless bridge for `.blend` to `.fbx` export workflows
@@ -228,6 +230,9 @@ Asistan artik 90+ tool sunar; buna semantic asset kesfi, scene intelligence, gor
 - `unity_export_scene_knowledge_base`
 - `unity_run_visual_qa`
 - `unity_profile_scene_performance`
+- `unity_analyze_lod_decimation_candidates`
+- `unity_create_lod_decimation_plan`
+- `unity_apply_lod_decimation_plan`
 - `unity_list_scenes`, `unity_open_scene`
 - `unity_create_scene_snapshot`, `unity_restore_scene_snapshot`
 - `unity_build_asset_knowledge_base`

@@ -133,6 +133,151 @@ def unity_profile_scene_performance(max_objects: int = 10000) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+@tool(description="Analyze high-poly mesh groups in the active Unity scene and rank tree/rock/prop candidates for LOD or proxy decimation.")
+def unity_analyze_lod_decimation_candidates(
+    query: str = "",
+    category: str = "",
+    min_triangles: int = 10000,
+    max_results: int = 25,
+) -> dict:
+    ok, error = _ensure_unity()
+    if not ok:
+        return {"ok": False, "error": error}
+    try:
+        result = _UNITY.call(
+            "analyze_lod_decimation_candidates",
+            {
+                "query": query,
+                "category": category,
+                "min_triangles": min_triangles,
+                "max_results": max_results,
+            },
+            timeout=120,
+        )
+        return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Create a safe LOD/decimation plan from mesh analysis. Use before optimizing 55M+ triangle scenes.")
+def unity_create_lod_decimation_plan(
+    query: str = "",
+    category: str = "tree",
+    min_triangles: int = 10000,
+    max_results: int = 25,
+) -> dict:
+    analysis = unity_analyze_lod_decimation_candidates(
+        query=query,
+        category=category,
+        min_triangles=min_triangles,
+        max_results=max_results,
+    )
+    if not analysis.get("ok"):
+        return analysis
+    groups = analysis.get("groups", []) if isinstance(analysis, dict) else []
+    steps = [
+        {
+            "step": "snapshot",
+            "tool": "unity_create_scene_snapshot",
+            "params": {"label": "before_lod_decimation"},
+            "why": "LOD/proxy optimization changes scene object structure.",
+        },
+        {
+            "step": "safe_lod_proxy",
+            "tool": "unity_apply_lod_decimation_plan",
+            "params": {
+                "query": query,
+                "category": category,
+                "min_triangles_per_object": max(min_triangles, 25000),
+                "max_objects": 150,
+                "create_proxy_lods": True,
+                "replace_with_proxy": False,
+                "disable_shadows": True,
+                "mark_static": True,
+            },
+            "why": "Keep originals as LOD0, add cheap proxy LOD for distance, and disable expensive shadows.",
+        },
+        {
+            "step": "profile_after",
+            "tool": "unity_profile_scene_performance",
+            "params": {"max_objects": 10000},
+            "why": "Measure remaining geometry and renderer risk.",
+        },
+        {
+            "step": "visual_qa",
+            "tool": "unity_run_visual_qa",
+            "params": {"capture_screenshot": True},
+            "why": "Confirm visual result after LOD proxy creation.",
+        },
+    ]
+    if analysis.get("total_triangles", 0) > 10000000:
+        steps.insert(
+            2,
+            {
+                "step": "optional_aggressive_mode",
+                "tool": "unity_apply_lod_decimation_plan",
+                "params": {
+                    "query": query,
+                    "category": category,
+                    "min_triangles_per_object": max(min_triangles, 50000),
+                    "max_objects": 80,
+                    "create_proxy_lods": True,
+                    "replace_with_proxy": True,
+                    "disable_shadows": True,
+                    "mark_static": True,
+                },
+                "why": "Only use if the user accepts visible quality loss for massive editor speed gains.",
+                "default": "do_not_run_without_explicit_user_approval",
+            },
+        )
+    return {
+        "ok": True,
+        "query": query,
+        "category": category,
+        "analysis": analysis,
+        "top_problem_groups": groups[:8],
+        "plan": steps,
+    }
+
+
+@tool(description="Apply safe scene LOD optimization: add proxy LODGroups to high-poly tree/rock objects, disable shadows, and mark static. Set replace_with_proxy=true only for aggressive visible simplification.")
+def unity_apply_lod_decimation_plan(
+    query: str = "",
+    category: str = "tree",
+    min_triangles_per_object: int = 25000,
+    max_objects: int = 150,
+    create_proxy_lods: bool = True,
+    replace_with_proxy: bool = False,
+    disable_shadows: bool = True,
+    mark_static: bool = True,
+) -> dict:
+    ok, error = _ensure_unity()
+    if not ok:
+        return {"ok": False, "error": error}
+    try:
+        if replace_with_proxy:
+            snap = unity_create_scene_snapshot("before_aggressive_lod_proxy_replace")
+            if not snap.get("ok"):
+                return {"ok": False, "error": "Snapshot failed; refusing aggressive proxy replace.", "snapshot": snap}
+        result = _UNITY.call(
+            "apply_lod_decimation_plan",
+            {
+                "query": query,
+                "category": category,
+                "min_triangles_per_object": min_triangles_per_object,
+                "max_objects": max_objects,
+                "create_proxy_lods": create_proxy_lods,
+                "replace_with_proxy": replace_with_proxy,
+                "disable_shadows": disable_shadows,
+                "mark_static": mark_static,
+            },
+            timeout=240,
+        )
+        return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @tool(description="Create a safe copy of the active Unity scene before risky edits. Use before deleting, clearing, large generation, or material conversions.")
 def unity_create_scene_snapshot(label: str = "manual") -> dict:
     ok, error = _ensure_unity()

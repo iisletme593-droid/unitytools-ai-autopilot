@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -62,6 +63,8 @@ namespace UnityTools.Bridge
                 case "optimize_editor_performance": return OptimizeEditorPerformance(p);
                 case "run_visual_qa": return RunVisualQA(p);
                 case "profile_scene_performance": return ProfileScenePerformance(p);
+                case "analyze_lod_decimation_candidates": return AnalyzeLodDecimationCandidates(p);
+                case "apply_lod_decimation_plan": return ApplyLodDecimationPlan(p);
                 case "create_scene_snapshot": return CreateSceneSnapshot(p);
                 case "restore_scene_snapshot": return RestoreSceneSnapshot(p);
                 default: throw new InvalidOperationException($"Unknown method: {method}");
@@ -1280,7 +1283,7 @@ namespace UnityTools.Bridge
             int uniqueMaterials = renderers
                 .SelectMany(r => r.sharedMaterials)
                 .Where(m => m != null)
-                .Select(m => AssetDatabase.GetAssetPath(m).Length > 0 ? AssetDatabase.GetAssetPath(m) : m.GetInstanceID().ToString())
+                .Select(m => AssetDatabase.GetAssetPath(m).Length > 0 ? AssetDatabase.GetAssetPath(m) : RuntimeHelpers.GetHashCode(m).ToString())
                 .Distinct()
                 .Count();
 
@@ -1317,6 +1320,169 @@ namespace UnityTools.Bridge
                     maximum_lod_level = QualitySettings.maximumLODLevel
                 },
                 suggestions = suggestions
+            };
+        }
+
+        private static object AnalyzeLodDecimationCandidates(JObject p)
+        {
+            string query = p["query"]?.ToString() ?? "";
+            string category = p["category"]?.ToString() ?? "";
+            int max = Mathf.Clamp(p["max_results"]?.ToObject<int>() ?? 25, 1, 200);
+            int minTriangles = Mathf.Max(0, p["min_triangles"]?.ToObject<int>() ?? 10000);
+
+            var uses = CollectMeshUses(query, category)
+                .Where(u => u.Triangles >= minTriangles)
+                .ToList();
+
+            long totalTriangles = uses.Sum(u => (long)u.Triangles);
+            long totalVertices = uses.Sum(u => (long)u.Vertices);
+            var groups = uses
+                .GroupBy(u => u.MeshKey)
+                .Select(g => new
+                {
+                    mesh = g.First().MeshName,
+                    mesh_path = g.First().MeshPath,
+                    category = MostCommon(g.Select(x => x.Category)),
+                    instances = g.Count(),
+                    vertices_per_instance = g.First().Vertices,
+                    triangles_per_instance = g.First().Triangles,
+                    total_vertices = g.Sum(x => (long)x.Vertices),
+                    total_triangles = g.Sum(x => (long)x.Triangles),
+                    sample_objects = g.Select(x => GetHierarchyPath(x.Owner.transform)).Distinct().Take(8).ToArray(),
+                    has_lod_group = g.Any(x => x.Owner.GetComponentInParent<LODGroup>() != null),
+                    has_lod_named_children = g.Any(x => HasLodNamedRenderer(x.Owner.transform.root.gameObject)),
+                    recommendation = BuildLodRecommendation(g.First().Category, g.First().Triangles, g.Count())
+                })
+                .OrderByDescending(g => g.total_triangles)
+                .Take(max)
+                .ToList();
+
+            var suggestions = new List<string>();
+            if (totalTriangles > 1000000) suggestions.Add("High total triangle load detected; add LODGroup/proxy LODs to repeated tree/rock meshes.");
+            if (groups.Any(g => g.instances > 20)) suggestions.Add("Repeated meshes dominate the cost; optimize repeated prefabs before individual hero objects.");
+            if (groups.Any(g => !g.has_lod_group)) suggestions.Add("Some heavy meshes have no LODGroup; use apply_lod_decimation_plan with create_proxy_lods=true.");
+
+            return new
+            {
+                ok = true,
+                query = query,
+                category = category,
+                min_triangles = minTriangles,
+                mesh_use_count = uses.Count,
+                total_vertices = totalVertices,
+                total_triangles = totalTriangles,
+                groups = groups,
+                suggestions = suggestions
+            };
+        }
+
+        private static object ApplyLodDecimationPlan(JObject p)
+        {
+            string query = p["query"]?.ToString() ?? "";
+            string category = p["category"]?.ToString() ?? "tree";
+            int maxObjects = Mathf.Clamp(p["max_objects"]?.ToObject<int>() ?? 150, 1, 1000);
+            int minTriangles = Mathf.Max(0, p["min_triangles_per_object"]?.ToObject<int>() ?? 25000);
+            bool createProxyLods = p["create_proxy_lods"]?.ToObject<bool>() ?? true;
+            bool replaceWithProxy = p["replace_with_proxy"]?.ToObject<bool>() ?? false;
+            bool disableShadows = p["disable_shadows"]?.ToObject<bool>() ?? true;
+            bool markStatic = p["mark_static"]?.ToObject<bool>() ?? true;
+            float lod0 = Mathf.Clamp01(p["lod0_screen_relative_height"]?.ToObject<float>() ?? 0.38f);
+            float lod1 = Mathf.Clamp01(p["lod1_screen_relative_height"]?.ToObject<float>() ?? 0.08f);
+
+            var uses = CollectMeshUses(query, category)
+                .Where(u => u.Triangles >= minTriangles)
+                .OrderByDescending(u => u.Triangles)
+                .ToList();
+            var roots = CollapseToOptimizationRoots(uses.Select(u => u.Owner).ToList())
+                .Take(maxObjects)
+                .ToList();
+
+            int lodGroupsAdded = 0;
+            int proxyObjectsCreated = 0;
+            int renderersOptimized = 0;
+            int originalRenderersDisabled = 0;
+            var samples = new List<object>();
+
+            foreach (var root in roots)
+            {
+                if (root == null || !root.scene.IsValid()) continue;
+                var highRenderers = root.GetComponentsInChildren<Renderer>(true)
+                    .Where(r => r != null && !r.name.StartsWith("UnityTools_LODProxy_", StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+                if (highRenderers.Length == 0) continue;
+
+                if (disableShadows)
+                {
+                    foreach (var renderer in highRenderers)
+                    {
+                        Undo.RecordObject(renderer, "UnityTools: LOD optimize renderer");
+                        renderer.shadowCastingMode = ShadowCastingMode.Off;
+                        renderer.receiveShadows = false;
+                        renderersOptimized++;
+                    }
+                }
+                if (markStatic)
+                {
+                    GameObjectUtility.SetStaticEditorFlags(root, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic);
+                }
+
+                Renderer proxyRenderer = null;
+                if (createProxyLods)
+                {
+                    proxyRenderer = CreateLodProxy(root, GuessCategory(root));
+                    proxyObjectsCreated++;
+
+                    var group = root.GetComponent<LODGroup>();
+                    if (group == null)
+                    {
+                        group = Undo.AddComponent<LODGroup>(root);
+                        lodGroupsAdded++;
+                    }
+                    Undo.RecordObject(group, "UnityTools: configure proxy LOD");
+                    group.SetLODs(new[]
+                    {
+                        new LOD(Mathf.Max(lod0, lod1 + 0.01f), highRenderers),
+                        new LOD(lod1, new[] { proxyRenderer }),
+                    });
+                    group.RecalculateBounds();
+                }
+
+                if (replaceWithProxy && proxyRenderer != null)
+                {
+                    foreach (var renderer in highRenderers)
+                    {
+                        Undo.RecordObject(renderer, "UnityTools: replace with proxy");
+                        renderer.enabled = false;
+                        originalRenderersDisabled++;
+                    }
+                    proxyRenderer.enabled = true;
+                }
+
+                samples.Add(new
+                {
+                    root = GetHierarchyPath(root.transform),
+                    category = GuessCategory(root),
+                    renderers = highRenderers.Length,
+                    proxy = proxyRenderer != null ? proxyRenderer.gameObject.name : "",
+                    replaced = replaceWithProxy
+                });
+            }
+
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                query = query,
+                category = category,
+                min_triangles_per_object = minTriangles,
+                candidates = uses.Count,
+                optimized_roots = roots.Count,
+                lod_groups_added = lodGroupsAdded,
+                proxy_objects_created = proxyObjectsCreated,
+                renderers_optimized = renderersOptimized,
+                original_renderers_disabled = originalRenderersDisabled,
+                mode = replaceWithProxy ? "aggressive_proxy_replace" : "safe_lod_proxy",
+                samples = samples.Take(20).ToArray()
             };
         }
 
@@ -1362,7 +1528,7 @@ namespace UnityTools.Bridge
         {
             if (mesh == null) return;
             vertices += mesh.vertexCount;
-            meshNames.Add(AssetDatabase.GetAssetPath(mesh).Length > 0 ? AssetDatabase.GetAssetPath(mesh) : mesh.GetInstanceID().ToString());
+            meshNames.Add(AssetDatabase.GetAssetPath(mesh).Length > 0 ? AssetDatabase.GetAssetPath(mesh) : RuntimeHelpers.GetHashCode(mesh).ToString());
             for (int i = 0; i < mesh.subMeshCount; i++)
             {
                 triangles += (long)mesh.GetIndexCount(i) / 3L;
@@ -1425,6 +1591,192 @@ namespace UnityTools.Bridge
             var chars = value.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray();
             string cleaned = new string(chars).Trim('_', ' ');
             return string.IsNullOrWhiteSpace(cleaned) ? "snapshot" : cleaned;
+        }
+
+        private class MeshUse
+        {
+            public GameObject Owner;
+            public Mesh Mesh;
+            public int Vertices;
+            public int Triangles;
+            public string Category;
+            public string MeshName;
+            public string MeshPath;
+            public string MeshKey;
+        }
+
+        private static List<MeshUse> CollectMeshUses(string query, string category)
+        {
+            var uses = new List<MeshUse>();
+            string wantedCategory = Normalize(category);
+            var queryTokens = Tokenize(query);
+
+            foreach (var mf in UnityEngine.Object.FindObjectsByType<MeshFilter>(FindObjectsInactive.Include))
+            {
+                if (mf == null || mf.sharedMesh == null || !mf.gameObject.scene.IsValid()) continue;
+                TryAddMeshUse(uses, mf.gameObject, mf.sharedMesh, wantedCategory, queryTokens);
+            }
+            foreach (var smr in UnityEngine.Object.FindObjectsByType<SkinnedMeshRenderer>(FindObjectsInactive.Include))
+            {
+                if (smr == null || smr.sharedMesh == null || !smr.gameObject.scene.IsValid()) continue;
+                TryAddMeshUse(uses, smr.gameObject, smr.sharedMesh, wantedCategory, queryTokens);
+            }
+            return uses;
+        }
+
+        private static void TryAddMeshUse(List<MeshUse> uses, GameObject go, Mesh mesh, string wantedCategory, List<string> queryTokens)
+        {
+            string cat = GuessCategory(go);
+            if (!string.IsNullOrWhiteSpace(wantedCategory) && !CategoryMatches(cat, wantedCategory))
+                return;
+            if (queryTokens.Count > 0)
+            {
+                string hay = Normalize($"{go.name} {cat} {RendererWords(go)} {ComponentWords(go)} {AssetDatabase.GetAssetPath(mesh)} {mesh.name}");
+                bool any = queryTokens.Any(t => hay.Contains(t) || SynonymsFor(t).Any(s => hay.Contains(s)));
+                if (!any) return;
+            }
+            int triangles = MeshTriangleCount(mesh);
+            string path = AssetDatabase.GetAssetPath(mesh);
+            string key = StableMeshKey(mesh, path);
+            uses.Add(new MeshUse
+            {
+                Owner = go,
+                Mesh = mesh,
+                Vertices = mesh.vertexCount,
+                Triangles = triangles,
+                Category = cat,
+                MeshName = mesh.name,
+                MeshPath = path,
+                MeshKey = key
+            });
+        }
+
+        private static string StableMeshKey(Mesh mesh, string path)
+        {
+            if (mesh == null) return "(null)";
+            if (AssetDatabase.TryGetGUIDAndLocalFileIdentifier(mesh, out string guid, out long localId))
+                return $"{guid}:{localId}";
+            string runtimeId = RuntimeHelpers.GetHashCode(mesh).ToString();
+            return !string.IsNullOrEmpty(path) ? $"{path}::{mesh.name}::{runtimeId}" : runtimeId;
+        }
+
+        private static int MeshTriangleCount(Mesh mesh)
+        {
+            if (mesh == null) return 0;
+            long triangles = 0;
+            for (int i = 0; i < mesh.subMeshCount; i++)
+                triangles += (long)mesh.GetIndexCount(i) / 3L;
+            return triangles > int.MaxValue ? int.MaxValue : (int)triangles;
+        }
+
+        private static string MostCommon(IEnumerable<string> values)
+        {
+            return values
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .GroupBy(v => v)
+                .OrderByDescending(g => g.Count())
+                .Select(g => g.Key)
+                .FirstOrDefault() ?? "other";
+        }
+
+        private static string BuildLodRecommendation(string category, int triangles, int instances)
+        {
+            if (instances > 20 && triangles > 50000)
+                return "Repeated high-poly mesh: add proxy LODs or replace distant instances with low-poly variants first.";
+            if (category == "tree" || category == "rock")
+                return "Nature prop: safe proxy LOD is recommended; keep original as LOD0.";
+            return "Heavy mesh: inspect manually, then add LODGroup or lower-poly replacement.";
+        }
+
+        private static bool HasLodNamedRenderer(GameObject root)
+        {
+            if (root == null) return false;
+            return root.GetComponentsInChildren<Renderer>(true)
+                .Any(r => Normalize(r.name).Contains("lod1") || Normalize(r.name).Contains("lod2") || Normalize(r.name).Contains("low"));
+        }
+
+        private static List<GameObject> CollapseToOptimizationRoots(List<GameObject> owners)
+        {
+            var roots = new List<GameObject>();
+            foreach (var owner in owners.Where(o => o != null && o.scene.IsValid()))
+            {
+                GameObject root = FindSemanticOptimizationRoot(owner);
+                if (roots.Any(existing => existing == root)) continue;
+                if (roots.Any(existing => root.transform.IsChildOf(existing.transform))) continue;
+                roots.RemoveAll(existing => existing.transform.IsChildOf(root.transform));
+                roots.Add(root);
+            }
+            return roots;
+        }
+
+        private static GameObject FindSemanticOptimizationRoot(GameObject go)
+        {
+            Transform current = go.transform;
+            string cat = GuessCategory(go);
+            while (current.parent != null && current.parent.gameObject.scene.IsValid())
+            {
+                string parentCat = GuessCategory(current.parent.gameObject);
+                if (!CategoryMatches(parentCat, cat)) break;
+                if (current.parent.GetComponentsInChildren<Renderer>(true).Length > 24) break;
+                current = current.parent;
+            }
+            return current.gameObject;
+        }
+
+        private static Renderer CreateLodProxy(GameObject root, string category)
+        {
+            var renderers = root.GetComponentsInChildren<Renderer>(true)
+                .Where(r => r != null && !r.name.StartsWith("UnityTools_LODProxy_", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            Bounds bounds = new Bounds(root.transform.position, Vector3.one);
+            bool hasBounds = false;
+            foreach (var sourceRenderer in renderers)
+            {
+                if (!hasBounds)
+                {
+                    bounds = sourceRenderer.bounds;
+                    hasBounds = true;
+                }
+                else bounds.Encapsulate(sourceRenderer.bounds);
+            }
+
+            PrimitiveType primitive = category == "tree" ? PrimitiveType.Capsule : PrimitiveType.Cube;
+            var proxy = GameObject.CreatePrimitive(primitive);
+            proxy.name = $"UnityTools_LODProxy_{SanitizeFileName(root.name)}";
+            Undo.RegisterCreatedObjectUndo(proxy, "UnityTools: create LOD proxy");
+            proxy.transform.position = bounds.center;
+            proxy.transform.rotation = root.transform.rotation;
+            Vector3 size = bounds.size;
+            if (category == "tree")
+                proxy.transform.localScale = new Vector3(Mathf.Max(0.35f, size.x * 0.45f), Mathf.Max(0.8f, size.y * 0.5f), Mathf.Max(0.35f, size.z * 0.45f));
+            else
+                proxy.transform.localScale = new Vector3(Mathf.Max(0.35f, size.x), Mathf.Max(0.2f, size.y), Mathf.Max(0.35f, size.z));
+            proxy.transform.SetParent(root.transform, true);
+
+            var collider = proxy.GetComponent<Collider>();
+            if (collider != null) UnityEngine.Object.DestroyImmediate(collider);
+
+            var proxyRendererComponent = proxy.GetComponent<Renderer>();
+            proxyRendererComponent.sharedMaterial = ProxyMaterialFor(category);
+            proxyRendererComponent.shadowCastingMode = ShadowCastingMode.Off;
+            proxyRendererComponent.receiveShadows = false;
+            return proxyRendererComponent;
+        }
+
+        private static Material ProxyMaterialFor(string category)
+        {
+            string folder = "Assets/UnityToolsGenerated/Materials";
+            Directory.CreateDirectory(Path.Combine(Application.dataPath, "UnityToolsGenerated/Materials"));
+            string path = $"{folder}/UnityTools_LODProxy_{category}.mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat != null) return mat;
+            Color color = category == "tree" ? new Color(0.06f, 0.22f, 0.08f)
+                : category == "rock" ? new Color(0.30f, 0.30f, 0.28f)
+                : new Color(0.25f, 0.24f, 0.20f);
+            mat = MakeMaterial($"UnityTools_LODProxy_{category}", color, 0.12f);
+            AssetDatabase.CreateAsset(mat, path);
+            AssetDatabase.SaveAssets();
+            return mat;
         }
 
         private static IEnumerable<GameObject> FindSemanticObjects(string query, string category)

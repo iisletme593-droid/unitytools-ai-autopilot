@@ -43,6 +43,7 @@ namespace UnityTools.Bridge
         public static void Start(int port = -1)
         {
             if (IsRunning) return;
+            CloseTransport();
             if (port <= 0) port = ResolveDefaultPort();
             Exception lastError = null;
             for (int candidate = port; candidate < port + 24; candidate++)
@@ -102,15 +103,28 @@ namespace UnityTools.Bridge
 
         public static void Stop()
         {
-            if (!IsRunning) return;
             IsRunning = false;
-            try { _listener?.Stop(); } catch { }
+            CloseTransport();
             lock (_clients)
             {
                 foreach (var c in _clients) c.Close();
                 _clients.Clear();
             }
+            while (_mainThreadQueue.TryDequeue(out _)) { }
             Debug.Log("[UnityTools] BridgeServer stopped.");
+        }
+
+        private static void CloseTransport()
+        {
+            try { _listener?.Stop(); } catch { }
+            _listener = null;
+            try
+            {
+                if (_acceptThread != null && _acceptThread.IsAlive)
+                    _acceptThread.Join(250);
+            }
+            catch { }
+            _acceptThread = null;
         }
 
         private static void AcceptLoop()
