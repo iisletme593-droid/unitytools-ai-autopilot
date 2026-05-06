@@ -151,6 +151,10 @@ The panel also includes quick presets: `Snapshot`, `Asset DB`, `Fix Pink`, `Opti
 
 Panelde hizli presetler de vardir: `Snapshot`, `Asset DB`, `Fix Pink`, `Optimize`, `Visual QA` ve `Forest Plan`.
 
+The panel includes a Turkish scene selector. Pick the scene you want to work on, click `Sahneyi Ac`, then chat commands operate on that active scene.
+
+Panelde Turkce sahne secici vardir. Calismak istedigin sahneyi sec, `Sahneyi Ac` butonuna bas; sonraki chat komutlari aktif olan o sahnede calisir.
+
 ## Optional: Anthropic Mode
 
 If you prefer Claude, set / Claude kullanmak istersen:
@@ -224,6 +228,7 @@ Asistan artik 90+ tool sunar; buna semantic asset kesfi, scene intelligence, gor
 - `unity_export_scene_knowledge_base`
 - `unity_run_visual_qa`
 - `unity_profile_scene_performance`
+- `unity_list_scenes`, `unity_open_scene`
 - `unity_create_scene_snapshot`, `unity_restore_scene_snapshot`
 - `unity_build_asset_knowledge_base`
 - `unity_rank_prefab_quality`

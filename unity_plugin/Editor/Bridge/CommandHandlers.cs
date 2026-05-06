@@ -26,6 +26,7 @@ namespace UnityTools.Bridge
                 case "set_material_color": return SetMaterialColor(p);
                 case "import_asset": return ImportAsset(p);
                 case "save_scene": return SaveScene();
+                case "list_scenes": return ListScenes(p);
                 case "open_scene": return OpenScene(p);
                 case "execute_menu_item": return ExecuteMenuItem(p);
                 case "delete_object": return DeleteObject(p);
@@ -271,12 +272,50 @@ namespace UnityTools.Bridge
             return new { ok = ok, path = scene.path };
         }
 
+        private static object ListScenes(JObject p)
+        {
+            int max = Mathf.Clamp(p["max_results"]?.ToObject<int>() ?? 200, 1, 1000);
+            bool includePackages = p["include_packages"]?.ToObject<bool>() ?? false;
+            string[] guids = AssetDatabase.FindAssets("t:Scene");
+            var scenes = new List<object>();
+            foreach (string guid in guids.Take(max))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!includePackages && !path.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                scenes.Add(new
+                {
+                    name = Path.GetFileNameWithoutExtension(path),
+                    path = path,
+                    folder = Path.GetDirectoryName(path)?.Replace("\\", "/") ?? "",
+                    editable = path.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase),
+                    active = string.Equals(path, SceneManager.GetActiveScene().path, StringComparison.OrdinalIgnoreCase),
+                });
+            }
+            return new
+            {
+                ok = true,
+                active_scene = SceneManager.GetActiveScene().path,
+                count = guids.Length,
+                returned = scenes.Count,
+                scenes = scenes,
+            };
+        }
+
         private static object OpenScene(JObject p)
         {
             string path = p["path"]?.ToString();
             if (string.IsNullOrEmpty(path)) throw new ArgumentException("path is required");
-            var scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
-            return new { name = scene.name, path = scene.path };
+            if (!path.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("path must be a Unity asset path under Assets/");
+            if (!File.Exists(Path.Combine(ProjectRootPath(), path)))
+                throw new FileNotFoundException($"Scene not found: {path}");
+            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                var scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
+                return new { ok = true, name = scene.name, path = scene.path };
+            }
+            return new { ok = false, cancelled = true, path = path };
         }
 
         private static object ExecuteMenuItem(JObject p)

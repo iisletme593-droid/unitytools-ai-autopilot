@@ -128,6 +128,10 @@ Layer'lar: 0=Default, 1=TransparentFX, 2=IgnoreRaycast, 4=Water, 5=UI, 8-31=Cust
 22. Gorsel sonuc onemliyse veya kullanici "resim/kayma/bozuk/pembe" diyorsa unity_run_visual_qa
     ile screenshot + QA al; sadece tahmin etme.
 23. Uzun islerde unity_create_task_queue / unity_update_task_status ile gorevleri izlenebilir yap.
+24. Kullanici belirli bir sahnede calismak isterse once unity_list_scenes ile sahneleri bul,
+    sonra unity_open_scene ile dogru sahneyi ac. Kullanici panelden bir sahne sectiyse veya
+    "Main/Giris/Level" gibi sahne adi verdiyse, isleme baslamadan once aktif sahnenin o sahne
+    oldugunu unity_get_project_info ile dogrula.
 
 === ONEMLI ===
 - Sen bir OBSERVER degil, bir ACTOR'sun. Unity Editor'de degisiklik yapma yetkin var.
@@ -448,6 +452,7 @@ class Orchestrator:
         text = (user_message or "").lower()
         action_words = (
             "unity", "sahne", "scene", "asset", "prefab", "obje", "object",
+            "level", "harita", "map",
             "agac", "ağaç", "tree", "rock", "kaya", "ground", "zemin",
             "terrain", "forest", "orman", "material", "renk", "color",
             "palette", "boya", "pink", "pembe", "magenta", "shader",
@@ -472,8 +477,11 @@ class Orchestrator:
             "unity_optimize_editor_performance",
             "unity_get_autopilot_safety_mode",
             "unity_plan_scene_operation",
+            "unity_list_scenes",
             "unity_save_scene",
         }
+        if any(word in text for word in ("sahne", "scene", "level", "harita", "map", "aç", "ac", "open", "switch", "geç", "gec")):
+            selected.update({"unity_list_scenes", "unity_open_scene", "unity_get_project_info", "unity_save_scene"})
         if any(word in text for word in ("asset", "prefab", "real", "realistic", "relis", "tree", "agac", "ağaç", "rock", "kaya", "prop", "character", "weapon", "material", "texture")):
             selected.update(
                 {

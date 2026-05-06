@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 namespace UnityTools.Bridge
@@ -52,6 +53,10 @@ namespace UnityTools.Bridge
         private string _agentMode = "single";
         private string _masterModel = "";
         private string _workerModel = "";
+        private readonly List<SceneChoice> _sceneChoices = new List<SceneChoice>();
+        private string[] _sceneLabels = new[] { "Sahneler yukleniyor..." };
+        private int _selectedSceneIndex;
+        private double _nextSceneRefresh;
 
         private const string PrefHostKey = "UnityTools.Chat.Host";
         private const string PrefPortKey = "UnityTools.Chat.Port";
@@ -73,7 +78,8 @@ namespace UnityTools.Bridge
             _autoConnectEnabled = EditorPrefs.GetBool(PrefAutoConnectKey, true);
             _providerLabel = ReadEnvValue("UNITYTOOLS_PROVIDER", "ollama") + " / " + ReadEnvValue("OLLAMA_MODEL", "qwen2.5:14b-instruct");
             EditorApplication.update += OnEditorUpdate;
-            AddSystemMessage("UnityTools AI is ready. The embedded core starts automatically.");
+            RefreshScenes();
+            AddSystemMessage("UnityTools AI hazir. Gomulu core otomatik baslar.");
             _nextConnectAttempt = EditorApplication.timeSinceStartup + 0.25f;
         }
 
@@ -229,6 +235,7 @@ namespace UnityTools.Bridge
         {
             EnsureStyles();
             DrawHero();
+            DrawSceneSelector();
             DrawToolbar();
             DrawMessages();
             DrawInput();
@@ -241,16 +248,16 @@ namespace UnityTools.Bridge
                 EditorGUILayout.LabelField("UnityTools AI Autopilot", _headerStyle);
                 
                 string subtitle = _agentMode == "dual-agent"
-                    ? "Dual-Agent: Master plans deeply, Worker executes fast. Better results!"
-                    : "Chat inside the Unity Editor. Local Ollama or cloud models can call Unity and Blender tools.";
+                    ? "Cift Agent: Master derin planlar, Worker hizli uygular."
+                    : "Unity Editor icinde sohbet. Local Ollama veya cloud modeller Unity/Blender tool'larini cagirir.";
                 
                 EditorGUILayout.LabelField(subtitle, _subtleStyle);
                 
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    DrawChip(IsConnected() ? "AI Connected" : "AI Offline", IsConnected());
-                    DrawChip(BridgeServer.IsRunning ? "Unity Bridge OK" : "Unity Bridge Off", BridgeServer.IsRunning);
-                    DrawChip(ChatServerProcess.IsOwnedProcessRunning ? "Core Managed" : "Core Local", ChatServerProcess.IsOwnedProcessRunning || ChatServerProcess.IsPortOpen(_serverHost, _serverPort));
+                    DrawChip(IsConnected() ? "AI Bagli" : "AI Kapali", IsConnected());
+                    DrawChip(BridgeServer.IsRunning ? "Unity Bridge OK" : "Unity Bridge Kapali", BridgeServer.IsRunning);
+                    DrawChip(ChatServerProcess.IsOwnedProcessRunning ? "Core Yonetiliyor" : "Core Local", ChatServerProcess.IsOwnedProcessRunning || ChatServerProcess.IsPortOpen(_serverHost, _serverPort));
                     
                     if (_agentMode == "dual-agent")
                     {
@@ -264,34 +271,64 @@ namespace UnityTools.Bridge
             }
         }
 
+        private void DrawSceneSelector()
+        {
+            if (EditorApplication.timeSinceStartup >= _nextSceneRefresh && _sceneChoices.Count == 0)
+            {
+                RefreshScenes();
+            }
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                EditorGUILayout.LabelField("Calisilacak Sahne", EditorStyles.boldLabel);
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    _selectedSceneIndex = Mathf.Clamp(_selectedSceneIndex, 0, Mathf.Max(0, _sceneLabels.Length - 1));
+                    _selectedSceneIndex = EditorGUILayout.Popup(_selectedSceneIndex, _sceneLabels);
+                    if (GUILayout.Button("Yenile", GUILayout.Width(70)))
+                    {
+                        RefreshScenes();
+                    }
+                    using (new EditorGUI.DisabledScope(_sceneChoices.Count == 0 || _selectedSceneIndex >= _sceneChoices.Count))
+                    {
+                        if (GUILayout.Button("Sahneyi Ac", GUILayout.Width(92)))
+                        {
+                            OpenSelectedScene();
+                        }
+                    }
+                }
+                string activePath = UnityEngine.SceneManagement.SceneManager.GetActiveScene().path;
+                EditorGUILayout.LabelField("Aktif: " + (string.IsNullOrEmpty(activePath) ? "(kaydedilmemis sahne)" : activePath), _subtleStyle);
+            }
+        }
+
         private void DrawToolbar()
         {
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
             {
                 bool connected = IsConnected();
-                if (GUILayout.Button(connected ? "Disconnect" : "Connect", EditorStyles.toolbarButton, GUILayout.Width(90)))
+                if (GUILayout.Button(connected ? "Baglantiyi Kes" : "Baglan", EditorStyles.toolbarButton, GUILayout.Width(100)))
                 {
                     if (connected) Disconnect();
                     else EnsureCoreAndConnect(silent: false);
                 }
-                if (GUILayout.Button("Restart Core", EditorStyles.toolbarButton, GUILayout.Width(95)))
+                if (GUILayout.Button("Core Yenile", EditorStyles.toolbarButton, GUILayout.Width(90)))
                 {
                     RestartCore();
                 }
                 _autoConnectEnabled = GUILayout.Toggle(_autoConnectEnabled, "Auto", EditorStyles.toolbarButton, GUILayout.Width(52));
                 EditorPrefs.SetBool(PrefAutoConnectKey, _autoConnectEnabled);
                 GUILayout.FlexibleSpace();
-                if (GUILayout.Button("Clear", EditorStyles.toolbarButton, GUILayout.Width(55)))
+                if (GUILayout.Button("Temizle", EditorStyles.toolbarButton, GUILayout.Width(65)))
                 {
                     _items.Clear();
                     if (connected) _client.SendReset();
-                    AddSystemMessage("History cleared.");
+                    AddSystemMessage("Sohbet gecmisi temizlendi.");
                 }
                 if (GUILayout.Button("Log", EditorStyles.toolbarButton, GUILayout.Width(40)))
                 {
                     OpenLog();
                 }
-                if (GUILayout.Button("Settings", EditorStyles.toolbarButton, GUILayout.Width(70)))
+                if (GUILayout.Button("Ayarlar", EditorStyles.toolbarButton, GUILayout.Width(70)))
                 {
                     ShowSettingsPopup();
                 }
@@ -304,7 +341,7 @@ namespace UnityTools.Bridge
             if (_items.Count == 0)
             {
                 GUILayout.Space(12);
-                EditorGUILayout.HelpBox("Try: 'Create 5 cubes along the X axis' or 'List scene objects'.", MessageType.Info);
+                EditorGUILayout.HelpBox("Dene: 'Bu sahnede 5 kup olustur' veya 'aktif sahnedeki objeleri listele'.", MessageType.Info);
             }
             foreach (var item in _items)
             {
@@ -323,7 +360,7 @@ namespace UnityTools.Bridge
             switch (item.Kind)
             {
                 case ItemKind.User:
-                    EditorGUILayout.LabelField("You", EditorStyles.miniBoldLabel);
+                    EditorGUILayout.LabelField("Sen", EditorStyles.miniBoldLabel);
                     EditorGUILayout.SelectableLabel(item.Text, _bubbleUserStyle, GUILayout.Height(GetTextHeight(item.Text, _bubbleUserStyle)));
                     break;
                 case ItemKind.Assistant:
@@ -385,24 +422,24 @@ namespace UnityTools.Bridge
                         e.Use();
                     }
                 }
-                EditorGUILayout.LabelField("Ctrl+Enter sends. Tools run through Undo-aware Unity Editor commands.", _subtleStyle);
+                EditorGUILayout.LabelField("Ctrl+Enter gonderir. Tool'lar Undo destekli Unity Editor komutlariyla calisir.", _subtleStyle);
             }
         }
 
         private void DrawPresetBar()
         {
-            EditorGUILayout.LabelField("Quick Autopilot Presets", _subtleStyle);
+            EditorGUILayout.LabelField("Hizli Autopilot Komutlari", _subtleStyle);
             using (new EditorGUILayout.HorizontalScope())
             {
-                PresetButton("Snapshot", "Create a scene snapshot before any risky edit, then report the snapshot path.");
-                PresetButton("Asset DB", "Build the asset knowledge base, group tree/rock/prop/material/texture assets, and summarize the best realistic assets.");
-                PresetButton("Fix Pink", "Diagnose pink/magenta/broken material issues, convert unsupported materials to the active render pipeline while preserving textures, then run visual QA.");
+                PresetButton("Snapshot", "Aktif sahne icin riskli islerden once scene snapshot al ve snapshot path'ini raporla.");
+                PresetButton("Asset DB", "Asset knowledge base olustur; tree/rock/prop/material/texture assetlerini grupla ve en iyi realistic assetleri ozetle.");
+                PresetButton("Pembe Duzelt", "Pink/magenta/bozuk material sorunlarini diagnose et, texturelari koruyarak aktif render pipeline'a cevir, sonra visual QA calistir.");
             }
             using (new EditorGUILayout.HorizontalScope())
             {
-                PresetButton("Optimize", "Profile scene performance, identify heavy renderers/lights/shadows/materials, then apply safe editor performance optimization.");
-                PresetButton("Visual QA", "Run visual QA with a screenshot and report material, lighting, camera, texture, and performance risks.");
-                PresetButton("Forest Plan", "Plan and execute a safe optimized forest scene workflow with snapshot, terrain, trees, rocks, fog, lighting, camera, performance profile, and visual QA.");
+                PresetButton("Optimize", "Aktif sahnede performans profili al; agir renderer/light/shadow/material risklerini bul, sonra guvenli editor optimizasyonu uygula.");
+                PresetButton("Visual QA", "Screenshot ile visual QA calistir; material, isik, kamera, texture ve performans risklerini raporla.");
+                PresetButton("Orman Plani", "Secili/aktif sahnede snapshot, terrain, agaclar, kayalar, fog, isik, kamera, performans profili ve visual QA iceren guvenli orman workflow'u planla ve uygula.");
             }
         }
 
@@ -505,7 +542,7 @@ namespace UnityTools.Bridge
             }
             else if (!silent)
             {
-                AddSystemMessage($"Connected to embedded AI core at {_serverHost}:{_serverPort}.");
+                AddSystemMessage($"Gomulu AI core'a baglandi: {_serverHost}:{_serverPort}.");
             }
         }
 
@@ -513,7 +550,7 @@ namespace UnityTools.Bridge
         {
             _client?.Disconnect();
             _client = null;
-            AddSystemMessage("Disconnected from AI core.");
+            AddSystemMessage("AI core baglantisi kesildi.");
         }
 
         private void RestartCore()
@@ -522,7 +559,7 @@ namespace UnityTools.Bridge
             ChatServerProcess.StopOwnedProcess();
             ChatServerProcess.StartHidden(ProjectRoot);
             _nextConnectAttempt = EditorApplication.timeSinceStartup + 1.0f;
-            AddSystemMessage("Embedded AI core restarted.");
+            AddSystemMessage("Gomulu AI core yeniden baslatildi.");
         }
 
         private void OpenLog()
@@ -556,6 +593,61 @@ namespace UnityTools.Bridge
 
         private void AddErrorMessage(string text) =>
             _items.Add(new ChatItem { Kind = ItemKind.Error, Text = text });
+
+        private void RefreshScenes()
+        {
+            _nextSceneRefresh = EditorApplication.timeSinceStartup + 10.0f;
+            _sceneChoices.Clear();
+            try
+            {
+                string activePath = UnityEngine.SceneManagement.SceneManager.GetActiveScene().path;
+                string[] guids = AssetDatabase.FindAssets("t:Scene");
+                foreach (string guid in guids)
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(guid);
+                    if (string.IsNullOrWhiteSpace(path)) continue;
+                    if (!path.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase)) continue;
+                    _sceneChoices.Add(new SceneChoice
+                    {
+                        Name = Path.GetFileNameWithoutExtension(path),
+                        Path = path,
+                        Active = string.Equals(path, activePath, StringComparison.OrdinalIgnoreCase),
+                    });
+                }
+                _sceneChoices.Sort((a, b) => string.Compare(a.Path, b.Path, StringComparison.OrdinalIgnoreCase));
+                _sceneLabels = _sceneChoices.Count == 0
+                    ? new[] { "Sahne bulunamadi" }
+                    : _sceneChoices.Select(s => (s.Active ? "* " : "  ") + s.Name + "  -  " + s.Path).ToArray();
+                int activeIndex = _sceneChoices.FindIndex(s => s.Active);
+                if (activeIndex >= 0) _selectedSceneIndex = activeIndex;
+            }
+            catch (Exception ex)
+            {
+                _sceneLabels = new[] { "Sahne listesi alinamadi" };
+                AddErrorMessage("Sahne yenileme hatasi: " + ex.Message);
+            }
+        }
+
+        private void OpenSelectedScene()
+        {
+            if (_selectedSceneIndex < 0 || _selectedSceneIndex >= _sceneChoices.Count) return;
+            var choice = _sceneChoices[_selectedSceneIndex];
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                AddSystemMessage("Sahne gecisi iptal edildi.");
+                return;
+            }
+            try
+            {
+                var scene = EditorSceneManager.OpenScene(choice.Path, OpenSceneMode.Single);
+                AddSystemMessage($"Sahne acildi: {scene.name} ({scene.path})");
+                RefreshScenes();
+            }
+            catch (Exception ex)
+            {
+                AddErrorMessage("Sahne acilamadi: " + ex.Message);
+            }
+        }
 
         private static string CompactParams(JObject obj)
         {
@@ -661,6 +753,13 @@ namespace UnityTools.Bridge
             public string Name;
             public string Mime;
             public string Base64;
+        }
+
+        private struct SceneChoice
+        {
+            public string Name;
+            public string Path;
+            public bool Active;
         }
 
         private void PickImage()

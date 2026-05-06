@@ -109,6 +109,42 @@ def unity_save_scene() -> dict:
         return {"ok": False, "error": str(e)}
 
 
+@tool(description="List Unity scene assets in the project. Defaults to editable Assets/ scenes only; set include_packages=true to include package sample scenes.")
+def unity_list_scenes(max_results: int = 200, include_packages: bool = False) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call(
+            "list_scenes",
+            {"max_results": max_results, "include_packages": include_packages},
+            timeout=30,
+        )
+        if isinstance(result, dict) and not include_packages:
+            scenes = result.get("scenes", [])
+            if isinstance(scenes, list):
+                filtered = [
+                    scene for scene in scenes
+                    if isinstance(scene, dict) and str(scene.get("path", "")).startswith("Assets/")
+                ]
+                result = dict(result)
+                result["scenes"] = filtered
+                result["returned"] = len(filtered)
+        return {"ok": True, **(result if isinstance(result, dict) else {"scenes": result})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Open/switch to a Unity scene by asset path, for example Assets/Scenes/Main.unity. Save or snapshot before opening if the current scene has important changes.")
+def unity_open_scene(path: str) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("open_scene", {"path": path}, timeout=60)
+        return {"ok": bool(result.get("ok", True)) if isinstance(result, dict) else True, **(result if isinstance(result, dict) else {"result": result})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @tool(description="Set a GameObject position by object name.")
 def unity_set_position(name: str, x: float, y: float, z: float) -> dict:
     if _UNITY is None:
