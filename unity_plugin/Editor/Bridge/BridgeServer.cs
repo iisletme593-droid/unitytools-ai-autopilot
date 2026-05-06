@@ -44,23 +44,34 @@ namespace UnityTools.Bridge
         {
             if (IsRunning) return;
             if (port <= 0) port = ResolveDefaultPort();
-            Port = port;
-            try
+            Exception lastError = null;
+            for (int candidate = port; candidate < port + 24; candidate++)
             {
-                _listener = new TcpListener(IPAddress.Loopback, port);
-                _listener.Start();
-                IsRunning = true;
+                try
+                {
+                    Port = candidate;
+                    _listener = new TcpListener(IPAddress.Loopback, candidate);
+                    _listener.Start();
+                    IsRunning = true;
 
-                _acceptThread = new Thread(AcceptLoop) { IsBackground = true, Name = "UnityToolsBridgeAccept" };
-                _acceptThread.Start();
+                    _acceptThread = new Thread(AcceptLoop) { IsBackground = true, Name = "UnityToolsBridgeAccept" };
+                    _acceptThread.Start();
 
-                Debug.Log($"[UnityTools] BridgeServer listening on port {port}.");
+                    if (candidate == port)
+                        Debug.Log($"[UnityTools] BridgeServer listening on port {candidate}.");
+                    else
+                        Debug.LogWarning($"[UnityTools] BridgeServer preferred port {port} was busy; listening on fallback port {candidate}.");
+                    return;
+                }
+                catch (Exception e)
+                {
+                    lastError = e;
+                    try { _listener?.Stop(); } catch { }
+                    _listener = null;
+                    IsRunning = false;
+                }
             }
-            catch (Exception e)
-            {
-                Debug.LogWarning($"[UnityTools] BridgeServer could not start: {e.Message}");
-                IsRunning = false;
-            }
+            Debug.LogWarning($"[UnityTools] BridgeServer could not start on ports {port}-{port + 23}: {lastError?.Message}");
         }
 
         private static int ResolveDefaultPort()

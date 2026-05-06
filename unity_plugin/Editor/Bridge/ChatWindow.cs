@@ -347,6 +347,7 @@ namespace UnityTools.Bridge
         {
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
+                DrawPresetBar();
                 using (new EditorGUILayout.HorizontalScope())
                 {
                     GUI.SetNextControlName("UnityToolsAIInput");
@@ -385,6 +386,32 @@ namespace UnityTools.Bridge
                     }
                 }
                 EditorGUILayout.LabelField("Ctrl+Enter sends. Tools run through Undo-aware Unity Editor commands.", _subtleStyle);
+            }
+        }
+
+        private void DrawPresetBar()
+        {
+            EditorGUILayout.LabelField("Quick Autopilot Presets", _subtleStyle);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                PresetButton("Snapshot", "Create a scene snapshot before any risky edit, then report the snapshot path.");
+                PresetButton("Asset DB", "Build the asset knowledge base, group tree/rock/prop/material/texture assets, and summarize the best realistic assets.");
+                PresetButton("Fix Pink", "Diagnose pink/magenta/broken material issues, convert unsupported materials to the active render pipeline while preserving textures, then run visual QA.");
+            }
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                PresetButton("Optimize", "Profile scene performance, identify heavy renderers/lights/shadows/materials, then apply safe editor performance optimization.");
+                PresetButton("Visual QA", "Run visual QA with a screenshot and report material, lighting, camera, texture, and performance risks.");
+                PresetButton("Forest Plan", "Plan and execute a safe optimized forest scene workflow with snapshot, terrain, trees, rocks, fog, lighting, camera, performance profile, and visual QA.");
+            }
+        }
+
+        private void PresetButton(string label, string prompt)
+        {
+            if (GUILayout.Button(label, GUILayout.Height(22)))
+            {
+                _input = prompt;
+                GUI.FocusControl("UnityToolsAIInput");
             }
         }
 

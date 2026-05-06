@@ -210,7 +210,7 @@ unitytools/
 â”‚   â”œâ”€â”€ unity.py              âœ… MEVCUT
 â”‚   â””â”€â”€ blender.py            âœ… MEVCUT
 â””â”€â”€ tools/
-    â”œâ”€â”€ unity_tools.py        âœ… MEVCUT (70+ tools)
+    â”œâ”€â”€ unity_tools.py        âœ… MEVCUT (90+ tools)
     â”œâ”€â”€ blender_tools.py      âœ… MEVCUT
     â””â”€â”€ asset_tools.py        âœ… MEVCUT
 
@@ -461,5 +461,3 @@ Sistem **production ready** durumda:
 *Generated: 2026-05-05*  
 *Version: 2.3.0 Enhanced*  
 *All Systems: GO âœ…*
-
-

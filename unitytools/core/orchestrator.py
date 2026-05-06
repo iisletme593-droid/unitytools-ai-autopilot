@@ -56,6 +56,10 @@ uretken ol.
   component ve kategori uzerinden kataloglama/bulma/silme/renklendirme
 - Material/texture repair: pink/magenta shader hatalarini diagnose/repair etme,
   HDRP/URP/Built-in uyumlu shader'a donustururken texture/normal map baglarini koruma
+- Visual QA ve performans profili: SceneView screenshot alma, kamera/isik/material risklerini
+  raporlama, renderer/triangle/shadow/material sayilarini profil etme
+- Snapshot, task queue ve safety mode: buyuk/silici islerden once sahneyi yedekleme,
+  uzun isleri izleme ve safe/edit/destructive modlara uyma
 
 === UNITY BILGISI ===
 Primitive tipler: Cube, Sphere, Cylinder, Capsule, Plane, Quad
@@ -113,6 +117,17 @@ Layer'lar: 0=Default, 1=TransparentFX, 2=IgnoreRaycast, 4=Water, 5=UI, 8-31=Cust
     onlemek icin once/sonra unity_optimize_editor_performance uygula.
 18. Sahne bilgisi yetersizse unity_export_scene_knowledge_base ile AutopilotData altina
     scene_knowledge dosyasi olustur; sonraki aramalarda bu katalog mantigini kullan.
+19. Buyuk, riskli veya geri donusu zor islerde once unity_create_scene_snapshot cagir.
+    Silme/clear_scene/material convert gibi islemlerde safety mode'u unity_get_autopilot_safety_mode
+    ile kontrol et. safe modda silme/clear_scene yapma.
+20. Asset bulamama veya yanlis asset secme tekrar ederse unity_build_asset_knowledge_base ve
+    unity_rank_prefab_quality kullan. "realistic tree/rock/prop" isteklerinde kalite puani yuksek
+    prefab/model sec; pembe/bozuk cikarsa material repair ile devam et.
+21. "Kasiyor", "timeout", "agir", "bayiliyor", "optimize" gibi isteklerde unity_profile_scene_performance
+    ile olc, sonra unity_optimize_editor_performance uygula.
+22. Gorsel sonuc onemliyse veya kullanici "resim/kayma/bozuk/pembe" diyorsa unity_run_visual_qa
+    ile screenshot + QA al; sadece tahmin etme.
+23. Uzun islerde unity_create_task_queue / unity_update_task_status ile gorevleri izlenebilir yap.
 
 === ONEMLI ===
 - Sen bir OBSERVER degil, bir ACTOR'sun. Unity Editor'de degisiklik yapma yetkin var.
@@ -437,6 +452,10 @@ class Orchestrator:
             "terrain", "forest", "orman", "material", "renk", "color",
             "palette", "boya", "pink", "pembe", "magenta", "shader",
             "texture", "resim", "kayma", "bozuk", "repair", "fix", "onar",
+            "qa", "visual", "screenshot", "gorsel", "görsel", "profil", "profile",
+            "performance", "performans", "kasma", "kasiyor", "kasıyor", "timeout",
+            "snapshot", "backup", "yedek", "safety", "guvenlik", "güvenlik",
+            "task", "queue", "plan", "preset", "quality", "kalite",
             "delete", "sil", "kaldir", "kaldır",
             "create", "olustur", "oluştur", "yerlestir", "yerleştir",
             "light", "isik", "ışık", "camera", "kamera", "fog", "sis",
@@ -451,6 +470,8 @@ class Orchestrator:
             "unity_find_scene_objects_semantic",
             "unity_export_scene_knowledge_base",
             "unity_optimize_editor_performance",
+            "unity_get_autopilot_safety_mode",
+            "unity_plan_scene_operation",
             "unity_save_scene",
         }
         if any(word in text for word in ("asset", "prefab", "real", "realistic", "relis", "tree", "agac", "ağaç", "rock", "kaya", "prop", "character", "weapon", "material", "texture")):
@@ -468,12 +489,15 @@ class Orchestrator:
                     "unity_scatter_best_assets",
                     "unity_create_forest_from_assets",
                     "unity_create_rock_field_from_assets",
+                    "unity_build_asset_knowledge_base",
+                    "unity_rank_prefab_quality",
                 }
             )
         if any(word in text for word in ("forest", "orman", "terrain", "zemin", "ground", "tree", "agac", "ağaç", "rock", "kaya", "fog", "sis")):
             selected.update(
                 {
                     "unity_create_optimized_forest_scene",
+                    "unity_create_scene_snapshot",
                     "unity_apply_material_palette",
                     "unity_create_primitive",
                     "unity_create_light",
@@ -485,24 +509,36 @@ class Orchestrator:
                 }
             )
         if any(word in text for word in ("renk", "color", "palette", "material", "boya", "dark", "forest", "ground", "zemin", "rock", "kaya", "tree", "agac", "ağaç")):
-            selected.update({"unity_apply_material_palette", "unity_set_material_color"})
+            selected.update({"unity_apply_material_palette", "unity_set_material_color", "unity_run_visual_qa"})
         if any(word in text for word in ("pink", "pembe", "magenta", "shader", "material", "texture", "resim", "kayma", "bozuk", "repair", "fix", "onar")):
             selected.update(
                 {
                     "unity_diagnose_material_issues",
                     "unity_repair_material_issues",
                     "unity_repair_texture_import_settings",
+                    "unity_auto_convert_materials_to_pipeline",
                     "unity_apply_material_palette",
+                    "unity_run_visual_qa",
                 }
             )
         if any(word in text for word in ("delete", "sil", "kaldir", "kaldır", "remove", "clear", "temizle")):
-            selected.update({"unity_delete_scene_objects_semantic", "unity_delete_object"})
+            selected.update({"unity_create_scene_snapshot", "unity_delete_scene_objects_semantic", "unity_delete_object"})
         if any(word in text for word in ("list", "liste", "show", "goster", "göster", "find", "bul", "count", "say")):
             selected.update({"unity_list_scene_objects", "unity_find_scene_objects", "unity_find_scene_objects_semantic"})
         if any(word in text for word in ("cube", "kup", "küp", "sphere", "primitive", "plane", "quad", "capsule", "cylinder")):
             selected.update({"unity_create_primitive", "unity_set_position", "unity_set_scale", "unity_set_material_color"})
         if any(word in text for word in ("blender", "fbx", "blend", "export", "import")):
             selected.update({"blender_export_fbx", "blender_list_objects", "pipeline_blend_to_unity", "unity_import_asset"})
+        if any(word in text for word in ("qa", "visual", "screenshot", "gorsel", "görsel", "kontrol", "bozuk", "pembe")):
+            selected.update({"unity_run_visual_qa", "unity_diagnose_material_issues"})
+        if any(word in text for word in ("performance", "performans", "profil", "profile", "kas", "kasma", "kasıyor", "kasiyor", "timeout", "optimize")):
+            selected.update({"unity_profile_scene_performance", "unity_optimize_editor_performance"})
+        if any(word in text for word in ("snapshot", "backup", "yedek", "geri", "restore")):
+            selected.update({"unity_create_scene_snapshot", "unity_restore_scene_snapshot"})
+        if any(word in text for word in ("task", "queue", "gorev", "görev", "progress", "ilerleme")):
+            selected.update({"unity_create_task_queue", "unity_get_task_queue", "unity_update_task_status"})
+        if any(word in text for word in ("safety", "guvenlik", "güvenlik", "safe", "destructive")):
+            selected.update({"unity_set_autopilot_safety_mode", "unity_get_autopilot_safety_mode"})
 
         by_name = {tool.name: tool for tool in get_all_tools()}
         return [
@@ -618,6 +654,45 @@ class Orchestrator:
                 "limit": "max",
                 "count": "max",
                 "max_results": "max",
+            },
+            "unity_auto_convert_materials_to_pipeline": {
+                "object": "query",
+                "objects": "query",
+                "target": "query",
+                "name": "query",
+                "object_type": "category",
+                "target_category": "category",
+                "type": "category",
+                "limit": "max",
+                "count": "max",
+                "max_results": "max",
+            },
+            "unity_rank_prefab_quality": {
+                "target": "query",
+                "name": "query",
+                "object": "query",
+                "object_type": "category",
+                "type": "category",
+                "limit": "max_results",
+                "count": "max_results",
+                "max": "max_results",
+            },
+            "unity_run_visual_qa": {
+                "screenshot": "capture_screenshot",
+                "capture": "capture_screenshot",
+            },
+            "unity_create_scene_snapshot": {
+                "name": "label",
+                "title": "label",
+            },
+            "unity_restore_scene_snapshot": {
+                "path": "snapshot_path",
+                "snapshot": "snapshot_path",
+            },
+            "unity_update_task_status": {
+                "id": "task_id",
+                "task": "task_id",
+                "state": "status",
             },
         }
         for source, target in aliases.get(name, {}).items():

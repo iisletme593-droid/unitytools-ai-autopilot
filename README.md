@@ -22,6 +22,8 @@ Varsayilan kurulum Ollama ile `qwen2.5:14b-instruct` kullanir; bu yuzden ucretli
 - Localhost TCP uzerinden Unity Editor'e tool call
 - Semantic Unity asset catalogue: finds real assets even from fuzzy prompts like `real relis realist tree`
 - Semantic Unity asset katalogu: `real relis realist tree` gibi bozuk/fuzzy promptlarda bile gercek asset bulur
+- v2.5 Autopilot Quality Layer: visual QA screenshots, asset knowledge base, prefab quality ranking, safety modes, scene snapshots, task queue, and scene performance profiler
+- v2.5 Autopilot Kalite Katmani: gorsel QA screenshot, asset bilgi tabani, prefab kalite siralama, safety mode, scene snapshot, task queue ve performans profiler
 - Batch placement tools for forests, rock fields, prop clusters, asset grids, lines, and rings
 - Orman, kaya alani, prop kumesi, asset grid/line/ring icin batch yerlestirme tool'lari
 - Blender headless bridge for `.blend` to `.fbx` export workflows
@@ -145,6 +147,10 @@ The panel starts the Python chat core in the background. No external terminal wi
 
 Panel Python chat core'u arka planda baslatir. Harici terminal penceresi gerekmez.
 
+The panel also includes quick presets: `Snapshot`, `Asset DB`, `Fix Pink`, `Optimize`, `Visual QA`, and `Forest Plan`.
+
+Panelde hizli presetler de vardir: `Snapshot`, `Asset DB`, `Fix Pink`, `Optimize`, `Visual QA` ve `Forest Plan`.
+
 ## Optional: Anthropic Mode
 
 If you prefer Claude, set / Claude kullanmak istersen:
@@ -194,9 +200,9 @@ unitytools cleanup-processes
 
 ## Real Asset Autopilot
 
-The assistant now exposes 70+ tools, including semantic asset discovery, scene intelligence, palette, performance, and placement tools.
+The assistant now exposes 90+ tools, including semantic asset discovery, scene intelligence, visual QA, safety snapshots, asset memory, palette, performance, and placement tools.
 
-Asistan artik 70+ tool sunar; buna semantic asset kesfi, scene intelligence, renk paleti, performans ve yerlestirme tool'lari dahildir:
+Asistan artik 90+ tool sunar; buna semantic asset kesfi, scene intelligence, gorsel QA, guvenli snapshot, asset hafizasi, renk paleti, performans ve yerlestirme tool'lari dahildir:
 
 - `unity_search_assets_semantic`
 - `unity_find_tree_assets`, `unity_find_rock_assets`, `unity_find_prop_assets`
@@ -216,8 +222,33 @@ Asistan artik 70+ tool sunar; buna semantic asset kesfi, scene intelligence, ren
 - `unity_create_optimized_forest_scene`
 - `unity_optimize_editor_performance`
 - `unity_export_scene_knowledge_base`
+- `unity_run_visual_qa`
+- `unity_profile_scene_performance`
+- `unity_create_scene_snapshot`, `unity_restore_scene_snapshot`
+- `unity_build_asset_knowledge_base`
+- `unity_rank_prefab_quality`
+- `unity_plan_scene_operation`
+- `unity_auto_convert_materials_to_pipeline`
+- `unity_set_autopilot_safety_mode`, `unity_get_autopilot_safety_mode`
+- `unity_create_task_queue`, `unity_get_task_queue`, `unity_update_task_status`
 
 For environment and prop requests, the model is instructed to search real project assets first and use primitives only as a fallback.
+
+For risky edits, the model is instructed to snapshot first, then validate with visual QA and performance profiling.
+
+Riskli duzenlemelerde model once snapshot alacak, sonra visual QA ve performans profili ile sonucu dogrulayacak sekilde yonlendirilir.
+
+## Support / Donate
+
+If this project helps you, stars, issues, pull requests, and donations are welcome. Donations are optional and never required.
+
+Bu proje isine yararsa star, issue, pull request ve bagislar memnuniyetle karsilanir. Bagis tamamen opsiyoneldir, zorunlu degildir.
+
+TRC20 donation wallet / TRC20 bagis cuzdanı:
+
+```text
+TRKiVNARp8DWbU3T7ErUEz6eXRKurhNHkA
+```
 
 Environment ve prop isteklerinde model once projedeki gercek assetleri arar; primitive/kup gibi objeleri sadece fallback olarak kullanir.
 

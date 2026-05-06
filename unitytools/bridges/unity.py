@@ -36,26 +36,44 @@ class UnityBridge:
         self._buffer = b""
     # ---------- bağlantı yönetimi ----------
     def connect(self, timeout: float = 2.0) -> bool:
-        """Editor listener'a bağlanmayı dene. True dönerse bağlandı demektir."""
+        """Editor listener'a bağlanmayı dene.
+
+        Windows sometimes leaves a stale localhost listener after Unity reloads.
+        A plain TCP connect can succeed while the old bridge never answers, so
+        every candidate port must return a real ping before we accept it.
+        """
         with self._lock:
             if self._sock is not None:
                 return True
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(timeout)
-                s.connect((self.config.unity_bridge_host, self.config.unity_bridge_port))
-                s.settimeout(None)  # blocking after handshake
-                self._sock = s
-                logger.info(
-                    "Unity bridge bağlandı: %s:%d",
-                    self.config.unity_bridge_host,
-                    self.config.unity_bridge_port,
-                )
-                return True
-            except (ConnectionRefusedError, socket.timeout, OSError) as e:
-                logger.debug("Unity bridge bağlantı hatası: %s", e)
-                self._sock = None
-                return False
+            preferred = int(self.config.unity_bridge_port)
+            candidates = [preferred] + [p for p in range(7777, 7801) if p != preferred]
+            for port in candidates:
+                s: socket.socket | None = None
+                try:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.settimeout(timeout)
+                    s.connect((self.config.unity_bridge_host, port))
+                    if not self._probe_connected_socket(s, timeout=min(timeout, 1.0)):
+                        s.close()
+                        continue
+                    s.settimeout(None)  # blocking after handshake
+                    self._sock = s
+                    self.config.unity_bridge_port = port
+                    logger.info(
+                        "Unity bridge bağlandı: %s:%d",
+                        self.config.unity_bridge_host,
+                        port,
+                    )
+                    return True
+                except (ConnectionRefusedError, socket.timeout, OSError) as e:
+                    logger.debug("Unity bridge bağlantı hatası (%d): %s", port, e)
+                    if s is not None:
+                        try:
+                            s.close()
+                        except Exception:
+                            pass
+                    self._sock = None
+            return False
     def disconnect(self) -> None:
         with self._lock:
             if self._sock is not None:
@@ -113,6 +131,26 @@ class UnityBridge:
         line, _, rest = self._buffer.partition(b"\n")
         self._buffer = rest
         return line
+
+    @staticmethod
+    def _probe_connected_socket(sock: socket.socket, timeout: float) -> bool:
+        request = {"id": str(uuid.uuid4())[:8], "method": "ping", "params": {}}
+        try:
+            sock.settimeout(timeout)
+            sock.sendall(json.dumps(request).encode("utf-8") + b"\n")
+            buffer = b""
+            while b"\n" not in buffer:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    return False
+                buffer += chunk
+            line, _, _ = buffer.partition(b"\n")
+            data = json.loads(line.decode("utf-8"))
+            result = data.get("result") or {}
+            return bool(result.get("pong"))
+        except Exception:
+            return False
+
     # ---------- yüksek seviye yardımcılar ----------
     def ping(self) -> bool:
         try:

@@ -59,6 +59,10 @@ namespace UnityTools.Bridge
                 case "repair_texture_import_settings": return RepairTextureImportSettings(p);
                 case "create_optimized_forest_scene": return CreateOptimizedForestScene(p);
                 case "optimize_editor_performance": return OptimizeEditorPerformance(p);
+                case "run_visual_qa": return RunVisualQA(p);
+                case "profile_scene_performance": return ProfileScenePerformance(p);
+                case "create_scene_snapshot": return CreateSceneSnapshot(p);
+                case "restore_scene_snapshot": return RestoreSceneSnapshot(p);
                 default: throw new InvalidOperationException($"Unknown method: {method}");
             }
         }
@@ -1127,6 +1131,261 @@ namespace UnityTools.Bridge
                 renderer.receiveShadows = false;
             }
             return new { ok = true, anti_aliasing = QualitySettings.antiAliasing, shadow_distance = QualitySettings.shadowDistance, lod_bias = QualitySettings.lodBias };
+        }
+
+        private static object RunVisualQA(JObject p)
+        {
+            bool captureScreenshot = p["capture_screenshot"]?.ToObject<bool>() ?? true;
+            var scene = SceneManager.GetActiveScene();
+            var objects = UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include)
+                .Where(go => go.scene.IsValid())
+                .ToArray();
+            var renderers = UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include)
+                .Where(r => r.gameObject.scene.IsValid())
+                .ToArray();
+            var lights = UnityEngine.Object.FindObjectsByType<Light>(FindObjectsInactive.Include)
+                .Where(l => l.gameObject.scene.IsValid())
+                .ToArray();
+            var cameras = UnityEngine.Object.FindObjectsByType<Camera>(FindObjectsInactive.Include)
+                .Where(c => c.gameObject.scene.IsValid())
+                .ToArray();
+
+            int missingMaterials = 0;
+            int brokenMaterials = 0;
+            int unsupportedMaterials = 0;
+            foreach (var renderer in renderers)
+            {
+                foreach (var mat in renderer.sharedMaterials)
+                {
+                    if (mat == null)
+                    {
+                        missingMaterials++;
+                        continue;
+                    }
+                    if (IsBrokenMaterial(mat)) brokenMaterials++;
+                    else if (!IsPipelineCompatible(mat.shader)) unsupportedMaterials++;
+                }
+            }
+
+            string screenshotPath = "";
+            string screenshotError = "";
+            if (captureScreenshot)
+            {
+                try
+                {
+                    screenshotPath = CaptureSceneViewScreenshot("AutopilotData/screenshots");
+                }
+                catch (Exception ex)
+                {
+                    screenshotError = ex.Message;
+                }
+            }
+
+            var issues = new List<string>();
+            if (missingMaterials > 0) issues.Add($"{missingMaterials} renderer material slots are missing materials.");
+            if (brokenMaterials > 0) issues.Add($"{brokenMaterials} materials use broken/pink shaders.");
+            if (unsupportedMaterials > 0) issues.Add($"{unsupportedMaterials} materials are not compatible with the active render pipeline.");
+            if (cameras.Length == 0) issues.Add("No camera found in the active scene.");
+            if (lights.Length == 0) issues.Add("No light found in the active scene.");
+            if (renderers.Length > 1500) issues.Add("High renderer count; consider batching, LODs, or reducing scatter density.");
+
+            return new
+            {
+                ok = true,
+                scene = scene.name,
+                screenshot_path = screenshotPath,
+                screenshot_error = screenshotError,
+                counts = new
+                {
+                    objects = objects.Length,
+                    renderers = renderers.Length,
+                    lights = lights.Length,
+                    cameras = cameras.Length,
+                    missing_materials = missingMaterials,
+                    broken_materials = brokenMaterials,
+                    unsupported_materials = unsupportedMaterials,
+                },
+                issues = issues,
+                verdict = issues.Count == 0 ? "Scene QA passed." : "Scene QA found issues to review."
+            };
+        }
+
+        private static object ProfileScenePerformance(JObject p)
+        {
+            int maxObjects = Mathf.Clamp(p["max_objects"]?.ToObject<int>() ?? 10000, 1, 100000);
+            var objects = UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include)
+                .Where(go => go.scene.IsValid())
+                .Take(maxObjects)
+                .ToArray();
+            var renderers = objects.SelectMany(go => go.GetComponents<Renderer>()).ToArray();
+            var meshFilters = objects.SelectMany(go => go.GetComponents<MeshFilter>()).ToArray();
+            var skinned = objects.SelectMany(go => go.GetComponents<SkinnedMeshRenderer>()).ToArray();
+            var lights = objects.SelectMany(go => go.GetComponents<Light>()).ToArray();
+            var terrains = objects.SelectMany(go => go.GetComponents<Terrain>()).ToArray();
+
+            long vertices = 0;
+            long triangles = 0;
+            var meshNames = new HashSet<string>();
+            foreach (var mf in meshFilters)
+            {
+                AccumulateMeshStats(mf.sharedMesh, meshNames, ref vertices, ref triangles);
+            }
+            foreach (var smr in skinned)
+            {
+                AccumulateMeshStats(smr.sharedMesh, meshNames, ref vertices, ref triangles);
+            }
+
+            int shadowCasters = renderers.Count(r => r.shadowCastingMode != ShadowCastingMode.Off);
+            int receiveShadows = renderers.Count(r => r.receiveShadows);
+            int materialSlots = renderers.Sum(r => r.sharedMaterials.Length);
+            int uniqueMaterials = renderers
+                .SelectMany(r => r.sharedMaterials)
+                .Where(m => m != null)
+                .Select(m => AssetDatabase.GetAssetPath(m).Length > 0 ? AssetDatabase.GetAssetPath(m) : m.GetInstanceID().ToString())
+                .Distinct()
+                .Count();
+
+            var suggestions = new List<string>();
+            if (renderers.Length > 1000) suggestions.Add("Renderer count is high; prefer GPU instancing, batching, LOD groups, or fewer scatter objects.");
+            if (triangles > 1000000) suggestions.Add("Triangle count is high; add LODs or use lower-poly assets for distant forest/rocks.");
+            if (shadowCasters > 200) suggestions.Add("Too many shadow casters; disable shadows on dense trees/rocks and keep shadows for hero assets.");
+            if (lights.Count(l => l.shadows != LightShadows.None) > 2) suggestions.Add("Multiple shadow-casting lights can be expensive in HDRP.");
+            if (uniqueMaterials > 250) suggestions.Add("Many unique materials; merge/reuse materials to improve batching.");
+            if (QualitySettings.antiAliasing > 0) suggestions.Add("Disable MSAA in editor while building heavy scenes.");
+
+            return new
+            {
+                ok = true,
+                sampled_objects = objects.Length,
+                total_scene_objects = UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include).Count(go => go.scene.IsValid()),
+                renderers = renderers.Length,
+                mesh_filters = meshFilters.Length,
+                skinned_mesh_renderers = skinned.Length,
+                terrains = terrains.Length,
+                lights = lights.Length,
+                shadow_casters = shadowCasters,
+                receive_shadows = receiveShadows,
+                vertices = vertices,
+                triangles = triangles,
+                unique_meshes = meshNames.Count,
+                material_slots = materialSlots,
+                unique_materials = uniqueMaterials,
+                quality = new
+                {
+                    anti_aliasing = QualitySettings.antiAliasing,
+                    shadow_distance = QualitySettings.shadowDistance,
+                    lod_bias = QualitySettings.lodBias,
+                    maximum_lod_level = QualitySettings.maximumLODLevel
+                },
+                suggestions = suggestions
+            };
+        }
+
+        private static object CreateSceneSnapshot(JObject p)
+        {
+            var scene = SceneManager.GetActiveScene();
+            string label = SanitizeFileName(p["label"]?.ToString() ?? "manual");
+            if (string.IsNullOrEmpty(scene.path))
+            {
+                string newPath = "Assets/AutopilotSnapshots/UnsavedScene_Source.unity";
+                Directory.CreateDirectory(Path.Combine(Application.dataPath, "AutopilotSnapshots"));
+                if (!EditorSceneManager.SaveScene(scene, newPath))
+                    throw new InvalidOperationException("Could not save unsaved scene before snapshot.");
+            }
+            else
+            {
+                EditorSceneManager.SaveScene(scene);
+            }
+
+            Directory.CreateDirectory(Path.Combine(Application.dataPath, "AutopilotSnapshots"));
+            string sceneName = SanitizeFileName(scene.name);
+            string assetPath = $"Assets/AutopilotSnapshots/{sceneName}_{DateTime.Now:yyyyMMdd_HHmmss}_{label}.unity";
+            assetPath = AssetDatabase.GenerateUniqueAssetPath(assetPath);
+            bool ok = EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), assetPath, true);
+            AssetDatabase.Refresh();
+            return new { ok = ok, snapshot_path = assetPath, active_scene = SceneManager.GetActiveScene().path };
+        }
+
+        private static object RestoreSceneSnapshot(JObject p)
+        {
+            string path = p["path"]?.ToString() ?? p["snapshot_path"]?.ToString();
+            if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("path is required");
+            path = path.Replace("\\", "/");
+            if (!path.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Snapshot path must be a Unity asset path under Assets/.");
+            if (!File.Exists(Path.Combine(ProjectRootPath(), path)))
+                throw new FileNotFoundException($"Snapshot not found: {path}");
+            var scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
+            return new { ok = true, scene = scene.name, path = scene.path };
+        }
+
+        private static void AccumulateMeshStats(Mesh mesh, HashSet<string> meshNames, ref long vertices, ref long triangles)
+        {
+            if (mesh == null) return;
+            vertices += mesh.vertexCount;
+            meshNames.Add(AssetDatabase.GetAssetPath(mesh).Length > 0 ? AssetDatabase.GetAssetPath(mesh) : mesh.GetInstanceID().ToString());
+            for (int i = 0; i < mesh.subMeshCount; i++)
+            {
+                triangles += (long)mesh.GetIndexCount(i) / 3L;
+            }
+        }
+
+        private static string CaptureSceneViewScreenshot(string relativeFolder)
+        {
+            Camera cam = null;
+            var sceneView = SceneView.lastActiveSceneView;
+            if (sceneView != null)
+            {
+                sceneView.Repaint();
+                cam = sceneView.camera;
+            }
+            if (cam == null) cam = Camera.main;
+            if (cam == null) throw new InvalidOperationException("No SceneView or MainCamera is available for screenshot capture.");
+
+            int width = 1280;
+            int height = 720;
+            var rt = new RenderTexture(width, height, 24);
+            var previousTarget = cam.targetTexture;
+            var previousActive = RenderTexture.active;
+            try
+            {
+                cam.targetTexture = rt;
+                cam.Render();
+                RenderTexture.active = rt;
+                var tex = new Texture2D(width, height, TextureFormat.RGB24, false);
+                tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                tex.Apply();
+                byte[] bytes = tex.EncodeToPNG();
+                UnityEngine.Object.DestroyImmediate(tex);
+
+                string folder = Path.Combine(ProjectRootPath(), relativeFolder.Replace("/", Path.DirectorySeparatorChar.ToString()));
+                Directory.CreateDirectory(folder);
+                string path = Path.Combine(folder, $"visual_qa_{DateTime.Now:yyyyMMdd_HHmmss}.png");
+                File.WriteAllBytes(path, bytes);
+                AssetDatabase.Refresh();
+                return path;
+            }
+            finally
+            {
+                cam.targetTexture = previousTarget;
+                RenderTexture.active = previousActive;
+                rt.Release();
+                UnityEngine.Object.DestroyImmediate(rt);
+            }
+        }
+
+        private static string ProjectRootPath()
+        {
+            return Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+        }
+
+        private static string SanitizeFileName(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "snapshot";
+            var invalid = Path.GetInvalidFileNameChars();
+            var chars = value.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray();
+            string cleaned = new string(chars).Trim('_', ' ');
+            return string.IsNullOrWhiteSpace(cleaned) ? "snapshot" : cleaned;
         }
 
         private static IEnumerable<GameObject> FindSemanticObjects(string query, string category)

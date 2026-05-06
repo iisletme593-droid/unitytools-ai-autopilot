@@ -198,7 +198,7 @@ unitytools/
 â”‚   â”œâ”€â”€ dual_chat.py              âœ… MEVCUT
 â”‚   â””â”€â”€ chat.py                   âœ… MEVCUT
 â”œâ”€â”€ bridges/
-â”‚   â”œâ”€â”€ unity.py                  âœ… MEVCUT (70+ tools)
+â”‚   â”œâ”€â”€ unity.py                  âœ… MEVCUT (90+ tools)
 â”‚   â””â”€â”€ blender.py                âœ… MEVCUT
 â””â”€â”€ tools/
     â”œâ”€â”€ unity_tools.py            âœ… MEVCUT
@@ -477,5 +477,3 @@ Sistem **production ready** durumda ve kullanÄ±ma sunulabilir.
 *Deployed: 2026-05-05*  
 *Version: 2.3.0 Enhanced*  
 *Status: PRODUCTION READY âœ…*
-
-
