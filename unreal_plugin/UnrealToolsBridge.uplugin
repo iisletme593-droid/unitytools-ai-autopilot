@@ -1,0 +1,23 @@
+﻿{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1.0",
+  "FriendlyName": "UnrealTools Bridge",
+  "Description": "Local-first Unreal Editor bridge and embedded AI chat panel for UnityTools AI Autopilot.",
+  "Category": "AI",
+  "CreatedBy": "UnityTools AI Autopilot",
+  "CanContainContent": true,
+  "IsBetaVersion": true,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "UnrealToolsBridge",
+      "Type": "Editor",
+      "LoadingPhase": "Default"
+    }
+  ],
+  "Plugins": [
+    { "Name": "PythonScriptPlugin", "Enabled": true },
+    { "Name": "EditorScriptingUtilities", "Enabled": true }
+  ]
+}

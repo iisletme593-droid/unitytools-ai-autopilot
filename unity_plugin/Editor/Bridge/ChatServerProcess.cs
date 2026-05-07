@@ -254,7 +254,7 @@ namespace UnityTools.Bridge
 
         private static string ResolveDefaultArguments()
         {
-            return "-m unitytools.cli.entry chat-server --use-dual-agent";
+            return "-m unitytools.cli.entry chat-server --use-dual-agent --engine unity";
         }
     }
 }

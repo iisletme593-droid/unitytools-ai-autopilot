@@ -1,8 +1,8 @@
 ﻿# UnityTools AI Autopilot
 
-UnityTools AI Autopilot is a local-first AI panel for the Unity Editor. It lets you chat inside Unity and lets the model call real Unity and Blender tools: create scene objects, search and place real project assets, list the active scene, import assets, export FBX files from Blender, and run pipeline steps.
+UnityTools AI Autopilot is a local-first AI panel for Unity and Unreal Editor. It lets you chat inside the editor and lets the model call real Unity, Unreal, and Blender tools: create scene objects/actors, search and place real project assets, list the active scene/level, import assets, export FBX files from Blender, and run pipeline steps.
 
-UnityTools AI Autopilot, Unity Editor icinde calisan local-first bir AI panelidir. Unity icinden sohbet edersin; model gercek Unity ve Blender tool'larini cagirarak sahne objeleri olusturur, projedeki gercek assetleri arar ve yerlestirir, aktif sahneyi listeler, asset import eder, Blender'dan FBX export eder ve pipeline adimlarini calistirir.
+UnityTools AI Autopilot, Unity ve Unreal Editor icinde calisan local-first bir AI panelidir. Editor icinden sohbet edersin; model gercek Unity, Unreal ve Blender tool'larini cagirarak sahne objeleri/actor'lar olusturur, projedeki gercek assetleri arar ve yerlestirir, aktif sahne/level'i listeler, asset import eder, Blender'dan FBX export eder ve pipeline adimlarini calistirir.
 
 The default setup uses Ollama with `qwen2.5:14b-instruct`, so it can run without a paid API key. Anthropic Claude is still supported for users who want a stronger cloud model.
 
@@ -34,6 +34,8 @@ Varsayilan kurulum Ollama ile `qwen2.5:14b-instruct` kullanir; bu yuzden ucretli
 - Olusturulan objeler ve transform degisiklikleri icin Undo destekli Unity komutlari
 - GitHub-ready MIT licensed project
 - GitHub'a hazir MIT lisansli proje
+- v2.7 Unreal Engine bridge and embedded Unreal Editor chat tab
+- v2.7 Unreal Engine bridge ve Unreal Editor icinde gomulu chat sekmesi
 
 ## What It Can Do
 
@@ -175,6 +177,57 @@ UNITYTOOLS_PROVIDER=anthropic
 ANTHROPIC_API_KEY=<your-anthropic-api-key>
 UNITYTOOLS_MODEL=claude-sonnet-4-20250514
 ```
+
+## Unreal Engine Quick Start
+
+Unreal Engine destegi v2.7 ile gelir. Native sekme:
+
+```text
+Tools > UnrealTools > Open UnrealTools AI Chat
+```
+
+Install the plugin / Plugin'i kur:
+
+```powershell
+unitytools install-unreal-plugin --project "C:\Path\To\UnrealProject\Project.uproject"
+```
+
+Open/restart Unreal, then test / Unreal'i ac veya yeniden baslat, sonra test et:
+
+```powershell
+unitytools unreal-ping
+```
+
+The Unreal plugin exposes:
+
+- `unreal_list_level_actors`
+- `unreal_find_level_actors_semantic`
+- `unreal_search_assets_semantic`
+- `unreal_get_asset_catalog_summary`
+- `unreal_spawn_basic_actor`
+- `unreal_delete_actors_semantic`
+- `unreal_set_actor_transform`
+- `unreal_import_asset`
+- `unreal_stage_unity_assets_for_migration`
+
+Unity asset migration / Unity assetlerini Unreal'a tasima:
+
+```powershell
+unitytools migrate-unity-assets-to-unreal `
+  --unity-project "C:\Path\To\UnityProject" `
+  --staging "D:\UnityToolsV2\UnrealMigrationStaging" `
+  --import-into-unreal `
+  --category-folders `
+  --replace-existing `
+  --import-mode safe_static `
+  --batch-size 25
+```
+
+Long imports are resumable through `UnrealMigrationStaging/unreal_import_manifest.json`.
+
+Uzun importlar `UnrealMigrationStaging/unreal_import_manifest.json` ile kaldigi yerden devam eder.
+
+More detail / Detay: [Unreal Engine Support](docs/UNREAL.md)
 
 ## Dual-Agent System
 

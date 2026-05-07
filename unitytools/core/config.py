@@ -29,10 +29,14 @@ class Config:
     unity_bridge_port: int = 7777
     unity_bridge_host: str = "127.0.0.1"
     unity_rpc_timeout: float = 180.0
+    unreal_bridge_port: int = 8777
+    unreal_bridge_host: str = "127.0.0.1"
+    unreal_rpc_timeout: float = 180.0
 
     # Executable yolları
     blender_executable: Optional[str] = None
     unity_executable: Optional[str] = None
+    unreal_executable: Optional[str] = None
 
     # Proje
     project_root: Path = field(default_factory=lambda: Path.cwd())
@@ -62,8 +66,12 @@ class Config:
             unity_bridge_port=_int_env("UNITY_BRIDGE_PORT", 7777),
             unity_bridge_host=os.getenv("UNITY_BRIDGE_HOST", "127.0.0.1"),
             unity_rpc_timeout=_float_env("UNITY_RPC_TIMEOUT", 180.0),
+            unreal_bridge_port=_int_env("UNREAL_BRIDGE_PORT", 8777),
+            unreal_bridge_host=os.getenv("UNREAL_BRIDGE_HOST", "127.0.0.1"),
+            unreal_rpc_timeout=_float_env("UNREAL_RPC_TIMEOUT", 180.0),
             blender_executable=os.getenv("BLENDER_EXECUTABLE") or _autodetect_blender(),
             unity_executable=os.getenv("UNITY_EXECUTABLE"),
+            unreal_executable=os.getenv("UNREAL_EXECUTABLE") or _autodetect_unreal(),
             project_root=root,
             log_level=os.getenv("LOG_LEVEL", "INFO"),
         )
@@ -158,4 +166,22 @@ def _autodetect_blender() -> Optional[str]:
     if mac_path.exists():
         return str(mac_path)
 
+    return None
+
+
+def _autodetect_unreal() -> Optional[str]:
+    found = shutil.which("UnrealEditor")
+    if found:
+        return found
+    candidates = [
+        Path("C:/Program Files/Epic Games"),
+        Path("D:/Program Files/Epic Games"),
+        Path("D:/Epic Games"),
+    ]
+    for base in candidates:
+        if not base.exists():
+            continue
+        for exe in sorted(base.glob("UE_*/Engine/Binaries/Win64/UnrealEditor.exe"), reverse=True):
+            if exe.exists():
+                return str(exe)
     return None

@@ -13,6 +13,7 @@ dist/
 build/
 *.zip
 *.tar.gz
+UnrealMigrationStaging/
 
 # Unity generated folders
 [Ll]ibrary/

@@ -72,6 +72,15 @@ Transform: position (Vector3), rotation (Euler angles), scale (localScale)
 Tag'ler: Untagged, MainCamera, Player, Respawn, Finish, EditorOnly, GameController
 Layer'lar: 0=Default, 1=TransparentFX, 2=IgnoreRaycast, 4=Water, 5=UI, 8-31=Custom
 
+=== UNREAL ENGINE BILGISI ===
+Kullanici Unreal/UE/UE5 isterse Unity tool'lari yerine unreal_* tool'larini kullan:
+- Unreal Editor bridge ping/project info, current level actor listeleme/semantic arama
+- /Game asset kataloglama ve semantic asset arama
+- Basic actor spawn: cube, sphere, cylinder, plane, point_light, directional_light, camera
+- Actor transform ayarlama, semantic actor silme
+- FBX/OBJ/GLB/GLTF/texture/audio import ve dirty package save
+- Unity -> Unreal migration icin once source assetleri staging'e kopyala, sonra Unreal import et
+
 === DAVRANIS KURALLARI ===
 0. Kullanici bir seyi yapma derse (ornegin "sahneye koyma", "silme", "degistirme"),
    bu negatif talimat en yuksek onceliktir. Planinda bile yasaklanan islemi yazma.
@@ -463,7 +472,7 @@ class Orchestrator:
         """
         text = (user_message or "").lower()
         action_words = (
-            "unity", "sahne", "scene", "asset", "prefab", "obje", "object",
+            "unity", "unreal", "ue", "ue5", "sahne", "scene", "asset", "prefab", "obje", "object",
             "level", "harita", "map",
             "agac", "ağaç", "tree", "rock", "kaya", "ground", "zemin",
             "terrain", "forest", "orman", "material", "renk", "color",
@@ -563,6 +572,25 @@ class Orchestrator:
             selected.update({"unity_create_task_queue", "unity_get_task_queue", "unity_update_task_status"})
         if any(word in text for word in ("safety", "guvenlik", "güvenlik", "safe", "destructive")):
             selected.update({"unity_set_autopilot_safety_mode", "unity_get_autopilot_safety_mode"})
+
+        if any(word in text for word in ("unreal", "ue", "ue5", "uproject", "level actor", "world")):
+            selected.update(
+                {
+                    "unreal_ping",
+                    "unreal_get_project_info",
+                    "unreal_list_level_actors",
+                    "unreal_find_level_actors_semantic",
+                    "unreal_search_assets_semantic",
+                    "unreal_get_asset_catalog_summary",
+                    "unreal_spawn_basic_actor",
+                    "unreal_set_actor_transform",
+                    "unreal_import_asset",
+                    "unreal_save_dirty_packages",
+                    "unreal_stage_unity_assets_for_migration",
+                }
+            )
+            if any(word in text for word in ("delete", "sil", "kaldir", "kaldır", "remove", "clear", "temizle")):
+                selected.add("unreal_delete_actors_semantic")
 
         by_name = {tool.name: tool for tool in get_all_tools()}
         return [

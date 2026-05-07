@@ -14,7 +14,7 @@ from pathlib import Path
 from rich.console import Console
 
 from ..core.config import Config
-from ..bridges import BlenderBridge, UnityBridge
+from ..bridges import BlenderBridge, UnityBridge, UnrealBridge
 from ..tools import init_tools
 
 console = Console()
@@ -60,7 +60,8 @@ def _bootstrap() -> tuple[Config, BlenderBridge, UnityBridge]:
     _setup_logging(config.log_level)
     blender = BlenderBridge(config)
     unity = UnityBridge(config)
-    init_tools(blender, unity)
+    unreal = UnrealBridge(config)
+    init_tools(blender, unity, unreal)
     return config, blender, unity
 
 
@@ -76,6 +77,7 @@ def _api_key_label(config: Config) -> str:
 
 def cmd_status(args: argparse.Namespace) -> int:
     config, blender, unity = _bootstrap()
+    unreal = UnrealBridge(config)
     console.print("[bold cyan]UnityTools Status[/bold cyan]")
     console.print(f"  Project root: {config.project_root}")
     console.print(f"  Provider:     {config.provider}")
@@ -91,6 +93,10 @@ def cmd_status(args: argparse.Namespace) -> int:
     console.print(
         f"  Unity:        {'[green][OK] connected (port ' + str(config.unity_bridge_port) + ')[/green]' if unity_ok else '[yellow][WAIT] Editor not connected yet[/yellow]'}"
     )
+    unreal_ok = unreal.connect(timeout=1.0)
+    console.print(
+        f"  Unreal:       {'[green][OK] connected (port ' + str(config.unreal_bridge_port) + ')[/green]' if unreal_ok else '[yellow][WAIT] Editor not connected yet[/yellow]'}"
+    )
     problems = config.validate()
     if problems:
         console.print("\n[yellow]Warnings:[/yellow]")
@@ -101,6 +107,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 def cmd_doctor(args: argparse.Namespace) -> int:
     config, blender, unity = _bootstrap()
+    unreal = UnrealBridge(config)
     cmd_status(args)
     console.print("\n[bold cyan]Doctor checks[/bold cyan]")
     if config.provider == "ollama":
@@ -119,6 +126,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             console.print(f"  Ollama API:   [red][ERR] {exc}[/red]")
     console.print(
         f"  Unity ping:   {'[green][OK] responded[/green]' if unity.ping() else '[yellow][WAIT] not responding[/yellow]'}"
+    )
+    console.print(
+        f"  Unreal ping:  {'[green][OK] responded[/green]' if unreal.ping() else '[yellow][WAIT] not responding[/yellow]'}"
     )
     console.print(
         f"  Blender run:  {'[green][OK] available[/green]' if blender.is_available() else '[red][ERR] unavailable[/red]'}"
@@ -217,6 +227,200 @@ def cmd_install_unity_plugin(args: argparse.Namespace) -> int:
         console.print(f"  - {installed}")
     console.print("[dim]Open Unity, then Window > UnityTools AI > Autopilot Chat.[/dim]")
     return 0
+
+
+def cmd_install_unreal_plugin(args: argparse.Namespace) -> int:
+    project = Path(args.project).expanduser().resolve()
+    if project.suffix.lower() == ".uproject":
+        uproject = project
+        project_root = project.parent
+    else:
+        project_root = project
+        candidates = list(project_root.glob("*.uproject"))
+        if not candidates:
+            console.print(f"[red][ERR] Not an Unreal project: {project}[/red]")
+            return 1
+        uproject = candidates[0]
+
+    repo_root = Path(__file__).resolve().parents[2]
+    source = repo_root / "unreal_plugin"
+    if not source.exists():
+        source = Path.cwd() / "unreal_plugin"
+    if not (source / "UnrealToolsBridge.uplugin").exists():
+        console.print("[red][ERR] Could not find unreal_plugin/UnrealToolsBridge.uplugin in this checkout.[/red]")
+        return 1
+
+    target = project_root / "Plugins" / "UnrealToolsBridge"
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(source, target)
+    _enable_unreal_plugin(uproject, "UnrealToolsBridge")
+    console.print("[green][OK] Installed UnrealToolsBridge:[/green]")
+    console.print(f"  - {target}")
+    console.print(f"  - Enabled in {uproject.name}")
+    console.print("[dim]Open/restart Unreal Editor, enable PythonScriptPlugin if prompted, then run: unitytools unreal-ping[/dim]")
+    return 0
+
+
+def _enable_unreal_plugin(uproject: Path, plugin_name: str) -> None:
+    data = json.loads(uproject.read_text(encoding="utf-8-sig"))
+    plugins = data.setdefault("Plugins", [])
+    for item in plugins:
+        if item.get("Name") == plugin_name:
+            item["Enabled"] = True
+            break
+    else:
+        plugins.append({"Name": plugin_name, "Enabled": True})
+    for required in ("PythonScriptPlugin", "EditorScriptingUtilities"):
+        for item in plugins:
+            if item.get("Name") == required:
+                item["Enabled"] = True
+                break
+        else:
+            plugins.append({"Name": required, "Enabled": True})
+    uproject.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def cmd_unreal_ping(args: argparse.Namespace) -> int:
+    config, blender, unity = _bootstrap()
+    unreal = UnrealBridge(config)
+    if not unreal.connect(timeout=2.0):
+        console.print("[red]Could not connect to Unreal Editor. Is the Editor open and UnrealToolsBridge running?[/red]")
+        return 1
+    if unreal.ping():
+        console.print("[green][OK] Unreal Editor responded.[/green]")
+        return 0
+    console.print("[red][ERR] Connected, but ping failed.[/red]")
+    return 1
+
+
+def cmd_migrate_unity_assets_to_unreal(args: argparse.Namespace) -> int:
+    from ..tools.unreal_tools import unreal_stage_unity_assets_for_migration, unreal_import_asset, unreal_save_dirty_packages
+
+    config, blender, unity = _bootstrap()
+    UnrealBridge(config).connect(timeout=1.0)
+    staged = unreal_stage_unity_assets_for_migration(
+        unity_project=args.unity_project,
+        staging_dir=args.staging,
+        max_files=args.max_files,
+    )
+    if not staged.get("ok"):
+        console.print(f"[red][ERR] {staged.get('error')}[/red]")
+        return 1
+    console.print(f"[green][OK] Staged {staged.get('copied_count')} files[/green] -> {staged.get('staging')}")
+    if not args.import_into_unreal:
+        console.print("[dim]Use --import-into-unreal while Unreal Editor is open to import staged files.[/dim]")
+        return 0
+    staging_root = Path(staged.get("staging", args.staging))
+    import_exts = {".fbx", ".obj", ".glb", ".gltf", ".png", ".jpg", ".jpeg", ".tga", ".tif", ".tiff", ".exr", ".wav", ".mp3"}
+    files = [p for p in staging_root.rglob("*") if p.is_file() and p.suffix.lower() in import_exts]
+    files.sort(key=lambda p: (_unreal_import_priority(p), str(p).lower()))
+    manifest_path = staging_root / "unreal_import_manifest.json"
+    manifest = _load_unreal_import_manifest(manifest_path) if args.resume else {"imported": {}, "failed": {}}
+    imported_map = manifest.setdefault("imported", {})
+    failed_map = manifest.setdefault("failed", {})
+    selected_files: list[Path] = []
+    pre_skipped = 0
+    for path in files:
+        key = str(path)
+        if args.resume and key in imported_map:
+            pre_skipped += 1
+            continue
+        if args.resume and not args.retry_failed and key in failed_map:
+            pre_skipped += 1
+            continue
+        selected_files.append(path)
+        if args.import_limit and args.import_limit > 0 and len(selected_files) >= args.import_limit:
+            break
+    files = selected_files
+    imported = 0
+    failed = 0
+    skipped = pre_skipped
+    for index, path in enumerate(files, start=1):
+        key = str(path)
+        destination = args.destination.rstrip("/")
+        if args.category_folders:
+            rel = path.relative_to(staging_root)
+            parent_parts = rel.parts[:-1] or ("Root",)
+            destination = "/".join([destination] + [_unreal_safe_path_segment(part) for part in parent_parts])
+        result = unreal_import_asset(
+            str(path),
+            destination=destination,
+            replace_existing=args.replace_existing,
+            save=False,
+            import_mode=args.import_mode,
+        )
+        if result.get("ok"):
+            imported += 1
+            imported_map[key] = {"destination": destination, "objects": result.get("imported_object_paths", [])}
+            failed_map.pop(key, None)
+        else:
+            if "not connected" in str(result.get("error", "")).lower() or "connection lost" in str(result.get("error", "")).lower():
+                import time
+                time.sleep(3)
+                result = unreal_import_asset(
+                    str(path),
+                    destination=destination,
+                    replace_existing=args.replace_existing,
+                    save=False,
+                    import_mode=args.import_mode,
+                )
+                if result.get("ok"):
+                    imported += 1
+                    imported_map[key] = {"destination": destination, "objects": result.get("imported_object_paths", [])}
+                    failed_map.pop(key, None)
+                    continue
+            failed += 1
+            failed_map[key] = {"destination": destination, "error": result.get("error", "unknown error")}
+            console.print(f"[yellow][WAIT] Import failed {path}: {result.get('error')}[/yellow]")
+        if index % max(1, args.batch_size) == 0:
+            _save_unreal_import_manifest(manifest_path, manifest)
+            unreal_save_dirty_packages()
+            console.print(f"[dim]Progress: {index}/{len(files)} scanned, imported {imported}, skipped {skipped}, failed {failed}[/dim]")
+    _save_unreal_import_manifest(manifest_path, manifest)
+    unreal_save_dirty_packages()
+    console.print(f"[green][OK] Imported {imported}/{len(files)} files into Unreal[/green]")
+    if skipped:
+        console.print(f"[dim]Skipped {skipped} already imported files via resume manifest.[/dim]")
+    console.print(f"[dim]Manifest: {manifest_path}[/dim]")
+    if failed:
+        console.print(f"[yellow][WAIT] {failed} files failed. Some Unity-specific files or unsupported GLB variants may need conversion.[/yellow]")
+    return 0
+
+
+def _load_unreal_import_manifest(path: Path) -> dict:
+    try:
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {"imported": {}, "failed": {}}
+
+
+def _save_unreal_import_manifest(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _unreal_safe_path_segment(value: str) -> str:
+    allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+    cleaned = "".join(ch if ch in allowed else "_" for ch in value.strip())
+    return cleaned.strip("_") or "Imported"
+
+
+def _unreal_import_priority(path: Path) -> tuple[int, str]:
+    ext = path.suffix.lower()
+    if ext in {".png", ".jpg", ".jpeg", ".tga", ".tif", ".tiff", ".exr"}:
+        return (0, ext)
+    if ext in {".wav", ".mp3"}:
+        return (1, ext)
+    if ext in {".obj"}:
+        return (2, ext)
+    if ext in {".glb", ".gltf"}:
+        return (3, ext)
+    if ext == ".fbx":
+        return (4, ext)
+    return (9, ext)
 
 
 def _copy_tree_files(source: Path, target: Path, suffixes: set[str] | None = None) -> None:
@@ -372,6 +576,7 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
         reader_model=reader_model,
         enable_memory=enable_memory,
         enable_context=enable_context,
+        engine_context=getattr(args, "engine", "auto"),
     )
     
     mode_label = f"dual-agent (Reader: {reader_model}, Master: {master_model}, Worker: {worker_model})" if use_dual else "single-agent"
@@ -414,6 +619,24 @@ def main() -> int:
     sub.add_parser("unity-ping", help="Test the Unity Editor bridge")
     p_install = sub.add_parser("install-unity-plugin", help="Copy the Unity Editor panel, bridge, and Autopilot scripts into a Unity project")
     p_install.add_argument("--project", required=True, help="Path to the Unity project root")
+    p_unreal_install = sub.add_parser("install-unreal-plugin", help="Copy the Unreal Editor bridge plugin into an Unreal project")
+    p_unreal_install.add_argument("--project", required=True, help="Path to .uproject or Unreal project root")
+    sub.add_parser("unreal-ping", help="Test the Unreal Editor bridge")
+    p_migrate = sub.add_parser("migrate-unity-assets-to-unreal", help="Stage Unity source assets and optionally import them into Unreal")
+    p_migrate.add_argument("--unity-project", required=True, help="Path to Unity project root")
+    p_migrate.add_argument("--staging", default="UnrealMigrationStaging", help="Folder for copied source assets")
+    p_migrate.add_argument("--destination", default="/Game/UnityMigrated", help="Unreal Content Browser destination")
+    p_migrate.add_argument("--max-files", type=int, default=5000)
+    p_migrate.add_argument("--import-into-unreal", action="store_true", help="Import staged files through the Unreal bridge")
+    p_migrate.add_argument("--replace-existing", action="store_true", default=True, help="Replace assets inside the migration destination to avoid Unreal import prompts (default: true)")
+    p_migrate.add_argument("--no-replace-existing", dest="replace_existing", action="store_false", help="Do not replace existing migrated assets")
+    p_migrate.add_argument("--import-limit", type=int, default=0, help="Limit imported files after staging; 0 means import all staged files")
+    p_migrate.add_argument("--category-folders", action="store_true", help="Preserve the first Unity Assets folder as Unreal destination subfolder")
+    p_migrate.add_argument("--batch-size", type=int, default=25, help="Save packages and manifest every N imported files")
+    p_migrate.add_argument("--resume", action="store_true", default=True, help="Skip files already imported in the staging manifest (default: true)")
+    p_migrate.add_argument("--no-resume", dest="resume", action="store_false", help="Ignore existing migration manifest")
+    p_migrate.add_argument("--retry-failed", action="store_true", help="Retry files recorded as failed in the migration manifest")
+    p_migrate.add_argument("--import-mode", choices=["safe_static", "auto"], default="safe_static", help="safe_static imports FBX as static mesh to avoid broken skeleton stalls")
     p_export = sub.add_parser("blender-export", help="Export FBX from Blender")
     p_export.add_argument("--blend", required=True, help="Path to .blend file")
     p_export.add_argument("--output", required=True, help="Output .fbx file")
@@ -431,6 +654,7 @@ def main() -> int:
     p_chat_srv.add_argument("--enable-context", action="store_true", default=True, help="Enable context management (default: true)")
     p_chat_srv.add_argument("--no-memory", dest="enable_memory", action="store_false", help="Disable memory system")
     p_chat_srv.add_argument("--no-context", dest="enable_context", action="store_false", help="Disable context management")
+    p_chat_srv.add_argument("--engine", choices=["auto", "unity", "unreal"], default="auto", help="Editor context hint for tool selection")
     args = parser.parse_args()
     handlers = {
         "status": cmd_status,
@@ -439,7 +663,10 @@ def main() -> int:
         "chat": cmd_chat,
         "dual-chat": cmd_dual_chat,
         "unity-ping": cmd_unity_ping,
+        "unreal-ping": cmd_unreal_ping,
         "install-unity-plugin": cmd_install_unity_plugin,
+        "install-unreal-plugin": cmd_install_unreal_plugin,
+        "migrate-unity-assets-to-unreal": cmd_migrate_unity_assets_to_unreal,
         "blender-export": cmd_blender_export,
         "chat-server": cmd_chat_server,
     }

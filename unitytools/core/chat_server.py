@@ -54,6 +54,7 @@ class ChatServer:
         reader_model: str = "qwen2.5:14b-instruct",
         enable_memory: bool = True,
         enable_context: bool = True,
+        engine_context: str = "auto",
     ) -> None:
         self.config = config
         self.host = host
@@ -64,6 +65,7 @@ class ChatServer:
         self.reader_model = reader_model
         self.enable_memory = enable_memory
         self.enable_context = enable_context
+        self.engine_context = (engine_context or "auto").lower()
         self._listen_sock: Optional[socket.socket] = None
         self._running = False
         self._client_threads: list[threading.Thread] = []
@@ -147,6 +149,7 @@ class ChatServer:
                     "master_model": self.master_model if self.use_dual_agent else None,
                     "worker_model": self.worker_model if self.use_dual_agent else None,
                     "reader_model": self.reader_model if self.use_dual_agent else None,
+                    "engine_context": self.engine_context,
                     "tools_loaded": tool_count,
                 }
             )
@@ -210,6 +213,7 @@ class ChatServer:
             if not content:
                 send({"type": "error", "message": "Empty message"})
                 return
+            content = self._apply_engine_context(content)
             self._process_user_message(content, orch, send)
             return
 
@@ -230,6 +234,7 @@ class ChatServer:
             blocks: list[dict[str, Any]] = []
             if content:
                 blocks.append({"type": "text", "text": content})
+            blocks = self._apply_engine_context(blocks)
             for img in images:
                 try:
                     mime = str(img.get("mime") or "image/png")
@@ -249,6 +254,27 @@ class ChatServer:
             return
 
         send({"type": "error", "message": f"Unknown message type: {msg_type}"})
+
+    def _apply_engine_context(self, content: Any) -> Any:
+        if self.engine_context not in {"unity", "unreal"}:
+            return content
+        if self.engine_context == "unreal":
+            hint = (
+                "ENGINE_CONTEXT: Unreal Editor. Prefer unreal_* tools for scene, asset, "
+                "actor, import, and migration work. Do not use Unity tools unless the "
+                "user explicitly asks for Unity.\n\n"
+            )
+        else:
+            hint = (
+                "ENGINE_CONTEXT: Unity Editor. Prefer unity_* tools for scene, asset, "
+                "GameObject, material, and Autopilot work. Do not use Unreal tools unless "
+                "the user explicitly asks for Unreal.\n\n"
+            )
+        if isinstance(content, str):
+            return hint + content
+        if isinstance(content, list):
+            return [{"type": "text", "text": hint}] + content
+        return content
 
     def _process_user_message(
         self,
