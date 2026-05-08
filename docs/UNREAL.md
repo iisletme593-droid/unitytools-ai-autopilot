@@ -40,6 +40,10 @@ unitytools doctor
 Inside Unreal:
 
 ```text
+Unreal opens the panel automatically after startup.
+Unreal acilistan sonra paneli otomatik acar.
+
+UnrealTools AI > Open UnrealTools AI Chat
 Tools > UnrealTools > Open UnrealTools AI Chat
 Window > UnrealTools > Open UnrealTools AI Chat
 ```

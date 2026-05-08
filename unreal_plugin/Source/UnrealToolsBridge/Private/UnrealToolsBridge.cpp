@@ -4,6 +4,7 @@
 #include "Containers/Queue.h"
 #include "Containers/Ticker.h"
 #include "Framework/Docking/TabManager.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "Json.h"
 #include "LevelEditor.h"
@@ -475,6 +476,27 @@ static void OpenUnrealToolsChatTab()
     FGlobalTabmanager::Get()->TryInvokeTab(UnrealToolsChatTabName);
 }
 
+static void FillUnrealToolsTopMenu(FMenuBuilder& MenuBuilder)
+{
+    MenuBuilder.AddMenuEntry(
+        LOCTEXT("OpenUnrealToolsAIChatTop", "Open UnrealTools AI Chat"),
+        LOCTEXT("OpenUnrealToolsAIChatTopTooltip", "Open the embedded local AI game-studio panel."),
+        FSlateIcon(),
+        FUIAction(FExecuteAction::CreateStatic(&OpenUnrealToolsChatTab))
+    );
+}
+
+static void FillUnrealToolsToolbar(FToolBarBuilder& ToolbarBuilder)
+{
+    ToolbarBuilder.AddToolBarButton(
+        FUIAction(FExecuteAction::CreateStatic(&OpenUnrealToolsChatTab)),
+        NAME_None,
+        LOCTEXT("UnrealToolsToolbarLabel", "UnrealTools AI"),
+        LOCTEXT("UnrealToolsToolbarTooltip", "Open UnrealTools AI Chat"),
+        FSlateIcon()
+    );
+}
+
 static void AddUnrealToolsMenuEntry(const FName MenuName)
 {
     UToolMenu* Menu = UToolMenus::Get()->ExtendMenu(MenuName);
@@ -509,11 +531,65 @@ void FUnrealToolsBridgeModule::StartupModule()
         AddUnrealToolsMenuEntry(TEXT("LevelEditor.MainMenu.Help"));
     }));
 
+    if (FModuleManager::Get().IsModuleLoaded(TEXT("LevelEditor")) || FModuleManager::Get().ModuleExists(TEXT("LevelEditor")))
+    {
+        FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
+
+        MenuExtender = MakeShared<FExtender>();
+        MenuExtender->AddMenuBarExtension(
+            TEXT("Help"),
+            EExtensionHook::After,
+            nullptr,
+            FMenuBarExtensionDelegate::CreateLambda([](FMenuBarBuilder& MenuBarBuilder)
+            {
+                MenuBarBuilder.AddPullDownMenu(
+                    LOCTEXT("UnrealToolsAITopMenu", "UnrealTools AI"),
+                    LOCTEXT("UnrealToolsAITopMenuTooltip", "Open UnrealTools AI game-studio tools."),
+                    FNewMenuDelegate::CreateStatic(&FillUnrealToolsTopMenu),
+                    TEXT("UnrealToolsAI")
+                );
+            })
+        );
+        LevelEditorModule.GetMenuExtensibilityManager()->AddExtender(MenuExtender);
+
+        ToolbarExtender = MakeShared<FExtender>();
+        ToolbarExtender->AddToolBarExtension(
+            TEXT("Settings"),
+            EExtensionHook::After,
+            nullptr,
+            FToolBarExtensionDelegate::CreateStatic(&FillUnrealToolsToolbar)
+        );
+        LevelEditorModule.GetToolBarExtensibilityManager()->AddExtender(ToolbarExtender);
+    }
+
+    FTSTicker::GetCoreTicker().AddTicker(
+        FTickerDelegate::CreateLambda([](float)
+        {
+            OpenUnrealToolsChatTab();
+            return false;
+        }),
+        2.5f
+    );
+
     UE_LOG(LogTemp, Display, TEXT("[UnrealTools] UnrealToolsBridge module loaded. Open from Tools/Window > UnrealTools > Open UnrealTools AI Chat."));
 }
 
 void FUnrealToolsBridgeModule::ShutdownModule()
 {
+    if (FModuleManager::Get().IsModuleLoaded(TEXT("LevelEditor")))
+    {
+        FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
+        if (MenuExtender.IsValid())
+        {
+            LevelEditorModule.GetMenuExtensibilityManager()->RemoveExtender(MenuExtender);
+            MenuExtender.Reset();
+        }
+        if (ToolbarExtender.IsValid())
+        {
+            LevelEditorModule.GetToolBarExtensibilityManager()->RemoveExtender(ToolbarExtender);
+            ToolbarExtender.Reset();
+        }
+    }
     if (UToolMenus::IsToolMenuUIEnabled())
     {
         UToolMenus::UnRegisterStartupCallback(this);

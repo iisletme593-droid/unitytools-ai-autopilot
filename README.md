@@ -183,6 +183,8 @@ UNITYTOOLS_MODEL=claude-sonnet-4-20250514
 Unreal Engine destegi v2.7 ile gelir. Native sekme:
 
 ```text
+Unreal acilinca panel otomatik acilir.
+Top menu: UnrealTools AI > Open UnrealTools AI Chat
 Tools > UnrealTools > Open UnrealTools AI Chat
 Window > UnrealTools > Open UnrealTools AI Chat
 ```
@@ -229,6 +231,8 @@ Long imports are resumable through `UnrealMigrationStaging/unreal_import_manifes
 Uzun importlar `UnrealMigrationStaging/unreal_import_manifest.json` ile kaldigi yerden devam eder.
 
 More detail / Detay: [Unreal Engine Support](docs/UNREAL.md)
+
+Long-term target / Uzun vadeli hedef: [Game Studio Architecture](docs/GAME_STUDIO_ARCHITECTURE.md)
 
 ## Dual-Agent System
 
