@@ -50,6 +50,31 @@ Window > UnrealTools > Open UnrealTools AI Chat
 
 If your Unreal layout/language does not show the `Tools` menu, use `Window > UnrealTools` instead. The tab is also registered as a normal dockable tab named `UnrealTools AI Chat`.
 
+## Premium Game Studio Panel
+
+The Unreal panel is intentionally designed as a small local game-studio cockpit, not a generic chatbot.
+
+Panel sade bir oyun studyosu kokpiti gibi tasarlandi; siradan chatbot degil.
+
+Features:
+
+- Premium dark layout with studio header and status chips
+- Auto-opens after Unreal starts
+- Auto-starts the Python core and reconnects safely
+- Avoids spawning duplicate chat-server processes when port `7778` is already open
+- Message cards for user, AI, tool, agent, system, and error output
+- Studio presets:
+  - `Project Scan`
+  - `Level Plan`
+  - `Gameplay Loop`
+  - `UI/HUD`
+  - `Multiplayer`
+  - `Build`
+
+The `Start Studio` button starts the core and connects in one step.
+
+`Start Studio` butonu core'u baslatir ve tek adimda baglanir.
+
 Use `Core Baslat`, then `Baglan`. The panel starts:
 
 ```powershell

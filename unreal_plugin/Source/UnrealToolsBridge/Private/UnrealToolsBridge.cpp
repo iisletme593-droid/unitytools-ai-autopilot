@@ -17,6 +17,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/SBoxPanel.h"
@@ -41,105 +42,189 @@ public:
 
         ChildSlot
         [
-            SNew(SVerticalBox)
-            + SVerticalBox::Slot().AutoHeight().Padding(10, 8)
+            SNew(SBorder)
+            .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+            .BorderBackgroundColor(FLinearColor(0.018f, 0.021f, 0.028f, 1.0f))
+            .Padding(14)
             [
                 SNew(SVerticalBox)
                 + SVerticalBox::Slot().AutoHeight()
                 [
-                    SNew(STextBlock)
-                    .Text(LOCTEXT("Title", "UnrealTools AI Chat"))
-                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 18))
+                    SNew(SBorder)
+                    .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+                    .BorderBackgroundColor(FLinearColor(0.055f, 0.066f, 0.085f, 1.0f))
+                    .Padding(14)
+                    [
+                        SNew(SVerticalBox)
+                        + SVerticalBox::Slot().AutoHeight()
+                        [
+                            SNew(SHorizontalBox)
+                            + SHorizontalBox::Slot().FillWidth(1.0f)
+                            [
+                                SNew(SVerticalBox)
+                                + SVerticalBox::Slot().AutoHeight()
+                                [
+                                    SNew(STextBlock)
+                                    .Text(LOCTEXT("StudioTitle", "UnrealTools Game Studio"))
+                                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 22))
+                                    .ColorAndOpacity(FLinearColor(0.94f, 0.96f, 1.0f, 1.0f))
+                                ]
+                                + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
+                                [
+                                    SAssignNew(StatusText, STextBlock)
+                                    .Text(LOCTEXT("StudioStatus", "Local AI studio booting..."))
+                                    .ColorAndOpacity(FLinearColor(0.62f, 0.68f, 0.76f, 1.0f))
+                                ]
+                            ]
+                            + SHorizontalBox::Slot().AutoWidth()
+                            [
+                                SNew(SButton)
+                                .Text(LOCTEXT("BootButton", "Start Studio"))
+                                .OnClicked(this, &SUnrealToolsChatPanel::OnBootClicked)
+                            ]
+                        ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)
+                        [
+                            SNew(SHorizontalBox)
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0)
+                            [ MakeChip(LOCTEXT("ChipUnreal", "Unreal Bridge 8777"), FLinearColor(0.10f, 0.18f, 0.26f, 1.0f)) ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0)
+                            [ MakeChip(LOCTEXT("ChipCore", "Python Core 7778"), FLinearColor(0.12f, 0.16f, 0.26f, 1.0f)) ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0)
+                            [ MakeChip(LOCTEXT("ChipDual", "Dual Agent"), FLinearColor(0.16f, 0.12f, 0.25f, 1.0f)) ]
+                            + SHorizontalBox::Slot().FillWidth(1.0f)
+                            [
+                                SNew(STextBlock)
+                                .Text(LOCTEXT("StudioHint", "Project, assets, levels, gameplay, UI, multiplayer, build."))
+                                .Justification(ETextJustify::Right)
+                                .ColorAndOpacity(FLinearColor(0.45f, 0.50f, 0.58f, 1.0f))
+                            ]
+                        ]
+                    ]
                 ]
-                + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
+                + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)
                 [
-                    SAssignNew(StatusText, STextBlock)
-                    .Text(LOCTEXT("StatusOff", "Kapali - Core baslat veya baglan"))
+                    SNew(SBorder)
+                    .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+                    .BorderBackgroundColor(FLinearColor(0.034f, 0.040f, 0.052f, 1.0f))
+                    .Padding(10)
+                    [
+                        SNew(SVerticalBox)
+                        + SVerticalBox::Slot().AutoHeight()
+                        [
+                            SNew(STextBlock)
+                            .Text(LOCTEXT("PresetTitle", "Studio presets"))
+                            .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                            .ColorAndOpacity(FLinearColor(0.55f, 0.61f, 0.70f, 1.0f))
+                        ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(0, 7, 0, 0)
+                        [
+                            SNew(SHorizontalBox)
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                            [ MakePresetButton(LOCTEXT("PresetScan", "Project Scan"), TEXT("Unreal projesini oku: aktif level, actorlar, /Game asset katalogu, pluginler ve riskleri ozetle.")) ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                            [ MakePresetButton(LOCTEXT("PresetLevel", "Level Plan"), TEXT("Bu proje icin premium bir level/map plani hazirla; assetleri once katalogdan sec, performans butcesi koy.")) ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                            [ MakePresetButton(LOCTEXT("PresetGameplay", "Gameplay Loop"), TEXT("Bu oyun icin core gameplay loop tasarla ve Unreal tarafinda uygulanacak sistemleri adim adim planla.")) ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                            [ MakePresetButton(LOCTEXT("PresetUI", "UI/HUD"), TEXT("Main menu, HUD, settings ve inventory UI icin Unreal uygulanabilir sade premium plan hazirla.")) ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                            [ MakePresetButton(LOCTEXT("PresetMulti", "Multiplayer"), TEXT("Unreal multiplayer replication ve dedicated server hazirlik plani cikar.")) ]
+                            + SHorizontalBox::Slot().AutoWidth()
+                            [ MakePresetButton(LOCTEXT("PresetBuild", "Build"), TEXT("Windows client, dedicated server ve Steam sayfasi asset/copy checklist hazirla.")) ]
+                        ]
+                    ]
                 ]
-            ]
-            + SVerticalBox::Slot().AutoHeight().Padding(10, 0)
-            [
-                SNew(SHorizontalBox)
-                + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                [
-                    SNew(SButton)
-                    .Text(LOCTEXT("Connect", "Baglan"))
-                    .OnClicked(this, &SUnrealToolsChatPanel::OnConnectClicked)
-                ]
-                + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                [
-                    SNew(SButton)
-                    .Text(LOCTEXT("StartCore", "Core Baslat"))
-                    .OnClicked(this, &SUnrealToolsChatPanel::OnStartCoreClicked)
-                ]
-                + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                [
-                    SNew(SButton)
-                    .Text(LOCTEXT("StopCore", "Core Durdur"))
-                    .OnClicked(this, &SUnrealToolsChatPanel::OnStopCoreClicked)
-                ]
-                + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                [
-                    SNew(SButton)
-                    .Text(LOCTEXT("PingUnreal", "Unreal Ping"))
-                    .OnClicked(this, &SUnrealToolsChatPanel::OnPingClicked)
-                ]
-                + SHorizontalBox::Slot().FillWidth(1.0f)
-                [
-                    SNew(STextBlock)
-                    .Text(LOCTEXT("Hint", "127.0.0.1:7778 -> Python core, 8777 -> Unreal bridge"))
-                    .Justification(ETextJustify::Right)
-                ]
-            ]
-            + SVerticalBox::Slot().AutoHeight().Padding(10, 8)
-            [ SNew(SSeparator) ]
-            + SVerticalBox::Slot().FillHeight(1.0f).Padding(10, 0)
-            [
-                SAssignNew(Messages, SScrollBox)
-            ]
-            + SVerticalBox::Slot().AutoHeight().Padding(10, 8)
-            [
-                SNew(SVerticalBox)
-                + SVerticalBox::Slot().AutoHeight()
-                [
-                    SAssignNew(Input, SMultiLineEditableTextBox)
-                    .HintText(LOCTEXT("InputHint", "Ornek: Bu leveldaki actorlari listele, 5 cube olustur, /Game assetlerinden tree ara"))
-                    .AutoWrapText(true)
-                    .AllowMultiLine(true)
-                ]
-                + SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 0)
+                + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
                 [
                     SNew(SHorizontalBox)
                     + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
                     [
                         SNew(SButton)
-                        .Text(LOCTEXT("Send", "Gonder"))
-                        .OnClicked(this, &SUnrealToolsChatPanel::OnSendClicked)
+                        .Text(LOCTEXT("Connect", "Connect"))
+                        .OnClicked(this, &SUnrealToolsChatPanel::OnConnectClicked)
                     ]
                     + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
                     [
                         SNew(SButton)
-                        .Text(LOCTEXT("Actors", "Actorlari Listele"))
-                        .OnClicked(this, &SUnrealToolsChatPanel::OnListActorsClicked)
+                        .Text(LOCTEXT("StartCore", "Start Core"))
+                        .OnClicked(this, &SUnrealToolsChatPanel::OnStartCoreClicked)
                     ]
                     + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
                     [
                         SNew(SButton)
-                        .Text(LOCTEXT("Assets", "Asset Katalog"))
-                        .OnClicked(this, &SUnrealToolsChatPanel::OnAssetCatalogClicked)
+                        .Text(LOCTEXT("StopCore", "Stop Core"))
+                        .OnClicked(this, &SUnrealToolsChatPanel::OnStopCoreClicked)
                     ]
-                    + SHorizontalBox::Slot().AutoWidth()
+                    + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
                     [
                         SNew(SButton)
-                        .Text(LOCTEXT("Clear", "Temizle"))
-                        .OnClicked(this, &SUnrealToolsChatPanel::OnClearClicked)
+                        .Text(LOCTEXT("PingUnreal", "Ping"))
+                        .OnClicked(this, &SUnrealToolsChatPanel::OnPingClicked)
+                    ]
+                    + SHorizontalBox::Slot().FillWidth(1.0f)
+                    [
+                        SNew(STextBlock)
+                        .Text(LOCTEXT("ToolbarHint", "Local only. No cloud required with Ollama."))
+                        .Justification(ETextJustify::Right)
+                        .ColorAndOpacity(FLinearColor(0.42f, 0.47f, 0.54f, 1.0f))
+                    ]
+                ]
+                + SVerticalBox::Slot().FillHeight(1.0f).Padding(0, 12, 0, 0)
+                [
+                    SNew(SBorder)
+                    .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+                    .BorderBackgroundColor(FLinearColor(0.025f, 0.030f, 0.040f, 1.0f))
+                    .Padding(8)
+                    [
+                        SAssignNew(Messages, SScrollBox)
+                    ]
+                ]
+                + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)
+                [
+                    SNew(SBorder)
+                    .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+                    .BorderBackgroundColor(FLinearColor(0.040f, 0.047f, 0.060f, 1.0f))
+                    .Padding(10)
+                    [
+                        SNew(SVerticalBox)
+                        + SVerticalBox::Slot().AutoHeight()
+                        [
+                            SAssignNew(Input, SMultiLineEditableTextBox)
+                            .HintText(LOCTEXT("InputHint", "Ask the studio: scan this project, create a map plan, build a gameplay loop..."))
+                            .AutoWrapText(true)
+                            .AllowMultiLine(true)
+                        ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+                        [
+                            SNew(SHorizontalBox)
+                            + SHorizontalBox::Slot().FillWidth(1.0f)
+                            [
+                                SNew(STextBlock)
+                                .Text(LOCTEXT("SendHint", "Tip: presets fill the prompt; Send executes it through real Unreal tools."))
+                                .ColorAndOpacity(FLinearColor(0.46f, 0.51f, 0.58f, 1.0f))
+                            ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                            [
+                                SNew(SButton)
+                                .Text(LOCTEXT("Clear", "Clear"))
+                                .OnClicked(this, &SUnrealToolsChatPanel::OnClearClicked)
+                            ]
+                            + SHorizontalBox::Slot().AutoWidth()
+                            [
+                                SNew(SButton)
+                                .Text(LOCTEXT("Send", "Send"))
+                                .OnClicked(this, &SUnrealToolsChatPanel::OnSendClicked)
+                            ]
+                        ]
                     ]
                 ]
             ]
         ];
 
-        AddMessage(TEXT("System"), TEXT("UnrealTools hazir. Once Core Baslat, sonra Baglan."));
+        AddMessage(TEXT("System"), TEXT("UnrealTools Game Studio ready. Core will auto-start; use Start Studio if needed."));
         TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSP(this, &SUnrealToolsChatPanel::ProcessInbound), 0.1f);
+        FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSP(this, &SUnrealToolsChatPanel::AutoBoot), 1.0f);
     }
 
     virtual ~SUnrealToolsChatPanel()
@@ -176,6 +261,17 @@ private:
     FReply OnStartCoreClicked()
     {
         StartCore();
+        return FReply::Handled();
+    }
+
+    FReply OnBootClicked()
+    {
+        StartCore();
+        Connect();
+        if (!Socket)
+        {
+            FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSP(this, &SUnrealToolsChatPanel::DelayedConnect), 1.5f);
+        }
         return FReply::Handled();
     }
 
@@ -247,23 +343,73 @@ private:
         }
     }
 
+    bool AutoBoot(float DeltaTime)
+    {
+        StartCore();
+        Connect();
+        if (!Socket)
+        {
+            FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSP(this, &SUnrealToolsChatPanel::DelayedConnect), 1.5f);
+        }
+        return false;
+    }
+
+    bool DelayedConnect(float DeltaTime)
+    {
+        if (!Socket)
+        {
+            Connect();
+        }
+        return false;
+    }
+
+    TSharedRef<SWidget> MakeChip(const FText& Label, const FLinearColor& Color) const
+    {
+        return SNew(SBorder)
+            .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+            .BorderBackgroundColor(Color)
+            .Padding(FMargin(9, 4))
+            [
+                SNew(STextBlock)
+                .Text(Label)
+                .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
+                .ColorAndOpacity(FLinearColor(0.82f, 0.88f, 0.96f, 1.0f))
+            ];
+    }
+
+    TSharedRef<SWidget> MakePresetButton(const FText& Label, const FString Prompt)
+    {
+        return SNew(SButton)
+            .Text(Label)
+            .OnClicked_Lambda([this, Prompt]()
+            {
+                Preset(Prompt);
+                return FReply::Handled();
+            });
+    }
+
     void StartCore()
     {
+        if (IsPortOpen(Port))
+        {
+            SetStatus(TEXT("Core already listening. Connecting..."));
+            return;
+        }
         if (CoreProcess.IsValid())
         {
-            AddMessage(TEXT("System"), TEXT("Core zaten bu panel tarafindan calisiyor."));
+            SetStatus(TEXT("Core already running. Connect when ready."));
             return;
         }
         FString WorkingDir = FPaths::ProjectDir();
         CoreProcess = FPlatformProcess::CreateProc(*Command, *Arguments, true, false, false, &CorePid, 0, *WorkingDir, nullptr);
         if (CoreProcess.IsValid())
         {
-            AddMessage(TEXT("System"), FString::Printf(TEXT("Core baslatildi: %s %s"), *Command, *Arguments));
-            SetStatus(TEXT("Core basliyor; birkac saniye sonra Baglan."));
+            AddMessage(TEXT("System"), FString::Printf(TEXT("Core started: %s %s"), *Command, *Arguments));
+            SetStatus(TEXT("Core starting. Connecting automatically..."));
         }
         else
         {
-            AddMessage(TEXT("Error"), TEXT("Core baslatilamadi. Python PATH veya unitytools install kontrol et."));
+            AddMessage(TEXT("Error"), TEXT("Core could not start. Check Python PATH or pip install -e ."));
         }
     }
 
@@ -276,7 +422,7 @@ private:
             FPlatformProcess::CloseProc(CoreProcess);
             CoreProcess.Reset();
             CorePid = 0;
-            AddMessage(TEXT("System"), TEXT("Core durduruldu."));
+            AddMessage(TEXT("System"), TEXT("Core stopped."));
         }
     }
 
@@ -289,20 +435,46 @@ private:
         Addr->SetPort(Port);
         if (!bValid)
         {
-            AddMessage(TEXT("Error"), TEXT("Host gecersiz."));
+            AddMessage(TEXT("Error"), TEXT("Invalid host."));
             return;
         }
         Socket = SocketSubsystem->CreateSocket(NAME_Stream, TEXT("UnrealToolsChatClient"), false);
         if (!Socket || !Socket->Connect(*Addr))
         {
-            AddMessage(TEXT("Error"), TEXT("Python core baglantisi yok. Core Baslat ve tekrar Baglan."));
+            AddMessage(TEXT("Error"), TEXT("Python core is not ready yet. It will retry, or press Start Studio."));
             Disconnect();
             return;
         }
         StopReader = false;
         Async(EAsyncExecution::Thread, [this]() { ReadLoop(); });
-        SetStatus(TEXT("Bagli - Unreal editor context aktif"));
-        AddMessage(TEXT("System"), TEXT("Python core baglandi."));
+        SetStatus(TEXT("Connected. Unreal editor context active."));
+        AddMessage(TEXT("System"), TEXT("Python core connected. Studio is online."));
+    }
+
+    bool IsPortOpen(int32 InPort) const
+    {
+        ISocketSubsystem* SocketSubsystem = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
+        if (!SocketSubsystem)
+        {
+            return false;
+        }
+        TSharedRef<FInternetAddr> Addr = SocketSubsystem->CreateInternetAddr();
+        bool bValid = false;
+        Addr->SetIp(*Host, bValid);
+        Addr->SetPort(InPort);
+        if (!bValid)
+        {
+            return false;
+        }
+        FSocket* Probe = SocketSubsystem->CreateSocket(NAME_Stream, TEXT("UnrealToolsCoreProbe"), false);
+        if (!Probe)
+        {
+            return false;
+        }
+        const bool bConnected = Probe->Connect(*Addr);
+        Probe->Close();
+        SocketSubsystem->DestroySocket(Probe);
+        return bConnected;
     }
 
     void Disconnect()
@@ -314,7 +486,7 @@ private:
             ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(Socket);
             Socket = nullptr;
         }
-        SetStatus(TEXT("Kapali"));
+        SetStatus(TEXT("Offline."));
     }
 
     void ReadLoop()
@@ -438,16 +610,51 @@ private:
         {
             return;
         }
-        FString Full = FString::Printf(TEXT("%s: %s"), *Speaker, *Text);
+        FLinearColor CardColor(0.045f, 0.052f, 0.066f, 1.0f);
+        FLinearColor AccentColor(0.48f, 0.56f, 0.68f, 1.0f);
+        if (Speaker == TEXT("Sen"))
+        {
+            CardColor = FLinearColor(0.055f, 0.090f, 0.135f, 1.0f);
+            AccentColor = FLinearColor(0.42f, 0.70f, 1.0f, 1.0f);
+        }
+        else if (Speaker == TEXT("UnrealTools AI") || Speaker == TEXT("AI"))
+        {
+            CardColor = FLinearColor(0.050f, 0.066f, 0.060f, 1.0f);
+            AccentColor = FLinearColor(0.62f, 0.86f, 0.70f, 1.0f);
+        }
+        else if (Speaker == TEXT("Tool") || Speaker == TEXT("Agent"))
+        {
+            CardColor = FLinearColor(0.075f, 0.062f, 0.038f, 1.0f);
+            AccentColor = FLinearColor(0.95f, 0.72f, 0.36f, 1.0f);
+        }
+        else if (Speaker == TEXT("Error"))
+        {
+            CardColor = FLinearColor(0.110f, 0.040f, 0.045f, 1.0f);
+            AccentColor = FLinearColor(1.0f, 0.40f, 0.42f, 1.0f);
+        }
         Messages->AddSlot()
-        .Padding(0, 3)
+        .Padding(0, 5)
         [
             SNew(SBorder)
-            .Padding(8)
+            .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+            .BorderBackgroundColor(CardColor)
+            .Padding(10)
             [
-                SNew(STextBlock)
-                .AutoWrapText(true)
-                .Text(FText::FromString(Full))
+                SNew(SVerticalBox)
+                + SVerticalBox::Slot().AutoHeight()
+                [
+                    SNew(STextBlock)
+                    .Text(FText::FromString(Speaker))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
+                    .ColorAndOpacity(AccentColor)
+                ]
+                + SVerticalBox::Slot().AutoHeight().Padding(0, 5, 0, 0)
+                [
+                    SNew(STextBlock)
+                    .AutoWrapText(true)
+                    .Text(FText::FromString(Text))
+                    .ColorAndOpacity(FLinearColor(0.88f, 0.91f, 0.96f, 1.0f))
+                ]
             ]
         ];
         Messages->ScrollToEnd();

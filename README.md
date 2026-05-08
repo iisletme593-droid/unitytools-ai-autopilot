@@ -234,6 +234,10 @@ More detail / Detay: [Unreal Engine Support](docs/UNREAL.md)
 
 Long-term target / Uzun vadeli hedef: [Game Studio Architecture](docs/GAME_STUDIO_ARCHITECTURE.md)
 
+The Unreal panel is now styled as a premium local game-studio cockpit with auto-open, safe auto-connect, message cards, status chips, and studio presets for project scan, level planning, gameplay loop, UI/HUD, multiplayer, and build/release work.
+
+Unreal paneli artik premium lokal oyun studyosu kokpiti gibi calisir: auto-open, guvenli auto-connect, mesaj kartlari, status chipleri ve project scan, level planning, gameplay loop, UI/HUD, multiplayer, build/release presetleri vardir.
+
 ## Dual-Agent System
 
 UnityTools supports an advanced hierarchical dual-agent system with learning capabilities:
