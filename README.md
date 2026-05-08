@@ -238,6 +238,10 @@ The Unreal panel is now styled as a premium local game-studio cockpit with auto-
 
 Unreal paneli artik premium lokal oyun studyosu kokpiti gibi calisir: auto-open, guvenli auto-connect, mesaj kartlari, status chipleri ve project scan, level planning, gameplay loop, UI/HUD, multiplayer, build/release presetleri vardir.
 
+First studio operator tools are live: `unreal_scan_project`, `unreal_create_basic_level`, `unreal_setup_studio_lighting`, and `unreal_create_blockout_map`.
+
+Ilk studio operator araclari aktif: `unreal_scan_project`, `unreal_create_basic_level`, `unreal_setup_studio_lighting` ve `unreal_create_blockout_map`.
+
 ## Dual-Agent System
 
 UnityTools supports an advanced hierarchical dual-agent system with learning capabilities:

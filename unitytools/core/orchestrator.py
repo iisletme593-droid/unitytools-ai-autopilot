@@ -573,15 +573,32 @@ class Orchestrator:
         if any(word in text for word in ("safety", "guvenlik", "güvenlik", "safe", "destructive")):
             selected.update({"unity_set_autopilot_safety_mode", "unity_get_autopilot_safety_mode"})
 
+        if any(word in text for word in ("game studio", "studio", "oyun studyosu", "oyun stüdyosu", "gameplay", "ui", "hud", "multiplayer", "replication", "dedicated", "steam", "build")):
+            selected.update(
+                {
+                    "unreal_scan_project",
+                    "unreal_create_basic_level",
+                    "unreal_setup_studio_lighting",
+                    "unreal_create_blockout_map",
+                    "unreal_search_assets_semantic",
+                    "unreal_get_asset_catalog_summary",
+                    "unreal_save_dirty_packages",
+                }
+            )
+
         if any(word in text for word in ("unreal", "ue", "ue5", "uproject", "level actor", "world")):
             selected.update(
                 {
                     "unreal_ping",
+                    "unreal_scan_project",
                     "unreal_get_project_info",
                     "unreal_list_level_actors",
                     "unreal_find_level_actors_semantic",
                     "unreal_search_assets_semantic",
                     "unreal_get_asset_catalog_summary",
+                    "unreal_create_basic_level",
+                    "unreal_setup_studio_lighting",
+                    "unreal_create_blockout_map",
                     "unreal_spawn_basic_actor",
                     "unreal_set_actor_transform",
                     "unreal_import_asset",

@@ -150,6 +150,10 @@ def _dispatch(method: str, params: dict[str, Any]) -> Any:
         "find_level_actors_semantic": _find_level_actors_semantic,
         "search_assets_semantic": _search_assets_semantic,
         "get_asset_catalog_summary": _get_asset_catalog_summary,
+        "scan_project": _scan_project,
+        "create_basic_level": _create_basic_level,
+        "setup_studio_lighting": _setup_studio_lighting,
+        "create_blockout_map": _create_blockout_map,
         "spawn_basic_actor": _spawn_basic_actor,
         "delete_actors_semantic": _delete_actors_semantic,
         "set_actor_transform": _set_actor_transform,
@@ -236,6 +240,8 @@ def _matches(text: str, query: str, category: str) -> bool:
         if not any(s in text for s in synonyms):
             return False
     if query:
+        if "_" in query or len(query) <= 3:
+            return query in text
         tokens = [t for t in query.replace("_", " ").split() if t]
         if tokens and not any(t in text for t in tokens):
             return False
@@ -263,8 +269,11 @@ def _asset_registry():
 
 def _asset_row(asset_data: unreal.AssetData) -> dict[str, Any]:
     package_name = str(asset_data.package_name)
-    object_path = str(asset_data.get_soft_object_path())
     name = str(asset_data.asset_name)
+    try:
+        object_path = str(asset_data.get_soft_object_path())
+    except Exception:
+        object_path = f"{package_name}.{name}"
     cls = str(asset_data.asset_class_path.asset_name) if hasattr(asset_data, "asset_class_path") else str(asset_data.asset_class)
     text = f"{package_name} {object_path} {name} {cls}".lower()
     category = "other"
@@ -312,6 +321,190 @@ def _get_asset_catalog_summary(params: dict[str, Any]) -> dict[str, Any]:
         if len(samples[cat]) < 8:
             samples[cat].append(row)
     return {"ok": True, "total_scanned": len(assets), "counts": counts, "samples": samples}
+
+
+def _scan_project(params: dict[str, Any]) -> dict[str, Any]:
+    max_assets = int(params.get("max_assets", 8000))
+    max_actors = int(params.get("max_actors", 2000))
+    assets = _asset_registry().get_assets_by_path("/Game", recursive=True)[:max_assets]
+    asset_counts: dict[str, int] = {}
+    class_counts: dict[str, int] = {}
+    sample_assets: dict[str, list[dict[str, Any]]] = {}
+    for data in assets:
+        row = _asset_row(data)
+        asset_counts[row["category"]] = asset_counts.get(row["category"], 0) + 1
+        class_counts[row["class"]] = class_counts.get(row["class"], 0) + 1
+        sample_assets.setdefault(row["category"], [])
+        if len(sample_assets[row["category"]]) < 6:
+            sample_assets[row["category"]].append(row)
+
+    actor_counts: dict[str, int] = {}
+    actor_samples: dict[str, list[dict[str, Any]]] = {}
+    actors = _all_actors()[:max_actors]
+    for actor in actors:
+        row = _actor_row(actor)
+        actor_counts[row["category"]] = actor_counts.get(row["category"], 0) + 1
+        actor_samples.setdefault(row["category"], [])
+        if len(actor_samples[row["category"]]) < 6:
+            actor_samples[row["category"]].append(row)
+
+    worlds = []
+    for data in assets:
+        row = _asset_row(data)
+        if row["class"].lower() in ("world", "level"):
+            worlds.append(row)
+        if len(worlds) >= 30:
+            break
+
+    return {
+        "ok": True,
+        "project": _get_project_info({}),
+        "assets": {
+            "total_scanned": len(assets),
+            "by_category": asset_counts,
+            "by_class": dict(sorted(class_counts.items(), key=lambda kv: kv[1], reverse=True)[:30]),
+            "samples": sample_assets,
+            "levels": worlds,
+        },
+        "actors": {
+            "total_scanned": len(actors),
+            "by_category": actor_counts,
+            "samples": actor_samples,
+        },
+        "recommendations": _project_recommendations(asset_counts, actor_counts),
+    }
+
+
+def _project_recommendations(asset_counts: dict[str, int], actor_counts: dict[str, int]) -> list[str]:
+    recommendations = []
+    if asset_counts.get("tree", 0) or asset_counts.get("rock", 0):
+        recommendations.append("Use semantic asset search before primitives for foliage/rocks.")
+    else:
+        recommendations.append("No obvious tree/rock assets found; use blockout primitives or import assets first.")
+    if actor_counts.get("camera", 0) == 0:
+        recommendations.append("Add a camera before screenshots or playtest framing.")
+    if actor_counts.get("light", 0) == 0:
+        recommendations.append("Add directional light, skylight, and fog for readable scene lighting.")
+    recommendations.append("For new work, create a snapshot or new level before destructive edits.")
+    return recommendations
+
+
+def _create_basic_level(params: dict[str, Any]) -> dict[str, Any]:
+    name = _safe_asset_name(str(params.get("name", "UT_Studio_Level")))
+    folder = str(params.get("folder", "/Game/UnrealTools/Maps")).rstrip("/")
+    level_path = f"{folder}/{name}"
+    try:
+        unreal.EditorLevelLibrary.new_level(level_path)
+    except Exception as exc:
+        return {"ok": False, "error": f"Could not create/open level {level_path}: {exc}"}
+    _setup_studio_lighting({"style": params.get("style", "premium")})
+    if bool(params.get("save", True)):
+        unreal.EditorLevelLibrary.save_current_level()
+    return {"ok": True, "level_path": level_path, "map_name": _get_project_info({}).get("map_name", "")}
+
+
+def _setup_studio_lighting(params: dict[str, Any]) -> dict[str, Any]:
+    style = str(params.get("style", "premium")).lower()
+    created = []
+    if not _find_level_actors_semantic({"query": "UT_DirectionalLight", "max_results": 1}).get("actors"):
+        sun = unreal.EditorLevelLibrary.spawn_actor_from_class(unreal.DirectionalLight, unreal.Vector(0, 0, 420))
+        sun.set_actor_label("UT_DirectionalLight")
+        sun.set_actor_rotation(unreal.Rotator(-42, -35, 0), False)
+        _set_actor_float_property(sun, "intensity", 4.0 if style != "night" else 1.2)
+        created.append(_actor_row(sun))
+    if hasattr(unreal, "SkyLight") and not _find_level_actors_semantic({"query": "UT_SkyLight", "max_results": 1}).get("actors"):
+        sky = unreal.EditorLevelLibrary.spawn_actor_from_class(unreal.SkyLight, unreal.Vector(0, 0, 260))
+        sky.set_actor_label("UT_SkyLight")
+        _set_actor_float_property(sky, "intensity", 0.7 if style != "night" else 0.25)
+        created.append(_actor_row(sky))
+    if hasattr(unreal, "ExponentialHeightFog") and not _find_level_actors_semantic({"query": "UT_AtmosphericFog", "max_results": 1}).get("actors"):
+        fog = unreal.EditorLevelLibrary.spawn_actor_from_class(unreal.ExponentialHeightFog, unreal.Vector(0, 0, 0))
+        fog.set_actor_label("UT_AtmosphericFog")
+        _set_actor_float_property(fog, "fog_density", 0.018 if style != "night" else 0.035)
+        created.append(_actor_row(fog))
+    if not _find_level_actors_semantic({"query": "UT_StudioCamera", "max_results": 1}).get("actors"):
+        cam_cls = unreal.CineCameraActor if hasattr(unreal, "CineCameraActor") else unreal.CameraActor
+        cam = unreal.EditorLevelLibrary.spawn_actor_from_class(cam_cls, unreal.Vector(-900, -900, 520))
+        cam.set_actor_label("UT_StudioCamera")
+        cam.set_actor_rotation(unreal.Rotator(-24, 45, 0), False)
+        created.append(_actor_row(cam))
+    return {"ok": True, "style": style, "created_count": len(created), "created": created}
+
+
+def _create_blockout_map(params: dict[str, Any]) -> dict[str, Any]:
+    theme = str(params.get("theme", "premium_gameplay")).lower()
+    size = float(params.get("size", 1800))
+    create_level = bool(params.get("create_new_level", False))
+    if create_level:
+        level = _create_basic_level({"name": params.get("level_name", "UT_Blockout_Map"), "save": False})
+        if not level.get("ok"):
+            return level
+    created = []
+    created.append(_spawn_static_mesh_actor("UT_GroundPlane", "plane", unreal.Vector(0, 0, 0), unreal.Vector(size / 100, size / 100, 1)))
+    # Landmark rhythm: one hub, four cover blocks, two gate volumes.
+    placements = [
+        ("UT_PlayerStart_Blockout", "cube", unreal.Vector(-650, -650, 60), unreal.Vector(1.2, 1.2, 1.2)),
+        ("UT_Objective_Hub", "cylinder", unreal.Vector(0, 0, 85), unreal.Vector(2.2, 2.2, 1.7)),
+        ("UT_Cover_North", "cube", unreal.Vector(0, 520, 95), unreal.Vector(3.5, 0.45, 1.9)),
+        ("UT_Cover_South", "cube", unreal.Vector(0, -520, 95), unreal.Vector(3.5, 0.45, 1.9)),
+        ("UT_Cover_East", "cube", unreal.Vector(520, 0, 95), unreal.Vector(0.45, 3.5, 1.9)),
+        ("UT_Cover_West", "cube", unreal.Vector(-520, 0, 95), unreal.Vector(0.45, 3.5, 1.9)),
+        ("UT_Gate_A", "cube", unreal.Vector(-850, 0, 140), unreal.Vector(0.5, 2.4, 2.8)),
+        ("UT_Gate_B", "cube", unreal.Vector(850, 0, 140), unreal.Vector(0.5, 2.4, 2.8)),
+    ]
+    for label, mesh_type, location, scale in placements:
+        created.append(_spawn_static_mesh_actor(label, mesh_type, location, scale))
+    lighting = _setup_studio_lighting({"style": params.get("lighting", "premium")})
+    if bool(params.get("save", True)):
+        unreal.EditorLevelLibrary.save_current_level()
+    return {
+        "ok": True,
+        "theme": theme,
+        "created_count": len(created),
+        "created": created,
+        "lighting": lighting,
+        "notes": [
+            "Blockout uses primitives intentionally; replace with real assets after asset scan.",
+            "Names use UT_* prefixes so semantic search/delete can target this generated set safely.",
+        ],
+    }
+
+
+def _spawn_static_mesh_actor(label: str, mesh_type: str, location: unreal.Vector, scale: unreal.Vector) -> dict[str, Any]:
+    actor = unreal.EditorLevelLibrary.spawn_actor_from_class(unreal.StaticMeshActor, location)
+    actor.set_actor_label(label)
+    mesh_path = "/Engine/BasicShapes/Cube.Cube"
+    if mesh_type == "sphere":
+        mesh_path = "/Engine/BasicShapes/Sphere.Sphere"
+    elif mesh_type == "cylinder":
+        mesh_path = "/Engine/BasicShapes/Cylinder.Cylinder"
+    elif mesh_type == "plane":
+        mesh_path = "/Engine/BasicShapes/Plane.Plane"
+    mesh = unreal.EditorAssetLibrary.load_asset(mesh_path)
+    actor.static_mesh_component.set_static_mesh(mesh)
+    actor.set_actor_scale3d(scale)
+    return _actor_row(actor)
+
+
+def _set_actor_float_property(actor: unreal.Actor, name: str, value: float) -> None:
+    try:
+        actor.set_editor_property(name, value)
+        return
+    except Exception:
+        pass
+    for component in actor.get_components_by_class(unreal.ActorComponent):
+        try:
+            if component.has_editor_property(name):
+                component.set_editor_property(name, value)
+                return
+        except Exception:
+            continue
+
+
+def _safe_asset_name(value: str) -> str:
+    cleaned = "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in value.strip())
+    cleaned = cleaned.strip("_")
+    return cleaned or "UT_Studio_Level"
 
 
 def _spawn_basic_actor(params: dict[str, Any]) -> dict[str, Any]:

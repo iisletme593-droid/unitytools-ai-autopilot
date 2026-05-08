@@ -121,17 +121,17 @@ public:
                         [
                             SNew(SHorizontalBox)
                             + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                            [ MakePresetButton(LOCTEXT("PresetScan", "Project Scan"), TEXT("Unreal projesini oku: aktif level, actorlar, /Game asset katalogu, pluginler ve riskleri ozetle.")) ]
+                            [ MakePresetButton(LOCTEXT("PresetScan", "Project Scan"), TEXT("unreal_scan_project ile Unreal projesini oku: aktif level, actorlar, /Game asset katalogu, seviyeler ve riskleri ozetle.")) ]
                             + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                            [ MakePresetButton(LOCTEXT("PresetLevel", "Level Plan"), TEXT("Bu proje icin premium bir level/map plani hazirla; assetleri once katalogdan sec, performans butcesi koy.")) ]
+                            [ MakePresetButton(LOCTEXT("PresetLevel", "Level Plan"), TEXT("unreal_scan_project ile oku; sonra gerekirse unreal_create_basic_level ve unreal_create_blockout_map kullanarak premium playable blockout level kur.")) ]
                             + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                            [ MakePresetButton(LOCTEXT("PresetGameplay", "Gameplay Loop"), TEXT("Bu oyun icin core gameplay loop tasarla ve Unreal tarafinda uygulanacak sistemleri adim adim planla.")) ]
+                            [ MakePresetButton(LOCTEXT("PresetGameplay", "Gameplay Loop"), TEXT("Projeyi tara, core gameplay loop tasarla; mevcut level/actor/asset durumuna gore Unreal uygulanabilir sistem planini ve ilk blockout adimini uygula.")) ]
                             + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                            [ MakePresetButton(LOCTEXT("PresetUI", "UI/HUD"), TEXT("Main menu, HUD, settings ve inventory UI icin Unreal uygulanabilir sade premium plan hazirla.")) ]
+                            [ MakePresetButton(LOCTEXT("PresetUI", "UI/HUD"), TEXT("Projeyi tara; main menu, HUD, settings ve inventory UI icin sade premium Unreal uygulanabilir plan hazirla.")) ]
                             + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                            [ MakePresetButton(LOCTEXT("PresetMulti", "Multiplayer"), TEXT("Unreal multiplayer replication ve dedicated server hazirlik plani cikar.")) ]
+                            [ MakePresetButton(LOCTEXT("PresetMulti", "Multiplayer"), TEXT("Projeyi tara; Unreal replication, RPC, PlayerState/GameState ve dedicated server hazirlik plani cikar.")) ]
                             + SHorizontalBox::Slot().AutoWidth()
-                            [ MakePresetButton(LOCTEXT("PresetBuild", "Build"), TEXT("Windows client, dedicated server ve Steam sayfasi asset/copy checklist hazirla.")) ]
+                            [ MakePresetButton(LOCTEXT("PresetBuild", "Build"), TEXT("Projeyi tara; Windows client build, dedicated server ve Steam sayfasi asset/copy checklist hazirla.")) ]
                         ]
                     ]
                 ]

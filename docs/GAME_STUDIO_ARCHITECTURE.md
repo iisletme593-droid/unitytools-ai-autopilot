@@ -148,6 +148,15 @@ AI sunlari parca parca degil, pipeline olarak yapabilmeli:
 - Actor semantic edit pack
 - Batch import resume UI
 
+Implemented first-pass studio operators:
+
+- `unreal_scan_project`
+- `unreal_create_basic_level`
+- `unreal_setup_studio_lighting`
+- `unreal_create_blockout_map`
+
+These tools make the default loop: scan -> plan -> create level/blockout -> light/camera -> save.
+
 ### v2.9
 
 - Level generator: blockout, terrain, lighting, camera

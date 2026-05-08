@@ -94,6 +94,58 @@ def unreal_get_asset_catalog_summary(max_assets: int = 5000) -> dict:
         return {"ok": False, "error": str(exc)}
 
 
+@tool(description="Studio scan for Unreal project: project info, current level actors, /Game asset categories/classes, levels, and recommendations.")
+def unreal_scan_project(max_assets: int = 8000, max_actors: int = 2000) -> dict:
+    ok, error = _ensure_unreal()
+    if not ok:
+        return {"ok": False, "error": error}
+    try:
+        return {"ok": True, **_bridge().call("scan_project", {"max_assets": max_assets, "max_actors": max_actors}, timeout=90)}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@tool(description="Create/open a new Unreal level under /Game/UnrealTools/Maps and add basic lighting/camera.")
+def unreal_create_basic_level(name: str = "UT_Studio_Level", folder: str = "/Game/UnrealTools/Maps", style: str = "premium", save: bool = True) -> dict:
+    ok, error = _ensure_unreal()
+    if not ok:
+        return {"ok": False, "error": error}
+    try:
+        return {"ok": True, **_bridge().call("create_basic_level", {"name": name, "folder": folder, "style": style, "save": save}, timeout=120)}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@tool(description="Set up Unreal studio lighting: directional light, sky light, fog, and camera if missing.")
+def unreal_setup_studio_lighting(style: str = "premium") -> dict:
+    ok, error = _ensure_unreal()
+    if not ok:
+        return {"ok": False, "error": error}
+    try:
+        return {"ok": True, **_bridge().call("setup_studio_lighting", {"style": style}, timeout=60)}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@tool(description="Create a safe primitive Unreal blockout map with named gameplay landmarks, cover, gates, lighting, and camera.")
+def unreal_create_blockout_map(theme: str = "premium_gameplay", size: float = 1800, create_new_level: bool = False, level_name: str = "UT_Blockout_Map", lighting: str = "premium", save: bool = True) -> dict:
+    ok, error = _ensure_unreal()
+    if not ok:
+        return {"ok": False, "error": error}
+    params = {
+        "theme": theme,
+        "size": size,
+        "create_new_level": create_new_level,
+        "level_name": level_name,
+        "lighting": lighting,
+        "save": save,
+    }
+    try:
+        return {"ok": True, **_bridge().call("create_blockout_map", params, timeout=180)}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 @tool(description="Spawn a basic Unreal actor: cube, sphere, cylinder, plane, point_light, directional_light, camera.")
 def unreal_spawn_basic_actor(type: str = "cube", label: str = "UnrealToolsActor", location: dict[str, float] | None = None) -> dict:
     ok, error = _ensure_unreal()

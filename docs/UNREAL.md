@@ -83,6 +83,22 @@ python -m unitytools.cli.entry chat-server --use-dual-agent --engine unreal
 
 The `--engine unreal` hint tells the model to prefer `unreal_*` tools instead of Unity tools.
 
+## Studio Operator Tools
+
+v2.8 starts turning the panel into a real game-studio cockpit with higher-level Unreal tools:
+
+- `unreal_scan_project`: reads project info, current level actors, `/Game` asset classes/categories, levels, and recommendations
+- `unreal_create_basic_level`: creates/opens a new level and adds lighting/camera
+- `unreal_setup_studio_lighting`: adds directional light, sky light, fog, and camera if missing
+- `unreal_create_blockout_map`: creates a named primitive gameplay blockout with ground, objective hub, cover, gates, lighting, and camera
+
+v2.8 paneli daha yuksek seviyeli Unreal operator araclariyla oyun studyosu kokpitine donusmeye baslar:
+
+- `unreal_scan_project`: proje, level actorlari, `/Game` assetleri, level listesi ve onerileri okur
+- `unreal_create_basic_level`: yeni level acar/olusturur ve isik/kamera ekler
+- `unreal_setup_studio_lighting`: directional light, sky light, fog ve kamera kurar
+- `unreal_create_blockout_map`: isimlendirilmis ground, objective hub, cover, gate, lighting ve camera iceren gameplay blockout olusturur
+
 ## Unity Asset Migration To Unreal
 
 Stage Unity source assets:
