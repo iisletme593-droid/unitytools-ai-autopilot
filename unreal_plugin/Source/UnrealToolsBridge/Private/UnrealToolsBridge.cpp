@@ -475,27 +475,41 @@ static void OpenUnrealToolsChatTab()
     FGlobalTabmanager::Get()->TryInvokeTab(UnrealToolsChatTabName);
 }
 
+static void AddUnrealToolsMenuEntry(const FName MenuName)
+{
+    UToolMenu* Menu = UToolMenus::Get()->ExtendMenu(MenuName);
+    if (!Menu)
+    {
+        return;
+    }
+    FToolMenuSection& Section = Menu->FindOrAddSection(TEXT("UnrealTools"));
+    Section.Label = LOCTEXT("UnrealToolsMenu", "UnrealTools");
+    Section.AddMenuEntry(
+        TEXT("OpenUnrealToolsAIChat"),
+        LOCTEXT("OpenUnrealToolsAIChat", "Open UnrealTools AI Chat"),
+        LOCTEXT("OpenUnrealToolsAIChatTooltip", "Open the embedded AI chat panel for UnrealTools."),
+        FSlateIcon(),
+        FUIAction(FExecuteAction::CreateStatic(&OpenUnrealToolsChatTab))
+    );
+}
+
 void FUnrealToolsBridgeModule::StartupModule()
 {
     FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
         UnrealToolsChatTabName,
         FOnSpawnTab::CreateStatic(&SpawnUnrealToolsChatTab))
         .SetDisplayName(LOCTEXT("UnrealToolsTabTitle", "UnrealTools AI Chat"))
-        .SetMenuType(ETabSpawnerMenuType::Hidden);
+        .SetTooltipText(LOCTEXT("UnrealToolsTabTooltip", "Local AI autopilot chat for Unreal Editor."))
+        .SetMenuType(ETabSpawnerMenuType::Enabled);
 
     UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateLambda([]()
     {
-        UToolMenu* ToolsMenu = UToolMenus::Get()->ExtendMenu(TEXT("LevelEditor.MainMenu.Tools"));
-        FToolMenuSection& Section = ToolsMenu->FindOrAddSection(TEXT("UnrealTools"));
-        Section.Label = LOCTEXT("UnrealToolsMenu", "UnrealTools");
-        Section.AddMenuEntry(
-            TEXT("OpenUnrealToolsAIChat"),
-            LOCTEXT("OpenUnrealToolsAIChat", "Open UnrealTools AI Chat"),
-            LOCTEXT("OpenUnrealToolsAIChatTooltip", "Open the embedded AI chat panel for UnrealTools."),
-            FSlateIcon(),
-            FUIAction(FExecuteAction::CreateStatic(&OpenUnrealToolsChatTab))
-        );
+        AddUnrealToolsMenuEntry(TEXT("LevelEditor.MainMenu.Tools"));
+        AddUnrealToolsMenuEntry(TEXT("LevelEditor.MainMenu.Window"));
+        AddUnrealToolsMenuEntry(TEXT("LevelEditor.MainMenu.Help"));
     }));
+
+    UE_LOG(LogTemp, Display, TEXT("[UnrealTools] UnrealToolsBridge module loaded. Open from Tools/Window > UnrealTools > Open UnrealTools AI Chat."));
 }
 
 void FUnrealToolsBridgeModule::ShutdownModule()

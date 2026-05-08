@@ -184,6 +184,7 @@ Unreal Engine destegi v2.7 ile gelir. Native sekme:
 
 ```text
 Tools > UnrealTools > Open UnrealTools AI Chat
+Window > UnrealTools > Open UnrealTools AI Chat
 ```
 
 Install the plugin / Plugin'i kur:

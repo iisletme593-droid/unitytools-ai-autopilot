@@ -41,7 +41,10 @@ Inside Unreal:
 
 ```text
 Tools > UnrealTools > Open UnrealTools AI Chat
+Window > UnrealTools > Open UnrealTools AI Chat
 ```
+
+If your Unreal layout/language does not show the `Tools` menu, use `Window > UnrealTools` instead. The tab is also registered as a normal dockable tab named `UnrealTools AI Chat`.
 
 Use `Core Baslat`, then `Baglan`. The panel starts:
 
