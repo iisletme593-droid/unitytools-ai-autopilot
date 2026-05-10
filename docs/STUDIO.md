@@ -316,6 +316,25 @@ roles work fully on Ollama; engine roles that compare against
 reference images need `ANTHROPIC_API_KEY`. Without it, the compare
 tool returns a clean error and the rest of the Worker flow continues.
 
+### Cheap visual regression (Pillow, no LLM)
+
+`studio_visual_regression_check(reference_path, candidate_path)`
+returns a 0..1 similarity, mean absolute pixel difference, and
+per-channel color drift using `PIL.ImageChops.difference`. No LLM
+call, no API key, no network. Use as a cheap pre-filter:
+
+```text
+1. studio_capture_screenshot           (real Unity capture)
+2. studio_visual_regression_check      (cheap local diff vs last frame)
+3. if similarity > 0.95: skip vision compare  (scene unchanged)
+4. else: studio_compare_to_reference   (call Claude vision once)
+```
+
+The tool also appends a `pixel_diff` row to `qa/regression.jsonl`
+alongside `vision_compare` rows so a producer's
+`studio_recent_regressions` view shows both signals. Available to the
+LEVEL_DESIGNER, ART_DIRECTOR, and WORKER roles.
+
 ## Project state on disk
 
 Everything is human-readable. You can `git add studio/` and review

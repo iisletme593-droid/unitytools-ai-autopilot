@@ -325,6 +325,7 @@ LEVEL_DESIGNER = RoleConfig(
         "studio_list_screenshots",
         "studio_capture_screenshot",
         "studio_compare_to_reference",
+        "studio_visual_regression_check",
         "studio_add_task",
         "studio_list_tasks",
         "studio_propose_decision",
@@ -343,6 +344,7 @@ ART_DIRECTOR = RoleConfig(
         "studio_list_screenshots",
         "studio_capture_screenshot",
         "studio_compare_to_reference",
+        "studio_visual_regression_check",
         "studio_propose_decision",
         "studio_add_task",
         # Auto-dispatch lifecycle.
@@ -367,6 +369,7 @@ WORKER = RoleConfig(
         # Visual verification
         "studio_capture_screenshot",
         "studio_compare_to_reference",
+        "studio_visual_regression_check",
         # Engine: rollback + read
         "unity_create_scene_snapshot",
         "unity_get_scene_catalog",

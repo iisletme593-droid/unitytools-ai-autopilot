@@ -357,6 +357,131 @@ def test_level_designer_end_to_end_with_fake_bridge_and_vision() -> None:
     print("OK level_designer end-to-end with fake bridge + fake vision")
 
 
+# ────────────────────────────── Phase 10b: visual regression baseline
+
+
+def _write_solid_color_png(path: Path, color: tuple[int, int, int], size: tuple[int, int] = (32, 32)) -> Path:
+    from PIL import Image
+    img = Image.new("RGB", size, color)
+    img.save(path, format="PNG")
+    return path
+
+
+def test_visual_regression_identical_images_score_one() -> None:
+    state, tmp = _fresh_studio()
+    from unitytools.studio.tools import studio_visual_regression_check
+
+    a = _write_solid_color_png(tmp / "a.png", (128, 64, 200))
+    b = _write_solid_color_png(tmp / "b.png", (128, 64, 200))
+    result = studio_visual_regression_check(reference_path=str(a), candidate_path=str(b))
+    assert result["ok"] is True
+    assert result["similarity"] == 1.0
+    assert result["mean_abs_diff"] == 0.0
+    assert result["dimensions_match"] is True
+    print("OK identical images -> similarity 1.0")
+
+
+def test_visual_regression_black_vs_white_score_zero() -> None:
+    state, tmp = _fresh_studio()
+    from unitytools.studio.tools import studio_visual_regression_check
+
+    black = _write_solid_color_png(tmp / "black.png", (0, 0, 0))
+    white = _write_solid_color_png(tmp / "white.png", (255, 255, 255))
+    result = studio_visual_regression_check(reference_path=str(black), candidate_path=str(white))
+    assert result["ok"] is True
+    # Every pixel max-diff -> mean_abs_diff = 1.0, similarity = 0.0
+    assert result["mean_abs_diff"] == 1.0
+    assert result["similarity"] == 0.0
+    print("OK black vs white -> similarity 0.0")
+
+
+def test_visual_regression_partial_change_intermediate_score() -> None:
+    state, tmp = _fresh_studio()
+    from unitytools.studio.tools import studio_visual_regression_check
+    from PIL import Image
+
+    # Reference: solid mid-grey. Candidate: same image but right half is black.
+    ref = Image.new("RGB", (40, 20), (128, 128, 128))
+    ref.save(tmp / "ref.png")
+    cand = ref.copy()
+    for x in range(20, 40):
+        for y in range(20):
+            cand.putpixel((x, y), (0, 0, 0))
+    cand.save(tmp / "cand.png")
+
+    result = studio_visual_regression_check(reference_path=str(tmp / "ref.png"), candidate_path=str(tmp / "cand.png"))
+    assert result["ok"] is True
+    # Half the pixels diff by 128, rest by 0; mean abs diff ~= 64/255 ~= 0.25
+    assert 0.20 < result["mean_abs_diff"] < 0.30
+    assert 0.70 < result["similarity"] < 0.80
+    print("OK partial-change -> intermediate similarity")
+
+
+def test_visual_regression_resizes_when_dimensions_differ() -> None:
+    state, tmp = _fresh_studio()
+    from unitytools.studio.tools import studio_visual_regression_check
+    from PIL import Image
+
+    ref = Image.new("RGB", (40, 40), (200, 100, 50))
+    ref.save(tmp / "small.png")
+    cand = Image.new("RGB", (80, 80), (200, 100, 50))
+    cand.save(tmp / "big.png")
+
+    result = studio_visual_regression_check(reference_path=str(tmp / "small.png"), candidate_path=str(tmp / "big.png"))
+    assert result["ok"] is True
+    assert result["dimensions_match"] is False
+    # Same color, just different sizes -> after resize, similarity ~= 1.0
+    assert result["similarity"] > 0.99
+    assert result["ref_size"] == [40, 40]
+    assert result["cand_size"] == [80, 80]
+    print("OK dimension mismatch -> resized then compared")
+
+
+def test_visual_regression_logs_to_regression_jsonl() -> None:
+    state, tmp = _fresh_studio()
+    from unitytools.studio.tools import studio_visual_regression_check
+
+    a = _write_solid_color_png(tmp / "x.png", (10, 10, 10))
+    b = _write_solid_color_png(tmp / "y.png", (250, 250, 250))
+    studio_visual_regression_check(reference_path=str(a), candidate_path=str(b))
+
+    log_lines = state.paths.qa_regression.read_text(encoding="utf-8").strip().splitlines()
+    assert len(log_lines) == 1
+    entry = json.loads(log_lines[0])
+    assert entry["kind"] == "pixel_diff"
+    assert entry["mean_abs_diff"] > 0.9
+    print("OK visual_regression appends pixel_diff to regression.jsonl")
+
+
+def test_visual_regression_handles_missing_files() -> None:
+    state, tmp = _fresh_studio()
+    from unitytools.studio.tools import studio_visual_regression_check
+
+    a = _write_solid_color_png(tmp / "a.png", (50, 50, 50))
+    result = studio_visual_regression_check(reference_path=str(a), candidate_path=str(tmp / "missing.png"))
+    assert result["ok"] is False
+    assert "Candidate not found" in result["error"]
+
+    result = studio_visual_regression_check(reference_path=str(tmp / "nope.png"), candidate_path=str(a))
+    assert result["ok"] is False
+    assert "Reference not found" in result["error"]
+    print("OK visual_regression rejects missing files cleanly")
+
+
+def test_visual_regression_in_role_allowlists() -> None:
+    """Phase 10b adds the tool to LEVEL_DESIGNER, ART_DIRECTOR, WORKER."""
+    from unitytools.studio import LEVEL_DESIGNER, ART_DIRECTOR, WORKER
+    assert "studio_visual_regression_check" in LEVEL_DESIGNER.tool_set
+    assert "studio_visual_regression_check" in ART_DIRECTOR.tool_set
+    assert "studio_visual_regression_check" in WORKER.tool_set
+    # Doc-only roles do NOT get it
+    from unitytools.studio import DESIGNER, CRITIC, PRODUCER
+    assert "studio_visual_regression_check" not in DESIGNER.tool_set
+    assert "studio_visual_regression_check" not in CRITIC.tool_set
+    assert "studio_visual_regression_check" not in PRODUCER.tool_set
+    print("OK visual_regression in vision-capable role allowlists only")
+
+
 def run_test() -> None:
     test_extract_json_object_strips_fences_and_prose()
     test_capture_screenshot_copies_into_qa_folder()
@@ -366,7 +491,14 @@ def run_test() -> None:
     test_new_roles_see_only_their_tools()
     test_list_references_returns_file_listing()
     test_level_designer_end_to_end_with_fake_bridge_and_vision()
-    print("All Phase 3 vision tests passed")
+    test_visual_regression_identical_images_score_one()
+    test_visual_regression_black_vs_white_score_zero()
+    test_visual_regression_partial_change_intermediate_score()
+    test_visual_regression_resizes_when_dimensions_differ()
+    test_visual_regression_logs_to_regression_jsonl()
+    test_visual_regression_handles_missing_files()
+    test_visual_regression_in_role_allowlists()
+    print("All Phase 3 + 10b vision tests passed")
 
 
 if __name__ == "__main__":

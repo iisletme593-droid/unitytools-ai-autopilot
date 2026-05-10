@@ -354,6 +354,69 @@ def studio_compare_to_reference(reference_path: str, screenshot_path: str, instr
     return {"ok": True, "reference": str(ref), "screenshot": str(cand), **diff}
 
 
+# ─── Visual regression baseline (Phase 10b) ────────────────────────────
+
+@tool(description="Cheap local pixel-diff between two screenshots. Returns a 0-1 similarity score (1.0 = identical), mean absolute pixel difference, and per-channel color drift. Use BEFORE studio_compare_to_reference to skip the LLM vision call when the scene has not changed materially. Requires Pillow (already a hard dep).")
+def studio_visual_regression_check(reference_path: str, candidate_path: str) -> dict:
+    try:
+        from PIL import Image, ImageChops, ImageStat
+    except ImportError:
+        return {"ok": False, "error": "Pillow not installed. pip install Pillow.", "error_type": "MissingDependency"}
+
+    state = _require_state()
+    ref = Path(reference_path)
+    cand = Path(candidate_path)
+    if not ref.exists():
+        return {"ok": False, "error": f"Reference not found: {ref}"}
+    if not cand.exists():
+        return {"ok": False, "error": f"Candidate not found: {cand}"}
+
+    try:
+        ref_img = Image.open(ref).convert("RGB")
+        cand_img = Image.open(cand).convert("RGB")
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"Could not open image: {exc}", "error_type": type(exc).__name__}
+
+    ref_size = ref_img.size
+    cand_size = cand_img.size
+    dimensions_match = ref_size == cand_size
+    if not dimensions_match:
+        # Resize candidate to reference dims for diff. The mismatch flag
+        # warns callers that the result is approximate.
+        cand_img = cand_img.resize(ref_size, Image.Resampling.LANCZOS)
+
+    diff = ImageChops.difference(ref_img, cand_img)
+    means = ImageStat.Stat(diff).mean  # [r_mean, g_mean, b_mean] each 0-255
+    overall_mean_255 = sum(means) / len(means) if means else 0.0
+    mad = overall_mean_255 / 255.0  # 0-1
+    similarity = max(0.0, min(1.0, 1.0 - mad))
+
+    payload = {
+        "ts": time.time(),
+        "kind": "pixel_diff",
+        "reference": str(ref),
+        "candidate": str(cand),
+        "similarity": similarity,
+        "mean_abs_diff": mad,
+        "dimensions_match": dimensions_match,
+    }
+    state.append_regression_entry(payload)
+
+    return {
+        "ok": True,
+        "similarity": similarity,
+        "mean_abs_diff": mad,
+        "per_channel_mean": {
+            "r": (means[0] / 255.0) if len(means) > 0 else 0.0,
+            "g": (means[1] / 255.0) if len(means) > 1 else 0.0,
+            "b": (means[2] / 255.0) if len(means) > 2 else 0.0,
+        },
+        "ref_size": list(ref_size),
+        "cand_size": list(cand_size),
+        "dimensions_match": dimensions_match,
+    }
+
+
 # ─── Recent activity (Producer inputs) ─────────────────────────────────
 
 @tool(description="Read recent QA regression entries from qa/regression.jsonl. Filter by hours (default 24) or kind (e.g. 'vision_compare'). Newest first.")
@@ -453,6 +516,7 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_list_screenshots",
     "studio_capture_screenshot",
     "studio_compare_to_reference",
+    "studio_visual_regression_check",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",
