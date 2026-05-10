@@ -589,6 +589,66 @@ def cmd_studio_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_studio_archive(args: argparse.Namespace) -> int:
+    """Move old done/rejected tasks from backlog.json to studio/archive/<YYYY>.json."""
+    from ..studio import (
+        DEFAULT_AGE_DAYS,
+        StudioPaths,
+        StudioState,
+        TaskStatus,
+        archive_old_tasks,
+        archive_summary,
+        init_studio_tools,
+    )
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init --project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    statuses = None
+    if args.statuses:
+        try:
+            statuses = {TaskStatus(s) for s in args.statuses.split(",")}
+        except ValueError as exc:
+            console.print(f"[red]Bad status in --statuses: {exc}[/red]")
+            return 1
+
+    older = float(args.older_than_days) if args.older_than_days is not None else DEFAULT_AGE_DAYS
+    result = archive_old_tasks(
+        state,
+        older_than_days=older,
+        statuses=statuses,
+        dry_run=args.dry_run,
+    )
+
+    label = "Dry-run" if args.dry_run else "Archived"
+    if result.count == 0:
+        console.print(f"[dim]{label}: no tasks matched (older than {older:g}d, statuses {[s.value for s in (statuses or set())] or 'done,rejected'}).[/dim]")
+    else:
+        per_status = result.by_status()
+        per_year = result.by_year()
+        ps_str = ", ".join(f"{k}={v}" for k, v in sorted(per_status.items()))
+        py_str = ", ".join(f"{y}={n}" for y, n in sorted(per_year.items()))
+        console.print(
+            f"[green][OK][/green] {label} {result.count} tasks ({ps_str}) into year(s) [{py_str}]"
+        )
+        for p in result.archive_paths:
+            console.print(f"  - {p}")
+    if not args.dry_run:
+        summary = archive_summary(state)
+        if summary["total"]:
+            console.print(
+                f"[dim]Archive total: {summary['total']} tasks across years {summary['years']}.[/dim]"
+            )
+    return 0
+
+
 def cmd_studio_doctor(args: argparse.Namespace) -> int:
     """Run all studio health checks. Exits 1 only when any check is 'fail'."""
     from ..studio import (
@@ -1284,6 +1344,11 @@ def main() -> int:
     p_studio_init.add_argument("--force", action="store_true", help="Overwrite starter docs if they already exist (JSON state is always preserved)")
     p_studio_doctor = sub.add_parser("studio-doctor", help="Run studio health checks (provider, Ollama, Pillow, Unity bridge, disk state, recent activity).")
     p_studio_doctor.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_archive = sub.add_parser("studio-archive", help="Move old done/rejected tasks from backlog.json into studio/archive/<YYYY>.json")
+    p_studio_archive.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_archive.add_argument("--older-than-days", type=float, default=None, help="Age threshold in days (default: 30).")
+    p_studio_archive.add_argument("--statuses", default="", help="Comma-separated task statuses to archive (default: done,rejected). Use only sparingly; pending/in_progress should never archive.")
+    p_studio_archive.add_argument("--dry-run", action="store_true", help="Preview what would be archived without writing.")
     p_studio_status = sub.add_parser("studio-status", help="Show studio task / decision / milestone counts")
     p_studio_status.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_run = sub.add_parser("studio-run", help="Run one studio role (producer | designer | critic) against the current project state")
@@ -1396,6 +1461,7 @@ def main() -> int:
         "chat-server": cmd_chat_server,
         "studio-init": cmd_studio_init,
         "studio-doctor": cmd_studio_doctor,
+        "studio-archive": cmd_studio_archive,
         "studio-status": cmd_studio_status,
         "studio-run": cmd_studio_run,
         "studio-review": cmd_studio_review,

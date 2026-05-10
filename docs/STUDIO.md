@@ -86,6 +86,7 @@ graph layer; later phases depend only on earlier ones, never sideways.
 | 10a | `studio/config.py:load_thresholds`, `state.thresholds` | Project-level threshold override via `studio/config.json` |
 | 10b | `studio_visual_regression_check`, Pillow MAD diff | Cheap local pre-filter before vision compare |
 | 11 | `studio/diagnostics.py`, `studio-doctor` CLI | One-command health check across provider, Ollama, Pillow, disk, Unity |
+| 12 | `studio/archive.py`, `studio-archive` CLI | Auto-archival of old done/rejected tasks into per-year files |
 
 ### File layout
 
@@ -209,6 +210,30 @@ unitytools studio-doctor
 Exit code: 1 only when at least one check is `[FAIL]`. Warnings and
 waits are 0-exit so cron / CI does not flap on transient
 editor-not-connected states.
+
+### `studio-archive`
+
+Move stale `done` / `rejected` tasks out of `backlog.json` into
+per-year files under `studio/archive/<YYYY>.json`. Working set stays
+hot, history stays browsable.
+
+```sh
+unitytools studio-archive --dry-run             # preview
+unitytools studio-archive                       # default: > 30 days old
+unitytools studio-archive --older-than-days 90
+unitytools studio-archive --statuses rejected   # narrow filter
+```
+
+Idempotent: re-running merges by id, newest copy wins. `studio-doctor`
+warns when at least 20 archivable tasks pile up so you remember to
+run this.
+
+```python
+# Browse history programmatically
+from unitytools.studio import load_archived_tasks
+all_history = load_archived_tasks(state)
+just_2025 = load_archived_tasks(state, year=2025)
+```
 
 ### `studio-status`
 

@@ -214,6 +214,29 @@ def _check_last_review(state: StudioState, now: Optional[float] = None) -> Check
     return Check("Last review", "warn", f"{latest.name} ({age_days:.0f}d ago) -- very stale")
 
 
+def _check_archivable_tasks(state: StudioState, now: Optional[float] = None, age_days: float = 30.0) -> Check:
+    """Suggest running studio-archive when many old done tasks linger."""
+    from .models import TaskStatus
+
+    now = now if now is not None else time.time()
+    cutoff = now - age_days * 86400.0
+    archivable = 0
+    for t in state.load_tasks():
+        if t.status in (TaskStatus.DONE, TaskStatus.REJECTED):
+            ts = t.updated_at or t.created_at or 0.0
+            if ts and ts < cutoff:
+                archivable += 1
+    if archivable == 0:
+        return Check("Archivable tasks", "ok", "0 stale done/rejected in backlog")
+    if archivable < 20:
+        return Check("Archivable tasks", "ok", f"{archivable} could be archived (no rush)")
+    return Check(
+        "Archivable tasks",
+        "warn",
+        f"{archivable} done/rejected tasks older than {age_days:g}d -- run `unitytools studio-archive`",
+    )
+
+
 def _check_backlog_pressure(state: StudioState) -> Check:
     """Surface a warning when too many tasks pile up in any single status."""
     from .models import TaskStatus
@@ -262,6 +285,7 @@ def run_diagnostics(
     checks.append(_check_unity_bridge(unity_bridge))
     checks.append(_check_last_review(state, now=now))
     checks.append(_check_backlog_pressure(state))
+    checks.append(_check_archivable_tasks(state, now=now))
     return checks
 
 

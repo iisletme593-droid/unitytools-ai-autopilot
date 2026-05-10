@@ -72,6 +72,13 @@ class StudioPaths:
         return self.root / "memory"
 
     @property
+    def archive_root(self) -> Path:
+        return self.root / "archive"
+
+    def archive(self, year: int) -> Path:
+        return self.archive_root / f"{year}.json"
+
+    @property
     def gitignore(self) -> Path:
         return self.root / ".gitignore"
 
@@ -79,7 +86,7 @@ class StudioPaths:
         return self.reviews / f"{date_iso}.md"
 
     def all_dirs(self) -> list[Path]:
-        return [self.root, self.refs, self.reviews, self.qa, self.qa_screenshots, self.qa_diffs, self.memory]
+        return [self.root, self.refs, self.reviews, self.qa, self.qa_screenshots, self.qa_diffs, self.memory, self.archive_root]
 
     def exists(self) -> bool:
         return self.root.is_dir()

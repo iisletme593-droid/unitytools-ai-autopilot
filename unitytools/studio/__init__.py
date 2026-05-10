@@ -48,6 +48,14 @@ from .review import Phase, ReviewRecord, brief_for, run_review, write_review
 from .loop import LoopRunner, LoopStats
 from .dispatch import Dispatcher, DispatchResult, DispatchSummary, DISPATCH_MAP
 from .diagnostics import Check, run_diagnostics, has_failure
+from .archive import (
+    ArchiveResult,
+    DEFAULT_AGE_DAYS,
+    DEFAULT_ARCHIVABLE_STATUSES,
+    archive_old_tasks,
+    archive_summary,
+    load_archived_tasks,
+)
 
 __all__ = [
     # state
@@ -109,4 +117,11 @@ __all__ = [
     "Check",
     "run_diagnostics",
     "has_failure",
+    # archive
+    "ArchiveResult",
+    "DEFAULT_AGE_DAYS",
+    "DEFAULT_ARCHIVABLE_STATUSES",
+    "archive_old_tasks",
+    "archive_summary",
+    "load_archived_tasks",
 ]
