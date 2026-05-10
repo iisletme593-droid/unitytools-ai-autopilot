@@ -5,6 +5,11 @@ saving each pass to the day's review file. Designed to be cheap to test:
 `run(once=True)` does exactly one iteration and returns; `run(...)` with
 an interval sleeps in small chunks so Ctrl+C is responsive.
 
+When a Dispatcher is passed in, the loop also walks the backlog after
+each Producer pass and runs every pending task through the right role
+agent — closing the full self-driving cycle: review -> plan -> execute
+-> sleep -> repeat.
+
 For real autonomy bind this to the user's existing scheduler (cron,
 launchd, Windows Task Scheduler, or the project's MCP scheduled-tasks).
 The loop here is a self-contained alternative.
@@ -16,6 +21,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
+from .config import STUDIO_DEFAULTS
+from .dispatch import DispatchSummary, Dispatcher
 from .review import Phase, ReviewRecord, run_review
 from .runner import RoleRunner
 from .state import StudioState
@@ -34,6 +41,9 @@ class LoopStats:
     last_phase: Optional[Phase] = None
     last_record: Optional[ReviewRecord] = None
     records: list[ReviewRecord] = field(default_factory=list)
+    # Set when a Dispatcher is wired into the loop. Each entry summarises
+    # one dispatch_pending() call following its review.
+    dispatch_summaries: list[DispatchSummary] = field(default_factory=list)
 
 
 class LoopRunner:
@@ -45,11 +55,15 @@ class LoopRunner:
         runner: RoleRunner,
         sleep_fn: Callable[[float], None] = time.sleep,
         now_fn: Callable[[], float] = time.time,
+        dispatcher: Optional[Dispatcher] = None,
+        dispatch_max_tasks: int = STUDIO_DEFAULTS.max_tasks_per_producer_run,
     ):
         self.state = state
         self.runner = runner
         self._sleep = sleep_fn
         self._now = now_fn
+        self.dispatcher = dispatcher
+        self.dispatch_max_tasks = dispatch_max_tasks
         self.stats = LoopStats()
         self._stop_requested = False
 
@@ -68,6 +82,10 @@ class LoopRunner:
         - `once=True` short-circuits to a single iteration.
         - `phase_picker(now)` returns "morning" / "evening" / "adhoc";
           default uses local clock-hour: morning if hour < 12 else evening.
+        - When a Dispatcher was passed at construction, each pass also
+          dispatches up to `dispatch_max_tasks` pending tasks AFTER the
+          review writes. Failures in dispatch are logged but do not
+          stop the loop.
         """
         picker = phase_picker or _default_phase_picker
         cap = 1 if once else (max_iterations if max_iterations is not None else None)
@@ -85,6 +103,14 @@ class LoopRunner:
                 self.stats.last_phase = phase
             except Exception:
                 logger.exception("Producer review failed; continuing")
+
+            if self.dispatcher is not None and not self._stop_requested:
+                try:
+                    summary = self.dispatcher.dispatch_pending(limit=self.dispatch_max_tasks)
+                    self.stats.dispatch_summaries.append(summary)
+                except Exception:
+                    logger.exception("Dispatcher pass failed; continuing")
+
             self.stats.iterations += 1
             i += 1
 

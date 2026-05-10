@@ -986,11 +986,13 @@ def cmd_studio_review(args: argparse.Namespace) -> int:
 def cmd_studio_loop(args: argparse.Namespace) -> int:
     """Run the Producer review on a recurring cadence. --once exits after one pass."""
     from ..studio import (
+        Dispatcher,
         StudioPaths,
         StudioState,
         RoleRunner,
         init_studio_tools,
         make_default_client,
+        make_default_vision_client,
         LoopRunner,
     )
 
@@ -1002,14 +1004,36 @@ def cmd_studio_loop(args: argparse.Namespace) -> int:
     state = StudioState(paths)
     init_studio_tools(state)
 
-    config, _, _ = _bootstrap()
+    config, _, unity = _bootstrap()
     try:
         client = make_default_client(config, model_override=args.model or None)
     except RuntimeError as exc:
         console.print(f"[red]{exc}[/red]")
         return 1
     runner = RoleRunner(client, max_iterations=args.max_iterations)
-    loop = LoopRunner(state, runner)
+
+    dispatcher: Dispatcher | None = None
+    if args.with_dispatch:
+        bridge_for_dispatcher: object | None = None
+        vision_for_dispatcher = None
+        if unity.connect(timeout=2.0):
+            bridge_for_dispatcher = unity
+            console.print("[dim]Unity bridge connected (engine tasks will run).[/dim]")
+        else:
+            console.print("[yellow]Unity not connected; engine-bound tasks will be skipped each cycle.[/yellow]")
+        try:
+            vision_for_dispatcher = make_default_vision_client(config)
+        except RuntimeError:
+            console.print("[yellow]Vision client unavailable; compare-tool calls will return errors.[/yellow]")
+        dispatcher = Dispatcher(
+            state,
+            lambda _role_id: client,
+            unity_bridge=bridge_for_dispatcher,
+            vision_client=vision_for_dispatcher,
+            max_iterations=args.max_iterations,
+        )
+
+    loop = LoopRunner(state, runner, dispatcher=dispatcher, dispatch_max_tasks=args.dispatch_max_tasks)
 
     interval_hours = max(0.0, float(args.interval_hours))
     interval_seconds = interval_hours * 3600.0
@@ -1025,6 +1049,14 @@ def cmd_studio_loop(args: argparse.Namespace) -> int:
     console.print(f"[green][OK][/green] passes={stats.iterations}, last_phase={stats.last_phase}")
     if stats.last_record:
         console.print(f"[dim]Last review: {stats.last_record.path}[/dim]")
+    if stats.dispatch_summaries:
+        total_dispatched = sum(s.total for s in stats.dispatch_summaries)
+        completed = sum(s.by_action().get("completed", 0) for s in stats.dispatch_summaries)
+        skipped = sum(s.by_action().get("skipped", 0) for s in stats.dispatch_summaries)
+        console.print(
+            f"[dim]Dispatch totals across {len(stats.dispatch_summaries)} cycle(s): "
+            f"completed={completed}, skipped={skipped}, total={total_dispatched}[/dim]"
+        )
     return 0
 
 
@@ -1226,6 +1258,17 @@ def main() -> int:
     p_studio_loop.add_argument("--max-passes", type=int, default=None, help="Stop after this many passes (default: unbounded)")
     p_studio_loop.add_argument("--max-iterations", type=int, default=8, help="Cap on tool-call rounds per pass")
     p_studio_loop.add_argument("--model", default="", help="Override the LLM model for the looped Producer.")
+    p_studio_loop.add_argument(
+        "--with-dispatch",
+        action="store_true",
+        help="After each Producer review, dispatch up to --dispatch-max-tasks pending tasks (closes the self-driving loop).",
+    )
+    p_studio_loop.add_argument(
+        "--dispatch-max-tasks",
+        type=int,
+        default=5,
+        help="Cap on tasks dispatched per cycle when --with-dispatch is set.",
+    )
     p_chat_srv = sub.add_parser("chat-server", help="Start the TCP chat server for the Editor window")
     p_chat_srv.add_argument("--host", default="127.0.0.1")
     p_chat_srv.add_argument("--port", type=int, default=7778)

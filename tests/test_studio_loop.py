@@ -260,6 +260,94 @@ def test_loop_runner_max_iterations_with_injected_sleep() -> None:
     print("OK LoopRunner cadence with injected sleep")
 
 
+def test_loop_runner_with_dispatch_runs_review_then_dispatch() -> None:
+    """When a Dispatcher is wired in, each pass: review writes to disk,
+    then dispatch_pending walks the backlog. Verifies the full cycle:
+    review file written, pending task picked up by Dispatcher, task moves
+    out of PENDING. Pure local — no network, no engine."""
+    from unitytools.studio import (
+        Dispatcher,
+        Task,
+        TaskStatus,
+    )
+
+    state, _ = _fresh_studio()
+    # Seed one designer-owned pending task; the FakeLLM below scripts both
+    # the review pass and a designer dispatch pass.
+    seeded = state.add_task(
+        Task(title="Refine pillars", role="designer", status=TaskStatus.PENDING)
+    )
+
+    # Three turns: 1 for review (terminate immediately), 2 for the Designer
+    # dispatch run (call studio_update_task_status -> done, then end).
+    review_turn = _ScriptedTurn(text="standup OK")
+    dispatch_turn_1 = _ScriptedTurn(
+        tool_calls=[
+            {
+                "id": "d1",
+                "name": "studio_update_task_status",
+                "input": {"task_id": seeded.id, "status": "done"},
+            }
+        ],
+        stop_reason="tool_use",
+    )
+    dispatch_turn_2 = _ScriptedTurn(text="task done", stop_reason="end_turn")
+    fake = FakeLLM([review_turn, dispatch_turn_1, dispatch_turn_2])
+    runner = RoleRunner(fake, max_iterations=4)
+
+    dispatcher = Dispatcher(state, lambda _role_id: fake, max_iterations=4)
+    loop = LoopRunner(state, runner, dispatcher=dispatcher)
+
+    stats = loop.run(once=True, interval_seconds=999.0, phase_picker=lambda _n: "morning")
+
+    assert stats.iterations == 1
+    assert stats.last_record is not None  # review was written
+    assert len(stats.dispatch_summaries) == 1
+    summary = stats.dispatch_summaries[0]
+    assert summary.total == 1
+    assert summary.results[0].action == "completed"
+
+    # Task actually moved to DONE
+    final = next(t for t in state.load_tasks() if t.id == seeded.id)
+    assert final.status is TaskStatus.DONE
+    print("OK loop --with-dispatch closes the cycle: review + dispatch")
+
+
+def test_loop_runner_dispatch_failure_does_not_stop_loop() -> None:
+    """If the Dispatcher raises mid-cycle, the loop logs and continues to
+    the next iteration. We use a Dispatcher whose dispatch_pending raises
+    on the first call but not the second."""
+    from unitytools.studio import Dispatcher, Task, TaskStatus
+
+    state, _ = _fresh_studio()
+    state.add_task(Task(title="Something", role="designer", status=TaskStatus.PENDING))
+
+    fake = CyclingFakeLLM("review")
+    runner = RoleRunner(fake)
+
+    class FlakyDispatcher(Dispatcher):
+        calls: int = 0
+
+        def dispatch_pending(self, *args, **kwargs):
+            FlakyDispatcher.calls += 1
+            if FlakyDispatcher.calls == 1:
+                raise RuntimeError("simulated dispatch failure")
+            return super().dispatch_pending(*args, **kwargs)
+
+    flaky = FlakyDispatcher(state, lambda _r: fake)
+
+    sleeps: list[float] = []
+    loop = LoopRunner(state, runner, sleep_fn=lambda s: sleeps.append(s), dispatcher=flaky)
+    stats = loop.run(once=False, interval_seconds=2.0, max_iterations=2, phase_picker=lambda _n: "adhoc")
+
+    # Both iterations completed; first dispatch raised, second ran cleanly
+    assert stats.iterations == 2
+    assert FlakyDispatcher.calls == 2
+    # Only the second dispatch succeeded — first one's exception was caught
+    assert len(stats.dispatch_summaries) == 1
+    print("OK dispatch failure does not abort loop")
+
+
 def test_loop_runner_request_stop_breaks_immediately() -> None:
     state, _ = _fresh_studio()
     fake = CyclingFakeLLM("p")
@@ -294,6 +382,8 @@ def run_test() -> None:
     test_run_review_uses_phase_brief_and_persists()
     test_loop_runner_once_runs_single_pass()
     test_loop_runner_max_iterations_with_injected_sleep()
+    test_loop_runner_with_dispatch_runs_review_then_dispatch()
+    test_loop_runner_dispatch_failure_does_not_stop_loop()
     test_loop_runner_request_stop_breaks_immediately()
     print("All Phase 4 loop tests passed")
 
