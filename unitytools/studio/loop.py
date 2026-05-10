@@ -10,6 +10,11 @@ each Producer pass and runs every pending task through the right role
 agent — closing the full self-driving cycle: review -> plan -> execute
 -> sleep -> repeat.
 
+When `archiver_every > 0`, every Nth pass also runs auto-archive so
+done/rejected tasks older than `archiver_age_days` migrate out of
+backlog.json into studio/archive/<YYYY>.json. Maintenance becomes
+hands-off in a long-running loop.
+
 For real autonomy bind this to the user's existing scheduler (cron,
 launchd, Windows Task Scheduler, or the project's MCP scheduled-tasks).
 The loop here is a self-contained alternative.
@@ -21,6 +26,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
+from .archive import ArchiveResult, archive_old_tasks
 from .config import STUDIO_DEFAULTS
 from .dispatch import DispatchSummary, Dispatcher
 from .review import Phase, ReviewRecord, run_review
@@ -44,6 +50,8 @@ class LoopStats:
     # Set when a Dispatcher is wired into the loop. Each entry summarises
     # one dispatch_pending() call following its review.
     dispatch_summaries: list[DispatchSummary] = field(default_factory=list)
+    # Set when archiver_every > 0. One ArchiveResult per archive pass.
+    archive_summaries: list[ArchiveResult] = field(default_factory=list)
 
 
 class LoopRunner:
@@ -57,6 +65,8 @@ class LoopRunner:
         now_fn: Callable[[], float] = time.time,
         dispatcher: Optional[Dispatcher] = None,
         dispatch_max_tasks: int = STUDIO_DEFAULTS.max_tasks_per_producer_run,
+        archiver_every: int = 0,
+        archiver_age_days: float = 30.0,
     ):
         self.state = state
         self.runner = runner
@@ -64,6 +74,9 @@ class LoopRunner:
         self._now = now_fn
         self.dispatcher = dispatcher
         self.dispatch_max_tasks = dispatch_max_tasks
+        # 0 disables auto-archive. N = run after every Nth pass.
+        self.archiver_every = max(0, int(archiver_every))
+        self.archiver_age_days = float(archiver_age_days)
         self.stats = LoopStats()
         self._stop_requested = False
 
@@ -113,6 +126,30 @@ class LoopRunner:
 
             self.stats.iterations += 1
             i += 1
+
+            # Auto-archive runs AFTER iterations counter increments so the
+            # "every N passes" math is intuitive: archiver_every=2 fires
+            # on passes 2, 4, 6, ...
+            if (
+                self.archiver_every > 0
+                and self.stats.iterations % self.archiver_every == 0
+                and not self._stop_requested
+            ):
+                try:
+                    archive_result = archive_old_tasks(
+                        self.state,
+                        older_than_days=self.archiver_age_days,
+                        now=now,
+                    )
+                    self.stats.archive_summaries.append(archive_result)
+                    if archive_result.count:
+                        logger.info(
+                            "Auto-archive moved %d task(s) at iteration %d",
+                            archive_result.count,
+                            self.stats.iterations,
+                        )
+                except Exception:
+                    logger.exception("Auto-archive pass failed; continuing")
 
             if cap is not None and i >= cap:
                 break

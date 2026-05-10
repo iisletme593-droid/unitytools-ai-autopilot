@@ -348,6 +348,106 @@ def test_loop_runner_dispatch_failure_does_not_stop_loop() -> None:
     print("OK dispatch failure does not abort loop")
 
 
+def test_loop_runner_auto_archive_disabled_by_default() -> None:
+    """archiver_every=0 (default) means the auto-archive path never runs,
+    even when there are stale tasks ready to move."""
+    from unitytools.studio import Task, TaskStatus
+
+    state, _ = _fresh_studio()
+    # Seed an obviously archivable task so the archive call WOULD have done work
+    old = Task(title="old done", role="designer", status=TaskStatus.DONE)
+    old.created_at = old.updated_at = time.time() - 100 * 86400
+    state.add_task(old)
+
+    fake = CyclingFakeLLM("review")
+    runner = RoleRunner(fake)
+    loop = LoopRunner(state, runner)  # archiver_every=0
+
+    stats = loop.run(once=True, interval_seconds=1.0, phase_picker=lambda _n: "morning")
+    assert stats.archive_summaries == []
+    # Backlog still has the old task -- archive never ran
+    assert any(t.id == old.id for t in state.load_tasks())
+    print("OK auto-archive off by default")
+
+
+def test_loop_runner_auto_archive_runs_every_nth_pass() -> None:
+    """archiver_every=2: archive runs after passes 2 and 4 (and not 1, 3)."""
+    from unitytools.studio import Task, TaskStatus
+
+    state, _ = _fresh_studio()
+    fake = CyclingFakeLLM("review")
+    runner = RoleRunner(fake)
+    loop = LoopRunner(
+        state,
+        runner,
+        sleep_fn=lambda _s: None,
+        archiver_every=2,
+        archiver_age_days=30.0,
+    )
+
+    # Seed one ancient done task so each archive pass has work to do
+    old = Task(title="old", role="designer", status=TaskStatus.DONE)
+    old.created_at = old.updated_at = time.time() - 100 * 86400
+    state.add_task(old)
+
+    stats = loop.run(
+        once=False,
+        interval_seconds=0.0,
+        max_iterations=4,
+        phase_picker=lambda _n: "adhoc",
+    )
+    # 4 passes total, archive runs on passes 2 and 4 -> 2 summaries
+    assert stats.iterations == 4
+    assert len(stats.archive_summaries) == 2
+    # First archive moved the old task; second is a no-op
+    assert stats.archive_summaries[0].count == 1
+    assert stats.archive_summaries[1].count == 0
+    # Backlog is empty afterwards
+    assert state.load_tasks() == []
+    print("OK auto-archive fires on every Nth pass")
+
+
+def test_loop_runner_auto_archive_failure_does_not_break_loop() -> None:
+    """An exception inside archive_old_tasks (simulated by patching) is
+    logged but the loop completes its remaining passes."""
+    import unitytools.studio.loop as loop_mod
+
+    state, _ = _fresh_studio()
+    fake = CyclingFakeLLM("review")
+    runner = RoleRunner(fake)
+
+    real_archive = loop_mod.archive_old_tasks
+    calls: list[int] = []
+
+    def boom(*_args, **_kwargs):
+        calls.append(1)
+        raise RuntimeError("simulated archive failure")
+
+    loop_mod.archive_old_tasks = boom
+    try:
+        loop = LoopRunner(
+            state,
+            runner,
+            sleep_fn=lambda _s: None,
+            archiver_every=1,
+        )
+        stats = loop.run(
+            once=False,
+            interval_seconds=0.0,
+            max_iterations=3,
+            phase_picker=lambda _n: "adhoc",
+        )
+    finally:
+        loop_mod.archive_old_tasks = real_archive
+
+    # All 3 passes ran; archive was attempted 3 times but each raised
+    assert stats.iterations == 3
+    assert len(calls) == 3
+    # No archive summaries appended because each call raised before append
+    assert stats.archive_summaries == []
+    print("OK archive failure does not abort loop")
+
+
 def test_loop_runner_request_stop_breaks_immediately() -> None:
     state, _ = _fresh_studio()
     fake = CyclingFakeLLM("p")
@@ -384,8 +484,11 @@ def run_test() -> None:
     test_loop_runner_max_iterations_with_injected_sleep()
     test_loop_runner_with_dispatch_runs_review_then_dispatch()
     test_loop_runner_dispatch_failure_does_not_stop_loop()
+    test_loop_runner_auto_archive_disabled_by_default()
+    test_loop_runner_auto_archive_runs_every_nth_pass()
+    test_loop_runner_auto_archive_failure_does_not_break_loop()
     test_loop_runner_request_stop_breaks_immediately()
-    print("All Phase 4 loop tests passed")
+    print("All Phase 4 + 13 loop tests passed")
 
 
 if __name__ == "__main__":

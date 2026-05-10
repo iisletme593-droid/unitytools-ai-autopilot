@@ -1179,7 +1179,19 @@ def cmd_studio_loop(args: argparse.Namespace) -> int:
         if args.dispatch_max_tasks is not None
         else state.thresholds.max_tasks_per_producer_run
     )
-    loop = LoopRunner(state, runner, dispatcher=dispatcher, dispatch_max_tasks=dispatch_max_tasks)
+    loop = LoopRunner(
+        state,
+        runner,
+        dispatcher=dispatcher,
+        dispatch_max_tasks=dispatch_max_tasks,
+        archiver_every=args.auto_archive_every_passes,
+        archiver_age_days=args.auto_archive_age_days,
+    )
+    if args.auto_archive_every_passes > 0:
+        console.print(
+            f"[dim]Auto-archive: every {args.auto_archive_every_passes} pass(es), "
+            f"age threshold {args.auto_archive_age_days:g}d.[/dim]"
+        )
 
     interval_hours = max(0.0, float(args.interval_hours))
     interval_seconds = interval_hours * 3600.0
@@ -1202,6 +1214,12 @@ def cmd_studio_loop(args: argparse.Namespace) -> int:
         console.print(
             f"[dim]Dispatch totals across {len(stats.dispatch_summaries)} cycle(s): "
             f"completed={completed}, skipped={skipped}, total={total_dispatched}[/dim]"
+        )
+    if stats.archive_summaries:
+        total_moved = sum(a.count for a in stats.archive_summaries)
+        runs = len(stats.archive_summaries)
+        console.print(
+            f"[dim]Auto-archive: {runs} pass(es), {total_moved} task(s) moved.[/dim]"
         )
     return 0
 
@@ -1431,6 +1449,18 @@ def main() -> int:
         type=int,
         default=None,
         help="Cap on tasks dispatched per cycle when --with-dispatch is set (default: from studio/config.json or STUDIO_DEFAULTS).",
+    )
+    p_studio_loop.add_argument(
+        "--auto-archive-every-passes",
+        type=int,
+        default=0,
+        help="Run auto-archive every N passes (0 = disabled). With --interval-hours 24, N=7 = weekly archive.",
+    )
+    p_studio_loop.add_argument(
+        "--auto-archive-age-days",
+        type=float,
+        default=30.0,
+        help="Auto-archive cutoff in days (default: 30).",
     )
     p_chat_srv = sub.add_parser("chat-server", help="Start the TCP chat server for the Editor window")
     p_chat_srv.add_argument("--host", default="127.0.0.1")

@@ -87,6 +87,7 @@ graph layer; later phases depend only on earlier ones, never sideways.
 | 10b | `studio_visual_regression_check`, Pillow MAD diff | Cheap local pre-filter before vision compare |
 | 11 | `studio/diagnostics.py`, `studio-doctor` CLI | One-command health check across provider, Ollama, Pillow, disk, Unity |
 | 12 | `studio/archive.py`, `studio-archive` CLI | Auto-archival of old done/rejected tasks into per-year files |
+| 13 | `LoopRunner.archiver_every`, `--auto-archive-every-passes` | Recurring loop runs auto-archive every Nth pass (hands-off maintenance) |
 
 ### File layout
 
@@ -296,7 +297,19 @@ unitytools studio-loop --interval-hours 12
 
 # Stop after N passes
 unitytools studio-loop --interval-hours 24 --max-passes 7
+
+# Self-driving: review + dispatch + weekly auto-archive
+unitytools studio-loop --interval-hours 24 --with-dispatch \
+                      --auto-archive-every-passes 7 --auto-archive-age-days 30
 ```
+
+Options:
+- `--with-dispatch` runs the autopilot dispatcher after each review.
+- `--auto-archive-every-passes N` (default 0 = off) runs auto-archive
+  on every Nth pass. With `--interval-hours 24` and `N=7` that's
+  weekly archive without manual intervention.
+- `--auto-archive-age-days` overrides the 30d default for the loop's
+  archive calls.
 
 ### `studio-execute`
 
