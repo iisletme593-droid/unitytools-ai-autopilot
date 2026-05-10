@@ -111,8 +111,8 @@ def studio_add_task(title: str, role: str, description: str = "", milestone: str
     return {"ok": True, "task_id": task.id, "title": task.title, "role": task.role, "status": task.status.value}
 
 
-@tool(description="List backlog tasks. Optional status filter: pending, in_progress, blocked, review, done, rejected. Optional role filter.")
-def studio_list_tasks(status: str = "", role: str = "") -> dict:
+@tool(description="List backlog tasks. Optional filters: status (pending/in_progress/blocked/review/done/rejected), role, milestone id, substring search against title + description.")
+def studio_list_tasks(status: str = "", role: str = "", milestone: str = "", search: str = "") -> dict:
     state = _require_state()
     tasks = state.load_tasks()
     if status:
@@ -123,6 +123,15 @@ def studio_list_tasks(status: str = "", role: str = "") -> dict:
         tasks = [t for t in tasks if t.status is wanted]
     if role:
         tasks = [t for t in tasks if t.role == role]
+    if milestone:
+        tasks = [t for t in tasks if (t.milestone or "") == milestone]
+    if search:
+        needle = search.strip().lower()
+        if needle:
+            tasks = [
+                t for t in tasks
+                if needle in (t.title or "").lower() or needle in (t.description or "").lower()
+            ]
     return {
         "ok": True,
         "count": len(tasks),
@@ -138,6 +147,17 @@ def studio_list_tasks(status: str = "", role: str = "") -> dict:
             for t in tasks
         ],
     }
+
+
+@tool(description="Compute completion progress for one milestone: how many tasks link to it, status breakdown, completion percent (counts both active backlog and archived done tasks). Returns ok=False with reason when the milestone id is unknown.")
+def studio_milestone_progress(milestone_id: str) -> dict:
+    state = _require_state()
+    from .milestones import milestone_progress
+
+    result = milestone_progress(state, milestone_id)
+    if result is None:
+        return {"ok": False, "error": f"Milestone {milestone_id!r} not found."}
+    return {"ok": True, **result}
 
 
 @tool(description="Change a task's status. Valid statuses: pending, in_progress, blocked, review, done, rejected.")
@@ -608,6 +628,7 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_query_decisions",
     "studio_add_milestone",
     "studio_list_milestones",
+    "studio_milestone_progress",
     # status
     "studio_get_summary",
     # references + screenshots

@@ -58,6 +58,7 @@ from .archive import (
     query_archive,
 )
 from .decisions import decisions_summary, query_decisions
+from .milestones import all_milestones_with_progress, milestone_progress
 
 __all__ = [
     # state
@@ -129,4 +130,6 @@ __all__ = [
     "query_archive",
     "query_decisions",
     "decisions_summary",
+    "milestone_progress",
+    "all_milestones_with_progress",
 ]

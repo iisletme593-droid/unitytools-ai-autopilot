@@ -90,6 +90,7 @@ graph layer; later phases depend only on earlier ones, never sideways.
 | 13 | `LoopRunner.archiver_every`, `--auto-archive-every-passes` | Recurring loop runs auto-archive every Nth pass (hands-off maintenance) |
 | 14 | `query_archive`, `studio-history` CLI, `studio_query_archive` tool | Filter + browse archived history (year, role, status, date range, search) |
 | 15 | `query_decisions`, `studio-decisions` CLI, `studio_query_decisions` tool | Filter + browse decisions.jsonl (author_role, status, date range, search) |
+| 16 | `milestones.py`, `studio-milestones` + `studio-tasks` CLIs, `studio_milestone_progress` tool | Computed milestone completion (counts active + archived); filtered backlog browser |
 
 ### File layout
 
@@ -213,6 +214,45 @@ unitytools studio-doctor
 Exit code: 1 only when at least one check is `[FAIL]`. Warnings and
 waits are 0-exit so cron / CI does not flap on transient
 editor-not-connected states.
+
+### `studio-tasks`
+
+Active backlog browser. Same filter shape as `studio-history` /
+`studio-decisions` but operates on the live `backlog.json` (not the
+archive).
+
+```sh
+unitytools studio-tasks                                  # newest 50
+unitytools studio-tasks --status pending --role worker
+unitytools studio-tasks --milestone m1
+unitytools studio-tasks --search "pine tree"
+unitytools studio-tasks --status blocked --json | jq .
+```
+
+### `studio-milestones`
+
+Computed completion progress per milestone. Counts BOTH active
+backlog tasks AND archived done tasks, so a freshly archived task
+does not disappear from the percentage.
+
+```sh
+unitytools studio-milestones                       # every milestone
+unitytools studio-milestones --milestone-id m1     # one deep dive
+unitytools studio-milestones --json | jq .
+```
+
+Sample output:
+
+```text
+Milestones (2)
+  m1abcdef    Vertical slice   [in_progress]   60.0%  3/5 tasks done, target 2026-06-01
+               by_status: blocked=1, done=3, pending=1
+               success criteria: 4
+  m2zzzzzz    Polish pass      [planning]       0.0%  0/0 tasks done
+```
+
+Exposed to Producer + Critic as `studio_milestone_progress(milestone_id)`
+so a standup can cite real numbers instead of vibes.
 
 ### `studio-decisions`
 

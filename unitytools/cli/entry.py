@@ -589,6 +589,145 @@ def cmd_studio_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_studio_tasks(args: argparse.Namespace) -> int:
+    """Browse active backlog tasks with filters."""
+    from ..studio import (
+        StudioPaths,
+        StudioState,
+        TaskStatus,
+        init_studio_tools,
+    )
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init --project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    tasks = state.load_tasks()
+    if args.status:
+        try:
+            wanted = TaskStatus(args.status)
+        except ValueError as exc:
+            console.print(f"[red]Bad status {args.status!r}: {exc}[/red]")
+            return 1
+        tasks = [t for t in tasks if t.status is wanted]
+    if args.role:
+        tasks = [t for t in tasks if t.role == args.role]
+    if args.milestone:
+        tasks = [t for t in tasks if (t.milestone or "") == args.milestone]
+    if args.search:
+        needle = args.search.lower().strip()
+        if needle:
+            tasks = [
+                t for t in tasks
+                if needle in (t.title or "").lower() or needle in (t.description or "").lower()
+            ]
+    # Newest first by updated_at, then created_at
+    tasks.sort(key=lambda t: (t.updated_at or t.created_at or 0.0), reverse=True)
+    tasks = tasks[: max(1, int(args.limit or 50))]
+
+    if args.json:
+        import json as _json
+        payload = [
+            {
+                "id": t.id,
+                "title": t.title,
+                "role": t.role,
+                "status": t.status.value,
+                "milestone": t.milestone,
+                "blockers": t.blockers,
+                "created_at": t.created_at,
+                "updated_at": t.updated_at,
+            }
+            for t in tasks
+        ]
+        console.print(_json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+
+    if not tasks:
+        console.print("[dim]No tasks matched.[/dim]")
+        return 0
+
+    status_marker = {
+        TaskStatus.PENDING: "[dim][PEND][/dim]",
+        TaskStatus.IN_PROGRESS: "[cyan][PROG][/cyan]",
+        TaskStatus.BLOCKED: "[red][BLOCK][/red]",
+        TaskStatus.REVIEW: "[yellow][REV][/yellow]",
+        TaskStatus.DONE: "[green][OK][/green]",
+        TaskStatus.REJECTED: "[red][REJ][/red]",
+    }
+    console.print(f"[bold cyan]Active tasks[/bold cyan] ({len(tasks)} shown, limit={args.limit})")
+    for t in tasks:
+        marker = status_marker.get(t.status, t.status.value.upper())
+        ms = t.milestone or "-"
+        console.print(
+            f"  {marker} {t.id[:10]:<10}  {t.role:<14}  {ms[:14]:<14}  {t.title}"
+        )
+    return 0
+
+
+def cmd_studio_milestones(args: argparse.Namespace) -> int:
+    """List milestones with computed completion progress."""
+    from ..studio import (
+        StudioPaths,
+        StudioState,
+        all_milestones_with_progress,
+        init_studio_tools,
+        milestone_progress,
+    )
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init --project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    if args.milestone_id:
+        result = milestone_progress(state, args.milestone_id)
+        if result is None:
+            console.print(f"[red]Milestone {args.milestone_id!r} not found.[/red]")
+            return 1
+        rows = [result]
+    else:
+        rows = all_milestones_with_progress(state)
+
+    if args.json:
+        import json as _json
+        console.print(_json.dumps(rows, indent=2, ensure_ascii=False))
+        return 0
+
+    if not rows:
+        console.print("[dim]No milestones yet. Use studio_add_milestone to create one.[/dim]")
+        return 0
+
+    console.print(f"[bold cyan]Milestones[/bold cyan] ({len(rows)})")
+    for m in rows:
+        pct = m["completion_pct"] * 100.0
+        done = m["done_count"]
+        total = m["task_count"]
+        target = f", target {m['target_date']}" if m.get("target_date") else ""
+        console.print(
+            f"  {m['milestone_id'][:10]:<10}  [bold]{m['name']}[/bold]  [{m['status']}]"
+            f"  {pct:5.1f}%  {done}/{total} tasks done{target}"
+        )
+        if m.get("by_status"):
+            parts = ", ".join(f"{k}={v}" for k, v in sorted(m["by_status"].items()))
+            console.print(f"               by_status: {parts}")
+        criteria = m.get("success_criteria_count", 0)
+        if criteria:
+            console.print(f"               success criteria: {criteria}")
+    return 0
+
+
 def cmd_studio_decisions(args: argparse.Namespace) -> int:
     """Browse decisions.jsonl with filters. Read-only."""
     import time as _time
@@ -1548,6 +1687,20 @@ def main() -> int:
     p_studio_init.add_argument("--force", action="store_true", help="Overwrite starter docs if they already exist (JSON state is always preserved)")
     p_studio_doctor = sub.add_parser("studio-doctor", help="Run studio health checks (provider, Ollama, Pillow, Unity bridge, disk state, recent activity).")
     p_studio_doctor.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_tasks = sub.add_parser("studio-tasks", help="Browse active backlog tasks with filters.")
+    p_studio_tasks.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_tasks.add_argument("--status", default="", help="Filter by status (pending/in_progress/blocked/review/done/rejected).")
+    p_studio_tasks.add_argument("--role", default="", help="Filter by owning role.")
+    p_studio_tasks.add_argument("--milestone", default="", help="Filter by milestone id.")
+    p_studio_tasks.add_argument("--search", default="", help="Substring match against title + description.")
+    p_studio_tasks.add_argument("--limit", type=int, default=50, help="Cap on rows shown (default: 50).")
+    p_studio_tasks.add_argument("--json", action="store_true", help="Machine-readable JSON output.")
+
+    p_studio_milestones = sub.add_parser("studio-milestones", help="List milestones with computed completion progress (counts active + archived tasks).")
+    p_studio_milestones.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_milestones.add_argument("--milestone-id", default="", help="Show progress for a single milestone (default: all).")
+    p_studio_milestones.add_argument("--json", action="store_true", help="Machine-readable JSON output.")
+
     p_studio_decisions = sub.add_parser("studio-decisions", help="Browse decisions.jsonl with filters.")
     p_studio_decisions.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_decisions.add_argument("--role", default="", help="Filter by author_role (e.g. designer, critic).")
@@ -1700,6 +1853,8 @@ def main() -> int:
         "studio-archive": cmd_studio_archive,
         "studio-history": cmd_studio_history,
         "studio-decisions": cmd_studio_decisions,
+        "studio-tasks": cmd_studio_tasks,
+        "studio-milestones": cmd_studio_milestones,
         "studio-status": cmd_studio_status,
         "studio-run": cmd_studio_run,
         "studio-review": cmd_studio_review,

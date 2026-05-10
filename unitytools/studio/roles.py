@@ -287,6 +287,8 @@ PRODUCER = RoleConfig(
         "studio_query_archive",
         # Phase 15: query decisions ("did anyone propose X already?")
         "studio_query_decisions",
+        # Phase 16: per-milestone completion progress
+        "studio_milestone_progress",
     ),
 )
 
@@ -324,6 +326,8 @@ CRITIC = RoleConfig(
         "studio_update_task_status",
         # Phase 14: query past decisions / completed work for consistency
         "studio_query_archive",
+        # Phase 16: cite milestone progress in consistency reviews
+        "studio_milestone_progress",
     ),
 )
 
