@@ -1,4 +1,4 @@
-﻿"""Interactive terminal chat REPL for UnityTools."""
+"""Interactive terminal chat REPL for UnityTools."""
 from __future__ import annotations
 
 import logging

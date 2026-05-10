@@ -1,4 +1,4 @@
-﻿"""Dual-agent interactive chat REPL.
+"""Dual-agent interactive chat REPL.
 
 Reader and Worker default to qwen2.5:14b-instruct for fast scene/context work.
 Master defaults to qwen3.6:latest for planning when installed.

@@ -244,14 +244,7 @@ Ilk studio operator araclari aktif: `unreal_scan_project`, `unreal_create_basic_
 
 ## Dual-Agent System
 
-UnityTools supports an advanced hierarchical dual-agent system with learning capabilities:
-
-- 📘 **[Quick Start Guide](DUAL_AGENT_QUICKSTART.md)** - 5 dakikada başlangıç
-- 📗 **[Complete Guide](DUAL_AGENT_GUIDE.md)** - Detaylı kullanım kılavuzu
-- 📙 **[Philosophy](DUAL_AGENT_PHILOSOPHY.md)** - Neden iyi planlama önemli?
-- 📕 **[Technical Summary](DUAL_AGENT_SUMMARY.md)** - API ve mimari detayları
-- 🚀 **[Enhanced Features](ENHANCED_FEATURES.md)** - Memory & Context (NEW!)
-- ✅ **[Integration Report](FINAL_INTEGRATION_REPORT.md)** - Full test results
+UnityTools supports an advanced hierarchical dual-agent system with learning capabilities. See [docs/](docs/) for the technical reference (architecture, scene intelligence, Unreal bridge, migration).
 
 **TL;DR**: 
 - Reader/Worker default to Qwen 2.5:14b-instruct for fast scene reading and tool execution

@@ -1,4 +1,4 @@
-﻿"""unitytools CLI entry point."""
+"""unitytools CLI entry point."""
 from __future__ import annotations
 
 import argparse

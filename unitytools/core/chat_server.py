@@ -1,4 +1,4 @@
-﻿"""TCP chat server used by the embedded Unity Editor AI panel.
+"""TCP chat server used by the embedded Unity Editor AI panel.
 
 Unity connects to this process on port 7778, sends newline-delimited JSON
 messages, and receives tool-call progress plus final assistant text.

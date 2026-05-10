@@ -1,4 +1,4 @@
-﻿"""Unreal Editor TCP bridge client."""
+"""Unreal Editor TCP bridge client."""
 from __future__ import annotations
 
 import json

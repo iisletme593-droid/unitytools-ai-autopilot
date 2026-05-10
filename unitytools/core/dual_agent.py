@@ -1,4 +1,4 @@
-﻿"""Dual-agent orchestrator: Master (planning) + Worker (execution).
+"""Dual-agent orchestrator: Master (planning) + Worker (execution).
 
 Master Agent (Qwen 2.5:14b):
   - KullanÄ±cÄ± isteÄŸini analiz eder
