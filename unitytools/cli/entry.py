@@ -708,6 +708,119 @@ def cmd_studio_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_studio_execute(args: argparse.Namespace) -> int:
+    """Pick a backlog task and run the Worker against it.
+
+    Lifecycle:
+      pending|review → in_progress  (we set this before the Worker starts)
+      Worker is told to flip to "done" or "blocked" via studio_update_task_status.
+      If the Worker forgets, we leave the status as in_progress and warn.
+    """
+    from ..studio import (
+        StudioPaths,
+        StudioState,
+        TaskStatus,
+        WORKER,
+        RoleRunner,
+        init_studio_tools,
+        init_studio_unity,
+        init_studio_vision,
+        make_default_client,
+        make_default_vision_client,
+    )
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init --project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    # Find the task
+    tasks = state.load_tasks()
+    target = next((t for t in tasks if t.id == args.task_id), None)
+    if target is None:
+        console.print(f"[red]Task {args.task_id!r} not found in backlog.[/red]")
+        return 1
+
+    if target.status in (TaskStatus.DONE, TaskStatus.REJECTED) and not args.force:
+        console.print(
+            f"[yellow]Task is already {target.status.value}.[/yellow] Use --force to re-run."
+        )
+        return 1
+
+    config, _, unity = _bootstrap()
+    try:
+        client = make_default_client(config)
+    except RuntimeError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 1
+
+    if not unity.connect(timeout=2.0):
+        console.print(
+            "[red]Unity Editor is not connected. Open Unity and start the BridgeServer before executing tasks.[/red]"
+        )
+        return 1
+    init_studio_unity(unity)
+
+    # Vision is optional but strongly recommended for the Worker's verify step.
+    try:
+        init_studio_vision(make_default_vision_client(config))
+    except RuntimeError as exc:
+        console.print(f"[yellow]Vision unavailable: {exc} — verify step will skip the compare.[/yellow]")
+
+    # Mark in-progress before the Worker runs so concurrent dashboards see it.
+    target.status = TaskStatus.IN_PROGRESS
+    state.update_task(target)
+
+    brief = (
+        f"Pick up backlog task and execute it now.\n\n"
+        f"Task id: {target.id}\n"
+        f"Title: {target.title}\n"
+        f"Description: {target.description or '(none)'}\n"
+        f"Owning role: {target.role}\n"
+        f"Milestone: {target.milestone or '(none)'}\n"
+    )
+    if args.extra:
+        brief += "\nExtra context: " + args.extra.strip() + "\n"
+
+    runner = RoleRunner(client, max_iterations=args.max_iterations)
+    console.print(f"[cyan]Worker executing[/cyan] task {target.id}: [bold]{target.title}[/bold]")
+
+    def _on_call(name: str, params: dict) -> None:
+        console.print(f"  [dim]→ {name}({_short_kwargs(params)})[/dim]")
+
+    def _on_result(name: str, result: Any) -> None:
+        ok = isinstance(result, dict) and result.get("ok", True)
+        console.print(f"  [dim]← {name}[/dim] {'[green][OK][/green]' if ok else '[red][ERR][/red]'}")
+
+    result = runner.run(WORKER, brief, on_tool_call=_on_call, on_tool_result=_on_result)
+
+    # Did the Worker actually flip the status? Reload from disk.
+    final_task = next((t for t in state.load_tasks() if t.id == target.id), None)
+    if final_task is None:
+        console.print("[red]Task vanished from backlog while Worker was running.[/red]")
+        return 1
+    if final_task.status is TaskStatus.IN_PROGRESS:
+        console.print(
+            "[yellow]Worker did not update task status. Marking 'review' so a Critic can decide.[/yellow]"
+        )
+        final_task.status = TaskStatus.REVIEW
+        state.update_task(final_task)
+
+    console.print(
+        f"\n[bold]Worker done[/bold] — final status: {final_task.status.value}, "
+        f"iterations={result.iterations}, tools={len(result.tool_calls)}"
+    )
+    if result.text:
+        console.print("\n[bold cyan]Worker output[/bold cyan]")
+        console.print(result.text)
+    return 0
+
+
 def cmd_studio_review(args: argparse.Namespace) -> int:
     """Run the Producer with a standup or retro brief and write studio/reviews/<date>.md."""
     from ..studio import (
@@ -943,6 +1056,13 @@ def main() -> int:
     p_studio_run.add_argument("--brief", default="", help="Free-text brief for the role; uses a sensible default if omitted")
     p_studio_run.add_argument("--max-iterations", type=int, default=8, help="Cap on tool-call rounds")
 
+    p_studio_execute = sub.add_parser("studio-execute", help="Pick a backlog task and run the Worker against it (snapshot → place → verify → mark done/blocked)")
+    p_studio_execute.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_execute.add_argument("--task-id", required=True, help="Task id from backlog.json")
+    p_studio_execute.add_argument("--extra", default="", help="Optional extra context appended to the brief")
+    p_studio_execute.add_argument("--max-iterations", type=int, default=12, help="Cap on tool-call rounds (Workers usually need more than reviewers)")
+    p_studio_execute.add_argument("--force", action="store_true", help="Re-run even if the task is already done or rejected")
+
     p_studio_review = sub.add_parser("studio-review", help="Run the Producer with a standup or retro brief and write studio/reviews/<date>.md")
     p_studio_review.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_review.add_argument("--phase", choices=("morning", "evening", "adhoc"), default="adhoc", help="Which kind of review to drive")
@@ -987,6 +1107,7 @@ def main() -> int:
         "studio-run": cmd_studio_run,
         "studio-review": cmd_studio_review,
         "studio-loop": cmd_studio_loop,
+        "studio-execute": cmd_studio_execute,
     }
     if args.cmd is None:
         parser.print_help()

@@ -26,6 +26,53 @@ class RoleConfig:
         return set(self.allowed_tools)
 
 
+_WORKER_PROMPT = """You are the Worker of an autonomous studio.
+
+You execute one specific backlog task. The brief you receive contains
+the task id, title, description, and owning role. Your job is to make
+the smallest scene change that satisfies the description, verify the
+result, and report back by updating the task status.
+
+OPERATING RULES — follow in order
+1. Read the GDD and the Art Bible for context. If the task references
+   a specific reference image, find it via studio_list_references and
+   note the path; you'll need it for verification.
+2. ALWAYS take a scene snapshot first
+   (unity_create_scene_snapshot). Even small placements can break a
+   scene; the snapshot is your rollback point. Save the returned name.
+3. Read the current scene with unity_get_scene_catalog so you don't
+   double-place an asset that's already there.
+4. Do the work. Prefer real assets over primitives — call
+   unity_search_assets_semantic / unity_instantiate_best_asset for
+   anything organic (tree, rock, prop). Use unity_create_primitive
+   only as a fallback or for blockout cubes.
+5. After placement, call unity_set_position / unity_set_rotation /
+   unity_set_scale to land the object where the task says it goes.
+6. Save the scene with unity_save_scene.
+7. Verify visually:
+     studio_capture_screenshot(name="<task_id>_after")
+   If a reference image was named in the task, also call
+   studio_compare_to_reference. Read the diff carefully — composition
+   or palette degradation here means your work made things worse.
+8. Update the task status:
+     - "done" if the verification looks acceptable
+     - "blocked" if you hit a tool error or the verification regressed
+       (composition_match below 0.5, or a clearly wrong outcome)
+   Always include a short text summary in your final reply describing
+   what you did and what you saw.
+9. If something genuinely surprising happened — an unexpected scene
+   structure, a tool returning weird data — file a decision via
+   studio_propose_decision so the Critic can weigh in.
+
+DO NOT
+- Start over or rebuild large parts of the scene. One task = one
+  scoped change.
+- Mark a task done without verifying.
+- Modify the GDD, Art Bible, sprint, or backlog beyond your own task's
+  status.
+"""
+
+
 _LEVEL_DESIGNER_PROMPT = """You are the Level Designer of an autonomous studio.
 
 Your job is to make the current scene match a target reference image.
@@ -264,8 +311,41 @@ ART_DIRECTOR = RoleConfig(
 )
 
 
+WORKER = RoleConfig(
+    id="worker",
+    name="Worker",
+    system_prompt=_WORKER_PROMPT,
+    allowed_tools=(
+        # Studio context (read-only)
+        "studio_get_summary",
+        "studio_read_gdd",
+        "studio_read_art_bible",
+        "studio_list_references",
+        # Studio writes — only what the workflow requires
+        "studio_update_task_status",
+        "studio_propose_decision",
+        # Visual verification
+        "studio_capture_screenshot",
+        "studio_compare_to_reference",
+        # Engine: rollback + read
+        "unity_create_scene_snapshot",
+        "unity_get_scene_catalog",
+        # Engine: place + transform (small, scoped set)
+        "unity_create_primitive",
+        "unity_set_position",
+        "unity_set_rotation",
+        "unity_set_scale",
+        "unity_set_parent",
+        "unity_set_material_color",
+        "unity_search_assets_semantic",
+        "unity_instantiate_best_asset",
+        "unity_save_scene",
+    ),
+)
+
+
 _ROLES: dict[str, RoleConfig] = {
-    r.id: r for r in (PRODUCER, DESIGNER, CRITIC, LEVEL_DESIGNER, ART_DIRECTOR)
+    r.id: r for r in (PRODUCER, DESIGNER, CRITIC, LEVEL_DESIGNER, ART_DIRECTOR, WORKER)
 }
 
 
@@ -279,13 +359,19 @@ def all_roles() -> tuple[RoleConfig, ...]:
     return tuple(_ROLES.values())
 
 
-# Sanity: every role must reference real studio tools.
+# Sanity: every `studio_*` reference must resolve to a real studio tool.
+# Engine tool names (unity_*, unreal_*, blender_*) are validated at runtime
+# inside the runner — at import time the engine modules may not have been
+# loaded yet, so we'd produce false negatives.
 def _validate_role_tools() -> None:
-    valid = set(ALL_STUDIO_TOOL_NAMES)
+    studio_valid = set(ALL_STUDIO_TOOL_NAMES)
     for role in _ROLES.values():
-        unknown = role.tool_set - valid
-        if unknown:
-            raise ValueError(f"Role {role.id!r} references unknown tools: {sorted(unknown)}")
+        for name in role.allowed_tools:
+            if name.startswith("studio_") and name not in studio_valid:
+                raise ValueError(
+                    f"Role {role.id!r} references unknown studio tool {name!r}. "
+                    f"Allowed studio tools: {sorted(studio_valid)}"
+                )
 
 
 _validate_role_tools()

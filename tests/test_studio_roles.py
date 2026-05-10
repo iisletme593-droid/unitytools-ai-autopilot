@@ -90,14 +90,18 @@ def _fresh_studio() -> tuple[StudioState, Path]:
 
 
 def test_role_definitions_are_consistent() -> None:
-    valid = set(ALL_STUDIO_TOOL_NAMES)
+    valid_studio = set(ALL_STUDIO_TOOL_NAMES)
     roles = all_roles()
-    # Three roles are guaranteed by Phase 2; later phases may add more.
+    # Three roles are guaranteed by Phase 2; later phases may add more
+    # (e.g. Worker, Level Designer, Art Director).
     role_ids = {r.id for r in roles}
     assert {"producer", "designer", "critic"} <= role_ids
     for role in roles:
         assert role.tool_set, f"{role.id} has no tools"
-        assert role.tool_set <= valid, f"{role.id} has unknown tools: {role.tool_set - valid}"
+        # Studio tool references must resolve. Engine tool references
+        # (unity_*, unreal_*, blender_*) are validated at runtime, not here.
+        studio_refs = {n for n in role.allowed_tools if n.startswith("studio_")}
+        assert studio_refs <= valid_studio, f"{role.id} has unknown studio tools: {studio_refs - valid_studio}"
     assert get_role("producer") is PRODUCER
     assert get_role("designer") is DESIGNER
     assert get_role("critic") is CRITIC
