@@ -285,6 +285,8 @@ PRODUCER = RoleConfig(
         "studio_recent_commits",
         # Phase 14: query historical context ("did we already do X?")
         "studio_query_archive",
+        # Phase 15: query decisions ("did anyone propose X already?")
+        "studio_query_decisions",
     ),
 )
 
@@ -297,6 +299,7 @@ DESIGNER = RoleConfig(
         "studio_read_gdd",
         "studio_write_gdd",
         "studio_list_decisions",
+        "studio_query_decisions",
         "studio_propose_decision",
         # Auto-dispatch lifecycle: when picked up by the Dispatcher,
         # close out the originating task.
@@ -313,6 +316,7 @@ CRITIC = RoleConfig(
         "studio_read_gdd",
         "studio_read_art_bible",
         "studio_list_decisions",
+        "studio_query_decisions",
         "studio_propose_decision",
         "studio_list_tasks",
         "studio_add_task",

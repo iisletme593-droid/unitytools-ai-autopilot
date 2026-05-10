@@ -57,6 +57,7 @@ from .archive import (
     load_archived_tasks,
     query_archive,
 )
+from .decisions import decisions_summary, query_decisions
 
 __all__ = [
     # state
@@ -126,4 +127,6 @@ __all__ = [
     "archive_summary",
     "load_archived_tasks",
     "query_archive",
+    "query_decisions",
+    "decisions_summary",
 ]

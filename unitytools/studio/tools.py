@@ -171,6 +171,54 @@ def studio_propose_decision(title: str, summary: str, rationale: str = "", alter
     return {"ok": True, "decision_id": decision.id, "status": decision.status.value}
 
 
+@tool(description="Query decisions with filters: author_role, status (proposed/accepted/rejected/superseded), substring search (matches title + summary + rationale), and limit. Returns newest-first. Use this before proposing a new decision to check whether the same idea was raised earlier.")
+def studio_query_decisions(
+    author_role: str = "",
+    status: str = "",
+    search: str = "",
+    limit: int = 30,
+) -> dict:
+    state = _require_state()
+    from .decisions import query_decisions
+
+    status_arg = None
+    if status:
+        try:
+            status_arg = DecisionStatus(status)
+        except ValueError:
+            return {"ok": False, "error": f"Unknown decision status {status!r}. Use proposed / accepted / rejected / superseded."}
+    rows = query_decisions(
+        state,
+        author_role=author_role or None,
+        status=status_arg,
+        search=search,
+        limit=max(1, int(limit or 30)),
+    )
+    return {
+        "ok": True,
+        "count": len(rows),
+        "filters": {
+            "author_role": author_role or None,
+            "status": status_arg.value if status_arg else None,
+            "search": search or None,
+            "limit": limit,
+        },
+        "decisions": [
+            {
+                "id": d.id,
+                "title": d.title,
+                "summary": d.summary,
+                "rationale": d.rationale,
+                "status": d.status.value,
+                "author_role": d.author_role,
+                "timestamp": d.timestamp,
+                "alternatives_considered": d.alternatives_considered,
+            }
+            for d in rows
+        ],
+    }
+
+
 @tool(description="List recent decisions. Returns up to limit entries, newest last.")
 def studio_list_decisions(limit: int = 50) -> dict:
     state = _require_state()
@@ -557,6 +605,7 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     # decisions / milestones
     "studio_propose_decision",
     "studio_list_decisions",
+    "studio_query_decisions",
     "studio_add_milestone",
     "studio_list_milestones",
     # status

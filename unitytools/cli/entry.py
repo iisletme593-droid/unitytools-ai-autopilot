@@ -589,6 +589,105 @@ def cmd_studio_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_studio_decisions(args: argparse.Namespace) -> int:
+    """Browse decisions.jsonl with filters. Read-only."""
+    import time as _time
+
+    from ..studio import (
+        DecisionStatus,
+        StudioPaths,
+        StudioState,
+        decisions_summary,
+        init_studio_tools,
+        query_decisions,
+    )
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init --project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    status_filter = None
+    if args.status:
+        try:
+            status_filter = DecisionStatus(args.status)
+        except ValueError as exc:
+            console.print(f"[red]Unknown decision status {args.status!r}: {exc}[/red]")
+            return 1
+
+    def _parse_date(s: str) -> float | None:
+        if not s:
+            return None
+        try:
+            return _time.mktime(_time.strptime(s, "%Y-%m-%d"))
+        except ValueError:
+            console.print(f"[red]Bad date {s!r}; expected YYYY-MM-DD[/red]")
+            raise SystemExit(1)
+
+    since_ts = _parse_date(args.since) if args.since else None
+    until_ts = _parse_date(args.until) if args.until else None
+    if until_ts is not None:
+        until_ts += 86400.0
+
+    decisions = query_decisions(
+        state,
+        author_role=args.role or None,
+        status=status_filter,
+        since=since_ts,
+        until=until_ts,
+        search=args.search or "",
+        limit=args.limit,
+    )
+
+    if args.json:
+        import json as _json
+        payload = [
+            {
+                "id": d.id,
+                "title": d.title,
+                "summary": d.summary,
+                "rationale": d.rationale,
+                "status": d.status.value,
+                "author_role": d.author_role,
+                "timestamp": d.timestamp,
+                "alternatives_considered": d.alternatives_considered,
+            }
+            for d in decisions
+        ]
+        console.print(_json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+
+    if not decisions:
+        console.print("[dim]No decisions matched.[/dim]")
+        if args.show_summary:
+            summary = decisions_summary(state)
+            console.print(f"[dim]Decisions log: {summary['total']} entries, by_status={summary['by_status']}.[/dim]")
+        return 0
+
+    console.print(f"[bold cyan]Decisions[/bold cyan] ({len(decisions)} shown, limit={args.limit})")
+    status_marker = {
+        DecisionStatus.PROPOSED: "[yellow][PROP][/yellow]",
+        DecisionStatus.ACCEPTED: "[green][OK][/green]",
+        DecisionStatus.REJECTED: "[red][REJ][/red]",
+        DecisionStatus.SUPERSEDED: "[dim][SUP][/dim]",
+    }
+    for d in decisions:
+        date_str = _time.strftime("%Y-%m-%d", _time.localtime(d.timestamp)) if d.timestamp else "?"
+        marker = status_marker.get(d.status, d.status.value.upper())
+        console.print(
+            f"  {marker} {d.id[:10]:<10}  {date_str}  {d.author_role:<14}  {d.title}"
+        )
+    if args.show_summary:
+        summary = decisions_summary(state)
+        console.print(f"\n[dim]Decisions log totals: {summary['total']} entries, by_status={summary['by_status']}.[/dim]")
+    return 0
+
+
 def cmd_studio_history(args: argparse.Namespace) -> int:
     """Browse archived tasks with optional filters. Read-only."""
     import time as _time
@@ -1449,6 +1548,16 @@ def main() -> int:
     p_studio_init.add_argument("--force", action="store_true", help="Overwrite starter docs if they already exist (JSON state is always preserved)")
     p_studio_doctor = sub.add_parser("studio-doctor", help="Run studio health checks (provider, Ollama, Pillow, Unity bridge, disk state, recent activity).")
     p_studio_doctor.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_decisions = sub.add_parser("studio-decisions", help="Browse decisions.jsonl with filters.")
+    p_studio_decisions.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_decisions.add_argument("--role", default="", help="Filter by author_role (e.g. designer, critic).")
+    p_studio_decisions.add_argument("--status", default="", help="Filter by status (proposed/accepted/rejected/superseded).")
+    p_studio_decisions.add_argument("--since", default="", help="Only decisions on/after this date (YYYY-MM-DD).")
+    p_studio_decisions.add_argument("--until", default="", help="Only decisions on/before this date (YYYY-MM-DD).")
+    p_studio_decisions.add_argument("--search", default="", help="Substring match against title + summary + rationale.")
+    p_studio_decisions.add_argument("--limit", type=int, default=50, help="Cap on rows shown (default: 50).")
+    p_studio_decisions.add_argument("--show-summary", action="store_true", help="Append a totals-by-status line.")
+    p_studio_decisions.add_argument("--json", action="store_true", help="Machine-readable JSON output.")
     p_studio_history = sub.add_parser("studio-history", help="Browse archived (done/rejected) tasks with filters.")
     p_studio_history.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_history.add_argument("--year", type=int, default=0, help="Restrict to a single year (default: all years).")
@@ -1590,6 +1699,7 @@ def main() -> int:
         "studio-doctor": cmd_studio_doctor,
         "studio-archive": cmd_studio_archive,
         "studio-history": cmd_studio_history,
+        "studio-decisions": cmd_studio_decisions,
         "studio-status": cmd_studio_status,
         "studio-run": cmd_studio_run,
         "studio-review": cmd_studio_review,

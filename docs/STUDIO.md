@@ -89,6 +89,7 @@ graph layer; later phases depend only on earlier ones, never sideways.
 | 12 | `studio/archive.py`, `studio-archive` CLI | Auto-archival of old done/rejected tasks into per-year files |
 | 13 | `LoopRunner.archiver_every`, `--auto-archive-every-passes` | Recurring loop runs auto-archive every Nth pass (hands-off maintenance) |
 | 14 | `query_archive`, `studio-history` CLI, `studio_query_archive` tool | Filter + browse archived history (year, role, status, date range, search) |
+| 15 | `query_decisions`, `studio-decisions` CLI, `studio_query_decisions` tool | Filter + browse decisions.jsonl (author_role, status, date range, search) |
 
 ### File layout
 
@@ -212,6 +213,25 @@ unitytools studio-doctor
 Exit code: 1 only when at least one check is `[FAIL]`. Warnings and
 waits are 0-exit so cron / CI does not flap on transient
 editor-not-connected states.
+
+### `studio-decisions`
+
+Read-only browser over `decisions.jsonl`. Same filter shape as
+`studio-history` but operates on Decision rows (author_role, status,
+title + summary + rationale search).
+
+```sh
+unitytools studio-decisions                                # last 50, newest first
+unitytools studio-decisions --status proposed              # what's pending review
+unitytools studio-decisions --role designer --status accepted
+unitytools studio-decisions --search "palette"
+unitytools studio-decisions --show-summary                 # add totals line
+unitytools studio-decisions --json | jq .
+```
+
+Exposed to Producer, Critic, and Designer via `studio_query_decisions`
+so an agent can answer "did anyone already propose this?" before
+filing a duplicate.
 
 ### `studio-history`
 
