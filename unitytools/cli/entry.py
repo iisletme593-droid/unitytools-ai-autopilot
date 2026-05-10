@@ -729,7 +729,7 @@ def cmd_studio_milestones(args: argparse.Namespace) -> int:
 
 
 def cmd_studio_decisions(args: argparse.Namespace) -> int:
-    """Browse decisions.jsonl with filters. Read-only."""
+    """Browse decisions.jsonl with filters, or ratify one (accept/reject/supersede)."""
     import time as _time
 
     from ..studio import (
@@ -737,8 +737,10 @@ def cmd_studio_decisions(args: argparse.Namespace) -> int:
         StudioPaths,
         StudioState,
         decisions_summary,
+        find_decision,
         init_studio_tools,
         query_decisions,
+        ratify_decision,
     )
 
     project = Path(args.project).expanduser().resolve()
@@ -750,6 +752,44 @@ def cmd_studio_decisions(args: argparse.Namespace) -> int:
         return 1
     state = StudioState(paths)
     init_studio_tools(state)
+
+    # Mutation paths: --accept / --reject / --supersede. Mutually exclusive.
+    mutation_actions = [
+        ("accept", args.accept, DecisionStatus.ACCEPTED),
+        ("reject", args.reject, DecisionStatus.REJECTED),
+        ("supersede", args.supersede, DecisionStatus.SUPERSEDED),
+    ]
+    chosen = [(name, ident, status) for name, ident, status in mutation_actions if ident]
+    if len(chosen) > 1:
+        console.print("[red]--accept / --reject / --supersede are mutually exclusive.[/red]")
+        return 1
+    if chosen:
+        name, ident, new_status = chosen[0]
+        target = find_decision(state, ident)
+        if target is None:
+            console.print(f"[red]Decision {ident!r} not found (or prefix is ambiguous).[/red]")
+            return 1
+        if new_status is DecisionStatus.SUPERSEDED and not args.by:
+            console.print("[red]--supersede requires --by NEW_DECISION_ID.[/red]")
+            return 1
+        # Resolve --by via prefix too (must be a real existing decision)
+        replacement_id = None
+        if args.by:
+            replacement = find_decision(state, args.by)
+            if replacement is None:
+                console.print(f"[red]Replacement decision {args.by!r} not found.[/red]")
+                return 1
+            replacement_id = replacement.id
+        revised = ratify_decision(state, target.id, new_status, superseded_by=replacement_id)
+        if revised is None:
+            console.print(f"[red]Failed to ratify {ident!r}.[/red]")
+            return 1
+        console.print(
+            f"[green][OK][/green] {target.id[:10]} {target.status.value} -> {revised.status.value}"
+            + (f" (superseded by {replacement_id[:10]})" if replacement_id else "")
+        )
+        console.print(f"  [dim]title: {target.title}[/dim]")
+        return 0
 
     status_filter = None
     if args.status:
@@ -1321,11 +1361,11 @@ def cmd_studio_execute(args: argparse.Namespace) -> int:
     state = StudioState(paths)
     init_studio_tools(state)
 
-    # Find the task
+    # Find the task (accepts exact id or unique prefix)
     tasks = state.load_tasks()
-    target = next((t for t in tasks if t.id == args.task_id), None)
+    target, err = _resolve_id_prefix(tasks, args.task_id, id_attr="id")
     if target is None:
-        console.print(f"[red]Task {args.task_id!r} not found in backlog.[/red]")
+        console.print(f"[red]{err}[/red]")
         return 1
 
     if target.status in (TaskStatus.DONE, TaskStatus.REJECTED) and not args.force:
@@ -1549,6 +1589,28 @@ def cmd_studio_loop(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_id_prefix(items: list, prefix: str, id_attr: str = "id") -> tuple:
+    """Find an item by exact id match or unique id prefix.
+
+    Returns (item, error_message). On success error is None. On failure
+    error is a human-readable string and item is None. Ambiguous
+    prefixes never resolve so callers cannot silently mutate the wrong
+    record.
+    """
+    if not prefix:
+        return None, "Empty id."
+    exact = [it for it in items if getattr(it, id_attr) == prefix]
+    if exact:
+        return exact[0], None
+    prefix_matches = [it for it in items if getattr(it, id_attr).startswith(prefix)]
+    if not prefix_matches:
+        return None, f"No id matches {prefix!r}."
+    if len(prefix_matches) > 1:
+        sample = ", ".join(getattr(it, id_attr)[:10] for it in prefix_matches[:5])
+        return None, f"Prefix {prefix!r} is ambiguous ({len(prefix_matches)} matches: {sample})."
+    return prefix_matches[0], None
+
+
 def _default_brief_for(role_id: str) -> str:
     return {
         "producer": "Plan the next round of work. Read state, decide priorities, open up to 5 tasks. End with a 3-line summary.",
@@ -1711,6 +1773,10 @@ def main() -> int:
     p_studio_decisions.add_argument("--limit", type=int, default=50, help="Cap on rows shown (default: 50).")
     p_studio_decisions.add_argument("--show-summary", action="store_true", help="Append a totals-by-status line.")
     p_studio_decisions.add_argument("--json", action="store_true", help="Machine-readable JSON output.")
+    p_studio_decisions.add_argument("--accept", default="", help="Mark this decision (id or unique prefix) accepted.")
+    p_studio_decisions.add_argument("--reject", default="", help="Mark this decision (id or unique prefix) rejected.")
+    p_studio_decisions.add_argument("--supersede", default="", help="Mark this decision superseded; requires --by.")
+    p_studio_decisions.add_argument("--by", default="", help="Replacement decision id (or prefix) when using --supersede.")
     p_studio_history = sub.add_parser("studio-history", help="Browse archived (done/rejected) tasks with filters.")
     p_studio_history.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_history.add_argument("--year", type=int, default=0, help="Restrict to a single year (default: all years).")

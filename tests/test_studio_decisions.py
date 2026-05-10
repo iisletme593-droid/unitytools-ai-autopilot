@@ -24,10 +24,13 @@ from unitytools.studio import (
     StudioPaths,
     StudioState,
     decisions_summary,
+    find_decision,
     init_studio_tools,
+    latest_decisions,
     query_decisions,
+    ratify_decision,
 )
-from unitytools.studio.tools import studio_query_decisions
+from unitytools.studio.tools import studio_query_decisions, studio_ratify_decision
 
 
 def _fresh_studio() -> tuple[StudioState, Path]:
@@ -219,6 +222,186 @@ def test_query_decisions_in_producer_critic_designer_allowlists() -> None:
     print("OK Producer + Critic + Designer all have studio_query_decisions")
 
 
+# ───────────────────────────────── Phase 18: ratify + dedupe + prefix
+
+
+def test_latest_decisions_dedupes_by_id() -> None:
+    """When a decision is re-stated (e.g. ratified), latest_decisions
+    returns only the newest row per id; raw load_decisions returns all
+    rows for audit."""
+    state, _ = _fresh_studio()
+    d = Decision(title="Hex grid", summary="use hex", status=DecisionStatus.PROPOSED)
+    d.timestamp = time.time() - 100
+    state.append_decision(d)
+
+    # Re-state with same id, newer timestamp, different status
+    revised = Decision(title="Hex grid", summary="use hex", status=DecisionStatus.ACCEPTED)
+    revised.id = d.id
+    revised.timestamp = time.time()
+    state.append_decision(revised)
+
+    # Raw log still has both rows
+    raw = state.load_decisions()
+    assert len(raw) == 2
+    # Latest-per-id shows only the accepted one
+    latest = latest_decisions(state)
+    assert len(latest) == 1
+    assert latest[0].status is DecisionStatus.ACCEPTED
+    print("OK latest_decisions dedupes by id, raw log preserves audit")
+
+
+def test_ratify_unknown_id_returns_none() -> None:
+    state, _ = _fresh_studio()
+    assert ratify_decision(state, "no-such-id", DecisionStatus.ACCEPTED) is None
+    print("OK ratify unknown id -> None")
+
+
+def test_ratify_accept_appends_new_row_with_new_status() -> None:
+    state, _ = _fresh_studio()
+    d = Decision(title="Hex grid", summary="use hex", status=DecisionStatus.PROPOSED, author_role="designer")
+    state.append_decision(d)
+
+    revised = ratify_decision(state, d.id, DecisionStatus.ACCEPTED)
+    assert revised is not None
+    assert revised.id == d.id
+    assert revised.status is DecisionStatus.ACCEPTED
+    # Title / summary / rationale / author preserved
+    assert revised.title == d.title
+    assert revised.author_role == d.author_role
+
+    # Audit log has two rows
+    assert len(state.load_decisions()) == 2
+    # Current view (latest) shows ACCEPTED
+    current = latest_decisions(state)
+    assert len(current) == 1
+    assert current[0].status is DecisionStatus.ACCEPTED
+    print("OK ratify accept: appends new row, latest shows accepted")
+
+
+def test_ratify_reject_path() -> None:
+    state, _ = _fresh_studio()
+    d = state.append_decision(Decision(title="VR mode", summary="add VR", status=DecisionStatus.PROPOSED))
+    revised = ratify_decision(state, d.id, DecisionStatus.REJECTED)
+    assert revised.status is DecisionStatus.REJECTED
+    assert latest_decisions(state)[0].status is DecisionStatus.REJECTED
+    print("OK ratify reject path")
+
+
+def test_ratify_supersede_links_to_replacement() -> None:
+    state, _ = _fresh_studio()
+    old = state.append_decision(Decision(title="Co-op", summary="add co-op", status=DecisionStatus.PROPOSED))
+    new = state.append_decision(Decision(title="Solo-only", summary="single-player only", status=DecisionStatus.PROPOSED))
+    revised = ratify_decision(state, old.id, DecisionStatus.SUPERSEDED, superseded_by=new.id)
+    assert revised.status is DecisionStatus.SUPERSEDED
+    assert revised.superseded_by == new.id
+    print("OK ratify supersede links to replacement id")
+
+
+def test_query_decisions_reflects_ratified_status() -> None:
+    """After ratify, query_decisions shows the new status (not the old
+    proposed row)."""
+    state, _ = _fresh_studio()
+    d = state.append_decision(Decision(title="Hex grid", summary="use hex", status=DecisionStatus.PROPOSED))
+    ratify_decision(state, d.id, DecisionStatus.ACCEPTED)
+
+    accepted = query_decisions(state, status=DecisionStatus.ACCEPTED)
+    proposed = query_decisions(state, status=DecisionStatus.PROPOSED)
+    assert len(accepted) == 1 and accepted[0].id == d.id
+    # The original proposed row is NOT surfaced — current state only
+    assert len(proposed) == 0
+    print("OK query_decisions reflects current state after ratify")
+
+
+def test_decisions_summary_counts_latest_only() -> None:
+    state, _ = _fresh_studio()
+    d = state.append_decision(Decision(title="A", summary="s", status=DecisionStatus.PROPOSED))
+    ratify_decision(state, d.id, DecisionStatus.ACCEPTED)
+    summary = decisions_summary(state)
+    # Only the accepted version counts
+    assert summary["total"] == 1
+    assert summary["by_status"] == {"accepted": 1}
+    print("OK decisions_summary counts latest-per-id only")
+
+
+def test_find_decision_by_exact_id_and_prefix() -> None:
+    state, _ = _fresh_studio()
+    a = state.append_decision(Decision(title="A", summary="s"))
+    # Exact match
+    assert find_decision(state, a.id) is not None
+    # Unique prefix
+    assert find_decision(state, a.id[:6]) is not None
+    # No match
+    assert find_decision(state, "zzzzzzzz") is None
+    # Empty input
+    assert find_decision(state, "") is None
+    print("OK find_decision: exact + unique prefix + miss + empty")
+
+
+def test_find_decision_returns_none_on_ambiguous_prefix() -> None:
+    """When two ids share a prefix, return None instead of guessing."""
+    state, _ = _fresh_studio()
+    a = Decision(title="A", summary="s")
+    b = Decision(title="B", summary="s")
+    a.id = "abcdef1234"
+    b.id = "abcdef5678"
+    state.append_decision(a)
+    state.append_decision(b)
+    assert find_decision(state, "abcdef") is None
+    # But the full id still resolves uniquely
+    assert find_decision(state, "abcdef1234").title == "A"
+    print("OK find_decision returns None on ambiguous prefix")
+
+
+def test_studio_ratify_decision_tool_validates() -> None:
+    state, _ = _fresh_studio()
+    d = state.append_decision(Decision(title="X", summary="s", status=DecisionStatus.PROPOSED))
+
+    # Unknown status
+    r = studio_ratify_decision(d.id, "weird")
+    assert r["ok"] is False
+    assert "Unknown status" in r["error"]
+
+    # Cannot ratify to PROPOSED
+    r = studio_ratify_decision(d.id, "proposed")
+    assert r["ok"] is False
+    assert "proposed" in r["error"].lower()
+
+    # SUPERSEDED requires superseded_by
+    r = studio_ratify_decision(d.id, "superseded")
+    assert r["ok"] is False
+    assert "superseded_by" in r["error"]
+
+    # Unknown id
+    r = studio_ratify_decision("no-such-id", "accepted")
+    assert r["ok"] is False
+    assert "not found" in r["error"]
+
+    # Happy path
+    r = studio_ratify_decision(d.id, "accepted")
+    assert r["ok"] is True
+    assert r["new_status"] == "accepted"
+    assert r["previous_status"] == "proposed"
+    print("OK studio_ratify_decision tool validates + happy path")
+
+
+def test_studio_ratify_decision_works_via_id_prefix() -> None:
+    state, _ = _fresh_studio()
+    d = state.append_decision(Decision(title="X", summary="s", status=DecisionStatus.PROPOSED))
+    # The tool uses find_decision which accepts prefixes
+    r = studio_ratify_decision(d.id[:6], "rejected")
+    assert r["ok"] is True
+    assert r["new_status"] == "rejected"
+    print("OK studio_ratify_decision accepts unique id prefix")
+
+
+def test_ratify_in_critic_allowlist_only() -> None:
+    """Producer must not ratify -- per Producer prompt, only Critic does."""
+    assert "studio_ratify_decision" in CRITIC.tool_set
+    assert "studio_ratify_decision" not in PRODUCER.tool_set
+    assert "studio_ratify_decision" not in DESIGNER.tool_set
+    print("OK studio_ratify_decision in CRITIC only")
+
+
 def run_test() -> None:
     test_query_returns_all_newest_first_without_filters()
     test_query_filters_by_author_role()
@@ -233,7 +416,19 @@ def run_test() -> None:
     test_studio_query_decisions_tool_validates_bad_status()
     test_studio_query_decisions_search_works_via_tool()
     test_query_decisions_in_producer_critic_designer_allowlists()
-    print("All Phase 15 decisions tests passed")
+    test_latest_decisions_dedupes_by_id()
+    test_ratify_unknown_id_returns_none()
+    test_ratify_accept_appends_new_row_with_new_status()
+    test_ratify_reject_path()
+    test_ratify_supersede_links_to_replacement()
+    test_query_decisions_reflects_ratified_status()
+    test_decisions_summary_counts_latest_only()
+    test_find_decision_by_exact_id_and_prefix()
+    test_find_decision_returns_none_on_ambiguous_prefix()
+    test_studio_ratify_decision_tool_validates()
+    test_studio_ratify_decision_works_via_id_prefix()
+    test_ratify_in_critic_allowlist_only()
+    print("All Phase 15 + 18 decisions tests passed")
 
 
 if __name__ == "__main__":

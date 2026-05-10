@@ -338,6 +338,8 @@ CRITIC = RoleConfig(
         "studio_query_archive",
         # Phase 16: cite milestone progress in consistency reviews
         "studio_milestone_progress",
+        # Phase 18: accept / reject / supersede decisions (the Critic's job)
+        "studio_ratify_decision",
     ),
 )
 

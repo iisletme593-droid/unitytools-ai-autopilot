@@ -92,6 +92,7 @@ graph layer; later phases depend only on earlier ones, never sideways.
 | 15 | `query_decisions`, `studio-decisions` CLI, `studio_query_decisions` tool | Filter + browse decisions.jsonl (author_role, status, date range, search) |
 | 16 | `milestones.py`, `studio-milestones` + `studio-tasks` CLIs, `studio_milestone_progress` tool | Computed milestone completion (counts active + archived); filtered backlog browser |
 | 17 | Producer milestone-aware prompt + `_check_stale_in_progress` | Standup cites real % per in_progress milestone; doctor warns on >7d stuck tasks |
+| 18 | `ratify_decision`, `latest_decisions`, `find_decision`, `--accept`/`--reject`/`--supersede`, id prefix matching | Critic can accept/reject/supersede decisions; ids accept unique prefixes everywhere |
 
 ### File layout
 
@@ -257,9 +258,8 @@ so a standup can cite real numbers instead of vibes.
 
 ### `studio-decisions`
 
-Read-only browser over `decisions.jsonl`. Same filter shape as
-`studio-history` but operates on Decision rows (author_role, status,
-title + summary + rationale search).
+Browse and ratify the decisions log. Read mode is the same filter
+shape as `studio-history` / `studio-tasks`.
 
 ```sh
 unitytools studio-decisions                                # last 50, newest first
@@ -268,11 +268,37 @@ unitytools studio-decisions --role designer --status accepted
 unitytools studio-decisions --search "palette"
 unitytools studio-decisions --show-summary                 # add totals line
 unitytools studio-decisions --json | jq .
+
+# Ratify (Critic's job; mutually exclusive)
+unitytools studio-decisions --accept 4f93        # exact id or unique prefix
+unitytools studio-decisions --reject 152e
+unitytools studio-decisions --supersede 4f93 --by abcd
 ```
+
+Ratification is append-only: a new row with the same id and updated
+status goes into `decisions.jsonl`. The original proposal stays for
+audit; all readers (`latest_decisions`, `query_decisions`,
+`studio_list_decisions`, the CLI listing) dedupe by id and show the
+current state. Use `state.load_decisions()` to see the full history.
 
 Exposed to Producer, Critic, and Designer via `studio_query_decisions`
 so an agent can answer "did anyone already propose this?" before
-filing a duplicate.
+filing a duplicate. Ratification (`studio_ratify_decision`) is in the
+Critic's allowlist ONLY -- per the Producer prompt, the Producer asks
+the Critic to ratify rather than doing it itself.
+
+### ID prefix matching
+
+`studio-execute --task-id` and `studio-decisions --accept/--reject/--supersede`
+all accept a unique id prefix instead of the full 12-char id. Examples:
+
+```sh
+unitytools studio-execute --task-id 4d84            # full or prefix
+unitytools studio-decisions --accept 4f93           # unique 4-char prefix
+```
+
+Ambiguous prefixes resolve to no match (lists candidates) instead of
+silently picking one.
 
 ### `studio-history`
 

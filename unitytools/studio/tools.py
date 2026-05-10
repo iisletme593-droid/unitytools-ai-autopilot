@@ -239,13 +239,17 @@ def studio_query_decisions(
     }
 
 
-@tool(description="List recent decisions. Returns up to limit entries, newest last.")
+@tool(description="List recent decisions (current state, deduped by id). Returns up to limit entries, newest first.")
 def studio_list_decisions(limit: int = 50) -> dict:
     state = _require_state()
-    decisions = state.load_decisions()[-max(1, limit):]
+    from .decisions import latest_decisions
+
+    rows = latest_decisions(state)
+    rows.sort(key=lambda d: d.timestamp or 0.0, reverse=True)
+    rows = rows[: max(1, int(limit or 50))]
     return {
         "ok": True,
-        "count": len(decisions),
+        "count": len(rows),
         "decisions": [
             {
                 "id": d.id,
@@ -255,8 +259,42 @@ def studio_list_decisions(limit: int = 50) -> dict:
                 "author_role": d.author_role,
                 "timestamp": d.timestamp,
             }
-            for d in decisions
+            for d in rows
         ],
+    }
+
+
+@tool(description="Mark a decision accepted / rejected / superseded. Appends a new revision row with the same id; the original proposal stays in the log for audit. status must be one of: accepted, rejected, superseded. When status='superseded', pass superseded_by with the id of the replacement decision.")
+def studio_ratify_decision(decision_id: str, status: str, superseded_by: str = "") -> dict:
+    state = _require_state()
+    from .decisions import find_decision, ratify_decision
+
+    try:
+        new_status = DecisionStatus(status)
+    except ValueError:
+        return {"ok": False, "error": f"Unknown status {status!r}. Use one of: accepted, rejected, superseded."}
+    if new_status is DecisionStatus.PROPOSED:
+        return {"ok": False, "error": "Cannot ratify back to 'proposed'; ratify to accepted, rejected, or superseded."}
+    if new_status is DecisionStatus.SUPERSEDED and not superseded_by:
+        return {"ok": False, "error": "status='superseded' requires superseded_by (id of replacement decision)."}
+
+    target = find_decision(state, decision_id)
+    if target is None:
+        return {"ok": False, "error": f"Decision {decision_id!r} not found (or prefix is ambiguous)."}
+    revised = ratify_decision(
+        state,
+        target.id,
+        new_status,
+        superseded_by=(superseded_by or None),
+    )
+    if revised is None:
+        return {"ok": False, "error": f"Could not ratify {decision_id!r}."}
+    return {
+        "ok": True,
+        "decision_id": revised.id,
+        "new_status": revised.status.value,
+        "superseded_by": revised.superseded_by,
+        "previous_status": target.status.value,
     }
 
 
@@ -626,6 +664,7 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_propose_decision",
     "studio_list_decisions",
     "studio_query_decisions",
+    "studio_ratify_decision",
     "studio_add_milestone",
     "studio_list_milestones",
     "studio_milestone_progress",

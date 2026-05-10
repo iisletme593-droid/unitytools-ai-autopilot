@@ -57,7 +57,13 @@ from .archive import (
     load_archived_tasks,
     query_archive,
 )
-from .decisions import decisions_summary, query_decisions
+from .decisions import (
+    decisions_summary,
+    find_decision,
+    latest_decisions,
+    query_decisions,
+    ratify_decision,
+)
 from .milestones import all_milestones_with_progress, milestone_progress
 
 __all__ = [
@@ -130,6 +136,9 @@ __all__ = [
     "query_archive",
     "query_decisions",
     "decisions_summary",
+    "latest_decisions",
+    "ratify_decision",
+    "find_decision",
     "milestone_progress",
     "all_milestones_with_progress",
 ]
