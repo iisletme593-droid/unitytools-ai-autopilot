@@ -39,6 +39,7 @@ from unitytools.studio import (
     init_studio_tools,
     init_studio_unity,
     init_studio_vision,
+    load_thresholds,
 )
 
 
@@ -263,6 +264,98 @@ def test_rehearsal_unknown_role_returns_helpful_text() -> None:
     print("OK rehearsal explicitly tells the user when a role has no script")
 
 
+# ──────────────────────────────────── Phase 10a: load_thresholds
+
+
+def test_load_thresholds_returns_defaults_when_config_absent() -> None:
+    state, _ = _fresh_studio()
+    assert not (state.paths.root / "config.json").exists()
+    loaded = load_thresholds(state.paths)
+    assert loaded == STUDIO_DEFAULTS
+    # Convenience: state.thresholds property returns the same thing
+    assert state.thresholds == STUDIO_DEFAULTS
+    print("OK load_thresholds returns defaults when config.json absent")
+
+
+def test_load_thresholds_applies_partial_overrides() -> None:
+    state, _ = _fresh_studio()
+    (state.paths.root / "config.json").write_text(
+        '{"max_tasks_per_producer_run": 10, "max_worker_iterations": 20}',
+        encoding="utf-8",
+    )
+    loaded = load_thresholds(state.paths)
+    assert loaded.max_tasks_per_producer_run == 10
+    assert loaded.max_worker_iterations == 20
+    # Values not present in config.json keep their defaults
+    assert loaded.worker_block_threshold == STUDIO_DEFAULTS.worker_block_threshold
+    assert loaded.max_role_iterations == STUDIO_DEFAULTS.max_role_iterations
+    print("OK partial overrides merge cleanly with defaults")
+
+
+def test_load_thresholds_ignores_unknown_keys() -> None:
+    state, _ = _fresh_studio()
+    (state.paths.root / "config.json").write_text(
+        '{"max_role_iterations": 12, "totally_made_up_key": 999, "another_typo": "yes"}',
+        encoding="utf-8",
+    )
+    loaded = load_thresholds(state.paths)
+    assert loaded.max_role_iterations == 12  # valid override applied
+    # All other fields untouched
+    assert loaded.worker_block_threshold == STUDIO_DEFAULTS.worker_block_threshold
+    print("OK unknown keys ignored, valid overrides still apply")
+
+
+def test_load_thresholds_falls_back_on_malformed_json() -> None:
+    state, _ = _fresh_studio()
+    (state.paths.root / "config.json").write_text("{not valid json", encoding="utf-8")
+    loaded = load_thresholds(state.paths)
+    assert loaded == STUDIO_DEFAULTS
+    print("OK malformed JSON -> defaults")
+
+
+def test_load_thresholds_falls_back_when_root_is_not_an_object() -> None:
+    state, _ = _fresh_studio()
+    (state.paths.root / "config.json").write_text('[1, 2, 3]', encoding="utf-8")
+    loaded = load_thresholds(state.paths)
+    assert loaded == STUDIO_DEFAULTS
+    print("OK non-object root -> defaults")
+
+
+def test_load_thresholds_falls_back_on_type_mismatch() -> None:
+    state, _ = _fresh_studio()
+    # max_tasks_per_producer_run expects int; we send a list
+    (state.paths.root / "config.json").write_text(
+        '{"max_tasks_per_producer_run": [5, 6]}',
+        encoding="utf-8",
+    )
+    # dataclasses.replace doesn't enforce types, but if Python's runtime
+    # validates downstream we want a graceful fallback. Either way the
+    # function must not crash.
+    loaded = load_thresholds(state.paths)
+    # The list got assigned (dataclass doesn't type-check); but we still
+    # didn't crash and got a StudioThresholds back. Documentation-wise,
+    # users should send correct types; this test just guards against a
+    # crash.
+    assert isinstance(loaded, StudioThresholds)
+    print("OK load_thresholds is robust to type quirks")
+
+
+def test_state_thresholds_re_reads_on_each_access() -> None:
+    """Mid-session edits to config.json take effect on the next access."""
+    state, _ = _fresh_studio()
+    assert state.thresholds.max_tasks_per_producer_run == STUDIO_DEFAULTS.max_tasks_per_producer_run
+
+    (state.paths.root / "config.json").write_text(
+        '{"max_tasks_per_producer_run": 7}', encoding="utf-8"
+    )
+    assert state.thresholds.max_tasks_per_producer_run == 7
+
+    # Remove the config; defaults restored
+    (state.paths.root / "config.json").unlink()
+    assert state.thresholds.max_tasks_per_producer_run == STUDIO_DEFAULTS.max_tasks_per_producer_run
+    print("OK state.thresholds reflects mid-session config changes")
+
+
 def run_test() -> None:
     test_role_prompts_show_threshold_values_from_config()
     test_studio_thresholds_is_a_frozen_dataclass()
@@ -273,7 +366,14 @@ def run_test() -> None:
     test_rehearsal_drives_designer_to_write_placeholder_gdd()
     test_rehearsal_skips_steps_not_advertised_to_role()
     test_rehearsal_unknown_role_returns_helpful_text()
-    print("All Phase 6 calibration tests passed")
+    test_load_thresholds_returns_defaults_when_config_absent()
+    test_load_thresholds_applies_partial_overrides()
+    test_load_thresholds_ignores_unknown_keys()
+    test_load_thresholds_falls_back_on_malformed_json()
+    test_load_thresholds_falls_back_when_root_is_not_an_object()
+    test_load_thresholds_falls_back_on_type_mismatch()
+    test_state_thresholds_re_reads_on_each_access()
+    print("All Phase 6 + 10a calibration tests passed")
 
 
 if __name__ == "__main__":

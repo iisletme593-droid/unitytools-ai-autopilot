@@ -43,7 +43,7 @@ from .runner import (
     make_default_client,
 )
 from .vision import VisionClient, AnthropicVisionClient, make_default_vision_client
-from .config import StudioThresholds, STUDIO_DEFAULTS
+from .config import StudioThresholds, STUDIO_DEFAULTS, load_thresholds
 from .review import Phase, ReviewRecord, brief_for, run_review, write_review
 from .loop import LoopRunner, LoopStats
 from .dispatch import Dispatcher, DispatchResult, DispatchSummary, DISPATCH_MAP
@@ -86,6 +86,7 @@ __all__ = [
     # config
     "StudioThresholds",
     "STUDIO_DEFAULTS",
+    "load_thresholds",
     # vision
     "VisionClient",
     "AnthropicVisionClient",

@@ -590,6 +590,9 @@ def cmd_studio_init(args: argparse.Namespace) -> int:
 
 
 def cmd_studio_status(args: argparse.Namespace) -> int:
+    import dataclasses as _dc
+
+    from ..studio.config import STUDIO_DEFAULTS
     from ..studio.paths import StudioPaths
     from ..studio.state import StudioState
 
@@ -618,6 +621,32 @@ def cmd_studio_status(args: argparse.Namespace) -> int:
             console.print(f"    - {role:<14} {count}")
     console.print(f"  Milestones: {summary['milestone_count']}")
     console.print(f"  Decisions:  {summary['decision_count']}")
+
+    # Surface tunable thresholds. Mark which ones came from a project
+    # studio/config.json override so the user can confirm their edits
+    # actually apply.
+    thresholds = state.thresholds
+    overridden = {
+        f.name: getattr(thresholds, f.name) != getattr(STUDIO_DEFAULTS, f.name)
+        for f in _dc.fields(thresholds)
+    }
+    config_present = (paths.root / "config.json").exists()
+    if any(overridden.values()):
+        label = "[green]config.json applied[/green]"
+    elif config_present:
+        label = "[yellow]config.json present but no overrides[/yellow]"
+    else:
+        label = "[dim]defaults[/dim]"
+    console.print(f"  Thresholds: {label}")
+    for name in (
+        "worker_block_threshold",
+        "level_designer_reblock_threshold",
+        "max_role_iterations",
+        "max_worker_iterations",
+        "max_tasks_per_producer_run",
+    ):
+        marker = " *" if overridden.get(name) else ""
+        console.print(f"    - {name:<34} {getattr(thresholds, name)}{marker}")
     return 0
 
 
@@ -792,16 +821,19 @@ def cmd_studio_autopilot(args: argparse.Namespace) -> int:
             console.print("[yellow]Vision client unavailable; compare-tool calls will return errors.[/yellow]")
 
     only_roles = tuple(args.only_role) if args.only_role else None
+    thresholds = state.thresholds
+    max_iterations = args.max_iterations if args.max_iterations is not None else thresholds.max_worker_iterations
+    max_tasks = args.max_tasks if args.max_tasks is not None else thresholds.max_tasks_per_producer_run
     dispatcher = Dispatcher(
         state,
         client_factory,
         unity_bridge=bridge_for_dispatcher,
         vision_client=vision_for_dispatcher,
-        max_iterations=args.max_iterations,
+        max_iterations=max_iterations,
     )
 
-    console.print(f"[cyan]Autopilot[/cyan] -- max-tasks={args.max_tasks}")
-    summary = dispatcher.dispatch_pending(limit=args.max_tasks, only_roles=only_roles)
+    console.print(f"[cyan]Autopilot[/cyan] -- max-tasks={max_tasks}, max-iterations={max_iterations}")
+    summary = dispatcher.dispatch_pending(limit=max_tasks, only_roles=only_roles)
 
     if not summary.results:
         console.print("[dim]No pending tasks matched. Backlog is clean (or filtered out).[/dim]")
@@ -1033,7 +1065,12 @@ def cmd_studio_loop(args: argparse.Namespace) -> int:
             max_iterations=args.max_iterations,
         )
 
-    loop = LoopRunner(state, runner, dispatcher=dispatcher, dispatch_max_tasks=args.dispatch_max_tasks)
+    dispatch_max_tasks = (
+        args.dispatch_max_tasks
+        if args.dispatch_max_tasks is not None
+        else state.thresholds.max_tasks_per_producer_run
+    )
+    loop = LoopRunner(state, runner, dispatcher=dispatcher, dispatch_max_tasks=dispatch_max_tasks)
 
     interval_hours = max(0.0, float(args.interval_hours))
     interval_seconds = interval_hours * 3600.0
@@ -1224,8 +1261,18 @@ def main() -> int:
         help="Walk the backlog and run the right role for each pending task.",
     )
     p_studio_autopilot.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
-    p_studio_autopilot.add_argument("--max-tasks", type=int, default=5, help="Stop after this many dispatches (default: 5)")
-    p_studio_autopilot.add_argument("--max-iterations", type=int, default=12, help="Cap on tool-call rounds per task")
+    p_studio_autopilot.add_argument(
+        "--max-tasks",
+        type=int,
+        default=None,
+        help="Stop after this many dispatches (default: from studio/config.json or STUDIO_DEFAULTS).",
+    )
+    p_studio_autopilot.add_argument(
+        "--max-iterations",
+        type=int,
+        default=None,
+        help="Cap on tool-call rounds per task (default: from studio/config.json or STUDIO_DEFAULTS).",
+    )
     p_studio_autopilot.add_argument(
         "--only-role",
         action="append",
@@ -1266,8 +1313,8 @@ def main() -> int:
     p_studio_loop.add_argument(
         "--dispatch-max-tasks",
         type=int,
-        default=5,
-        help="Cap on tasks dispatched per cycle when --with-dispatch is set.",
+        default=None,
+        help="Cap on tasks dispatched per cycle when --with-dispatch is set (default: from studio/config.json or STUDIO_DEFAULTS).",
     )
     p_chat_srv = sub.add_parser("chat-server", help="Start the TCP chat server for the Editor window")
     p_chat_srv.add_argument("--host", default="127.0.0.1")

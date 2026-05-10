@@ -48,6 +48,17 @@ class StudioState:
     def __init__(self, paths: StudioPaths):
         self.paths = paths
 
+    @property
+    def thresholds(self):
+        """Lazy-load tunables from studio/config.json (defaults if absent).
+
+        Re-read on every access so a project can tune limits between two
+        consecutive role runs without reimporting the package.
+        """
+        from .config import load_thresholds
+
+        return load_thresholds(self.paths)
+
     # ── Tasks (backlog.json) ────────────────────────────────────────────
     def load_tasks(self) -> list[Task]:
         data = _read_json(self.paths.backlog, {"tasks": []})
