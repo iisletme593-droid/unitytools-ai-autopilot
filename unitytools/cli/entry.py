@@ -719,6 +719,105 @@ def cmd_studio_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_studio_autopilot(args: argparse.Namespace) -> int:
+    """Walk the backlog and run the right role for each pending task.
+
+    With --dry-run, every dispatched role uses a RehearsalLLM and tasks
+    that target the Worker (engine work) are skipped — there's nothing
+    productive a no-network rehearsal can do in Unity.
+    """
+    from ..studio import (
+        Dispatcher,
+        StudioPaths,
+        StudioState,
+        RehearsalLLM,
+        has_rehearsal_for,
+        init_studio_tools,
+        make_default_client,
+        make_default_vision_client,
+    )
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init --project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    config, _, unity = _bootstrap()
+
+    # Build the per-role client factory: one constant client in production,
+    # one fresh RehearsalLLM per role in dry-run.
+    if args.dry_run:
+        def client_factory(role_id: str):
+            if not has_rehearsal_for(role_id):
+                # Caller checks needs_engine first, but be defensive: fall back
+                # to an "out of script" rehearsal that prints a message and stops.
+                return RehearsalLLM(role_id)
+            return RehearsalLLM(role_id)
+        console.print("[dim]Dry-run: RehearsalLLM per role, no API calls.[/dim]")
+    else:
+        try:
+            anthropic_client = make_default_client(config)
+        except RuntimeError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return 1
+
+        def client_factory(role_id: str):
+            return anthropic_client
+
+    # Engine + vision wiring — only attempted when dispatch has tasks
+    # that need it. Dispatcher's _can_run() consults these.
+    bridge_for_dispatcher: object | None = None
+    vision_for_dispatcher = None
+    if not args.dry_run:
+        if unity.connect(timeout=2.0):
+            bridge_for_dispatcher = unity
+            console.print("[dim]Unity bridge connected.[/dim]")
+        else:
+            console.print("[yellow]Unity not connected; engine-bound tasks will be skipped.[/yellow]")
+        try:
+            vision_for_dispatcher = make_default_vision_client(config)
+            console.print("[dim]Vision client ready.[/dim]")
+        except RuntimeError:
+            console.print("[yellow]Vision client unavailable; compare-tool calls will return errors.[/yellow]")
+
+    only_roles = tuple(args.only_role) if args.only_role else None
+    dispatcher = Dispatcher(
+        state,
+        client_factory,
+        unity_bridge=bridge_for_dispatcher,
+        vision_client=vision_for_dispatcher,
+        max_iterations=args.max_iterations,
+    )
+
+    console.print(f"[cyan]Autopilot[/cyan] -- max-tasks={args.max_tasks}")
+    summary = dispatcher.dispatch_pending(limit=args.max_tasks, only_roles=only_roles)
+
+    if not summary.results:
+        console.print("[dim]No pending tasks matched. Backlog is clean (or filtered out).[/dim]")
+        return 0
+
+    for r in summary.results:
+        marker = {
+            "completed": "[green][OK][/green]",
+            "blocked": "[yellow][BLOCK][/yellow]",
+            "review": "[cyan][REVIEW][/cyan]",
+            "skipped": "[dim][SKIP][/dim]",
+            "error": "[red][ERR][/red]",
+        }.get(r.action, r.action.upper())
+        suffix = f" -- {r.reason}" if r.reason else ""
+        console.print(f"  {marker} {r.task_id} ({r.target_role or '?'}): {r.task_title}{suffix}")
+
+    counts = summary.by_action()
+    parts = [f"{action}={n}" for action, n in sorted(counts.items())]
+    console.print(f"\n[bold]Done[/bold] -- {summary.total} task(s): {', '.join(parts)}")
+    return 0
+
+
 def cmd_studio_execute(args: argparse.Namespace) -> int:
     """Pick a backlog task and run the Worker against it.
 
@@ -1077,6 +1176,21 @@ def main() -> int:
         help="Use a deterministic RehearsalLLM (no API calls). Only producer/designer/critic supported.",
     )
 
+    p_studio_autopilot = sub.add_parser(
+        "studio-autopilot",
+        help="Walk the backlog and run the right role for each pending task.",
+    )
+    p_studio_autopilot.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_autopilot.add_argument("--max-tasks", type=int, default=5, help="Stop after this many dispatches (default: 5)")
+    p_studio_autopilot.add_argument("--max-iterations", type=int, default=12, help="Cap on tool-call rounds per task")
+    p_studio_autopilot.add_argument(
+        "--only-role",
+        action="append",
+        default=[],
+        help="Only dispatch tasks whose owning role matches. Repeatable.",
+    )
+    p_studio_autopilot.add_argument("--dry-run", action="store_true", help="Use RehearsalLLM for each dispatched role; engine-bound tasks are skipped.")
+
     p_studio_execute = sub.add_parser("studio-execute", help="Pick a backlog task and run the Worker against it (snapshot -> place -> verify -> mark done/blocked)")
     p_studio_execute.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_execute.add_argument("--task-id", required=True, help="Task id from backlog.json")
@@ -1130,6 +1244,7 @@ def main() -> int:
         "studio-review": cmd_studio_review,
         "studio-loop": cmd_studio_loop,
         "studio-execute": cmd_studio_execute,
+        "studio-autopilot": cmd_studio_autopilot,
     }
     if args.cmd is None:
         parser.print_help()

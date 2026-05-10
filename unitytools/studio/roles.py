@@ -29,6 +29,21 @@ class RoleConfig:
     def tool_set(self) -> set[str]:
         return set(self.allowed_tools)
 
+    @property
+    def needs_engine(self) -> bool:
+        """True if any of this role's tools requires a live engine bridge."""
+        for name in self.allowed_tools:
+            if name.startswith("unity_") or name.startswith("unreal_") or name.startswith("blender_"):
+                return True
+            if name == "studio_capture_screenshot":
+                return True
+        return False
+
+    @property
+    def needs_vision(self) -> bool:
+        """True if this role calls the vision-compare tool."""
+        return "studio_compare_to_reference" in self.allowed_tools
+
 
 _WORKER_PROMPT = """You are the Worker of an autonomous studio.
 
@@ -201,7 +216,10 @@ OPERATING RULES
 
 OUT OF SCOPE
 - Do not edit the art bible. Open a task for art_director instead.
-- Do not change task statuses. The Producer owns the backlog.
+- Do not open new backlog tasks unless one is missing. The Producer
+  owns the backlog. The only status you may change is the originating
+  task you were dispatched to handle (set it to "done" when finished
+  or "blocked" if you genuinely cannot make progress).
 """
 
 
@@ -272,6 +290,9 @@ DESIGNER = RoleConfig(
         "studio_write_gdd",
         "studio_list_decisions",
         "studio_propose_decision",
+        # Auto-dispatch lifecycle: when picked up by the Dispatcher,
+        # close out the originating task.
+        "studio_update_task_status",
     ),
 )
 
@@ -287,6 +308,8 @@ CRITIC = RoleConfig(
         "studio_propose_decision",
         "studio_list_tasks",
         "studio_add_task",
+        # Auto-dispatch lifecycle.
+        "studio_update_task_status",
     ),
 )
 
@@ -322,6 +345,8 @@ ART_DIRECTOR = RoleConfig(
         "studio_compare_to_reference",
         "studio_propose_decision",
         "studio_add_task",
+        # Auto-dispatch lifecycle.
+        "studio_update_task_status",
     ),
 )
 

@@ -45,6 +45,7 @@ from .vision import VisionClient, AnthropicVisionClient, make_default_vision_cli
 from .config import StudioThresholds, STUDIO_DEFAULTS
 from .review import Phase, ReviewRecord, brief_for, run_review, write_review
 from .loop import LoopRunner, LoopStats
+from .dispatch import Dispatcher, DispatchResult, DispatchSummary, DISPATCH_MAP
 
 __all__ = [
     # state
@@ -95,4 +96,9 @@ __all__ = [
     "write_review",
     "LoopRunner",
     "LoopStats",
+    # dispatch
+    "Dispatcher",
+    "DispatchResult",
+    "DispatchSummary",
+    "DISPATCH_MAP",
 ]
