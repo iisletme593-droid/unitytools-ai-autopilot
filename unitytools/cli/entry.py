@@ -627,11 +627,13 @@ def cmd_studio_run(args: argparse.Namespace) -> int:
         StudioPaths,
         StudioState,
         get_role,
+        has_rehearsal_for,
         init_studio_tools,
         init_studio_unity,
         init_studio_vision,
         make_default_client,
         make_default_vision_client,
+        RehearsalLLM,
         RoleRunner,
         all_roles,
     )
@@ -654,11 +656,20 @@ def cmd_studio_run(args: argparse.Namespace) -> int:
     init_studio_tools(state)
 
     config, _, unity = _bootstrap()
-    try:
-        client = make_default_client(config)
-    except RuntimeError as exc:
-        console.print(f"[red]{exc}[/red]")
-        return 1
+    if args.dry_run:
+        if not has_rehearsal_for(role.id):
+            console.print(
+                f"[yellow]No rehearsal script for role {role.id!r}. Available: producer, designer, critic.[/yellow]"
+            )
+            return 1
+        console.print("[dim]Dry-run: using RehearsalLLM (no API calls).[/dim]")
+        client = RehearsalLLM(role.id)
+    else:
+        try:
+            client = make_default_client(config)
+        except RuntimeError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return 1
 
     # Engine + vision bridges are only wired up when the role needs them. That
     # way `studio-run --role designer` still works without Unity / vision API.
@@ -670,7 +681,7 @@ def cmd_studio_run(args: argparse.Namespace) -> int:
             console.print("[dim]Unity bridge connected for screenshot capture.[/dim]")
         else:
             console.print(
-                "[yellow]Unity Editor not connected — studio_capture_screenshot will report not-connected. "
+                "[yellow]Unity Editor not connected -- studio_capture_screenshot will report not-connected. "
                 "Open Unity and try again, or run a non-engine role.[/yellow]"
             )
             init_studio_unity(unity)  # tool itself returns the error nicely
@@ -690,16 +701,16 @@ def cmd_studio_run(args: argparse.Namespace) -> int:
     console.print(f"[dim]Brief:[/dim] {brief}")
 
     def _on_tool_call(name: str, params: dict) -> None:
-        console.print(f"  [dim]→ {name}({_short_kwargs(params)})[/dim]")
+        console.print(f"  [dim]-> {name}({_short_kwargs(params)})[/dim]")
 
     def _on_tool_result(name: str, result: Any) -> None:
         ok = isinstance(result, dict) and result.get("ok", True)
         marker = "[green][OK][/green]" if ok else "[red][ERR][/red]"
-        console.print(f"  [dim]← {name}[/dim] {marker}")
+        console.print(f"  [dim]<- {name}[/dim] {marker}")
 
     result = runner.run(role, brief, on_tool_call=_on_tool_call, on_tool_result=_on_tool_result)
     console.print(
-        f"\n[bold]Done[/bold] — iterations={result.iterations}, "
+        f"\n[bold]Done[/bold] -- iterations={result.iterations}, "
         f"tool_calls={len(result.tool_calls)}, stop={result.stop_reason}"
     )
     if result.text:
@@ -712,7 +723,7 @@ def cmd_studio_execute(args: argparse.Namespace) -> int:
     """Pick a backlog task and run the Worker against it.
 
     Lifecycle:
-      pending|review → in_progress  (we set this before the Worker starts)
+      pending|review -> in_progress  (we set this before the Worker starts)
       Worker is told to flip to "done" or "blocked" via studio_update_task_status.
       If the Worker forgets, we leave the status as in_progress and warn.
     """
@@ -770,7 +781,7 @@ def cmd_studio_execute(args: argparse.Namespace) -> int:
     try:
         init_studio_vision(make_default_vision_client(config))
     except RuntimeError as exc:
-        console.print(f"[yellow]Vision unavailable: {exc} — verify step will skip the compare.[/yellow]")
+        console.print(f"[yellow]Vision unavailable: {exc} -- verify step will skip the compare.[/yellow]")
 
     # Mark in-progress before the Worker runs so concurrent dashboards see it.
     target.status = TaskStatus.IN_PROGRESS
@@ -791,11 +802,11 @@ def cmd_studio_execute(args: argparse.Namespace) -> int:
     console.print(f"[cyan]Worker executing[/cyan] task {target.id}: [bold]{target.title}[/bold]")
 
     def _on_call(name: str, params: dict) -> None:
-        console.print(f"  [dim]→ {name}({_short_kwargs(params)})[/dim]")
+        console.print(f"  [dim]-> {name}({_short_kwargs(params)})[/dim]")
 
     def _on_result(name: str, result: Any) -> None:
         ok = isinstance(result, dict) and result.get("ok", True)
-        console.print(f"  [dim]← {name}[/dim] {'[green][OK][/green]' if ok else '[red][ERR][/red]'}")
+        console.print(f"  [dim]<- {name}[/dim] {'[green][OK][/green]' if ok else '[red][ERR][/red]'}")
 
     result = runner.run(WORKER, brief, on_tool_call=_on_call, on_tool_result=_on_result)
 
@@ -812,7 +823,7 @@ def cmd_studio_execute(args: argparse.Namespace) -> int:
         state.update_task(final_task)
 
     console.print(
-        f"\n[bold]Worker done[/bold] — final status: {final_task.status.value}, "
+        f"\n[bold]Worker done[/bold] -- final status: {final_task.status.value}, "
         f"iterations={result.iterations}, tools={len(result.tool_calls)}"
     )
     if result.text:
@@ -827,6 +838,7 @@ def cmd_studio_review(args: argparse.Namespace) -> int:
         StudioPaths,
         StudioState,
         PRODUCER,
+        RehearsalLLM,
         RoleRunner,
         init_studio_tools,
         make_default_client,
@@ -842,14 +854,18 @@ def cmd_studio_review(args: argparse.Namespace) -> int:
     init_studio_tools(state)
 
     config, _, _ = _bootstrap()
-    try:
-        client = make_default_client(config)
-    except RuntimeError as exc:
-        console.print(f"[red]{exc}[/red]")
-        return 1
+    if args.dry_run:
+        console.print("[dim]Dry-run: using RehearsalLLM (no API calls).[/dim]")
+        client = RehearsalLLM("producer")
+    else:
+        try:
+            client = make_default_client(config)
+        except RuntimeError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return 1
     runner = RoleRunner(client, max_iterations=args.max_iterations)
 
-    console.print(f"[cyan]Producer review — phase={args.phase}[/cyan]")
+    console.print(f"[cyan]Producer review -- phase={args.phase}[/cyan]")
     result, record = run_review(state, runner, phase=args.phase, extra_brief=args.extra)
     console.print(
         f"[green][OK][/green] iterations={result.iterations}, tools={len(result.tool_calls)}, "
@@ -893,9 +909,9 @@ def cmd_studio_loop(args: argparse.Namespace) -> int:
     interval_hours = max(0.0, float(args.interval_hours))
     interval_seconds = interval_hours * 3600.0
     if args.once:
-        console.print("[cyan]Producer loop — single pass[/cyan]")
+        console.print("[cyan]Producer loop -- single pass[/cyan]")
     else:
-        console.print(f"[cyan]Producer loop — every {interval_hours:g}h (Ctrl+C to stop)[/cyan]")
+        console.print(f"[cyan]Producer loop -- every {interval_hours:g}h (Ctrl+C to stop)[/cyan]")
     try:
         stats = loop.run(once=args.once, interval_seconds=interval_seconds, max_iterations=args.max_passes)
     except KeyboardInterrupt:
@@ -923,10 +939,10 @@ def _short_kwargs(params: dict) -> str:
     parts = []
     for key, value in list(params.items())[:3]:
         if isinstance(value, str) and len(value) > 40:
-            value = value[:37] + "…"
+            value = value[:37] + "..."
         parts.append(f"{key}={value!r}")
     if len(params) > 3:
-        parts.append("…")
+        parts.append("...")
     return ", ".join(parts)
 
 
@@ -1055,8 +1071,13 @@ def main() -> int:
     )
     p_studio_run.add_argument("--brief", default="", help="Free-text brief for the role; uses a sensible default if omitted")
     p_studio_run.add_argument("--max-iterations", type=int, default=8, help="Cap on tool-call rounds")
+    p_studio_run.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Use a deterministic RehearsalLLM (no API calls). Only producer/designer/critic supported.",
+    )
 
-    p_studio_execute = sub.add_parser("studio-execute", help="Pick a backlog task and run the Worker against it (snapshot → place → verify → mark done/blocked)")
+    p_studio_execute = sub.add_parser("studio-execute", help="Pick a backlog task and run the Worker against it (snapshot -> place -> verify -> mark done/blocked)")
     p_studio_execute.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_execute.add_argument("--task-id", required=True, help="Task id from backlog.json")
     p_studio_execute.add_argument("--extra", default="", help="Optional extra context appended to the brief")
@@ -1068,6 +1089,7 @@ def main() -> int:
     p_studio_review.add_argument("--phase", choices=("morning", "evening", "adhoc"), default="adhoc", help="Which kind of review to drive")
     p_studio_review.add_argument("--extra", default="", help="Optional extra context appended to the brief")
     p_studio_review.add_argument("--max-iterations", type=int, default=8)
+    p_studio_review.add_argument("--dry-run", action="store_true", help="Use a deterministic RehearsalLLM (no API calls)")
 
     p_studio_loop = sub.add_parser("studio-loop", help="Run the Producer review on a recurring cadence")
     p_studio_loop.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")

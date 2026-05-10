@@ -180,6 +180,11 @@ def test_runner_records_tool_failure_without_aborting() -> None:
 
 
 def test_runner_records_unknown_tool_as_error() -> None:
+    """A tool_call for a name the LLM hallucinated (not in the role's
+    allowlist OR not in the global registry) is recorded as ok=False.
+    Phase 6 added an allowlist sandbox: refusal happens at that layer
+    first, so the error_type may be 'ToolNotAllowed' rather than the
+    generic unknown-tool message."""
     _state, _ = _fresh_studio()
     turns = [
         _ScriptedTurn(
@@ -193,7 +198,9 @@ def test_runner_records_unknown_tool_as_error() -> None:
     assert len(result.tool_calls) == 1
     rec = result.tool_calls[0]
     assert rec.ok is False
-    assert isinstance(rec.result, dict) and "Unknown tool" in rec.result.get("error", "")
+    assert isinstance(rec.result, dict)
+    error_text = rec.result.get("error", "")
+    assert "Unknown tool" in error_text or "not allowed" in error_text.lower()
     print("OK unknown tool recorded as error, loop continues")
 
 

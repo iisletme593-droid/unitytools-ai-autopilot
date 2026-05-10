@@ -4,11 +4,15 @@ A role is the (system prompt, allowed tools, default model) tuple a
 RoleAgent uses for one run. Phase 2 ships three roles — Producer,
 Designer, Critic — that operate on documents only. Engine-aware roles
 arrive in later phases.
+
+Numeric thresholds in prompts come from `studio/config.py` so a single
+edit affects both prompt text and code paths.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .config import STUDIO_DEFAULTS
 from .tools import ALL_STUDIO_TOOL_NAMES
 
 
@@ -57,7 +61,7 @@ OPERATING RULES — follow in order
 8. Update the task status:
      - "done" if the verification looks acceptable
      - "blocked" if you hit a tool error or the verification regressed
-       (composition_match below 0.5, or a clearly wrong outcome)
+       (composition_match below {worker_block_threshold}, or a clearly wrong outcome)
    Always include a short text summary in your final reply describing
    what you did and what you saw.
 9. If something genuinely surprising happened — an unexpected scene
@@ -93,9 +97,10 @@ OPERATING RULES
    for placement/layout work, role="art_director" for material/palette
    work, role="tech_artist" for lighting/post). Title format:
    "Place <item> at <where_should_be>" or "Add <item>".
-5. If the composition_match is below 0.6, propose a decision titled
-   "Re-block level X" with the rationale "composition diverged from
-   reference" — that lets the Critic weigh in before a costly redo.
+5. If the composition_match is below {level_designer_reblock_threshold},
+   propose a decision titled "Re-block level X" with the rationale
+   "composition diverged from reference" — that lets the Critic weigh
+   in before a costly redo.
 6. End with a 4-line summary: scores, top missing item, top misplaced
    item, your follow-up task ids.
 
@@ -154,7 +159,8 @@ OPERATING RULES
 6. Tasks must be small enough that the owning role can finish them in
    one run. Split big asks ("design the combat system") into smaller
    ones ("draft combat overview", "list 3 weapon archetypes", ...).
-7. Never open more than 5 new tasks in a single run. Quality > volume.
+7. Never open more than {max_tasks_per_producer_run} new tasks in a
+   single run. Quality > volume.
 8. End your turn with a 3-line plain-text summary the daily review file
    will pin: what you saw, what you opened, what's the next blocker.
 
@@ -227,10 +233,19 @@ TONE
 """
 
 
+def _format(template: str) -> str:
+    """Fill threshold placeholders in a role prompt with current defaults."""
+    return template.format(
+        worker_block_threshold=STUDIO_DEFAULTS.worker_block_threshold,
+        level_designer_reblock_threshold=STUDIO_DEFAULTS.level_designer_reblock_threshold,
+        max_tasks_per_producer_run=STUDIO_DEFAULTS.max_tasks_per_producer_run,
+    )
+
+
 PRODUCER = RoleConfig(
     id="producer",
     name="Producer",
-    system_prompt=_PRODUCER_PROMPT,
+    system_prompt=_format(_PRODUCER_PROMPT),
     allowed_tools=(
         "studio_get_summary",
         "studio_read_gdd",
@@ -250,7 +265,7 @@ PRODUCER = RoleConfig(
 DESIGNER = RoleConfig(
     id="designer",
     name="Designer",
-    system_prompt=_DESIGNER_PROMPT,
+    system_prompt=_format(_DESIGNER_PROMPT),
     allowed_tools=(
         "studio_get_summary",
         "studio_read_gdd",
@@ -263,7 +278,7 @@ DESIGNER = RoleConfig(
 CRITIC = RoleConfig(
     id="critic",
     name="Critic",
-    system_prompt=_CRITIC_PROMPT,
+    system_prompt=_format(_CRITIC_PROMPT),
     allowed_tools=(
         "studio_get_summary",
         "studio_read_gdd",
@@ -278,7 +293,7 @@ CRITIC = RoleConfig(
 LEVEL_DESIGNER = RoleConfig(
     id="level_designer",
     name="Level Designer",
-    system_prompt=_LEVEL_DESIGNER_PROMPT,
+    system_prompt=_format(_LEVEL_DESIGNER_PROMPT),
     allowed_tools=(
         "studio_get_summary",
         "studio_read_gdd",
@@ -296,7 +311,7 @@ LEVEL_DESIGNER = RoleConfig(
 ART_DIRECTOR = RoleConfig(
     id="art_director",
     name="Art Director",
-    system_prompt=_ART_DIRECTOR_PROMPT,
+    system_prompt=_format(_ART_DIRECTOR_PROMPT),
     allowed_tools=(
         "studio_get_summary",
         "studio_read_art_bible",
@@ -314,7 +329,7 @@ ART_DIRECTOR = RoleConfig(
 WORKER = RoleConfig(
     id="worker",
     name="Worker",
-    system_prompt=_WORKER_PROMPT,
+    system_prompt=_format(_WORKER_PROMPT),
     allowed_tools=(
         # Studio context (read-only)
         "studio_get_summary",

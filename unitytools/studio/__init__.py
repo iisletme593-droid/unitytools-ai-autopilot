@@ -31,8 +31,18 @@ from .roles import (
     get_role,
     all_roles,
 )
-from .runner import RoleRunner, RoleRunResult, ToolCallRecord, LLMClient, AnthropicClient, make_default_client
+from .runner import (
+    RoleRunner,
+    RoleRunResult,
+    ToolCallRecord,
+    LLMClient,
+    AnthropicClient,
+    RehearsalLLM,
+    has_rehearsal_for,
+    make_default_client,
+)
 from .vision import VisionClient, AnthropicVisionClient, make_default_vision_client
+from .config import StudioThresholds, STUDIO_DEFAULTS
 from .review import Phase, ReviewRecord, brief_for, run_review, write_review
 from .loop import LoopRunner, LoopStats
 
@@ -67,7 +77,12 @@ __all__ = [
     "ToolCallRecord",
     "LLMClient",
     "AnthropicClient",
+    "RehearsalLLM",
+    "has_rehearsal_for",
     "make_default_client",
+    # config
+    "StudioThresholds",
+    "STUDIO_DEFAULTS",
     # vision
     "VisionClient",
     "AnthropicVisionClient",

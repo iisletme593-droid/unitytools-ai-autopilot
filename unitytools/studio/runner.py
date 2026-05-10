@@ -131,7 +131,21 @@ def _filter_tools(role: RoleConfig) -> list[dict]:
     return [spec for spec in to_anthropic_format() if spec["name"] in allowed]
 
 
-def _execute_tool(name: str, args: dict) -> tuple[Any, bool]:
+def _execute_tool(name: str, args: dict, allowed: Optional[set[str]] = None) -> tuple[Any, bool]:
+    """Execute one tool call.
+
+    `allowed` is the role's tool whitelist. The runner only advertises
+    these to the LLM, but a confused or adversarial model may still emit
+    a tool_call for something else (hallucination from training data,
+    schema confusion). We refuse to dispatch outside the allowlist so
+    the role's sandbox is enforced at the *execution* layer too.
+    """
+    if allowed is not None and name not in allowed:
+        logger.warning("Refusing tool call %r — not in role allowlist", name)
+        return (
+            {"ok": False, "error": f"Tool {name!r} is not allowed for this role.", "error_type": "ToolNotAllowed"},
+            False,
+        )
     spec = get_tool(name)
     if spec is None:
         return ({"ok": False, "error": f"Unknown tool {name!r}"}, False)
@@ -201,7 +215,7 @@ class RoleRunner:
                     except Exception:
                         logger.exception("on_tool_call callback failed")
 
-                payload, ok = _execute_tool(name, args)
+                payload, ok = _execute_tool(name, args, allowed=role.tool_set)
                 result.tool_calls.append(ToolCallRecord(name=name, input=args, result=payload, ok=ok))
                 if on_tool_result:
                     try:
@@ -234,3 +248,111 @@ def make_default_client(config: Config) -> LLMClient:
         "RoleRunner currently requires Anthropic. Set ANTHROPIC_API_KEY and "
         "UNITYTOOLS_PROVIDER=anthropic, or pass a custom LLMClient."
     )
+
+
+# ─── Rehearsal (dry-run) LLM ───────────────────────────────────────────
+
+
+# Per-role canned tool sequences used by dry-run mode. Each entry is one
+# scripted "turn"; None marks the terminating turn (no tool calls, end of
+# rehearsal). Engine-aware roles intentionally have NO script here — without
+# a real Unity bridge they would write garbage; if you must rehearse them,
+# inject a fake bridge plus a custom RehearsalLLM script.
+_REHEARSAL_SCRIPTS: dict[str, list[Optional[dict]]] = {
+    "producer": [
+        {"name": "studio_get_summary", "input": {}},
+        {"name": "studio_list_tasks", "input": {}},
+        {"name": "studio_list_decisions", "input": {"limit": 10}},
+        None,
+    ],
+    "designer": [
+        {"name": "studio_get_summary", "input": {}},
+        {"name": "studio_read_gdd", "input": {}},
+        # If the GDD is empty, fill it with a placeholder so the next pass
+        # has something concrete to react to.
+        {
+            "name": "studio_write_gdd",
+            "input": {
+                "content": (
+                    "# Game Design Document\n\n"
+                    "## 1. Pitch\n"
+                    "_(rehearsal placeholder — replace with a real pitch)_\n\n"
+                    "## 2. Core Loop\n"
+                    "_(rehearsal placeholder)_\n\n"
+                    "## 3. Pillars\n"
+                    "- _(rehearsal placeholder)_\n"
+                ),
+            },
+        },
+        None,
+    ],
+    "critic": [
+        {"name": "studio_get_summary", "input": {}},
+        {"name": "studio_read_gdd", "input": {}},
+        {"name": "studio_list_decisions", "input": {"limit": 20}},
+        None,
+    ],
+}
+
+
+class RehearsalLLM:
+    """Deterministic, no-network LLM for dry-run mode.
+
+    Plays a per-role canned tool sequence so a user without an API key
+    can still wire up a project, see the workflow execute end-to-end,
+    and verify disk state changes. NOT a substitute for a real run —
+    its tool calls are template-grade, not project-aware.
+    """
+
+    def __init__(self, role_id: str):
+        self.role_id = role_id
+        self._script: list[Optional[dict]] = list(_REHEARSAL_SCRIPTS.get(role_id, []))
+        self._cursor = 0
+        self.calls: int = 0
+
+    def complete(self, system: str, tools: list[dict], messages: list[dict]) -> dict:
+        self.calls += 1
+        if not self._script or self._cursor >= len(self._script):
+            return {
+                "text": (
+                    f"[rehearsal: role {self.role_id!r} has no scripted actions. "
+                    "Run with a real LLM client for meaningful work.]"
+                ),
+                "tool_calls": [],
+                "stop_reason": "end_turn",
+                "raw_content": None,
+            }
+        step = self._script[self._cursor]
+        self._cursor += 1
+        if step is None:
+            return {
+                "text": (
+                    f"[rehearsal complete: {self._cursor - 1} scripted tool calls played for "
+                    f"role {self.role_id!r}. Disk state should reflect the rehearsal.]"
+                ),
+                "tool_calls": [],
+                "stop_reason": "end_turn",
+                "raw_content": None,
+            }
+        # Defensive: skip calls that the role's own allowlist won't permit.
+        # The runner will refuse them anyway, but that's a wasted round-trip.
+        advertised = {t["name"] for t in tools}
+        if step["name"] not in advertised:
+            logger.warning(
+                "Rehearsal step %r skipped — tool not advertised to role %r",
+                step["name"],
+                self.role_id,
+            )
+            # Skip ahead: re-issue complete() recursively via a synthetic step.
+            return self.complete(system, tools, messages)
+        return {
+            "text": "",
+            "tool_calls": [{"id": f"reh-{self._cursor}", "name": step["name"], "input": dict(step.get("input", {}))}],
+            "stop_reason": "tool_use",
+            "raw_content": None,
+        }
+
+
+def has_rehearsal_for(role_id: str) -> bool:
+    """Whether dry-run mode has a canned script for this role."""
+    return role_id in _REHEARSAL_SCRIPTS
