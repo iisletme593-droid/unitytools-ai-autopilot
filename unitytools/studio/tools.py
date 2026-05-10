@@ -1,27 +1,44 @@
-"""Doc-level studio tools — exposed to RoleAgents via the tool registry.
+"""Doc-level + visual studio tools — exposed to RoleAgents via the tool registry.
 
 Phase 2 surface: read/write the canonical project documents (GDD, art
 bible, sprint), and append to the structured records (backlog, decisions).
-No engine calls. Roles operate on text + JSON only.
-
-The state object is injected once via `init_studio_tools(state)` so the
-@tool functions stay zero-arg-friendly for the LLM.
+Phase 3 surface: capture engine screenshots and compare them to reference
+images via a vision model. Engine and vision dependencies are injected
+through separate `init_studio_*` calls so tests can swap fakes.
 """
 from __future__ import annotations
 
+import shutil
+import time
+from pathlib import Path
 from typing import Any, Optional
 
 from ..core.tool_registry import tool
 from .models import Decision, DecisionStatus, Milestone, MilestoneStatus, ROLES, Task, TaskStatus
 from .state import StudioState
+from .vision import VisionClient, guess_mime
 
 _STATE: Optional[StudioState] = None
+_UNITY: Any = None  # UnityBridge or any object with .is_connected() and .call()
+_VISION: Optional[VisionClient] = None
 
 
 def init_studio_tools(state: StudioState) -> None:
     """Inject the studio state used by all `studio_*` tools."""
     global _STATE
     _STATE = state
+
+
+def init_studio_unity(unity_bridge: Any) -> None:
+    """Inject the Unity bridge used by `studio_capture_screenshot`."""
+    global _UNITY
+    _UNITY = unity_bridge
+
+
+def init_studio_vision(vision_client: VisionClient) -> None:
+    """Inject the vision client used by `studio_compare_to_reference`."""
+    global _VISION
+    _VISION = vision_client
 
 
 def _require_state() -> StudioState:
@@ -214,21 +231,149 @@ def studio_get_summary() -> dict:
     return {"ok": True, **state.summary()}
 
 
+# ─── References (read-only listing) ────────────────────────────────────
+
+@tool(description="List reference images currently sitting under studio/refs/. Use these as targets for studio_compare_to_reference.")
+def studio_list_references() -> dict:
+    state = _require_state()
+    refs_dir = state.paths.refs
+    if not refs_dir.is_dir():
+        return {"ok": True, "count": 0, "references": []}
+    refs = sorted(p for p in refs_dir.iterdir() if p.is_file() and not p.name.startswith("."))
+    return {
+        "ok": True,
+        "count": len(refs),
+        "references": [
+            {"name": p.name, "path": str(p), "size_bytes": p.stat().st_size}
+            for p in refs
+        ],
+    }
+
+
+@tool(description="List screenshots captured into studio/qa/screenshots/, newest first.")
+def studio_list_screenshots(limit: int = 20) -> dict:
+    state = _require_state()
+    shots_dir = state.paths.qa_screenshots
+    if not shots_dir.is_dir():
+        return {"ok": True, "count": 0, "screenshots": []}
+    shots = sorted(
+        (p for p in shots_dir.iterdir() if p.is_file() and p.suffix.lower() in {".png", ".jpg", ".jpeg"}),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    shots = shots[: max(1, int(limit or 1))]
+    return {
+        "ok": True,
+        "count": len(shots),
+        "screenshots": [
+            {"name": p.name, "path": str(p), "size_bytes": p.stat().st_size, "mtime": p.stat().st_mtime}
+            for p in shots
+        ],
+    }
+
+
+# ─── Engine capture ────────────────────────────────────────────────────
+
+@tool(description="Capture a SceneView screenshot from Unity Editor and copy it under studio/qa/screenshots/. Requires Unity to be open and the bridge connected. Use a short hint name like 'level_1_overview' to label the file.")
+def studio_capture_screenshot(name: str = "scene") -> dict:
+    state = _require_state()
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected. Run init_studio_unity(bridge) first."}
+    if hasattr(_UNITY, "is_connected") and not _UNITY.is_connected():
+        return {"ok": False, "error": "Unity Editor is not connected. Open Unity and start the BridgeServer."}
+    try:
+        result = _UNITY.call("run_visual_qa", {"capture_screenshot": True}, timeout=60)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"Unity RPC failed: {exc}", "error_type": type(exc).__name__}
+
+    raw_path = ""
+    if isinstance(result, dict):
+        raw_path = result.get("screenshot_path") or result.get("path") or ""
+    if not raw_path:
+        return {"ok": False, "error": "Unity did not return a screenshot path.", "raw": result}
+    src = Path(raw_path)
+    if not src.exists():
+        return {"ok": False, "error": f"Screenshot file does not exist: {src}"}
+
+    state.paths.qa_screenshots.mkdir(parents=True, exist_ok=True)
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in (name or "scene")).strip("_") or "scene"
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    dest = state.paths.qa_screenshots / f"{timestamp}_{safe_name}{src.suffix or '.png'}"
+    shutil.copy2(src, dest)
+    return {
+        "ok": True,
+        "path": str(dest),
+        "name": dest.name,
+        "size_bytes": dest.stat().st_size,
+        "source": str(src),
+    }
+
+
+# ─── Vision compare ────────────────────────────────────────────────────
+
+@tool(description="Compare a screenshot against a reference image using Claude vision. Returns a structured diff (missing/extra/misplaced items, palette and composition scores). Both paths must exist; reference is typically under studio/refs/, screenshot under studio/qa/screenshots/.")
+def studio_compare_to_reference(reference_path: str, screenshot_path: str, instruction: str = "") -> dict:
+    state = _require_state()
+    if _VISION is None:
+        return {"ok": False, "error": "Vision client not injected. Run init_studio_vision(client) first."}
+    ref = Path(reference_path)
+    cand = Path(screenshot_path)
+    if not ref.exists():
+        return {"ok": False, "error": f"Reference not found: {ref}"}
+    if not cand.exists():
+        return {"ok": False, "error": f"Screenshot not found: {cand}"}
+    try:
+        diff = _VISION.compare(
+            reference_bytes=ref.read_bytes(),
+            reference_mime=guess_mime(ref),
+            candidate_bytes=cand.read_bytes(),
+            candidate_mime=guess_mime(cand),
+            instruction=instruction,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"Vision compare failed: {exc}", "error_type": type(exc).__name__}
+
+    # Persist a compact log entry into qa/regression.jsonl so the producer loop
+    # has a time-series of how close we are to references.
+    state.append_regression_entry(
+        {
+            "ts": time.time(),
+            "kind": "vision_compare",
+            "reference": str(ref),
+            "screenshot": str(cand),
+            "composition_match": diff.get("composition_match"),
+            "palette_match": diff.get("palette_match"),
+            "missing": diff.get("missing"),
+            "extra": diff.get("extra"),
+        }
+    )
+    return {"ok": True, "reference": str(ref), "screenshot": str(cand), **diff}
+
+
 # ─── Convenience: list of all studio tool names (used by RoleConfig) ───
 
 ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
+    # docs
     "studio_read_gdd",
     "studio_write_gdd",
     "studio_read_art_bible",
     "studio_write_art_bible",
     "studio_read_sprint",
     "studio_write_sprint",
+    # backlog
     "studio_add_task",
     "studio_list_tasks",
     "studio_update_task_status",
+    # decisions / milestones
     "studio_propose_decision",
     "studio_list_decisions",
     "studio_add_milestone",
     "studio_list_milestones",
+    # status
     "studio_get_summary",
+    # references + screenshots
+    "studio_list_references",
+    "studio_list_screenshots",
+    "studio_capture_screenshot",
+    "studio_compare_to_reference",
 )

@@ -92,7 +92,9 @@ def _fresh_studio() -> tuple[StudioState, Path]:
 def test_role_definitions_are_consistent() -> None:
     valid = set(ALL_STUDIO_TOOL_NAMES)
     roles = all_roles()
-    assert {r.id for r in roles} == {"producer", "designer", "critic"}
+    # Three roles are guaranteed by Phase 2; later phases may add more.
+    role_ids = {r.id for r in roles}
+    assert {"producer", "designer", "critic"} <= role_ids
     for role in roles:
         assert role.tool_set, f"{role.id} has no tools"
         assert role.tool_set <= valid, f"{role.id} has unknown tools: {role.tool_set - valid}"

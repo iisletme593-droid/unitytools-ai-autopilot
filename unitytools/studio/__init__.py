@@ -3,7 +3,9 @@
 Phase 1: file layout, dataclasses, atomic state I/O.
 Phase 2: doc-level studio tools, three role configs (Producer / Designer
 / Critic), and a RoleRunner that drives one role through a brief.
-Higher-level engine roles and the producer loop build on this.
+Phase 3: vision grounding — Unity screenshot capture, Claude vision
+diff against reference images, two new roles (Level Designer, Art
+Director).
 
 Importing this package registers the studio_* tools with the global
 tool registry as a side effect.
@@ -12,9 +14,24 @@ from .paths import StudioPaths
 from .models import Task, Decision, Milestone, TaskStatus, DecisionStatus, MilestoneStatus
 from .state import StudioState
 from . import tools as _studio_tools  # registers @tool functions
-from .tools import init_studio_tools, ALL_STUDIO_TOOL_NAMES
-from .roles import RoleConfig, PRODUCER, DESIGNER, CRITIC, get_role, all_roles
+from .tools import (
+    init_studio_tools,
+    init_studio_unity,
+    init_studio_vision,
+    ALL_STUDIO_TOOL_NAMES,
+)
+from .roles import (
+    RoleConfig,
+    PRODUCER,
+    DESIGNER,
+    CRITIC,
+    LEVEL_DESIGNER,
+    ART_DIRECTOR,
+    get_role,
+    all_roles,
+)
 from .runner import RoleRunner, RoleRunResult, ToolCallRecord, LLMClient, AnthropicClient, make_default_client
+from .vision import VisionClient, AnthropicVisionClient, make_default_vision_client
 
 __all__ = [
     # state
@@ -28,12 +45,16 @@ __all__ = [
     "MilestoneStatus",
     # tools
     "init_studio_tools",
+    "init_studio_unity",
+    "init_studio_vision",
     "ALL_STUDIO_TOOL_NAMES",
     # roles
     "RoleConfig",
     "PRODUCER",
     "DESIGNER",
     "CRITIC",
+    "LEVEL_DESIGNER",
+    "ART_DIRECTOR",
     "get_role",
     "all_roles",
     # runner
@@ -43,4 +64,8 @@ __all__ = [
     "LLMClient",
     "AnthropicClient",
     "make_default_client",
+    # vision
+    "VisionClient",
+    "AnthropicVisionClient",
+    "make_default_vision_client",
 ]

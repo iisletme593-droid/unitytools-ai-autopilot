@@ -628,7 +628,10 @@ def cmd_studio_run(args: argparse.Namespace) -> int:
         StudioState,
         get_role,
         init_studio_tools,
+        init_studio_unity,
+        init_studio_vision,
         make_default_client,
+        make_default_vision_client,
         RoleRunner,
         all_roles,
     )
@@ -650,12 +653,36 @@ def cmd_studio_run(args: argparse.Namespace) -> int:
     state = StudioState(paths)
     init_studio_tools(state)
 
-    config, _, _ = _bootstrap()
+    config, _, unity = _bootstrap()
     try:
         client = make_default_client(config)
     except RuntimeError as exc:
         console.print(f"[red]{exc}[/red]")
         return 1
+
+    # Engine + vision bridges are only wired up when the role needs them. That
+    # way `studio-run --role designer` still works without Unity / vision API.
+    needs_engine = "studio_capture_screenshot" in role.tool_set
+    needs_vision = "studio_compare_to_reference" in role.tool_set
+    if needs_engine:
+        if unity.connect(timeout=2.0):
+            init_studio_unity(unity)
+            console.print("[dim]Unity bridge connected for screenshot capture.[/dim]")
+        else:
+            console.print(
+                "[yellow]Unity Editor not connected — studio_capture_screenshot will report not-connected. "
+                "Open Unity and try again, or run a non-engine role.[/yellow]"
+            )
+            init_studio_unity(unity)  # tool itself returns the error nicely
+    if needs_vision:
+        try:
+            init_studio_vision(make_default_vision_client(config))
+            console.print("[dim]Vision client ready (Anthropic Claude).[/dim]")
+        except RuntimeError as exc:
+            console.print(
+                f"[yellow]Vision client unavailable: {exc}[/yellow] "
+                "[dim](studio_compare_to_reference will return an error.)[/dim]"
+            )
 
     runner = RoleRunner(client, max_iterations=args.max_iterations)
     brief = args.brief or _default_brief_for(role.id)
@@ -686,6 +713,8 @@ def _default_brief_for(role_id: str) -> str:
         "producer": "Plan the next round of work. Read state, decide priorities, open up to 5 tasks. End with a 3-line summary.",
         "designer": "Read the current GDD and produce the smallest coherent improvement. If empty, draft a one-page initial GDD.",
         "critic": "Review the project for inconsistency between GDD, art bible, and recent decisions. Report top findings.",
+        "level_designer": "Pick a reference from studio/refs/, capture the current scene, compare them, and file follow-up tasks for any missing or misplaced items.",
+        "art_director": "Audit the current scene's palette against the dominant reference and the Art Bible. Update the bible only if the audit reveals a real direction shift; otherwise file tasks.",
     }.get(role_id, "Run your role on the current project state.")
 
 
@@ -819,7 +848,12 @@ def main() -> int:
     p_studio_status.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_run = sub.add_parser("studio-run", help="Run one studio role (producer | designer | critic) against the current project state")
     p_studio_run.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
-    p_studio_run.add_argument("--role", required=True, choices=("producer", "designer", "critic"), help="Which role to run")
+    p_studio_run.add_argument(
+        "--role",
+        required=True,
+        choices=("producer", "designer", "critic", "level_designer", "art_director"),
+        help="Which role to run",
+    )
     p_studio_run.add_argument("--brief", default="", help="Free-text brief for the role; uses a sensible default if omitted")
     p_studio_run.add_argument("--max-iterations", type=int, default=8, help="Cap on tool-call rounds")
     p_chat_srv = sub.add_parser("chat-server", help="Start the TCP chat server for the Editor window")
