@@ -621,6 +621,87 @@ def cmd_studio_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_studio_run(args: argparse.Namespace) -> int:
+    """Run a single studio role against the project state with a brief."""
+    from ..studio import (
+        StudioPaths,
+        StudioState,
+        get_role,
+        init_studio_tools,
+        make_default_client,
+        RoleRunner,
+        all_roles,
+    )
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init --project {project}` first."
+        )
+        return 1
+    try:
+        role = get_role(args.role)
+    except KeyError:
+        names = ", ".join(r.id for r in all_roles())
+        console.print(f"[red]Unknown role {args.role!r}. Choose one of: {names}[/red]")
+        return 1
+
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    config, _, _ = _bootstrap()
+    try:
+        client = make_default_client(config)
+    except RuntimeError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 1
+
+    runner = RoleRunner(client, max_iterations=args.max_iterations)
+    brief = args.brief or _default_brief_for(role.id)
+    console.print(f"[cyan]Running role[/cyan] [bold]{role.name}[/bold] ({role.id})")
+    console.print(f"[dim]Brief:[/dim] {brief}")
+
+    def _on_tool_call(name: str, params: dict) -> None:
+        console.print(f"  [dim]→ {name}({_short_kwargs(params)})[/dim]")
+
+    def _on_tool_result(name: str, result: Any) -> None:
+        ok = isinstance(result, dict) and result.get("ok", True)
+        marker = "[green][OK][/green]" if ok else "[red][ERR][/red]"
+        console.print(f"  [dim]← {name}[/dim] {marker}")
+
+    result = runner.run(role, brief, on_tool_call=_on_tool_call, on_tool_result=_on_tool_result)
+    console.print(
+        f"\n[bold]Done[/bold] — iterations={result.iterations}, "
+        f"tool_calls={len(result.tool_calls)}, stop={result.stop_reason}"
+    )
+    if result.text:
+        console.print("\n[bold cyan]Role output[/bold cyan]")
+        console.print(result.text)
+    return 0
+
+
+def _default_brief_for(role_id: str) -> str:
+    return {
+        "producer": "Plan the next round of work. Read state, decide priorities, open up to 5 tasks. End with a 3-line summary.",
+        "designer": "Read the current GDD and produce the smallest coherent improvement. If empty, draft a one-page initial GDD.",
+        "critic": "Review the project for inconsistency between GDD, art bible, and recent decisions. Report top findings.",
+    }.get(role_id, "Run your role on the current project state.")
+
+
+def _short_kwargs(params: dict) -> str:
+    if not params:
+        return ""
+    parts = []
+    for key, value in list(params.items())[:3]:
+        if isinstance(value, str) and len(value) > 40:
+            value = value[:37] + "…"
+        parts.append(f"{key}={value!r}")
+    if len(params) > 3:
+        parts.append("…")
+    return ", ".join(parts)
+
+
 def cmd_chat_server(args: argparse.Namespace) -> int:
     """Start the TCP chat server used by the Unity Editor window."""
     config, blender, unity = _bootstrap()
@@ -736,6 +817,11 @@ def main() -> int:
     p_studio_init.add_argument("--force", action="store_true", help="Overwrite starter docs if they already exist (JSON state is always preserved)")
     p_studio_status = sub.add_parser("studio-status", help="Show studio task / decision / milestone counts")
     p_studio_status.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_run = sub.add_parser("studio-run", help="Run one studio role (producer | designer | critic) against the current project state")
+    p_studio_run.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_run.add_argument("--role", required=True, choices=("producer", "designer", "critic"), help="Which role to run")
+    p_studio_run.add_argument("--brief", default="", help="Free-text brief for the role; uses a sensible default if omitted")
+    p_studio_run.add_argument("--max-iterations", type=int, default=8, help="Cap on tool-call rounds")
     p_chat_srv = sub.add_parser("chat-server", help="Start the TCP chat server for the Editor window")
     p_chat_srv.add_argument("--host", default="127.0.0.1")
     p_chat_srv.add_argument("--port", type=int, default=7778)
@@ -765,6 +851,7 @@ def main() -> int:
         "chat-server": cmd_chat_server,
         "studio-init": cmd_studio_init,
         "studio-status": cmd_studio_status,
+        "studio-run": cmd_studio_run,
     }
     if args.cmd is None:
         parser.print_help()
