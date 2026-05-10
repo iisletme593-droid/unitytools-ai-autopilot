@@ -91,6 +91,7 @@ graph layer; later phases depend only on earlier ones, never sideways.
 | 14 | `query_archive`, `studio-history` CLI, `studio_query_archive` tool | Filter + browse archived history (year, role, status, date range, search) |
 | 15 | `query_decisions`, `studio-decisions` CLI, `studio_query_decisions` tool | Filter + browse decisions.jsonl (author_role, status, date range, search) |
 | 16 | `milestones.py`, `studio-milestones` + `studio-tasks` CLIs, `studio_milestone_progress` tool | Computed milestone completion (counts active + archived); filtered backlog browser |
+| 17 | Producer milestone-aware prompt + `_check_stale_in_progress` | Standup cites real % per in_progress milestone; doctor warns on >7d stuck tasks |
 
 ### File layout
 

@@ -37,6 +37,7 @@ from unitytools.studio.diagnostics import (
     _check_ollama_api,
     _check_pillow,
     _check_provider,
+    _check_stale_in_progress,
     _check_studio_root,
     _check_tool_registry,
     _check_unity_bridge,
@@ -257,6 +258,51 @@ def test_last_review_check_age_and_absence() -> None:
     print("OK last_review check (fresh / stale / missing)")
 
 
+def test_stale_in_progress_check_no_tasks() -> None:
+    state, _ = _fresh_studio()
+    c = _check_stale_in_progress(state)
+    assert c.status == "ok"
+    assert "no tasks" in c.detail.lower()
+    print("OK stale_in_progress: empty backlog -> ok")
+
+
+def test_stale_in_progress_check_fresh_in_progress_is_ok() -> None:
+    state, _ = _fresh_studio()
+    fresh = Task(title="just started", role="worker", status=TaskStatus.IN_PROGRESS)
+    fresh.created_at = fresh.updated_at = time.time() - 1 * 86400  # 1 day ago
+    state.add_task(fresh)
+    c = _check_stale_in_progress(state)
+    assert c.status == "ok"
+    print("OK stale_in_progress: fresh task -> ok")
+
+
+def test_stale_in_progress_check_old_task_warns() -> None:
+    state, _ = _fresh_studio()
+    old = Task(title="stuck for ages", role="worker", status=TaskStatus.IN_PROGRESS)
+    old.created_at = old.updated_at = time.time() - 14 * 86400  # 14 days ago
+    state.add_task(old)
+    # Also add a fresh one to confirm only stale ones count
+    fresh = Task(title="recent", role="worker", status=TaskStatus.IN_PROGRESS)
+    fresh.created_at = fresh.updated_at = time.time() - 1 * 86400
+    state.add_task(fresh)
+    c = _check_stale_in_progress(state)
+    assert c.status == "warn"
+    assert "1 task" in c.detail
+    assert "studio-autopilot" in c.detail
+    print("OK stale_in_progress: only counts tasks past 7d threshold")
+
+
+def test_stale_in_progress_ignores_other_statuses() -> None:
+    state, _ = _fresh_studio()
+    # An ancient PENDING task should NOT trigger this check
+    pending = Task(title="ancient pending", role="designer", status=TaskStatus.PENDING)
+    pending.created_at = pending.updated_at = time.time() - 365 * 86400
+    state.add_task(pending)
+    c = _check_stale_in_progress(state)
+    assert c.status == "ok"
+    print("OK stale_in_progress: only in_progress tasks count")
+
+
 def test_backlog_pressure_thresholds() -> None:
     state, _ = _fresh_studio()
     c = _check_backlog_pressure(state)
@@ -328,6 +374,10 @@ def run_test() -> None:
     test_config_overrides_check()
     test_unity_bridge_check_paths()
     test_last_review_check_age_and_absence()
+    test_stale_in_progress_check_no_tasks()
+    test_stale_in_progress_check_fresh_in_progress_is_ok()
+    test_stale_in_progress_check_old_task_warns()
+    test_stale_in_progress_ignores_other_statuses()
     test_backlog_pressure_thresholds()
     test_run_diagnostics_returns_structured_results()
     test_has_failure_true_when_any_fail()

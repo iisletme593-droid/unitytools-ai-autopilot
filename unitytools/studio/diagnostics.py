@@ -237,6 +237,34 @@ def _check_archivable_tasks(state: StudioState, now: Optional[float] = None, age
     )
 
 
+def _check_stale_in_progress(state: StudioState, now: Optional[float] = None, max_age_days: float = 7.0) -> Check:
+    """Warn when in_progress tasks have not moved in over a week.
+
+    The Dispatcher's "coerce stale in_progress to review" path runs on
+    every dispatch — but if no one runs dispatch (or the loop is
+    paused), tasks can rot in in_progress unseen. This check surfaces
+    them.
+    """
+    from .models import TaskStatus
+
+    now = now if now is not None else time.time()
+    cutoff = now - max(0.0, float(max_age_days)) * 86400.0
+    stale: list[str] = []
+    for t in state.load_tasks():
+        if t.status is not TaskStatus.IN_PROGRESS:
+            continue
+        ts = t.updated_at or t.created_at or 0.0
+        if ts and ts < cutoff:
+            stale.append(t.id[:10])
+    if not stale:
+        return Check("Stale in_progress", "ok", "no tasks stuck in_progress")
+    return Check(
+        "Stale in_progress",
+        "warn",
+        f"{len(stale)} task(s) stuck > {max_age_days:g}d -- run `studio-autopilot` or move them to review/blocked",
+    )
+
+
 def _check_backlog_pressure(state: StudioState) -> Check:
     """Surface a warning when too many tasks pile up in any single status."""
     from .models import TaskStatus
@@ -285,6 +313,7 @@ def run_diagnostics(
     checks.append(_check_unity_bridge(unity_bridge))
     checks.append(_check_last_review(state, now=now))
     checks.append(_check_backlog_pressure(state))
+    checks.append(_check_stale_in_progress(state, now=now))
     checks.append(_check_archivable_tasks(state, now=now))
     return checks
 
