@@ -82,6 +82,10 @@ graph layer; later phases depend only on earlier ones, never sideways.
 | 6 | `studio/config.py`, RehearsalLLM, allowlist sandbox | Threshold templating, dry-run mode, security hardening |
 | 7 | `studio/dispatch.py`, `studio-autopilot` CLI | Auto-routing tasks to roles; closes the autonomy circuit |
 | 8 | `studio/runner.py:OllamaClient` | Local model provider; Gemma 4 / Qwen 2.5 driven studios |
+| 9 | `docs/STUDIO.md`, `studio-loop --with-dispatch` | Documentation + review-then-dispatch in one cadence |
+| 10a | `studio/config.py:load_thresholds`, `state.thresholds` | Project-level threshold override via `studio/config.json` |
+| 10b | `studio_visual_regression_check`, Pillow MAD diff | Cheap local pre-filter before vision compare |
+| 11 | `studio/diagnostics.py`, `studio-doctor` CLI | One-command health check across provider, Ollama, Pillow, disk, Unity |
 
 ### File layout
 
@@ -178,6 +182,33 @@ for starter docs:
 unitytools studio-init --project .
 unitytools studio-init --project . --force   # rewrite gdd.md / art_bible.md
 ```
+
+### `studio-doctor`
+
+One-command health check across the whole studio. Runs in 1-2 seconds
+because every probe is bounded:
+
+```sh
+unitytools studio-doctor
+# Studio Doctor
+#   [OK]   Studio root        /path/to/studio
+#   [OK]   Provider           ollama, model gemma4:latest
+#   [OK]   Ollama API         reachable, target installed (6 total)
+#   [WARN] Anthropic key      absent -- compare-tool unavailable
+#   [OK]   Pillow             11.3.0
+#   [OK]   Tool registry      132 total, 21 studio_*
+#   [OK]   Disk state         all canonical files present
+#   [OK]   Config overrides   no config.json (using defaults)
+#   [WAIT] Unity bridge       Editor not connected -- engine tasks will skip
+#   [WARN] Last review        no reviews yet
+#   [OK]   Backlog            0 tasks (fresh project)
+#
+# Summary: ok=8, warn=2, wait=1
+```
+
+Exit code: 1 only when at least one check is `[FAIL]`. Warnings and
+waits are 0-exit so cron / CI does not flap on transient
+editor-not-connected states.
 
 ### `studio-status`
 
@@ -355,6 +386,26 @@ Atomic writes go via `tempfile + os.replace` so a crash mid-write
 cannot leave half-written JSON.
 
 ## Tuning
+
+### Project-level overrides (studio/config.json)
+
+Drop a `studio/config.json` at the project root to override any subset
+of `StudioThresholds`. Unknown keys are ignored with a warning;
+malformed JSON falls back to defaults. `studio-doctor` and
+`studio-status` both surface what's effective.
+
+```json
+{
+  "max_tasks_per_producer_run": 8,
+  "max_worker_iterations": 16
+}
+```
+
+The two threshold values templated into role prompts at module-import
+time (`worker_block_threshold`, `level_designer_reblock_threshold`)
+are exceptions: project overrides apply to code paths that read them,
+but do NOT rewrite the prompt text. To change those, edit
+`config.py` defaults and reimport, or build custom RoleConfigs.
 
 ### Thresholds
 

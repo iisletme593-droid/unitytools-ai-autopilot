@@ -589,6 +589,55 @@ def cmd_studio_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_studio_doctor(args: argparse.Namespace) -> int:
+    """Run all studio health checks. Exits 1 only when any check is 'fail'."""
+    from ..studio import (
+        StudioPaths,
+        StudioState,
+        has_failure,
+        init_studio_tools,
+        run_diagnostics,
+    )
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init --project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    config, _, unity = _bootstrap()
+    # Best-effort connect for diagnostics; the check itself is tolerant.
+    try:
+        unity.connect(timeout=2.0)
+    except Exception:
+        pass
+
+    checks = run_diagnostics(state, config, unity_bridge=unity)
+    console.print("[bold cyan]Studio Doctor[/bold cyan]")
+    marker = {
+        "ok": "[green][OK][/green]",
+        "warn": "[yellow][WARN][/yellow]",
+        "fail": "[red][FAIL][/red]",
+        "wait": "[yellow][WAIT][/yellow]",
+    }
+    for c in checks:
+        line = f"  {marker.get(c.status, c.status.upper()):<19} {c.name:<20}"
+        if c.detail:
+            line += f"  {c.detail}"
+        console.print(line)
+
+    counts = {"ok": 0, "warn": 0, "fail": 0, "wait": 0}
+    for c in checks:
+        counts[c.status] = counts.get(c.status, 0) + 1
+    summary_parts = [f"{k}={counts[k]}" for k in ("ok", "warn", "wait", "fail") if counts.get(k)]
+    console.print(f"\n[dim]Summary: {', '.join(summary_parts)}[/dim]")
+    return 1 if has_failure(checks) else 0
+
+
 def cmd_studio_status(args: argparse.Namespace) -> int:
     import dataclasses as _dc
 
@@ -1233,6 +1282,8 @@ def main() -> int:
     p_studio_init = sub.add_parser("studio-init", help="Scaffold studio/ project state (GDD, backlog, decisions, art bible)")
     p_studio_init.add_argument("--project", default=".", help="Project root that should contain studio/ (default: cwd)")
     p_studio_init.add_argument("--force", action="store_true", help="Overwrite starter docs if they already exist (JSON state is always preserved)")
+    p_studio_doctor = sub.add_parser("studio-doctor", help="Run studio health checks (provider, Ollama, Pillow, Unity bridge, disk state, recent activity).")
+    p_studio_doctor.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_status = sub.add_parser("studio-status", help="Show studio task / decision / milestone counts")
     p_studio_status.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_run = sub.add_parser("studio-run", help="Run one studio role (producer | designer | critic) against the current project state")
@@ -1344,6 +1395,7 @@ def main() -> int:
         "blender-export": cmd_blender_export,
         "chat-server": cmd_chat_server,
         "studio-init": cmd_studio_init,
+        "studio-doctor": cmd_studio_doctor,
         "studio-status": cmd_studio_status,
         "studio-run": cmd_studio_run,
         "studio-review": cmd_studio_review,

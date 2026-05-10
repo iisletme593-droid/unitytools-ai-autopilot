@@ -68,11 +68,17 @@ OPERATING RULES — follow in order
 5. After placement, call unity_set_position / unity_set_rotation /
    unity_set_scale to land the object where the task says it goes.
 6. Save the scene with unity_save_scene.
-7. Verify visually:
-     studio_capture_screenshot(name="<task_id>_after")
-   If a reference image was named in the task, also call
-   studio_compare_to_reference. Read the diff carefully — composition
-   or palette degradation here means your work made things worse.
+7. Verify visually, in two stages to save tokens:
+     a. studio_capture_screenshot(name="<task_id>_after")
+     b. If a reference image was named in the task, FIRST call
+        studio_visual_regression_check(reference_path, screenshot_path).
+        This is a cheap local pixel-diff with no LLM cost. If the
+        returned similarity is above ~0.95 the scene barely changed;
+        treat it as "no regression" and skip the expensive vision
+        compare unless the task explicitly demands one.
+     c. Otherwise call studio_compare_to_reference for the real
+        perceptual diff. Read it carefully — composition or palette
+        degradation here means your work made things worse.
 8. Update the task status:
      - "done" if the verification looks acceptable
      - "blocked" if you hit a tool error or the verification regressed

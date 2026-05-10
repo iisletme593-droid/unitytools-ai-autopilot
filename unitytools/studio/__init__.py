@@ -47,6 +47,7 @@ from .config import StudioThresholds, STUDIO_DEFAULTS, load_thresholds
 from .review import Phase, ReviewRecord, brief_for, run_review, write_review
 from .loop import LoopRunner, LoopStats
 from .dispatch import Dispatcher, DispatchResult, DispatchSummary, DISPATCH_MAP
+from .diagnostics import Check, run_diagnostics, has_failure
 
 __all__ = [
     # state
@@ -104,4 +105,8 @@ __all__ = [
     "DispatchResult",
     "DispatchSummary",
     "DISPATCH_MAP",
+    # diagnostics
+    "Check",
+    "run_diagnostics",
+    "has_failure",
 ]
