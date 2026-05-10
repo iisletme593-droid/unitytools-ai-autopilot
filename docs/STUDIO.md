@@ -88,6 +88,7 @@ graph layer; later phases depend only on earlier ones, never sideways.
 | 11 | `studio/diagnostics.py`, `studio-doctor` CLI | One-command health check across provider, Ollama, Pillow, disk, Unity |
 | 12 | `studio/archive.py`, `studio-archive` CLI | Auto-archival of old done/rejected tasks into per-year files |
 | 13 | `LoopRunner.archiver_every`, `--auto-archive-every-passes` | Recurring loop runs auto-archive every Nth pass (hands-off maintenance) |
+| 14 | `query_archive`, `studio-history` CLI, `studio_query_archive` tool | Filter + browse archived history (year, role, status, date range, search) |
 
 ### File layout
 
@@ -211,6 +212,24 @@ unitytools studio-doctor
 Exit code: 1 only when at least one check is `[FAIL]`. Warnings and
 waits are 0-exit so cron / CI does not flap on transient
 editor-not-connected states.
+
+### `studio-history`
+
+Read-only browser over the archive. Filters compose; output is
+human-readable by default, `--json` for piping into other tools.
+
+```sh
+unitytools studio-history                                  # last 50, newest first
+unitytools studio-history --year 2025 --role designer
+unitytools studio-history --status rejected --limit 10
+unitytools studio-history --since 2025-01-01 --until 2025-06-30
+unitytools studio-history --search "palette"
+unitytools studio-history --year 2025 --json | jq .
+```
+
+The same query is also exposed to the Producer and the Critic via the
+`studio_query_archive` tool, so a standup can ask "did we already do
+something like this?" before opening a duplicate task.
 
 ### `studio-archive`
 

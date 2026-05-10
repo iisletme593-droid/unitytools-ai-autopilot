@@ -450,6 +450,56 @@ def studio_recent_regressions(hours: float = 24.0, kind: str = "", limit: int = 
     return {"ok": True, "count": len(entries), "entries": entries}
 
 
+@tool(description="Query archived (done/rejected) tasks from studio/archive/<YYYY>.json. Optional filters: year (0 = all years), role, status (done/rejected), search substring (matches title + description). Returns newest first, capped at limit. Use this when wondering 'did we already do something like this?'.")
+def studio_query_archive(
+    year: int = 0,
+    role: str = "",
+    status: str = "",
+    search: str = "",
+    limit: int = 30,
+) -> dict:
+    state = _require_state()
+    from .archive import query_archive
+
+    year_arg = year if isinstance(year, int) and year > 0 else None
+    status_arg = None
+    if status:
+        try:
+            status_arg = TaskStatus(status)
+        except ValueError:
+            return {"ok": False, "error": f"Unknown status {status!r}. Use one of: done, rejected (or any valid TaskStatus)."}
+    tasks = query_archive(
+        state,
+        year=year_arg,
+        role=role or None,
+        status=status_arg,
+        search=search,
+        limit=max(1, int(limit or 30)),
+    )
+    return {
+        "ok": True,
+        "count": len(tasks),
+        "filters": {
+            "year": year_arg,
+            "role": role or None,
+            "status": status_arg.value if status_arg else None,
+            "search": search or None,
+            "limit": limit,
+        },
+        "tasks": [
+            {
+                "id": t.id,
+                "title": t.title,
+                "role": t.role,
+                "status": t.status.value,
+                "milestone": t.milestone,
+                "completed_at": t.updated_at or t.created_at,
+            }
+            for t in tasks
+        ],
+    }
+
+
 @tool(description="List recent git commits from the project root. Returns up to limit commits (newest first). Returns an empty list if the project is not a git repo.")
 def studio_recent_commits(limit: int = 20) -> dict:
     state = _require_state()
@@ -520,4 +570,5 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",
+    "studio_query_archive",
 )

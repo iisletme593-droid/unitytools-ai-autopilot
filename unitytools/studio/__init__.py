@@ -55,6 +55,7 @@ from .archive import (
     archive_old_tasks,
     archive_summary,
     load_archived_tasks,
+    query_archive,
 )
 
 __all__ = [
@@ -124,4 +125,5 @@ __all__ = [
     "archive_old_tasks",
     "archive_summary",
     "load_archived_tasks",
+    "query_archive",
 ]

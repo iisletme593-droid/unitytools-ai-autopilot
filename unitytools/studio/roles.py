@@ -283,6 +283,8 @@ PRODUCER = RoleConfig(
         # Phase 4: fresh inputs for the standup/retro cadence
         "studio_recent_regressions",
         "studio_recent_commits",
+        # Phase 14: query historical context ("did we already do X?")
+        "studio_query_archive",
     ),
 )
 
@@ -316,6 +318,8 @@ CRITIC = RoleConfig(
         "studio_add_task",
         # Auto-dispatch lifecycle.
         "studio_update_task_status",
+        # Phase 14: query past decisions / completed work for consistency
+        "studio_query_archive",
     ),
 )
 

@@ -589,6 +589,93 @@ def cmd_studio_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_studio_history(args: argparse.Namespace) -> int:
+    """Browse archived tasks with optional filters. Read-only."""
+    import time as _time
+
+    from ..studio import (
+        StudioPaths,
+        StudioState,
+        TaskStatus,
+        init_studio_tools,
+        query_archive,
+    )
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init --project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    status_filter = None
+    if args.status:
+        try:
+            status_filter = TaskStatus(args.status)
+        except ValueError as exc:
+            console.print(f"[red]Unknown status {args.status!r}: {exc}[/red]")
+            return 1
+
+    def _parse_date(s: str) -> float | None:
+        if not s:
+            return None
+        try:
+            return _time.mktime(_time.strptime(s, "%Y-%m-%d"))
+        except ValueError:
+            console.print(f"[red]Bad date {s!r}; expected YYYY-MM-DD[/red]")
+            raise SystemExit(1)
+
+    since_ts = _parse_date(args.since) if args.since else None
+    until_ts = _parse_date(args.until) if args.until else None
+    if until_ts is not None:
+        until_ts += 86400.0  # inclusive end-of-day
+
+    tasks = query_archive(
+        state,
+        year=args.year if args.year and args.year > 0 else None,
+        role=args.role or None,
+        status=status_filter,
+        since=since_ts,
+        until=until_ts,
+        search=args.search or "",
+        limit=args.limit,
+    )
+
+    if args.json:
+        import json as _json
+        payload = [
+            {
+                "id": t.id,
+                "title": t.title,
+                "role": t.role,
+                "status": t.status.value,
+                "milestone": t.milestone,
+                "completed_at": t.updated_at or t.created_at,
+                "description": t.description,
+            }
+            for t in tasks
+        ]
+        console.print(_json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+
+    if not tasks:
+        console.print("[dim]No archived tasks matched.[/dim]")
+        return 0
+
+    console.print(f"[bold cyan]Archived tasks[/bold cyan] ({len(tasks)} shown, limit={args.limit})")
+    for t in tasks:
+        ts = t.updated_at or t.created_at or 0.0
+        date_str = _time.strftime("%Y-%m-%d", _time.localtime(ts)) if ts else "?"
+        status_marker = "[green][OK][/green]" if t.status is TaskStatus.DONE else "[red][REJ][/red]"
+        console.print(
+            f"  {status_marker} {t.id[:10]:<10}  {date_str}  {t.role:<15}  {t.title}"
+        )
+    return 0
+
+
 def cmd_studio_archive(args: argparse.Namespace) -> int:
     """Move old done/rejected tasks from backlog.json to studio/archive/<YYYY>.json."""
     from ..studio import (
@@ -1362,6 +1449,16 @@ def main() -> int:
     p_studio_init.add_argument("--force", action="store_true", help="Overwrite starter docs if they already exist (JSON state is always preserved)")
     p_studio_doctor = sub.add_parser("studio-doctor", help="Run studio health checks (provider, Ollama, Pillow, Unity bridge, disk state, recent activity).")
     p_studio_doctor.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_history = sub.add_parser("studio-history", help="Browse archived (done/rejected) tasks with filters.")
+    p_studio_history.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_history.add_argument("--year", type=int, default=0, help="Restrict to a single year (default: all years).")
+    p_studio_history.add_argument("--role", default="", help="Filter by owning role (e.g. designer, level_designer).")
+    p_studio_history.add_argument("--status", default="", help="Filter by status (e.g. done, rejected).")
+    p_studio_history.add_argument("--since", default="", help="Only tasks completed on/after this date (YYYY-MM-DD).")
+    p_studio_history.add_argument("--until", default="", help="Only tasks completed on/before this date (YYYY-MM-DD).")
+    p_studio_history.add_argument("--search", default="", help="Substring match against title + description.")
+    p_studio_history.add_argument("--limit", type=int, default=50, help="Cap on rows shown (default: 50).")
+    p_studio_history.add_argument("--json", action="store_true", help="Machine-readable JSON output.")
     p_studio_archive = sub.add_parser("studio-archive", help="Move old done/rejected tasks from backlog.json into studio/archive/<YYYY>.json")
     p_studio_archive.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_archive.add_argument("--older-than-days", type=float, default=None, help="Age threshold in days (default: 30).")
@@ -1492,6 +1589,7 @@ def main() -> int:
         "studio-init": cmd_studio_init,
         "studio-doctor": cmd_studio_doctor,
         "studio-archive": cmd_studio_archive,
+        "studio-history": cmd_studio_history,
         "studio-status": cmd_studio_status,
         "studio-run": cmd_studio_run,
         "studio-review": cmd_studio_review,

@@ -17,8 +17,10 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from unitytools.studio import (
+    CRITIC,
     DEFAULT_AGE_DAYS,
     DEFAULT_ARCHIVABLE_STATUSES,
+    PRODUCER,
     StudioPaths,
     StudioState,
     Task,
@@ -27,8 +29,10 @@ from unitytools.studio import (
     archive_summary,
     init_studio_tools,
     load_archived_tasks,
+    query_archive,
 )
 from unitytools.studio.diagnostics import _check_archivable_tasks
+from unitytools.studio.tools import studio_query_archive
 
 
 # ───────────────────────────────────────────── helpers
@@ -348,6 +352,143 @@ def test_default_constants_match_documented_values() -> None:
     print("OK exported defaults match documentation")
 
 
+# ───────────────────────────────── Phase 14: query_archive
+
+
+def _seed_archive(state: StudioState) -> None:
+    """Drop a hand-crafted set of archived tasks across years / roles / statuses."""
+    now = time.time()
+    seeds = [
+        # (age_days, role, status, title, description)
+        (45,  "designer",       TaskStatus.DONE,     "Refine pillars",            "shape pillar 2"),
+        (90,  "designer",       TaskStatus.REJECTED, "Add VR mode",               "scope creep"),
+        (200, "level_designer", TaskStatus.DONE,     "Block out level 1",         "first vertical slice"),
+        (400, "critic",         TaskStatus.DONE,     "Review co-op decision",     "approved"),
+        (500, "art_director",   TaskStatus.DONE,     "Lock palette",              "PS1 lo-fi"),
+    ]
+    for age, role, status, title, description in seeds:
+        t = Task(title=title, role=role, status=status, description=description)
+        t.created_at = t.updated_at = now - age * 86400
+        state.add_task(t)
+    archive_old_tasks(state, older_than_days=30, now=now)
+
+
+def test_query_archive_returns_all_newest_first_when_no_filter() -> None:
+    state, _ = _fresh_studio()
+    _seed_archive(state)
+    out = query_archive(state)
+    assert len(out) == 5
+    # Newest first
+    timestamps = [t.updated_at or t.created_at for t in out]
+    assert timestamps == sorted(timestamps, reverse=True)
+    print("OK query_archive default sort + no filter")
+
+
+def test_query_archive_year_filter() -> None:
+    state, _ = _fresh_studio()
+    now = time.time()
+    # Concrete years past the cutoff so they archive cleanly
+    for year, role, status in [
+        (2023, "designer", TaskStatus.DONE),
+        (2024, "level_designer", TaskStatus.DONE),
+        (2024, "critic", TaskStatus.REJECTED),
+    ]:
+        t = Task(title=f"y{year}-{role}", role=role, status=status)
+        t.created_at = t.updated_at = time.mktime((year, 6, 1, 12, 0, 0, 0, 0, 0))
+        state.add_task(t)
+    archive_old_tasks(state, older_than_days=30, now=now)
+    only_2024 = query_archive(state, year=2024)
+    assert len(only_2024) == 2
+    assert all(time.localtime(t.updated_at).tm_year == 2024 for t in only_2024)
+    print("OK query_archive year filter")
+
+
+def test_query_archive_role_and_status_filters() -> None:
+    state, _ = _fresh_studio()
+    _seed_archive(state)
+    designers = query_archive(state, role="designer")
+    assert {t.role for t in designers} == {"designer"}
+    rejected = query_archive(state, status=TaskStatus.REJECTED)
+    assert all(t.status is TaskStatus.REJECTED for t in rejected)
+    designer_rejected = query_archive(state, role="designer", status=TaskStatus.REJECTED)
+    assert len(designer_rejected) == 1
+    assert designer_rejected[0].title == "Add VR mode"
+    print("OK query_archive role + status filters compose")
+
+
+def test_query_archive_time_window() -> None:
+    state, _ = _fresh_studio()
+    _seed_archive(state)
+    now = time.time()
+    # Last 100 days only -> task1 (45d) only
+    cutoff_lower = now - 100 * 86400
+    recent = query_archive(state, since=cutoff_lower)
+    assert all((t.updated_at or t.created_at) >= cutoff_lower for t in recent)
+    assert len(recent) == 2  # 45d done + 90d rejected
+    # Older slice -- only stuff before 300 days ago
+    cutoff_upper = now - 300 * 86400
+    ancient = query_archive(state, until=cutoff_upper)
+    assert all((t.updated_at or t.created_at) <= cutoff_upper for t in ancient)
+    assert len(ancient) == 2  # 400d + 500d
+    print("OK query_archive since/until window")
+
+
+def test_query_archive_search_matches_title_and_description() -> None:
+    state, _ = _fresh_studio()
+    _seed_archive(state)
+    # Title hit
+    palette_hits = query_archive(state, search="palette")
+    assert len(palette_hits) == 1 and "palette" in palette_hits[0].title.lower()
+    # Description hit
+    creep_hits = query_archive(state, search="creep")
+    assert len(creep_hits) == 1 and "scope creep" in creep_hits[0].description.lower()
+    # Case insensitive
+    upper_hits = query_archive(state, search="PILLAR")
+    assert len(upper_hits) == 1
+    # Empty needle = no filter
+    all_hits = query_archive(state, search="")
+    assert len(all_hits) == 5
+    print("OK query_archive search needle (title + description, case-insensitive)")
+
+
+def test_query_archive_limit_caps_result() -> None:
+    state, _ = _fresh_studio()
+    _seed_archive(state)
+    capped = query_archive(state, limit=2)
+    assert len(capped) == 2
+    # Limit 0 means take all (current implementation: limit > 0 caps;
+    # 0 or negative returns the unbounded sorted set).
+    unbounded = query_archive(state, limit=0)
+    assert len(unbounded) == 5
+    print("OK query_archive limit cap")
+
+
+def test_studio_query_archive_tool_wraps_query() -> None:
+    state, _ = _fresh_studio()
+    _seed_archive(state)
+    result = studio_query_archive(role="designer", limit=10)
+    assert result["ok"] is True
+    assert result["count"] == 2
+    assert result["filters"]["role"] == "designer"
+    titles = [t["title"] for t in result["tasks"]]
+    assert "Refine pillars" in titles
+    assert "Add VR mode" in titles
+    # Status-string parsing
+    result = studio_query_archive(status="done")
+    assert all(t["status"] == "done" for t in result["tasks"])
+    # Bad status -> ok=False, not exception
+    bad = studio_query_archive(status="nonsense")
+    assert bad["ok"] is False
+    assert "Unknown status" in bad["error"]
+    print("OK studio_query_archive tool wraps with validation")
+
+
+def test_query_archive_in_producer_and_critic_allowlists() -> None:
+    assert "studio_query_archive" in PRODUCER.tool_set
+    assert "studio_query_archive" in CRITIC.tool_set
+    print("OK Producer + Critic both have studio_query_archive")
+
+
 def run_test() -> None:
     test_archive_does_nothing_when_backlog_is_empty()
     test_archive_skips_recent_tasks()
@@ -365,7 +506,15 @@ def run_test() -> None:
     test_archive_summary_reports_per_year_counts()
     test_archivable_tasks_diagnostic_warns_only_when_many()
     test_default_constants_match_documented_values()
-    print("All Phase 12 archive tests passed")
+    test_query_archive_returns_all_newest_first_when_no_filter()
+    test_query_archive_year_filter()
+    test_query_archive_role_and_status_filters()
+    test_query_archive_time_window()
+    test_query_archive_search_matches_title_and_description()
+    test_query_archive_limit_caps_result()
+    test_studio_query_archive_tool_wraps_query()
+    test_query_archive_in_producer_and_critic_allowlists()
+    print("All Phase 12 + 14 archive tests passed")
 
 
 if __name__ == "__main__":

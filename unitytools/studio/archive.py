@@ -186,6 +186,48 @@ def load_archived_tasks(state: StudioState, year: Optional[int] = None) -> list[
     return out
 
 
+def query_archive(
+    state: StudioState,
+    year: Optional[int] = None,
+    role: Optional[str] = None,
+    status: Optional[TaskStatus] = None,
+    since: Optional[float] = None,
+    until: Optional[float] = None,
+    search: str = "",
+    limit: int = 50,
+) -> list[Task]:
+    """Filter archived tasks by year / role / status / time window / text.
+
+    Returns newest-first (by updated_at then created_at), capped at `limit`.
+    Filtering happens in Python so callers can combine any predicates without
+    a schema change. Cheap for typical archive sizes (a few hundred tasks
+    per year); revisit if archives grow into the tens of thousands.
+    """
+    tasks = load_archived_tasks(state, year=year)
+    needle = (search or "").strip().lower()
+    role_filter = (role or "").strip()
+    out: list[Task] = []
+    for t in tasks:
+        if role_filter and t.role != role_filter:
+            continue
+        if status is not None and t.status is not status:
+            continue
+        ts = t.updated_at or t.created_at or 0.0
+        if since is not None and ts < since:
+            continue
+        if until is not None and ts > until:
+            continue
+        if needle:
+            haystack = (t.title or "").lower() + " " + (t.description or "").lower()
+            if needle not in haystack:
+                continue
+        out.append(t)
+    out.sort(key=lambda x: x.updated_at or x.created_at or 0.0, reverse=True)
+    if limit and limit > 0:
+        out = out[:limit]
+    return out
+
+
 def archive_summary(state: StudioState) -> dict:
     """High-level archive stats for diagnostics / status output."""
     archive_dir = state.paths.archive_root
