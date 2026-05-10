@@ -532,6 +532,95 @@ def cmd_unity_ping(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_studio_init(args: argparse.Namespace) -> int:
+    from ..studio.paths import StudioPaths
+    from ..studio.templates import starter_files
+
+    project = Path(args.project).expanduser().resolve()
+    if not project.exists():
+        console.print(f"[red][ERR] Project root does not exist: {project}[/red]")
+        return 1
+    paths = StudioPaths(project_root=project)
+    if paths.exists() and not args.force:
+        console.print(
+            f"[yellow]studio/ already exists at {paths.root}.[/yellow] "
+            "Use --force to overwrite starter docs (existing JSON/JSONL is preserved either way)."
+        )
+        return 1
+
+    for d in paths.all_dirs():
+        d.mkdir(parents=True, exist_ok=True)
+
+    written: list[Path] = []
+    skipped: list[Path] = []
+    for rel, content in starter_files().items():
+        target = paths.root / rel
+        if target.exists() and not args.force:
+            skipped.append(target)
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8", newline="\n")
+        written.append(target)
+
+    if not paths.backlog.exists():
+        paths.backlog.write_text(
+            json.dumps({"tasks": []}, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        written.append(paths.backlog)
+    if not paths.milestones.exists():
+        paths.milestones.write_text(
+            json.dumps({"milestones": []}, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        written.append(paths.milestones)
+    if not paths.decisions.exists():
+        paths.decisions.write_text("", encoding="utf-8")
+        written.append(paths.decisions)
+
+    console.print(f"[green][OK] Studio initialized at[/green] {paths.root}")
+    for p in written:
+        console.print(f"  + {p.relative_to(project)}")
+    for p in skipped:
+        console.print(f"  [dim]= {p.relative_to(project)} (kept existing)[/dim]")
+    console.print(
+        "[dim]Next: open studio/gdd.md and write your one-page pitch, then `unitytools studio status`.[/dim]"
+    )
+    return 0
+
+
+def cmd_studio_status(args: argparse.Namespace) -> int:
+    from ..studio.paths import StudioPaths
+    from ..studio.state import StudioState
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio init --project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    summary = state.summary()
+    console.print(f"[bold cyan]Studio[/bold cyan] {summary['studio_root']}")
+    console.print(
+        f"  Docs: GDD {'[green][OK][/green]' if summary['has_gdd'] else '[red]missing[/red]'}, "
+        f"Art Bible {'[green][OK][/green]' if summary['has_art_bible'] else '[red]missing[/red]'}, "
+        f"Sprint {'[green][OK][/green]' if summary['has_sprint'] else '[red]missing[/red]'}"
+    )
+    console.print(f"  Tasks:      {summary['task_count']}")
+    if summary["tasks_by_status"]:
+        for status, count in sorted(summary["tasks_by_status"].items()):
+            console.print(f"    - {status:<12} {count}")
+    if summary["tasks_by_role"]:
+        console.print("  By role:")
+        for role, count in sorted(summary["tasks_by_role"].items()):
+            console.print(f"    - {role:<14} {count}")
+    console.print(f"  Milestones: {summary['milestone_count']}")
+    console.print(f"  Decisions:  {summary['decision_count']}")
+    return 0
+
+
 def cmd_chat_server(args: argparse.Namespace) -> int:
     """Start the TCP chat server used by the Unity Editor window."""
     config, blender, unity = _bootstrap()
@@ -642,6 +731,11 @@ def main() -> int:
     p_export.add_argument("--output", required=True, help="Output .fbx file")
     p_export.add_argument("--slot", default=None, help="Only export objects whose name contains this slot")
     p_export.add_argument("--scale", type=float, default=1.0, help="Export scale factor")
+    p_studio_init = sub.add_parser("studio-init", help="Scaffold studio/ project state (GDD, backlog, decisions, art bible)")
+    p_studio_init.add_argument("--project", default=".", help="Project root that should contain studio/ (default: cwd)")
+    p_studio_init.add_argument("--force", action="store_true", help="Overwrite starter docs if they already exist (JSON state is always preserved)")
+    p_studio_status = sub.add_parser("studio-status", help="Show studio task / decision / milestone counts")
+    p_studio_status.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_chat_srv = sub.add_parser("chat-server", help="Start the TCP chat server for the Editor window")
     p_chat_srv.add_argument("--host", default="127.0.0.1")
     p_chat_srv.add_argument("--port", type=int, default=7778)
@@ -669,6 +763,8 @@ def main() -> int:
         "migrate-unity-assets-to-unreal": cmd_migrate_unity_assets_to_unreal,
         "blender-export": cmd_blender_export,
         "chat-server": cmd_chat_server,
+        "studio-init": cmd_studio_init,
+        "studio-status": cmd_studio_status,
     }
     if args.cmd is None:
         parser.print_help()
