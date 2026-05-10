@@ -32,6 +32,8 @@ from .roles import (
 )
 from .runner import RoleRunner, RoleRunResult, ToolCallRecord, LLMClient, AnthropicClient, make_default_client
 from .vision import VisionClient, AnthropicVisionClient, make_default_vision_client
+from .review import Phase, ReviewRecord, brief_for, run_review, write_review
+from .loop import LoopRunner, LoopStats
 
 __all__ = [
     # state
@@ -68,4 +70,12 @@ __all__ = [
     "VisionClient",
     "AnthropicVisionClient",
     "make_default_vision_client",
+    # review + loop
+    "Phase",
+    "ReviewRecord",
+    "brief_for",
+    "run_review",
+    "write_review",
+    "LoopRunner",
+    "LoopStats",
 ]

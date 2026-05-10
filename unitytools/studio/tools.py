@@ -1,14 +1,18 @@
-"""Doc-level + visual studio tools — exposed to RoleAgents via the tool registry.
+"""Doc-level + visual + activity studio tools — exposed to RoleAgents via the tool registry.
 
 Phase 2 surface: read/write the canonical project documents (GDD, art
 bible, sprint), and append to the structured records (backlog, decisions).
 Phase 3 surface: capture engine screenshots and compare them to reference
 images via a vision model. Engine and vision dependencies are injected
 through separate `init_studio_*` calls so tests can swap fakes.
+Phase 4 surface: read-only views into recent regressions and recent git
+commits so the Producer can reason about what changed since last run.
 """
 from __future__ import annotations
 
+import json
 import shutil
+import subprocess
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -350,6 +354,79 @@ def studio_compare_to_reference(reference_path: str, screenshot_path: str, instr
     return {"ok": True, "reference": str(ref), "screenshot": str(cand), **diff}
 
 
+# ─── Recent activity (Producer inputs) ─────────────────────────────────
+
+@tool(description="Read recent QA regression entries from qa/regression.jsonl. Filter by hours (default 24) or kind (e.g. 'vision_compare'). Newest first.")
+def studio_recent_regressions(hours: float = 24.0, kind: str = "", limit: int = 50) -> dict:
+    state = _require_state()
+    path = state.paths.qa_regression
+    if not path.exists():
+        return {"ok": True, "count": 0, "entries": []}
+    cutoff = time.time() - max(0.0, float(hours)) * 3600.0
+    entries: list[dict] = []
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            for raw in f:
+                raw = raw.strip()
+                if not raw:
+                    continue
+                try:
+                    entry = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                ts = entry.get("ts")
+                if isinstance(ts, (int, float)) and ts < cutoff:
+                    continue
+                if kind and entry.get("kind") != kind:
+                    continue
+                entries.append(entry)
+    except OSError as exc:
+        return {"ok": False, "error": f"Could not read regression log: {exc}"}
+    entries.reverse()
+    entries = entries[: max(1, int(limit or 1))]
+    return {"ok": True, "count": len(entries), "entries": entries}
+
+
+@tool(description="List recent git commits from the project root. Returns up to limit commits (newest first). Returns an empty list if the project is not a git repo.")
+def studio_recent_commits(limit: int = 20) -> dict:
+    state = _require_state()
+    project = state.paths.project_root
+    limit = max(1, int(limit or 1))
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(project), "log", f"-n{limit}", "--pretty=format:%H%x09%an%x09%at%x09%s"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except FileNotFoundError:
+        return {"ok": True, "count": 0, "commits": [], "note": "git executable not found"}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "git log timed out after 10s"}
+    if proc.returncode != 0:
+        return {"ok": True, "count": 0, "commits": [], "note": f"git log failed: {proc.stderr.strip()[:200]}"}
+
+    commits: list[dict] = []
+    for line in proc.stdout.splitlines():
+        parts = line.split("\t", 3)
+        if len(parts) != 4:
+            continue
+        sha, author, ts, subject = parts
+        try:
+            ts_int = int(ts)
+        except ValueError:
+            ts_int = 0
+        commits.append(
+            {
+                "sha": sha[:12],
+                "author": author,
+                "timestamp": ts_int,
+                "subject": subject,
+            }
+        )
+    return {"ok": True, "count": len(commits), "commits": commits}
+
+
 # ─── Convenience: list of all studio tool names (used by RoleConfig) ───
 
 ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
@@ -376,4 +453,7 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_list_screenshots",
     "studio_capture_screenshot",
     "studio_compare_to_reference",
+    # recent activity
+    "studio_recent_regressions",
+    "studio_recent_commits",
 )

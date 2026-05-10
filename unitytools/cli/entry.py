@@ -708,6 +708,92 @@ def cmd_studio_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_studio_review(args: argparse.Namespace) -> int:
+    """Run the Producer with a standup or retro brief and write studio/reviews/<date>.md."""
+    from ..studio import (
+        StudioPaths,
+        StudioState,
+        PRODUCER,
+        RoleRunner,
+        init_studio_tools,
+        make_default_client,
+        run_review,
+    )
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init --project {project}` first.")
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    config, _, _ = _bootstrap()
+    try:
+        client = make_default_client(config)
+    except RuntimeError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 1
+    runner = RoleRunner(client, max_iterations=args.max_iterations)
+
+    console.print(f"[cyan]Producer review — phase={args.phase}[/cyan]")
+    result, record = run_review(state, runner, phase=args.phase, extra_brief=args.extra)
+    console.print(
+        f"[green][OK][/green] iterations={result.iterations}, tools={len(result.tool_calls)}, "
+        f"stop={result.stop_reason}"
+    )
+    console.print(f"[dim]Wrote {record.path}[/dim]")
+    if result.text:
+        console.print("\n[bold]Summary[/bold]")
+        console.print(result.text)
+    return 0
+
+
+def cmd_studio_loop(args: argparse.Namespace) -> int:
+    """Run the Producer review on a recurring cadence. --once exits after one pass."""
+    from ..studio import (
+        StudioPaths,
+        StudioState,
+        RoleRunner,
+        init_studio_tools,
+        make_default_client,
+        LoopRunner,
+    )
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init --project {project}` first.")
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    config, _, _ = _bootstrap()
+    try:
+        client = make_default_client(config)
+    except RuntimeError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 1
+    runner = RoleRunner(client, max_iterations=args.max_iterations)
+    loop = LoopRunner(state, runner)
+
+    interval_hours = max(0.0, float(args.interval_hours))
+    interval_seconds = interval_hours * 3600.0
+    if args.once:
+        console.print("[cyan]Producer loop — single pass[/cyan]")
+    else:
+        console.print(f"[cyan]Producer loop — every {interval_hours:g}h (Ctrl+C to stop)[/cyan]")
+    try:
+        stats = loop.run(once=args.once, interval_seconds=interval_seconds, max_iterations=args.max_passes)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Loop interrupted.[/yellow]")
+        return 130
+    console.print(f"[green][OK][/green] passes={stats.iterations}, last_phase={stats.last_phase}")
+    if stats.last_record:
+        console.print(f"[dim]Last review: {stats.last_record.path}[/dim]")
+    return 0
+
+
 def _default_brief_for(role_id: str) -> str:
     return {
         "producer": "Plan the next round of work. Read state, decide priorities, open up to 5 tasks. End with a 3-line summary.",
@@ -856,6 +942,19 @@ def main() -> int:
     )
     p_studio_run.add_argument("--brief", default="", help="Free-text brief for the role; uses a sensible default if omitted")
     p_studio_run.add_argument("--max-iterations", type=int, default=8, help="Cap on tool-call rounds")
+
+    p_studio_review = sub.add_parser("studio-review", help="Run the Producer with a standup or retro brief and write studio/reviews/<date>.md")
+    p_studio_review.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_review.add_argument("--phase", choices=("morning", "evening", "adhoc"), default="adhoc", help="Which kind of review to drive")
+    p_studio_review.add_argument("--extra", default="", help="Optional extra context appended to the brief")
+    p_studio_review.add_argument("--max-iterations", type=int, default=8)
+
+    p_studio_loop = sub.add_parser("studio-loop", help="Run the Producer review on a recurring cadence")
+    p_studio_loop.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_loop.add_argument("--interval-hours", type=float, default=12.0, help="Hours between passes (ignored when --once)")
+    p_studio_loop.add_argument("--once", action="store_true", help="Run a single pass and exit")
+    p_studio_loop.add_argument("--max-passes", type=int, default=None, help="Stop after this many passes (default: unbounded)")
+    p_studio_loop.add_argument("--max-iterations", type=int, default=8, help="Cap on tool-call rounds per pass")
     p_chat_srv = sub.add_parser("chat-server", help="Start the TCP chat server for the Editor window")
     p_chat_srv.add_argument("--host", default="127.0.0.1")
     p_chat_srv.add_argument("--port", type=int, default=7778)
@@ -886,6 +985,8 @@ def main() -> int:
         "studio-init": cmd_studio_init,
         "studio-status": cmd_studio_status,
         "studio-run": cmd_studio_run,
+        "studio-review": cmd_studio_review,
+        "studio-loop": cmd_studio_loop,
     }
     if args.cmd is None:
         parser.print_help()
