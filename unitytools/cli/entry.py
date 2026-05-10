@@ -666,10 +666,12 @@ def cmd_studio_run(args: argparse.Namespace) -> int:
         client = RehearsalLLM(role.id)
     else:
         try:
-            client = make_default_client(config)
+            client = make_default_client(config, model_override=args.model or None)
         except RuntimeError as exc:
             console.print(f"[red]{exc}[/red]")
             return 1
+        if config.provider == "ollama":
+            console.print(f"[dim]Provider: ollama, model: {getattr(client, 'model', config.ollama_model)}.[/dim]")
 
     # Engine + vision bridges are only wired up when the role needs them. That
     # way `studio-run --role designer` still works without Unity / vision API.
@@ -761,13 +763,17 @@ def cmd_studio_autopilot(args: argparse.Namespace) -> int:
         console.print("[dim]Dry-run: RehearsalLLM per role, no API calls.[/dim]")
     else:
         try:
-            anthropic_client = make_default_client(config)
+            shared_client = make_default_client(config, model_override=args.model or None)
         except RuntimeError as exc:
             console.print(f"[red]{exc}[/red]")
             return 1
+        if config.provider == "ollama":
+            console.print(
+                f"[dim]Provider: ollama, model: {getattr(shared_client, 'model', config.ollama_model)}.[/dim]"
+            )
 
         def client_factory(role_id: str):
-            return anthropic_client
+            return shared_client
 
     # Engine + vision wiring — only attempted when dispatch has tasks
     # that need it. Dispatcher's _can_run() consults these.
@@ -864,7 +870,7 @@ def cmd_studio_execute(args: argparse.Namespace) -> int:
 
     config, _, unity = _bootstrap()
     try:
-        client = make_default_client(config)
+        client = make_default_client(config, model_override=args.model or None)
     except RuntimeError as exc:
         console.print(f"[red]{exc}[/red]")
         return 1
@@ -958,7 +964,7 @@ def cmd_studio_review(args: argparse.Namespace) -> int:
         client = RehearsalLLM("producer")
     else:
         try:
-            client = make_default_client(config)
+            client = make_default_client(config, model_override=args.model or None)
         except RuntimeError as exc:
             console.print(f"[red]{exc}[/red]")
             return 1
@@ -998,7 +1004,7 @@ def cmd_studio_loop(args: argparse.Namespace) -> int:
 
     config, _, _ = _bootstrap()
     try:
-        client = make_default_client(config)
+        client = make_default_client(config, model_override=args.model or None)
     except RuntimeError as exc:
         console.print(f"[red]{exc}[/red]")
         return 1
@@ -1171,6 +1177,11 @@ def main() -> int:
     p_studio_run.add_argument("--brief", default="", help="Free-text brief for the role; uses a sensible default if omitted")
     p_studio_run.add_argument("--max-iterations", type=int, default=8, help="Cap on tool-call rounds")
     p_studio_run.add_argument(
+        "--model",
+        default="",
+        help="Override the LLM model for this run (e.g. gemma4:latest, qwen2.5:14b-instruct). Empty = use Config defaults.",
+    )
+    p_studio_run.add_argument(
         "--dry-run",
         action="store_true",
         help="Use a deterministic RehearsalLLM (no API calls). Only producer/designer/critic supported.",
@@ -1190,6 +1201,7 @@ def main() -> int:
         help="Only dispatch tasks whose owning role matches. Repeatable.",
     )
     p_studio_autopilot.add_argument("--dry-run", action="store_true", help="Use RehearsalLLM for each dispatched role; engine-bound tasks are skipped.")
+    p_studio_autopilot.add_argument("--model", default="", help="Override the LLM model used for every dispatched role.")
 
     p_studio_execute = sub.add_parser("studio-execute", help="Pick a backlog task and run the Worker against it (snapshot -> place -> verify -> mark done/blocked)")
     p_studio_execute.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
@@ -1197,12 +1209,14 @@ def main() -> int:
     p_studio_execute.add_argument("--extra", default="", help="Optional extra context appended to the brief")
     p_studio_execute.add_argument("--max-iterations", type=int, default=12, help="Cap on tool-call rounds (Workers usually need more than reviewers)")
     p_studio_execute.add_argument("--force", action="store_true", help="Re-run even if the task is already done or rejected")
+    p_studio_execute.add_argument("--model", default="", help="Override the LLM model for this run.")
 
     p_studio_review = sub.add_parser("studio-review", help="Run the Producer with a standup or retro brief and write studio/reviews/<date>.md")
     p_studio_review.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_review.add_argument("--phase", choices=("morning", "evening", "adhoc"), default="adhoc", help="Which kind of review to drive")
     p_studio_review.add_argument("--extra", default="", help="Optional extra context appended to the brief")
     p_studio_review.add_argument("--max-iterations", type=int, default=8)
+    p_studio_review.add_argument("--model", default="", help="Override the LLM model for this review.")
     p_studio_review.add_argument("--dry-run", action="store_true", help="Use a deterministic RehearsalLLM (no API calls)")
 
     p_studio_loop = sub.add_parser("studio-loop", help="Run the Producer review on a recurring cadence")
@@ -1211,6 +1225,7 @@ def main() -> int:
     p_studio_loop.add_argument("--once", action="store_true", help="Run a single pass and exit")
     p_studio_loop.add_argument("--max-passes", type=int, default=None, help="Stop after this many passes (default: unbounded)")
     p_studio_loop.add_argument("--max-iterations", type=int, default=8, help="Cap on tool-call rounds per pass")
+    p_studio_loop.add_argument("--model", default="", help="Override the LLM model for the looped Producer.")
     p_chat_srv = sub.add_parser("chat-server", help="Start the TCP chat server for the Editor window")
     p_chat_srv.add_argument("--host", default="127.0.0.1")
     p_chat_srv.add_argument("--port", type=int, default=7778)

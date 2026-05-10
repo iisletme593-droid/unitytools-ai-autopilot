@@ -7,11 +7,19 @@ producing tool calls, and returns the final text plus a tool-call log.
 
 The LLM call is injected via a `LLMClient` protocol so tests can swap a
 deterministic fake without monkey-patching anthropic / urllib.
+
+Provider support: AnthropicClient (Claude, vision) and OllamaClient
+(local Gemma / Qwen / Llama; tool calling via OpenAI-compatible
+function format with a text-fallback for models that emit tool calls
+as JSON in the assistant message).
 """
 from __future__ import annotations
 
 import json
 import logging
+import re
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Protocol
 
@@ -235,18 +243,244 @@ class RoleRunner:
         return result
 
 
-def make_default_client(config: Config) -> LLMClient:
+# ─── Ollama adapter (Phase 8) ──────────────────────────────────────────
+
+
+def _extract_text_tool_calls(text: str, registered_names: set[str]) -> list[dict]:
+    """Recover tool calls from raw text when a local model prints JSON
+    instead of using its structured tool-call channel.
+
+    Scans for fenced ```json blocks, top-level JSON objects, and inline
+    {...} objects whose first key is one of "tool" / "name" / "function" /
+    "tool_calls". Returns Ollama-shape calls (with "function" key); the
+    caller normalises further. Tool names are gated by the registry to
+    avoid greedy false positives.
+    """
+    if not text:
+        return []
+    candidates: list[str] = []
+    candidates.extend(re.findall(r"```(?:json)?\s*(\{.*?\}|\[.*?\])\s*```", text, re.DOTALL | re.IGNORECASE))
+    stripped = text.strip()
+    if stripped.startswith("{") or stripped.startswith("["):
+        candidates.append(stripped)
+    candidates.extend(
+        re.findall(r"(\{[^{}]*(?:\"tool\"|\"name\"|\"tool_calls\"|\"function\")[\s\S]*?\})", text)
+    )
+
+    out: list[dict] = []
+    for raw in candidates:
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        rows: list = payload if isinstance(payload, list) else [payload]
+        if isinstance(payload, dict) and isinstance(payload.get("tool_calls"), list):
+            rows = payload["tool_calls"]
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            fn = row.get("function") if isinstance(row.get("function"), dict) else {}
+            name = fn.get("name") or row.get("tool") or row.get("name") or row.get("tool_name")
+            if not isinstance(name, str) or name not in registered_names:
+                continue
+            args = (
+                fn.get("arguments")
+                if "arguments" in fn
+                else row.get("input", row.get("arguments", row.get("params", {})))
+            )
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args) if args.strip() else {}
+                except json.JSONDecodeError:
+                    args = {}
+            if not isinstance(args, dict):
+                args = {}
+            out.append({"function": {"name": name, "arguments": args}})
+        if out:
+            break
+    return out
+
+
+class OllamaClient:
+    """LLMClient backed by a local Ollama server.
+
+    Handles the OpenAI-compatible tool-call format Ollama exposes via
+    /api/chat. Translates between provider-neutral message blocks and
+    Ollama's `messages` array (with assistant tool_calls / tool result
+    rounds). Falls back to text extraction when the model emits tool
+    calls as JSON in the assistant content (Qwen / older Gemma do this).
+    """
+
+    def __init__(
+        self,
+        config: Config,
+        model_override: Optional[str] = None,
+        timeout: float = 180.0,
+        num_ctx: int = 8192,
+    ):
+        self._host = config.ollama_host.rstrip("/")
+        self._model = model_override or config.ollama_model
+        if not self._model:
+            raise RuntimeError("OllamaClient requires a model (set OLLAMA_MODEL or pass model_override).")
+        self._timeout = float(timeout)
+        self._num_ctx = int(num_ctx)
+
+    @property
+    def model(self) -> str:
+        return self._model
+
+    def complete(self, system: str, tools: list[dict], messages: list[dict]) -> dict:
+        ollama_messages = self._translate_messages(system, messages)
+        ollama_tools = self._translate_tools(tools)
+        body: dict[str, Any] = {
+            "model": self._model,
+            "messages": ollama_messages,
+            "stream": False,
+            "options": {"num_ctx": self._num_ctx},
+        }
+        if ollama_tools:
+            body["tools"] = ollama_tools
+
+        data = self._post_chat(body)
+        msg = data.get("message") or {}
+        text = msg.get("content") or ""
+        tool_calls_raw = msg.get("tool_calls") or []
+
+        # Fallback: model embedded tool calls in plain text
+        if not tool_calls_raw and text:
+            registered = {t["name"] for t in tools}
+            text_extracted = _extract_text_tool_calls(text, registered)
+            if text_extracted:
+                tool_calls_raw = text_extracted
+                text = ""  # consumed by the extraction
+
+        tool_calls: list[dict] = []
+        for i, call in enumerate(tool_calls_raw):
+            fn = call.get("function") if isinstance(call.get("function"), dict) else {}
+            name = fn.get("name") or call.get("name") or ""
+            args = fn.get("arguments")
+            if args is None:
+                args = call.get("arguments") or call.get("input") or {}
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args) if args.strip() else {}
+                except json.JSONDecodeError:
+                    args = {}
+            if not isinstance(args, dict):
+                args = {}
+            tool_calls.append({"id": call.get("id") or f"oll-{i}", "name": name, "input": args})
+
+        return {
+            "text": text,
+            "tool_calls": tool_calls,
+            "stop_reason": "tool_use" if tool_calls else "end_turn",
+            "raw_content": None,
+        }
+
+    # ---- translation helpers ----
+
+    @staticmethod
+    def _translate_messages(system: str, messages: list[dict]) -> list[dict]:
+        out: list[dict] = [{"role": "system", "content": system}]
+        for m in messages:
+            role = m.get("role")
+            if role == "tool":
+                out.append({"role": "tool", "content": m.get("content", "")})
+                continue
+            if role == "assistant":
+                content = m.get("content")
+                if isinstance(content, list):
+                    text_parts: list[str] = []
+                    tool_calls: list[dict] = []
+                    for block in content:
+                        if not isinstance(block, dict):
+                            continue
+                        btype = block.get("type")
+                        if btype == "text":
+                            text_parts.append(block.get("text", ""))
+                        elif btype == "tool_use":
+                            tool_calls.append(
+                                {
+                                    "function": {
+                                        "name": block.get("name", ""),
+                                        "arguments": block.get("input") or {},
+                                    },
+                                }
+                            )
+                    flat: dict[str, Any] = {"role": "assistant", "content": "".join(text_parts)}
+                    if tool_calls:
+                        flat["tool_calls"] = tool_calls
+                    out.append(flat)
+                else:
+                    out.append({"role": "assistant", "content": content or ""})
+                continue
+            # user / system
+            content = m.get("content")
+            if isinstance(content, list):
+                # Flatten any text blocks; drop image blocks (Ollama vision is
+                # provider-specific; doc-only roles never carry images here).
+                text_parts = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        text_parts.append(block.get("text", ""))
+                content = "".join(text_parts)
+            out.append({"role": role or "user", "content": content or ""})
+        return out
+
+    @staticmethod
+    def _translate_tools(tools: list[dict]) -> list[dict]:
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": t["name"],
+                    "description": t["description"],
+                    "parameters": t["input_schema"],
+                },
+            }
+            for t in tools
+        ]
+
+    def _post_chat(self, body: dict) -> dict:
+        req = urllib.request.Request(
+            f"{self._host}/api/chat",
+            data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            try:
+                err_body = exc.read().decode("utf-8", errors="replace")[:500]
+            except Exception:
+                err_body = ""
+            raise RuntimeError(f"Ollama HTTP {exc.code}: {err_body}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(
+                f"Ollama not reachable at {self._host}: {exc}. "
+                "Start Ollama (`ollama serve`) or set OLLAMA_HOST."
+            ) from exc
+
+
+def make_default_client(config: Config, model_override: Optional[str] = None) -> LLMClient:
     """Pick the right LLM adapter based on Config.provider.
 
-    Phase 2 ships an Anthropic adapter only — Ollama support follows once
-    the role prompts are validated against Claude. Until then, Ollama
-    config falls back to Anthropic IF an API key is present.
+    - provider == "anthropic" (or any provider when only ANTHROPIC_API_KEY
+      is set) -> AnthropicClient (vision-capable).
+    - provider == "ollama" -> OllamaClient (local model, tool calling
+      via OpenAI-compatible function format with a text-fallback).
+
+    `model_override` lets a per-role caller swap the model without
+    mutating Config (e.g. a Worker on Qwen 14b, a Designer on Gemma 4 8b).
     """
+    if config.provider == "ollama":
+        return OllamaClient(config, model_override=model_override)
     if config.provider == "anthropic" or config.api_key:
         return AnthropicClient(config)
     raise RuntimeError(
-        "RoleRunner currently requires Anthropic. Set ANTHROPIC_API_KEY and "
-        "UNITYTOOLS_PROVIDER=anthropic, or pass a custom LLMClient."
+        "No LLM provider configured. Set UNITYTOOLS_PROVIDER=ollama (with OLLAMA_MODEL) "
+        "or UNITYTOOLS_PROVIDER=anthropic (with ANTHROPIC_API_KEY)."
     )
 
 
