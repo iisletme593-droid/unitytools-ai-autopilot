@@ -30,6 +30,7 @@ from ..bridges import BlenderBridge, UnityBridge
 from ..core.config import Config
 from ..core.orchestrator import Orchestrator
 from ..core.tool_registry import get_all_tools
+from . import chat_commands
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -146,14 +147,24 @@ def _handle_slash(line: str, orch: Orchestrator, blender: BlenderBridge, unity: 
     if cmd == "help":
         console.print(
             Panel(
-                "[cyan]/help[/cyan]    show this help\n"
-                "[cyan]/clear[/cyan]   clear chat history\n"
-                "[cyan]/tools[/cyan]   list registered tools (filter: '/tools studio')\n"
-                "[cyan]/status[/cyan]  show bridge status\n"
-                "[cyan]/studio[/cyan]  show active studio summary (gdd / tasks / milestones)\n"
-                "[cyan]/quit[/cyan]    exit\n\n"
-                "[dim]Any non-slash message goes to the LLM with every studio_* +\n"
-                "unity_* tool available. Try: 'scaffold a platformer called Hop Quest'.[/dim]",
+                "[bold]Meta[/bold]\n"
+                "[cyan]/help[/cyan]                  show this help\n"
+                "[cyan]/clear[/cyan]                 clear chat history\n"
+                "[cyan]/tools[/cyan] [filter]        list registered tools\n"
+                "[cyan]/status[/cyan]                show bridge status\n"
+                "[cyan]/studio[/cyan]                show active studio summary\n"
+                "[cyan]/quit[/cyan]                  exit\n\n"
+                "[bold]Studio actions[/bold] (deterministic, bypass LLM)\n"
+                "[cyan]/scaffold[/cyan] <genre> [name]   scaffold collectathon/shooter/runner/platformer\n"
+                "[cyan]/dashboard[/cyan] [--save] [days]  operator's morning glance\n"
+                "[cyan]/ship[/cyan]                    ship readiness check (go/no-go)\n"
+                "[cyan]/cost[/cyan] [days]             LLM token + USD spend (default 7d)\n"
+                "[cyan]/audit[/cyan] <kind>            kind: lighting/atmosphere/vfx/build/consistency/balance/ship/localization\n"
+                "[cyan]/tasks[/cyan] [status]          list backlog tasks, optionally filtered\n"
+                "[cyan]/milestones[/cyan]              list milestones\n"
+                "[cyan]/decisions[/cyan]               list decisions\n\n"
+                "[dim]Any non-slash message goes to the LLM with all 199 tools available.[/dim]\n"
+                "[dim]Try: 'scaffold a platformer called Hop Quest' or '/scaffold platformer Hop Quest'.[/dim]",
                 title="Commands",
                 border_style="cyan",
             )
@@ -215,6 +226,20 @@ def _handle_slash(line: str, orch: Orchestrator, blender: BlenderBridge, unity: 
             )
         except Exception as exc:  # noqa: BLE001
             console.print(f"[red]/studio failed:[/red] {exc}")
+        return None
+
+    # Phase 59: route to the deterministic command dispatcher
+    # (scaffold / dashboard / ship / cost / audit / tasks / ...).
+    # Unknown commands fall through to the error message.
+    cmd_result = chat_commands.dispatch(line[1:])
+    if cmd_result.handled:
+        if cmd_result.quit:
+            console.print(f"[dim]{cmd_result.message}[/dim]")
+            return "quit"
+        marker = "[green][OK][/green]" if cmd_result.ok else "[red][ERR][/red]"
+        if cmd_result.tool_name:
+            console.print(f"  [dim]-> tool:[/dim] [yellow]{cmd_result.tool_name}[/yellow]")
+        console.print(f"  {marker} {cmd_result.message}")
         return None
 
     console.print(f"[red]Unknown command: /{cmd}[/red]")
