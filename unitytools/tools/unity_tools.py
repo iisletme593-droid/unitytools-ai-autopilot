@@ -682,6 +682,59 @@ def unity_create_ui_button(
         return {"ok": False, "error": str(e)}
 
 
+@tool(description="List the scenes currently in EditorBuildSettings — these are what unity_build_player will include unless overridden. Returns paths + enabled flags + active build target. Read-only.")
+def unity_list_build_scenes() -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("list_build_scenes", {})
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Add (or update) a scene in EditorBuildSettings so the next build includes it. scene_path is a project-relative path like 'Assets/Scenes/Main.unity'. Idempotent: re-adding the same path just toggles the enabled flag.")
+def unity_add_scene_to_build(scene_path: str, enabled: bool = True) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    if not scene_path:
+        return {"ok": False, "error": "scene_path is required"}
+    if not scene_path.endswith(".unity"):
+        return {"ok": False, "error": f"scene_path must end in .unity; got {scene_path!r}"}
+    try:
+        result = _UNITY.call("add_scene_to_build", {"scene_path": scene_path, "enabled": bool(enabled)})
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Build a Unity player. target is one of windows / mac / linux / webgl / android / ios (default = active build target). output_path is the absolute path to write the binary to (its parent dir is created if missing). scenes is an optional list of scene paths to override EditorBuildSettings; pass [] to use the configured build settings. development_build=True embeds the dev-mode flag. This can take minutes — the bridge call uses a long timeout.")
+def unity_build_player(
+    output_path: str,
+    target: str = "",
+    scenes: list[str] | None = None,
+    development_build: bool = False,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    if not output_path:
+        return {"ok": False, "error": "output_path is required"}
+    params: dict = {
+        "output_path": output_path,
+        "target": target,
+        "development_build": bool(development_build),
+    }
+    if scenes:
+        params["scenes"] = list(scenes)
+    try:
+        # Builds can take many minutes. 30 min ceiling.
+        result = _UNITY.call("build_player", params, timeout=1800)
+        return {"ok": bool(result.get("ok", False)) if isinstance(result, dict) else False,
+                **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @tool(description="List every UI Canvas in the scene with its Text + Button children. Also reports whether an EventSystem exists (buttons won't be clickable without one). Read-only.")
 def unity_list_ui_elements() -> dict:
     if _UNITY is None:

@@ -64,6 +64,9 @@ namespace UnityTools.Bridge
                 case "create_ui_text": return CreateUIText(p);
                 case "create_ui_button": return CreateUIButton(p);
                 case "list_ui_elements": return ListUIElements(p);
+                case "build_player": return BuildPlayer(p);
+                case "list_build_scenes": return ListBuildScenes(p);
+                case "add_scene_to_build": return AddSceneToBuild(p);
                 case "find_by_tag": return FindByTag(p);
                 case "find_assets": return FindAssets(p);
                 case "list_prefabs": return ListPrefabs(p);
@@ -1036,6 +1039,160 @@ namespace UnityTools.Bridge
                 total_buttons = totalButtons,
                 has_event_system = hasEventSystem,
                 canvases = canvasRows,
+            };
+        }
+
+        private static BuildTarget ParseBuildTarget(string targetName)
+        {
+            if (string.IsNullOrEmpty(targetName)) return EditorUserBuildSettings.activeBuildTarget;
+            switch (targetName.ToLowerInvariant())
+            {
+                case "windows":
+                case "windows64":
+                case "win64":
+                case "standalonewindows64":
+                    return BuildTarget.StandaloneWindows64;
+                case "windows32":
+                case "win32":
+                case "standalonewindows":
+                    return BuildTarget.StandaloneWindows;
+                case "mac":
+                case "osx":
+                case "standaloneosx":
+                    return BuildTarget.StandaloneOSX;
+                case "linux":
+                case "linux64":
+                case "standalonelinux64":
+                    return BuildTarget.StandaloneLinux64;
+                case "webgl":
+                    return BuildTarget.WebGL;
+                case "android":
+                    return BuildTarget.Android;
+                case "ios":
+                case "iphone":
+                    return BuildTarget.iOS;
+            }
+            throw new ArgumentException($"Unknown build target: {targetName}. Use windows / mac / linux / webgl / android / ios.");
+        }
+
+        private static object ListBuildScenes(JObject p)
+        {
+            var scenes = EditorBuildSettings.scenes;
+            var rows = new List<object>();
+            int enabledCount = 0;
+            for (int i = 0; i < scenes.Length; i++)
+            {
+                var s = scenes[i];
+                if (s.enabled) enabledCount++;
+                rows.Add(new
+                {
+                    index = i,
+                    path = s.path,
+                    enabled = s.enabled,
+                });
+            }
+            return new
+            {
+                ok = true,
+                count = scenes.Length,
+                enabled_count = enabledCount,
+                active_target = EditorUserBuildSettings.activeBuildTarget.ToString(),
+                scenes = rows,
+            };
+        }
+
+        private static object AddSceneToBuild(JObject p)
+        {
+            string scenePath = p["scene_path"]?.ToString();
+            if (string.IsNullOrEmpty(scenePath)) throw new ArgumentException("scene_path is required");
+            bool enabled = p["enabled"]?.ToObject<bool>() ?? true;
+
+            // Validate scene file exists in the AssetDatabase
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath) == null)
+                throw new InvalidOperationException($"Scene asset not found at {scenePath}");
+
+            var existing = EditorBuildSettings.scenes.ToList();
+            int existingIdx = existing.FindIndex(s => s.path == scenePath);
+            bool created;
+            if (existingIdx >= 0)
+            {
+                existing[existingIdx] = new EditorBuildSettingsScene(scenePath, enabled);
+                created = false;
+            }
+            else
+            {
+                existing.Add(new EditorBuildSettingsScene(scenePath, enabled));
+                created = true;
+            }
+            EditorBuildSettings.scenes = existing.ToArray();
+            return new
+            {
+                ok = true,
+                scene_path = scenePath,
+                enabled = enabled,
+                added = created,
+                total_scenes = existing.Count,
+            };
+        }
+
+        private static object BuildPlayer(JObject p)
+        {
+            string targetName = p["target"]?.ToString() ?? "";
+            string outputPath = p["output_path"]?.ToString();
+            if (string.IsNullOrEmpty(outputPath)) throw new ArgumentException("output_path is required");
+            bool developmentBuild = p["development_build"]?.ToObject<bool>() ?? false;
+
+            BuildTarget target = ParseBuildTarget(targetName);
+
+            // Collect scenes — explicit list, or fall back to enabled-in-EditorBuildSettings
+            List<string> scenePaths = new List<string>();
+            JArray sceneArr = p["scenes"] as JArray;
+            if (sceneArr != null && sceneArr.Count > 0)
+            {
+                foreach (var t in sceneArr)
+                {
+                    var sp = t.ToString();
+                    if (!string.IsNullOrEmpty(sp)) scenePaths.Add(sp);
+                }
+            }
+            else
+            {
+                foreach (var s in EditorBuildSettings.scenes)
+                {
+                    if (s.enabled) scenePaths.Add(s.path);
+                }
+            }
+            if (scenePaths.Count == 0)
+                throw new InvalidOperationException("No scenes to build. Add at least one via add_scene_to_build or EditorBuildSettings.");
+
+            // Ensure output dir exists
+            var outFile = new FileInfo(outputPath);
+            if (outFile.Directory != null && !outFile.Directory.Exists)
+                outFile.Directory.Create();
+
+            var options = new BuildPlayerOptions
+            {
+                scenes = scenePaths.ToArray(),
+                locationPathName = outputPath,
+                target = target,
+                options = developmentBuild ? BuildOptions.Development : BuildOptions.None,
+            };
+
+            var report = BuildPipeline.BuildPlayer(options);
+            var summary = report.summary;
+            bool success = summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded;
+            return new
+            {
+                ok = success,
+                result = summary.result.ToString(),
+                target = target.ToString(),
+                output_path = outputPath,
+                total_size_bytes = (long)summary.totalSize,
+                total_errors = summary.totalErrors,
+                total_warnings = summary.totalWarnings,
+                total_time_seconds = summary.totalTime.TotalSeconds,
+                scene_count = scenePaths.Count,
+                development_build = developmentBuild,
             };
         }
 

@@ -256,6 +256,10 @@ TASK ROLES YOU CAN OPEN
   specific audio identity and the brief is still empty / vague.
 - level_designer: compares the scene to a reference image, files
   placement / composition tasks
+- build_engineer: ships the binary. Runs studio_build_check
+  preflight, then unity_build_player against the configured target.
+  Open one of these only after a milestone is "done" and you want
+  a playable build. Title: "Build <target> for <milestone>".
 - ui_builder: constructs Canvas + Text + Button UI from a concrete
   spec in the task description (title screen, HUD, pause menu).
   Open one of these when the GDD pitch implies an on-screen menu
@@ -384,6 +388,51 @@ OUT OF SCOPE
 - Do not modify the scene (no create / delete / move). Decisions and
   tasks are your only outputs.
 - Do not edit the GDD or Art Bible.
+"""
+
+
+_BUILD_ENGINEER_PROMPT = """You are the Build Engineer of an autonomous studio.
+
+You are the studio's last mile. Every other role makes the project
+better; you actually ship a binary. Preflight, build, report.
+
+OPERATING RULES
+1. Preflight is MANDATORY. Call studio_build_check() first. It
+   verifies:
+     - at least one scene is enabled in EditorBuildSettings
+     - the GDD is non-empty (unless require_gdd=False)
+   If verdict is "fail", do NOT build. File one task per violation
+   back to the responsible role (designer for missing GDD,
+   level_designer for missing scenes) and mark your task blocked.
+2. If preflight passes, decide build target. The task description
+   tells you which one. Defaults: windows for desktop, webgl for
+   web demo. Use unity_list_build_scenes() to confirm which scenes
+   will go in the build.
+3. Pick an output path. Convention:
+     studio/builds/<YYYY-MM-DD>/<target>/Game.<ext>
+   Where <ext> is .exe (windows), .app (mac), .x86_64 (linux),
+   or index.html (webgl). Use the task's date / target prefix to
+   keep builds isolated.
+4. Call unity_build_player(output_path=..., target=...,
+   development_build=True_if_task_says_so). Builds can take
+   minutes. The bridge call already uses a 30-min timeout.
+5. Read the returned report. Required fields:
+     - result == "Succeeded" -> done
+     - total_errors > 0 -> blocked + propose decision titled
+       "Build failed: <task_id>" with the error count in rationale
+     - total_warnings > 10 -> file a follow-up task for tech_artist
+       to clean up warnings (but the build itself is "done")
+6. Final tool call MUST be studio_update_task_status. "done" on
+   successful build (even with warnings); "blocked" on failure.
+7. End with a 3-line summary: target, output path, result + total
+   size.
+
+OUT OF SCOPE
+- Do not edit scenes, place objects, light, frame, particles, UI,
+  or any docs. You ship what's there.
+- Do not call unity_add_scene_to_build to silently fix a missing
+  scene — that's a real planning gap and belongs in a task back
+  to the producer.
 """
 
 
@@ -910,6 +959,27 @@ PHYSICS_QA = RoleConfig(
 )
 
 
+BUILD_ENGINEER = RoleConfig(
+    id="build_engineer",
+    name="Build Engineer",
+    system_prompt=_format(_BUILD_ENGINEER_PROMPT),
+    allowed_tools=(
+        # Read context — needs to know what's expected
+        "studio_get_summary",
+        "studio_read_gdd",
+        # Preflight + inspect build settings
+        "studio_build_check",
+        "unity_list_build_scenes",
+        # The actual build action
+        "unity_build_player",
+        # Lifecycle + escalation when preflight fails
+        "studio_add_task",
+        "studio_propose_decision",
+        "studio_update_task_status",
+    ),
+)
+
+
 UI_BUILDER = RoleConfig(
     id="ui_builder",
     name="UI Builder",
@@ -1074,6 +1144,7 @@ _ROLES: dict[str, RoleConfig] = {
         PRODUCER, DESIGNER, CRITIC, LEVEL_DESIGNER, ART_DIRECTOR,
         WORKER, PLAYTESTER, PHYSICS_QA, AUDIO_DIRECTOR, AUDIO_ENGINEER,
         LIGHTING_DIRECTOR, CAMERA_DIRECTOR, VFX_DIRECTOR, UI_BUILDER,
+        BUILD_ENGINEER,
     )
 }
 

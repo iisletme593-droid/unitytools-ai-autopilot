@@ -37,6 +37,7 @@ from .roles import (
     CAMERA_DIRECTOR,
     VFX_DIRECTOR,
     UI_BUILDER,
+    BUILD_ENGINEER,
     get_role,
     all_roles,
 )
@@ -114,6 +115,7 @@ __all__ = [
     "CAMERA_DIRECTOR",
     "VFX_DIRECTOR",
     "UI_BUILDER",
+    "BUILD_ENGINEER",
     "get_role",
     "all_roles",
     # runner

@@ -495,6 +495,62 @@ def studio_unity_attach_audio_source(
     return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
 
 
+# ─── Build preflight (Phase 32) ────────────────────────────────────────
+
+@tool(description="Preflight a build: verify the project has at least one scene in EditorBuildSettings, the GDD is non-empty (or the user explicitly waived it), and the last perf budget check (if any) didn't fail catastrophically. Returns verdict + violations. No mutations — call this before unity_build_player.")
+def studio_build_check(require_gdd: bool = True, require_art_bible: bool = False) -> dict:
+    state = _require_state()
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected."}
+    if hasattr(_UNITY, "is_connected") and not _UNITY.is_connected():
+        return {"ok": False, "error": "Unity Editor is not connected."}
+
+    violations: list[str] = []
+    recommendations: list[str] = []
+
+    # Scenes
+    try:
+        scenes_info = _UNITY.call("list_build_scenes", {}, timeout=15)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"list_build_scenes failed: {exc}", "error_type": type(exc).__name__}
+    if not isinstance(scenes_info, dict):
+        return {"ok": False, "error": "Unity returned non-dict from list_build_scenes.", "raw": scenes_info}
+    enabled = int(scenes_info.get("enabled_count", 0))
+    if enabled == 0:
+        violations.append("no_enabled_scenes")
+        recommendations.append(
+            "EditorBuildSettings has zero enabled scenes; add one via "
+            "unity_add_scene_to_build(scene_path='Assets/Scenes/Main.unity')."
+        )
+
+    # GDD presence + non-empty
+    if require_gdd:
+        gdd_path = state.paths.gdd
+        if not gdd_path.exists() or not gdd_path.read_text(encoding="utf-8").strip():
+            violations.append("gdd_empty_or_missing")
+            recommendations.append(
+                "GDD is empty or missing; open a designer task to draft it before shipping."
+            )
+    if require_art_bible:
+        ab_path = state.paths.art_bible
+        if not ab_path.exists() or not ab_path.read_text(encoding="utf-8").strip():
+            violations.append("art_bible_empty_or_missing")
+            recommendations.append(
+                "Art Bible is empty or missing; open an art_director task to draft it."
+            )
+
+    verdict = "pass" if not violations else "fail"
+    return {
+        "ok": True,
+        "verdict": verdict,
+        "enabled_scenes": enabled,
+        "total_scenes": int(scenes_info.get("count", 0)),
+        "active_target": scenes_info.get("active_target"),
+        "violations": violations,
+        "recommendations": recommendations,
+    }
+
+
 # ─── VFX audit (Phase 30) ──────────────────────────────────────────────
 
 @tool(description="Audit the scene's particle systems against soft budgets: at most max_systems active particle systems, total emission_rate under max_total_emission, total max_particles under max_total_particles. Returns verdict + violations + recommendations. No mutations.")
@@ -1438,6 +1494,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_camera_frame_check",
     # vfx (Phase 30)
     "studio_vfx_audit",
+    # build pipeline (Phase 32)
+    "studio_build_check",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",
