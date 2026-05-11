@@ -25,6 +25,7 @@ from .vision import VisionClient, guess_mime
 _STATE: Optional[StudioState] = None
 _UNITY: Any = None  # UnityBridge or any object with .is_connected() and .call()
 _VISION: Optional[VisionClient] = None
+_BLENDER: Any = None  # BlenderBridge or any object with .generate_prop()
 
 
 def init_studio_tools(state: StudioState) -> None:
@@ -43,6 +44,12 @@ def init_studio_vision(vision_client: VisionClient) -> None:
     """Inject the vision client used by `studio_compare_to_reference`."""
     global _VISION
     _VISION = vision_client
+
+
+def init_studio_blender(blender_bridge: Any) -> None:
+    """Inject the Blender bridge used by `studio_generate_prop_asset`."""
+    global _BLENDER
+    _BLENDER = blender_bridge
 
 
 def _require_state() -> StudioState:
@@ -391,6 +398,97 @@ def studio_list_screenshots(limit: int = 20) -> dict:
             for p in shots
         ],
     }
+
+
+# ─── Asset generation via Blender (Phase 25) ───────────────────────────
+
+@tool(description="Generate a procedural prop (rock / crate / pillar / column) via Blender and save the FBX under studio/assets/generated/. Deterministic per seed: same prop_type+seed produces the same mesh, so re-runs converge. Optionally imports into Unity if import_into_unity=True and a Unity bridge is wired. Returns the FBX path so the Worker can chain unity_import_asset afterwards.")
+def studio_generate_prop_asset(
+    prop_type: str,
+    name: str = "",
+    seed: int = 0,
+    scale: float = 1.0,
+    import_into_unity: bool = False,
+    unity_destination: str = "Assets/Studio/Generated",
+) -> dict:
+    state = _require_state()
+    if _BLENDER is None:
+        return {"ok": False, "error": "Blender bridge not injected. Run init_studio_blender(bridge) first."}
+    if not _BLENDER.is_available():
+        return {"ok": False, "error": "Blender executable not found; set BLENDER_EXECUTABLE in .env."}
+    if not prop_type or prop_type not in ("rock", "crate", "pillar", "column"):
+        return {"ok": False, "error": f"prop_type must be one of rock / crate / pillar / column; got {prop_type!r}."}
+
+    # Name + output path
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in (name or f"{prop_type}_{seed}")).strip("_")
+    if not safe_name:
+        safe_name = f"{prop_type}_{seed}"
+    assets_dir = state.paths.root / "assets" / "generated"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    output_path = assets_dir / f"{safe_name}.fbx"
+
+    result = _BLENDER.generate_prop(
+        prop_type=prop_type,
+        output_path=str(output_path),
+        seed=seed,
+        scale=scale,
+    )
+    if not result.success:
+        return {
+            "ok": False,
+            "error": f"Blender generation failed (rc={result.return_code}): {result.stderr.strip()[:400]}",
+            "stdout_tail": result.stdout.strip().splitlines()[-5:] if result.stdout else [],
+        }
+    if not output_path.exists():
+        return {
+            "ok": False,
+            "error": f"Blender reported success but FBX not at {output_path}",
+            "stdout_tail": result.stdout.strip().splitlines()[-5:] if result.stdout else [],
+        }
+
+    # Log to regression so the time series shows asset generation
+    state.append_regression_entry(
+        {
+            "ts": time.time(),
+            "kind": "asset_generated",
+            "prop_type": prop_type,
+            "name": safe_name,
+            "seed": int(seed),
+            "size_bytes": output_path.stat().st_size,
+            "path": str(output_path),
+        }
+    )
+
+    payload: dict = {
+        "ok": True,
+        "prop_type": prop_type,
+        "name": safe_name,
+        "seed": int(seed),
+        "fbx_path": str(output_path),
+        "size_bytes": output_path.stat().st_size,
+    }
+
+    # Optional Unity import as a convenience chain
+    if import_into_unity:
+        if _UNITY is None:
+            payload["unity_import"] = {"ok": False, "error": "Unity bridge not injected."}
+        elif hasattr(_UNITY, "is_connected") and not _UNITY.is_connected():
+            payload["unity_import"] = {"ok": False, "error": "Unity Editor is not connected."}
+        else:
+            try:
+                imp = _UNITY.call(
+                    "import_asset",
+                    {
+                        "source_path": str(output_path),
+                        "destination": unity_destination.rstrip("/"),
+                        "replace_existing": True,
+                    },
+                    timeout=120,
+                )
+                payload["unity_import"] = imp if isinstance(imp, dict) else {"ok": True, "result": imp}
+            except Exception as exc:  # noqa: BLE001
+                payload["unity_import"] = {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
+    return payload
 
 
 # ─── Physics QA / perf budget (Phase 24) ───────────────────────────────
@@ -992,6 +1090,7 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_create_blockout_group",
     "studio_playtest_smoke",
     "studio_perf_budget_check",
+    "studio_generate_prop_asset",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

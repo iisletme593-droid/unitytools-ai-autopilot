@@ -570,6 +570,9 @@ WORKER = RoleConfig(
         "unity_save_scene",
         # Phase 22: one-call layout helper for blockouts
         "studio_create_blockout_group",
+        # Phase 25: generate procedural prop assets (rock/crate/pillar/column)
+        # via Blender, optionally chain into a Unity import.
+        "studio_generate_prop_asset",
     ),
 )
 

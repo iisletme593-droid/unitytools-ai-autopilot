@@ -1514,6 +1514,21 @@ def cmd_studio_execute(args: argparse.Namespace) -> int:
     except RuntimeError as exc:
         console.print(f"[yellow]Vision unavailable: {exc} -- verify step will skip the compare.[/yellow]")
 
+    # Blender bridge is opt-in for asset generation (Phase 25). Wire it
+    # best-effort; the tool itself returns ok=False when Blender is missing.
+    try:
+        from ..bridges import BlenderBridge
+        from ..studio import init_studio_blender
+        blender_bridge = BlenderBridge(config)
+        if blender_bridge.is_available():
+            init_studio_blender(blender_bridge)
+        else:
+            console.print(
+                "[dim]Blender executable not detected; studio_generate_prop_asset will return clean error.[/dim]"
+            )
+    except Exception as exc:  # noqa: BLE001
+        console.print(f"[yellow]Blender bridge setup skipped: {exc}[/yellow]")
+
     # Mark in-progress before the Worker runs so concurrent dashboards see it.
     target.status = TaskStatus.IN_PROGRESS
     state.update_task(target)

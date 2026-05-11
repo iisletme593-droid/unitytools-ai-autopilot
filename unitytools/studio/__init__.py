@@ -18,6 +18,7 @@ from .tools import (
     init_studio_tools,
     init_studio_unity,
     init_studio_vision,
+    init_studio_blender,
     ALL_STUDIO_TOOL_NAMES,
 )
 from .roles import (
@@ -89,6 +90,7 @@ __all__ = [
     "init_studio_tools",
     "init_studio_unity",
     "init_studio_vision",
+    "init_studio_blender",
     "ALL_STUDIO_TOOL_NAMES",
     # roles
     "RoleConfig",
