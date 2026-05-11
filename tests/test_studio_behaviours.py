@@ -102,10 +102,12 @@ def test_behaviour_library_contains_known_behaviours() -> None:
         "PauseMenu", "SettingsStore",
         # Phase 43 combat primitives
         "Projectile", "Shooter", "Spawner", "Enemy",
+        # Phase 46 endless-runner primitives
+        "AutoScroller", "LanePositioner",
     }
     assert set(_BEHAVIOUR_LIBRARY) == expected
-    assert len(_BEHAVIOUR_LIBRARY) == 19
-    print("OK Behaviour library exposes 19 known names")
+    assert len(_BEHAVIOUR_LIBRARY) == 21
+    print("OK Behaviour library exposes 21 known names")
 
 
 def test_each_behaviour_has_a_corresponding_cs_file() -> None:
@@ -327,6 +329,51 @@ def test_combat_quartet_in_runtime_namespace() -> None:
     print("OK combat quartet (Projectile + Shooter + Spawner + Enemy) all in UnityTools.Behaviours, no UnityEditor leak")
 
 
+# ───────────────────────────────────────────── endless-runner (Phase 46)
+
+
+def test_autoscroller_constant_velocity_with_despawn() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "AutoScroller.cs").read_text(encoding="utf-8")
+    for f in ("direction", "speed", "despawnPastThreshold", "despawnAt"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"AutoScroller.{f} field missing"
+    # Constant velocity via deltaTime
+    assert "Time.deltaTime" in body
+    # Despawn safety so obstacles flying off-camera don't leak
+    assert "Destroy(gameObject)" in body
+    # Normalises direction at Awake so a (0,0,-1) field isn't required to be unit
+    assert "Awake" in body
+    assert "normalized" in body
+    print("OK AutoScroller contract: direction + speed + despawn threshold + Time.deltaTime motion + normalised direction")
+
+
+def test_lane_positioner_snaps_to_n_lanes_with_keys_and_axis() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "LanePositioner.cs").read_text(encoding="utf-8")
+    for f in ("laneCount", "laneWidth", "startLane", "switchDuration",
+              "leftKey", "rightKey", "useHorizontalAxis"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"LanePositioner.{f} field missing"
+    # Key-based discrete shift
+    assert "GetKeyDown(leftKey)" in body
+    assert "GetKeyDown(rightKey)" in body
+    # Horizontal axis edge-trigger (so a held axis doesn't drift through every lane)
+    assert "GetAxisRaw" in body or "GetAxis(\"Horizontal\")" in body
+    assert "axisCooldown" in body or "_axisCooldown" in body
+    # Public ShiftLane API so other behaviours can drive it
+    assert re.search(r"public\s+void\s+ShiftLane\s*\(", body), "LanePositioner.ShiftLane(int) missing"
+    # Clamps to [0, laneCount-1]
+    assert "Mathf.Clamp" in body
+    # Lanes centered around X=0
+    assert "laneCount - 1" in body
+    print("OK LanePositioner contract: N lanes + key + axis + edge-trigger cooldown + ShiftLane API + clamped + centered")
+
+
+def test_runner_duo_in_runtime_namespace() -> None:
+    for name in ("AutoScroller", "LanePositioner"):
+        body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / f"{name}.cs").read_text(encoding="utf-8")
+        assert "namespace UnityTools.Behaviours" in body, f"{name}.cs has wrong namespace"
+        assert "using UnityEditor;" not in body, f"{name}.cs must not import UnityEditor"
+    print("OK AutoScroller + LanePositioner in UnityTools.Behaviours, no UnityEditor leak")
+
+
 # ───────────────────────────────────────────── wrapper validation
 
 
@@ -475,6 +522,10 @@ def run_test() -> None:
     test_shooter_resolves_template_and_rate_limits()
     test_spawner_caps_alive_and_prunes_dead_refs()
     test_combat_quartet_in_runtime_namespace()
+    # Phase 46 endless-runner
+    test_autoscroller_constant_velocity_with_despawn()
+    test_lane_positioner_snaps_to_n_lanes_with_keys_and_axis()
+    test_runner_duo_in_runtime_namespace()
     # Wrappers
     test_attach_behaviour_rejects_unknown_name()
     test_attach_behaviour_requires_target_name()

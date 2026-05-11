@@ -1225,6 +1225,8 @@ namespace UnityTools.Bridge
             "PauseMenu", "SettingsStore",
             // Phase 43: combat primitives
             "Projectile", "Shooter", "Spawner", "Enemy",
+            // Phase 46: endless-runner primitives
+            "AutoScroller", "LanePositioner",
         };
 
         private static Type ResolveBehaviourType(string name)

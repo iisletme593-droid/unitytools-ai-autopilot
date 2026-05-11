@@ -863,6 +863,8 @@ _BEHAVIOUR_LIBRARY = (
     "PauseMenu", "SettingsStore",
     # Phase 43: combat primitives
     "Projectile", "Shooter", "Spawner", "Enemy",
+    # Phase 46: endless-runner primitives
+    "AutoScroller", "LanePositioner",
 )
 
 

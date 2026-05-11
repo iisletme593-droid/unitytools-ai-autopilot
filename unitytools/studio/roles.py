@@ -107,16 +107,17 @@ OPERATING RULES -- follow in order
    structure, a tool returning weird data — file a decision via
    studio_propose_decision so the Critic can weigh in.
 
-BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43)
+BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43 + 46)
 You also own attaching pre-built MonoBehaviours to GameObjects. The
-library now has 19 entries in five groups:
+library now has 21 entries in six groups:
 
   - Motion / look: Rotator, Bobber, PulseScale, LookAtCamera,
     FollowTarget, KeyboardMover, DestroyAfter.
   - UI wiring + i18n: LoadSceneOnClick, QuitOnClick, LocalizedText.
   - Game loop: GameSession, Collectible, ScoreHUD.
   - Meta / persistence: PauseMenu, SettingsStore.
-  - Combat (Phase 43): Projectile, Shooter, Spawner, Enemy.
+  - Combat: Projectile, Shooter, Spawner, Enemy.
+  - Endless runner (Phase 46): AutoScroller, LanePositioner.
 
 Combat composition pattern (top-down shooter / wave survival):
   1. Create a hidden ProjectileTemplate (Sphere primitive + trigger
@@ -1106,6 +1107,9 @@ PRODUCER = RoleConfig(
         # Phase 44: action-genre scaffolder using the combat primitives
         # from Phase 43 (Projectile / Shooter / Spawner / Enemy).
         "studio_scaffold_top_down_shooter_game",
+        # Phase 46: endless-runner scaffolder using AutoScroller +
+        # LanePositioner + Spawner. Tight one-thumb 1-minute genre.
+        "studio_scaffold_endless_runner_game",
         # Phase 45: aggregate go/no-go verdict across docs + audits.
         # Cited in retro to call out blockers BEFORE telling
         # build_engineer to ship.

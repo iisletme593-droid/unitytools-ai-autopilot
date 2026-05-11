@@ -1085,6 +1085,269 @@ def studio_scaffold_top_down_shooter_game(
     }
 
 
+@tool(description="Scaffold a complete endless-runner mini-game: drafts a milestone + a structured task batch using AutoScroller + LanePositioner + Spawner + Collectible (so collecting coins-while-running drives the score). Inputs control pacing: scroll_speed, lane_count, obstacle_interval. One Producer call -> a full endless-runner backlog.")
+def studio_scaffold_endless_runner_game(
+    game_name: str = "Lane Sprinter",
+    lane_count: int = 3,
+    lane_width: float = 2.0,
+    scroll_speed: float = 8.0,
+    obstacle_interval: float = 1.5,
+    target_score: int = 30,
+    win_scene_name: str = "WinScene",
+) -> dict:
+    state = _require_state()
+    if lane_count < 2 or lane_count > 7:
+        return {"ok": False, "error": "lane_count must be in 2..7."}
+    if lane_width <= 0 or lane_width > 10:
+        return {"ok": False, "error": "lane_width must be in (0, 10]."}
+    if scroll_speed <= 0 or scroll_speed > 30:
+        return {"ok": False, "error": "scroll_speed must be in (0, 30]."}
+    if obstacle_interval <= 0 or obstacle_interval > 30:
+        return {"ok": False, "error": "obstacle_interval must be in (0, 30]."}
+    if target_score < 1 or target_score > 500:
+        return {"ok": False, "error": "target_score must be in 1..500."}
+
+    milestone_name = f"Ship MVP: {game_name}"
+    milestone = Milestone(
+        name=milestone_name,
+        description=(
+            f"End-to-end endless-runner MVP. Player stays in place, "
+            f"switches between {lane_count} lanes via A/D or arrow keys. "
+            f"World scrolls at {scroll_speed} u/s via AutoScroller. "
+            f"Obstacles + coins spawn every {obstacle_interval}s. Win at "
+            f"{target_score} coins -> loads {win_scene_name!r}; collide "
+            f"with obstacle -> LoseLife."
+        ),
+    )
+    state.add_milestone(milestone)
+    milestone_id = milestone.id
+
+    play_width = lane_count * lane_width   # for camera framing
+
+    tasks_spec: list[tuple[str, str, str]] = [
+        (
+            "designer",
+            f"Draft GDD for {game_name}",
+            f"Endless-runner pitch: 'Dodge obstacles, grab coins, "
+            f"survive as long as possible to hit {target_score} score.' "
+            f"Pillars: 1-thumb control (lane switch only), 60-second "
+            f"runs, ramping difficulty. Win scene: {win_scene_name!r}."
+        ),
+        (
+            "art_director",
+            "Draft Art Bible — high-contrast lane palette",
+            "Endless runners need HIGH contrast between lane / coin / "
+            "obstacle / background so the player reads incoming threats "
+            "fast at speed. Pick a 4-colour palette with one VERY "
+            "saturated obstacle accent (red / orange). Save via "
+            "studio_write_art_bible."
+        ),
+        (
+            "worker",
+            "Place runner + templates + GameSession + Spawner",
+            f"Step-by-step:\n"
+            f"1. unity_create_scene_snapshot(label='{{task_id}}_before')\n"
+            f"2. Player (stays at z=0, switches lanes):\n"
+            f"   unity_create_primitive('Capsule', name='Player')\n"
+            f"   unity_set_position(name='Player', x=0, y=1, z=0)\n"
+            f"   unity_attach_behaviour('Player', 'LanePositioner',\n"
+            f"      params={{'laneCount': {lane_count},\n"
+            f"               'laneWidth': {lane_width},\n"
+            f"               'startLane': {lane_count // 2},\n"
+            f"               'switchDuration': 0.12,\n"
+            f"               'useHorizontalAxis': true}})\n"
+            f"3. CoinTemplate (cloned by Spawner, AutoScrolled toward player):\n"
+            f"   unity_create_primitive('Sphere', name='CoinTemplate')\n"
+            f"   unity_set_scale(name='CoinTemplate', uniform=0.5)\n"
+            f"   unity_add_component('CoinTemplate', 'SphereCollider')\n"
+            f"   (set isTrigger=true)\n"
+            f"   unity_attach_behaviour('CoinTemplate', 'Collectible',\n"
+            f"      params={{'scoreValue': 1, 'playerFilter': 'Player',\n"
+            f"               'destroyOnPickup': true}})\n"
+            f"   unity_attach_behaviour('CoinTemplate', 'AutoScroller',\n"
+            f"      params={{'direction': {{'x':0,'y':0,'z':-1}},\n"
+            f"               'speed': {scroll_speed},\n"
+            f"               'despawnPastThreshold': true,\n"
+            f"               'despawnAt': -5}})\n"
+            f"   unity_attach_behaviour('CoinTemplate', 'Rotator',\n"
+            f"      params={{'speedDegPerSec': 120}})\n"
+            f"4. ObstacleTemplate (same AutoScroller, but kills the player):\n"
+            f"   unity_create_primitive('Cube', name='ObstacleTemplate')\n"
+            f"   unity_add_component('ObstacleTemplate', 'BoxCollider')\n"
+            f"   (set isTrigger=true)\n"
+            f"   unity_attach_behaviour('ObstacleTemplate', 'Enemy',\n"
+            f"      params={{'health': 9999, 'scoreOnDeath': 0,\n"
+            f"               'contactDamage': 1, 'playerNamePrefix': 'Player'}})\n"
+            f"   unity_attach_behaviour('ObstacleTemplate', 'AutoScroller',\n"
+            f"      params={{'direction': {{'x':0,'y':0,'z':-1}},\n"
+            f"               'speed': {scroll_speed},\n"
+            f"               'despawnAt': -5}})\n"
+            f"5. CoinSpawner ahead of player on a positive Z:\n"
+            f"   unity_create_empty(name='CoinSpawner')\n"
+            f"   unity_set_position(name='CoinSpawner', x=0, y=1, z=20)\n"
+            f"   unity_attach_behaviour('CoinSpawner', 'Spawner',\n"
+            f"      params={{'templateName': 'CoinTemplate',\n"
+            f"               'interval': {obstacle_interval * 0.7},\n"
+            f"               'maxAlive': 8,\n"
+            f"               'spawnRadius': {(lane_count - 1) * lane_width / 2.0:.2f},\n"
+            f"               'warmup': 1.5, 'flatXZ': false}})\n"
+            f"   (Note: spawnRadius spans the lane band; flatXZ=false lets us tune x-only)\n"
+            f"6. ObstacleSpawner ahead too:\n"
+            f"   unity_create_empty(name='ObstacleSpawner')\n"
+            f"   unity_set_position(name='ObstacleSpawner', x=0, y=1, z=25)\n"
+            f"   unity_attach_behaviour('ObstacleSpawner', 'Spawner',\n"
+            f"      params={{'templateName': 'ObstacleTemplate',\n"
+            f"               'interval': {obstacle_interval},\n"
+            f"               'maxAlive': 6,\n"
+            f"               'spawnRadius': {(lane_count - 1) * lane_width / 2.0:.2f},\n"
+            f"               'warmup': 3.0}})\n"
+            f"7. GameSession (3 lives, win at target_score):\n"
+            f"   unity_create_empty(name='GameSession')\n"
+            f"   unity_attach_behaviour('GameSession', 'GameSession',\n"
+            f"      params={{'winScore': {target_score},\n"
+            f"               'winSceneName': '{win_scene_name}',\n"
+            f"               'startingLives': 3,\n"
+            f"               'loseSceneName': 'GameOverScene'}})\n"
+            f"8. unity_save_scene(); studio_update_task_status('{{task_id}}', 'done')"
+        ),
+        (
+            "ui_builder",
+            "Build runner HUD + pause",
+            f"1. unity_create_ui_canvas(name='HUDCanvas')\n"
+            f"2. unity_create_ui_text(canvas_name='HUDCanvas', name='ScoreText',\n"
+            f"   text='Coins: 0/{target_score}', position_x=-400, position_y=400,\n"
+            f"   font_size=42)\n"
+            f"3. unity_attach_behaviour('ScoreText', 'ScoreHUD',\n"
+            f"   params={{'format': 'Coins: {{score}}/{{win}}'}})\n"
+            f"4. unity_create_ui_text(canvas_name='HUDCanvas', name='LivesText',\n"
+            f"   text='Lives: 3', position_x=400, position_y=400, font_size=42)\n"
+            f"5. unity_attach_behaviour('LivesText', 'ScoreHUD',\n"
+            f"   params={{'format': 'Lives: {{lives}}'}})\n"
+            f"6. unity_create_ui_canvas(name='PauseCanvas')\n"
+            f"7. unity_attach_behaviour('PauseCanvas', 'PauseMenu',\n"
+            f"   params={{'toggleKey': 'Escape'}})\n"
+            f"8. unity_save_scene()"
+        ),
+        (
+            "lighting_director",
+            "Light the runway",
+            "Bright key light so obstacles read at speed. Shadow cast "
+            "on Player only (Disable on Coin/Obstacle templates to keep "
+            "shadow-caster budget under control)."
+        ),
+        (
+            "atmosphere_director",
+            "Set sky + fog for depth feel",
+            "Heavier fog than collectathon (mode='Linear', start=10, end=40) "
+            "so obstacles fade in dramatically. Provides the visual cue "
+            "for speed."
+        ),
+        (
+            "camera_director",
+            "Behind-player runner camera",
+            f"Place camera behind+above Player at offset (0, {lane_width * 1.5:.1f}, "
+            f"{-lane_width * 2.0:.1f}). Use unity_set_camera_transform "
+            f"(name='Main Camera', position_y={lane_width * 1.5:.1f}, "
+            f"position_z={-lane_width * 2.0:.1f}, rotation_x=20). "
+            f"Then unity_attach_behaviour('Main Camera', 'FollowTarget', "
+            f"params={{'targetName': 'Player', 'smoothing': 5.0, "
+            f"'offset': {{'x':0,'y':{lane_width * 1.5:.1f},'z':{-lane_width * 2.0:.1f}}}}})"
+        ),
+        (
+            "material_artist",
+            "Coin gold + obstacle warning-red",
+            "CoinTemplate: PBR(metallic=1.0, smoothness=0.85). "
+            "ObstacleTemplate: emission_enabled=1 with palette accent "
+            "(red/orange) and emission_intensity=1.5 so it READS as a "
+            "danger signal even at fog distance."
+        ),
+        (
+            "audio_director",
+            "Draft Audio Brief — running pace",
+            "Upbeat / driving music (110-130 BPM). 3 SFX: lane-switch "
+            "swoosh, coin pickup chime, obstacle hit thud. 44.1kHz."
+        ),
+        (
+            "localization_lead",
+            "Seed en + tr string tables",
+            f"studio_write_strings('en', strings={{"
+            f"'title.main': '{game_name}', 'btn.start': 'Run', "
+            f"'btn.resume': 'Resume', 'hud.coins': 'Coins: ', "
+            f"'hud.lives': 'Lives: ', 'screen.win': 'Course Cleared!', "
+            f"'screen.lose': 'Crashed', 'screen.pause': 'Paused'"
+            f"}}). Translate to 'tr'. Run audit until verdict=pass."
+        ),
+        (
+            "marketing_director",
+            "Finalize PlayerSettings + press kit",
+            f"unity_set_player_settings(product_name='{game_name}', "
+            f"company_name='UnityTools Studio', version='0.1.0', "
+            f"bundle_id='com.unitytools.{game_name.lower().replace(' ', '')}'). "
+            "Hero shot: capture mid-lane-switch with obstacle in frame."
+        ),
+        (
+            "physics_qa",
+            "Profile under continuous spawn",
+            f"Endless runner spawns + despawns constantly. Run "
+            f"studio_perf_budget_check after 30s of play. If "
+            f"renderer / triangle budget blows due to spawned clones, "
+            f"file Worker task to lower Spawner.maxAlive or shrink "
+            f"templates."
+        ),
+        (
+            "playtester",
+            "Smoke-test the runner",
+            "studio_playtest_smoke(expected_object_names=['Player', "
+            "'GameSession', 'CoinSpawner', 'ObstacleSpawner', 'HUDCanvas'])"
+        ),
+        (
+            "game_balancer",
+            "Tune obstacle interval",
+            f"After playtest, run studio_balance_audit. If failure_rate>0.5 "
+            f"(player keeps crashing), file task to raise obstacle_interval "
+            f"(currently {obstacle_interval}s) or shrink obstacle width. "
+            f"If <0.1 (too easy), shrink the interval."
+        ),
+        (
+            "build_engineer",
+            "Ship Windows + WebGL builds",
+            f"Run studio_ship_readiness_check. If pass, build BOTH:\n"
+            f"  unity_build_player(target='windows', "
+            f"output_path='studio/builds/<date>/windows/{game_name.replace(' ', '')}.exe')\n"
+            f"  unity_build_player(target='webgl', "
+            f"output_path='studio/builds/<date>/webgl/index.html')\n"
+            f"Endless runners are perfect WebGL fodder."
+        ),
+    ]
+
+    opened: list[dict] = []
+    for role, title, description in tasks_spec:
+        if role not in ROLES:
+            continue
+        task = Task(
+            title=title,
+            role=role,
+            description=description,
+            milestone=milestone_id,
+        )
+        state.add_task(task)
+        opened.append({"task_id": task.id, "role": task.role, "title": task.title})
+
+    return {
+        "ok": True,
+        "game_name": game_name,
+        "lane_count": lane_count,
+        "lane_width": lane_width,
+        "scroll_speed": scroll_speed,
+        "obstacle_interval": obstacle_interval,
+        "target_score": target_score,
+        "milestone_id": milestone_id,
+        "milestone_name": milestone_name,
+        "task_count": len(opened),
+        "tasks": opened,
+    }
+
+
 # ─── Localization (Phase 39) ───────────────────────────────────────────
 
 _LOCALE_CODE_RE = re.compile(r"^[a-z]{2}(?:-[A-Z]{2})?$")
@@ -2462,6 +2725,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_scaffold_collectathon_game",
     # game template scaffolder (Phase 44)
     "studio_scaffold_top_down_shooter_game",
+    # game template scaffolder (Phase 46)
+    "studio_scaffold_endless_runner_game",
     # ship readiness (Phase 45)
     "studio_ship_readiness_check",
     # recent activity
