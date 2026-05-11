@@ -256,6 +256,11 @@ TASK ROLES YOU CAN OPEN
   specific audio identity and the brief is still empty / vague.
 - level_designer: compares the scene to a reference image, files
   placement / composition tasks
+- vfx_director: owns the scene's atmospheric particles (dust /
+  fire / smoke / magic). Audits emission rate + particle budget,
+  adds presets, tunes loud offenders. Open one of these AFTER the
+  Worker placed objects, with a title like "Add <preset> VFX to
+  <target>".
 - camera_director: owns the scene's framing. Positions the main
   (or named) camera to land a specific shot of a named target,
   optionally matching a reference image. Open one of these AFTER
@@ -374,6 +379,47 @@ OUT OF SCOPE
 - Do not modify the scene (no create / delete / move). Decisions and
   tasks are your only outputs.
 - Do not edit the GDD or Art Bible.
+"""
+
+
+_VFX_DIRECTOR_PROMPT = """You are the VFX Director of an autonomous studio.
+
+You own the scene's particle systems — dust, fire, smoke, magic
+sparkles. Atmospheric VFX is one of the biggest "feel" upgrades a
+scene can get, but it's also the easiest place to over-emit and
+tank perf. You stay within budget.
+
+OPERATING RULES
+1. Read the Art Bible (studio_read_art_bible) for palette intent.
+   Warm scenes -> dust + fire presets, cool scenes -> magic, dingy
+   scenes -> smoke. If the bible is empty, file a blocking task
+   for the Art Director and stop.
+2. Audit before mutating: studio_vfx_audit() returns count, total
+   emission rate, total max particles, violations, and named
+   recommendations. Read it.
+3. ALWAYS take a snapshot before changing particles:
+   unity_create_scene_snapshot(label="<task_id>_vfx_before").
+4. To add new VFX: the task description names ONE target object and
+   ONE preset. Call unity_add_particle_system(target_name=...,
+   preset="dust|fire|smoke|magic"). Presets are tuned baselines —
+   only reach for unity_set_particle_properties if the baseline is
+   too loud or off-palette.
+5. To trim a hot scene: read the audit's recommendations, then call
+   unity_set_particle_properties on the named offenders to halve
+   emission_rate or max_particles. Do NOT delete systems (the
+   Worker owns deletion).
+6. Re-run studio_vfx_audit to confirm the new verdict is "pass".
+7. unity_save_scene().
+8. Final tool call MUST be studio_update_task_status. "done" when
+   the post-audit verdict is "pass"; "blocked" when a violation
+   persists or the target object is missing.
+9. End with a 3-line summary: systems touched, verdict before ->
+   after, dominant preset chosen.
+
+OUT OF SCOPE
+- Do not place / move scene objects (Worker's job).
+- Do not edit lights, cameras, or audio.
+- Do not edit docs.
 """
 
 
@@ -809,6 +855,32 @@ PHYSICS_QA = RoleConfig(
 )
 
 
+VFX_DIRECTOR = RoleConfig(
+    id="vfx_director",
+    name="VFX Director",
+    system_prompt=_format(_VFX_DIRECTOR_PROMPT),
+    allowed_tools=(
+        # Read context
+        "studio_get_summary",
+        "studio_read_gdd",
+        "studio_read_art_bible",
+        # Audit (no mutation)
+        "studio_vfx_audit",
+        "unity_list_particle_systems",
+        # Snapshot + capture (verify visually)
+        "unity_create_scene_snapshot",
+        "studio_capture_screenshot",
+        # The actual VFX mutations
+        "unity_add_particle_system",
+        "unity_set_particle_properties",
+        # Save + lifecycle
+        "unity_save_scene",
+        "studio_update_task_status",
+        "studio_propose_decision",
+    ),
+)
+
+
 CAMERA_DIRECTOR = RoleConfig(
     id="camera_director",
     name="Camera Director",
@@ -920,7 +992,7 @@ _ROLES: dict[str, RoleConfig] = {
     r.id: r for r in (
         PRODUCER, DESIGNER, CRITIC, LEVEL_DESIGNER, ART_DIRECTOR,
         WORKER, PLAYTESTER, PHYSICS_QA, AUDIO_DIRECTOR, AUDIO_ENGINEER,
-        LIGHTING_DIRECTOR, CAMERA_DIRECTOR,
+        LIGHTING_DIRECTOR, CAMERA_DIRECTOR, VFX_DIRECTOR,
     )
 }
 

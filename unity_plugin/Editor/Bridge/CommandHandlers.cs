@@ -55,6 +55,9 @@ namespace UnityTools.Bridge
                 case "set_camera_transform": return SetCameraTransform(p);
                 case "frame_object": return FrameObject(p);
                 case "list_cameras": return ListCameras(p);
+                case "add_particle_system": return AddParticleSystem(p);
+                case "set_particle_properties": return SetParticleProperties(p);
+                case "list_particle_systems": return ListParticleSystems(p);
                 case "find_by_tag": return FindByTag(p);
                 case "find_assets": return FindAssets(p);
                 case "list_prefabs": return ListPrefabs(p);
@@ -674,6 +677,148 @@ namespace UnityTools.Bridge
                 });
             }
             return new { ok = true, count = rows.Count, cameras = rows };
+        }
+
+        private static (Color start, float lifetime, float speed, float rate, float size) ParticlePreset(string preset)
+        {
+            // (startColor, startLifetime, startSpeed, emissionRate, startSize)
+            switch ((preset ?? "").ToLowerInvariant())
+            {
+                case "fire":  return (new Color(1.0f, 0.45f, 0.10f, 0.85f), 1.5f, 1.6f, 60f, 0.35f);
+                case "smoke": return (new Color(0.60f, 0.60f, 0.60f, 0.60f), 3.0f, 0.7f, 25f, 0.80f);
+                case "magic": return (new Color(0.55f, 0.30f, 0.95f, 0.95f), 2.0f, 1.0f, 35f, 0.20f);
+                case "dust":
+                default:      return (new Color(0.85f, 0.78f, 0.55f, 0.45f), 4.0f, 0.4f, 12f, 0.45f);
+            }
+        }
+
+        private static object AddParticleSystem(JObject p)
+        {
+            string targetName = p["target_name"]?.ToString();
+            if (string.IsNullOrEmpty(targetName)) throw new ArgumentException("target_name is required");
+            var go = GameObject.Find(targetName);
+            if (go == null) throw new InvalidOperationException($"Object not found: {targetName}");
+
+            string preset = p["preset"]?.ToString() ?? "dust";
+            var ps = go.GetComponent<ParticleSystem>();
+            bool created = false;
+            if (ps == null)
+            {
+                ps = go.AddComponent<ParticleSystem>();
+                Undo.RegisterCreatedObjectUndo(ps, "Bridge: add ParticleSystem");
+                created = true;
+            }
+            else
+            {
+                Undo.RecordObject(ps, "Bridge: configure ParticleSystem");
+            }
+
+            var (color, lifetime, speed, rate, size) = ParticlePreset(preset);
+            var main = ps.main;
+            main.startColor = color;
+            main.startLifetime = lifetime;
+            main.startSpeed = speed;
+            main.startSize = size;
+            main.loop = true;
+            main.playOnAwake = true;
+            main.maxParticles = 1000;
+
+            var emission = ps.emission;
+            emission.enabled = true;
+            emission.rateOverTime = rate;
+
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                target = targetName,
+                preset = preset,
+                created = created,
+                emission_rate = rate,
+                start_lifetime = lifetime,
+                start_color_r = color.r,
+                start_color_g = color.g,
+                start_color_b = color.b,
+            };
+        }
+
+        private static object SetParticleProperties(JObject p)
+        {
+            string name = p["name"]?.ToString();
+            if (string.IsNullOrEmpty(name)) throw new ArgumentException("name is required");
+            var go = GameObject.Find(name);
+            if (go == null) throw new InvalidOperationException($"Object not found: {name}");
+            var ps = go.GetComponent<ParticleSystem>();
+            if (ps == null) throw new InvalidOperationException($"ParticleSystem not found on {name}");
+            Undo.RecordObject(ps, "Bridge: set ParticleSystem properties");
+
+            var main = ps.main;
+            if (p["start_lifetime"] != null) main.startLifetime = Mathf.Max(0.01f, p["start_lifetime"].ToObject<float>());
+            if (p["start_speed"] != null) main.startSpeed = p["start_speed"].ToObject<float>();
+            if (p["start_size"] != null) main.startSize = Mathf.Max(0.001f, p["start_size"].ToObject<float>());
+            if (p["max_particles"] != null) main.maxParticles = Mathf.Clamp(p["max_particles"].ToObject<int>(), 1, 10000);
+            if (p["loop"] != null) main.loop = p["loop"].ToObject<bool>();
+            JObject col = p["color"] as JObject;
+            if (col != null)
+                main.startColor = new Color(
+                    col["r"]?.ToObject<float>() ?? 1f,
+                    col["g"]?.ToObject<float>() ?? 1f,
+                    col["b"]?.ToObject<float>() ?? 1f,
+                    col["a"]?.ToObject<float>() ?? 1f
+                );
+
+            var emission = ps.emission;
+            if (p["emission_rate"] != null) emission.rateOverTime = Mathf.Max(0f, p["emission_rate"].ToObject<float>());
+
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                name = name,
+                start_lifetime = main.startLifetime.constant,
+                start_speed = main.startSpeed.constant,
+                emission_rate = emission.rateOverTime.constant,
+                max_particles = main.maxParticles,
+            };
+        }
+
+        private static object ListParticleSystems(JObject p)
+        {
+            var all = UnityEngine.Object.FindObjectsByType<ParticleSystem>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var rows = new List<object>();
+            float totalEmission = 0f;
+            int totalMax = 0;
+            foreach (var ps in all)
+            {
+                if (!ps.gameObject.scene.IsValid()) continue;
+                var main = ps.main;
+                var emission = ps.emission;
+                float rate = emission.rateOverTime.constant;
+                totalEmission += rate;
+                totalMax += main.maxParticles;
+                rows.Add(new
+                {
+                    name = ps.gameObject.name,
+                    emission_rate = rate,
+                    start_lifetime = main.startLifetime.constant,
+                    start_speed = main.startSpeed.constant,
+                    max_particles = main.maxParticles,
+                    loop = main.loop,
+                    play_on_awake = main.playOnAwake,
+                    color_r = main.startColor.color.r,
+                    color_g = main.startColor.color.g,
+                    color_b = main.startColor.color.b,
+                    active = ps.gameObject.activeInHierarchy,
+                });
+            }
+            return new
+            {
+                ok = true,
+                count = rows.Count,
+                total_emission_rate = totalEmission,
+                total_max_particles = totalMax,
+                systems = rows,
+            };
         }
 
         private static object SetCamera(JObject p)

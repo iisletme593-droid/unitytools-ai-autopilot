@@ -495,6 +495,67 @@ def studio_unity_attach_audio_source(
     return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
 
 
+# ─── VFX audit (Phase 30) ──────────────────────────────────────────────
+
+@tool(description="Audit the scene's particle systems against soft budgets: at most max_systems active particle systems, total emission_rate under max_total_emission, total max_particles under max_total_particles. Returns verdict + violations + recommendations. No mutations.")
+def studio_vfx_audit(
+    max_systems: int = 12,
+    max_total_emission: float = 400.0,
+    max_total_particles: int = 8000,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected."}
+    if hasattr(_UNITY, "is_connected") and not _UNITY.is_connected():
+        return {"ok": False, "error": "Unity Editor is not connected."}
+    try:
+        result = _UNITY.call("list_particle_systems", {}, timeout=30)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"list_particle_systems failed: {exc}", "error_type": type(exc).__name__}
+    if not isinstance(result, dict):
+        return {"ok": False, "error": "Unity returned non-dict from list_particle_systems.", "raw": result}
+
+    systems = result.get("systems", []) or []
+    count = int(result.get("count", len(systems)))
+    total_emission = float(result.get("total_emission_rate", 0.0))
+    total_max = int(result.get("total_max_particles", 0))
+
+    violations: list[str] = []
+    recommendations: list[str] = []
+    if count > max_systems:
+        violations.append(f"too_many_systems:{count}>{max_systems}")
+        recommendations.append(
+            f"{count} active particle systems exceed budget {max_systems}; "
+            "merge ambient systems or disable distant ones to drop the count."
+        )
+    if total_emission > max_total_emission:
+        violations.append(f"emission_over_budget:{total_emission:.1f}>{max_total_emission}")
+        # Find the loudest 1-2 systems and name them.
+        loud = sorted(systems, key=lambda s: float(s.get("emission_rate", 0.0)), reverse=True)[:2]
+        names = ", ".join(s.get("name", "?") for s in loud) or "—"
+        recommendations.append(
+            f"Scene emission rate {total_emission:.1f}/s over budget {max_total_emission}/s; "
+            f"halve emission_rate on the top offenders ({names}) via unity_set_particle_properties."
+        )
+    if total_max > max_total_particles:
+        violations.append(f"max_particles_over_budget:{total_max}>{max_total_particles}")
+        recommendations.append(
+            f"Total max_particles {total_max} exceeds budget {max_total_particles}; "
+            "reduce max_particles on the largest systems via unity_set_particle_properties."
+        )
+
+    verdict = "pass" if not violations else "fail"
+    return {
+        "ok": True,
+        "verdict": verdict,
+        "count": count,
+        "total_emission_rate": total_emission,
+        "total_max_particles": total_max,
+        "violations": violations,
+        "recommendations": recommendations,
+        "systems": systems,
+    }
+
+
 # ─── Camera framing audit (Phase 29) ───────────────────────────────────
 
 @tool(description="Frame the named target object with the main (or named) camera, capture a screenshot, and optionally compare against a reference image. Returns the screenshot path, the camera placement, and (if reference_path given) the composition_match score. The Camera Director uses this to verify a frame before saving.")
@@ -1375,6 +1436,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_lighting_audit",
     # camera framing (Phase 29)
     "studio_camera_frame_check",
+    # vfx (Phase 30)
+    "studio_vfx_audit",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

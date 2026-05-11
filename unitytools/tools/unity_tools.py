@@ -534,6 +534,73 @@ def unity_list_cameras() -> dict:
         return {"ok": False, "error": str(e)}
 
 
+@tool(description="Add (or reconfigure) a ParticleSystem on a named GameObject using one of four presets: 'dust', 'fire', 'smoke', 'magic'. Each preset sets emission rate, lifetime, speed, color, and size to a tuned baseline you can fine-tune later with unity_set_particle_properties.")
+def unity_add_particle_system(target_name: str, preset: str = "dust") -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    if not target_name:
+        return {"ok": False, "error": "target_name is required"}
+    preset = (preset or "dust").lower()
+    if preset not in ("dust", "fire", "smoke", "magic"):
+        return {"ok": False, "error": f"unknown preset {preset!r}; use dust / fire / smoke / magic"}
+    try:
+        result = _UNITY.call("add_particle_system", {"target_name": target_name, "preset": preset})
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Tune properties on an existing ParticleSystem by GameObject name. Pass only the fields you want to change. emission_rate >=0, start_lifetime >0, max_particles 1..10000. RGB 0-1. The object must already have a ParticleSystem component (use unity_add_particle_system first).")
+def unity_set_particle_properties(
+    name: str,
+    emission_rate: float = -1.0,
+    start_lifetime: float = -1.0,
+    start_speed: float = float("nan"),
+    start_size: float = -1.0,
+    max_particles: int = -1,
+    loop: int = -1,  # -1 = no change, 0 = off, 1 = on
+    r: float = -1.0,
+    g: float = -1.0,
+    b: float = -1.0,
+    a: float = -1.0,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    if not name:
+        return {"ok": False, "error": "name is required"}
+    import math
+    params: dict = {"name": name}
+    if emission_rate >= 0.0: params["emission_rate"] = emission_rate
+    if start_lifetime > 0.0: params["start_lifetime"] = start_lifetime
+    if not math.isnan(start_speed): params["start_speed"] = start_speed
+    if start_size > 0.0: params["start_size"] = start_size
+    if max_particles > 0: params["max_particles"] = max_particles
+    if loop in (0, 1): params["loop"] = bool(loop)
+    if r >= 0.0 or g >= 0.0 or b >= 0.0 or a >= 0.0:
+        params["color"] = {
+            "r": max(0.0, r if r >= 0.0 else 1.0),
+            "g": max(0.0, g if g >= 0.0 else 1.0),
+            "b": max(0.0, b if b >= 0.0 else 1.0),
+            "a": max(0.0, a if a >= 0.0 else 1.0),
+        }
+    try:
+        result = _UNITY.call("set_particle_properties", params)
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="List every ParticleSystem in the active scene with emission rate, lifetime, speed, color, and max particles. Also returns scene-total emission rate and max-particle count. Read-only — use this before adding a system to avoid duplicates.")
+def unity_list_particle_systems() -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("list_particle_systems", {})
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @tool(description="Set camera settings on a GameObject that has a Camera component. FOV in degrees, near/far clip planes, orthographic toggle, orthographic size.")
 def unity_set_camera(
     name: str,
