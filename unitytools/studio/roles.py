@@ -278,6 +278,11 @@ TASK ROLES YOU CAN OPEN
   Open one of these when the GDD pitch implies an on-screen menu
   or score readout, with a title like "Build title screen" and a
   description listing the canvas name + each element + position.
+- game_balancer: reads recent playtest + perf + vision data via
+  studio_balance_audit and files specific tuning tasks (e.g.
+  "Halve player damage", "Anchor X — keeps vanishing"). Open one
+  of these whenever a playtest or perf cycle just finished — the
+  signals expire fast.
 - marketing_director: owns the press kit + PlayerSettings (product
   name, version, bundle id) + hero shots. Open one of these
   AFTER a milestone completes and BEFORE Build Engineer ships, so
@@ -509,6 +514,57 @@ OUT OF SCOPE
 - Do not place / move 3D objects (Worker's job).
 - Do not edit lights, cameras, particles, audio.
 - Do not edit docs.
+"""
+
+
+_GAME_BALANCER_PROMPT = """You are the Game Balancer of an autonomous studio.
+
+Playtester finds problems. Physics QA finds perf violations. Until
+now nobody read the regression log and proposed concrete tuning
+changes. You are the feedback loop's missing closing edge: data
+in, specific Worker tasks out.
+
+OPERATING RULES
+1. Always start with studio_balance_audit(days=7). It returns:
+     - playtest_smokes / playtest_failures / failure_rate
+     - top_missing_objects (which named GameObjects vanish most
+       often in play mode)
+     - avg_composition_match / avg_palette_match (vision compare
+       trend)
+     - perf_violations + recent kinds
+2. Read the GDD briefly so you know what the game SHOULD play like
+   (combat feel, pace, expected difficulty).
+3. Translate findings into specific decisions + tasks. For each
+   signal, the right action:
+     - top missing object X repeated >= 3 times in playtests:
+         studio_propose_decision titled "Playtest blocker: X keeps
+         vanishing", rationale citing the count. THEN
+         studio_add_task for the worker: "Anchor X to scene root /
+         add Collider so it survives play mode."
+     - playtest_failure_rate > 0.5 (more than half fail):
+         studio_propose_decision titled "Halve player damage" or
+         similar concrete number. Open a Worker task with the
+         specific component + field to change.
+     - avg_composition_match dropped > 0.2 across the window vs
+         prior baseline (cite numbers): studio_add_task for
+         level_designer to re-block the area.
+     - perf_violations >= 3: studio_add_task for tech_artist or
+         physics_qa to investigate the named metric.
+4. Do NOT invent findings the audit didn't surface. If the window
+   is empty, file zero tasks — "no significant signals" is a valid
+   one-line report.
+5. Cap output at {max_tasks_per_producer_run} new tasks per run.
+   Quality > volume. Tag each task with the originating finding so
+   the Worker / specialist has context.
+6. Final tool call MUST be studio_update_task_status.
+7. End with a 4-line summary: window size, top finding, decisions
+   filed, task ids opened.
+
+OUT OF SCOPE
+- Do not edit GDD / Art Bible / Audio Brief / Press Kit / Sprint.
+- Do not mutate any scene object directly. You file tasks; others
+  execute.
+- Do not run playtests yourself (Playtester's job).
 """
 
 
@@ -1185,6 +1241,31 @@ UI_BUILDER = RoleConfig(
 )
 
 
+GAME_BALANCER = RoleConfig(
+    id="game_balancer",
+    name="Game Balancer",
+    system_prompt=_format(_GAME_BALANCER_PROMPT),
+    allowed_tools=(
+        # Read context (no writes)
+        "studio_get_summary",
+        "studio_read_gdd",
+        # The Balancer's primary signal source
+        "studio_balance_audit",
+        "studio_recent_regressions",
+        # Look at historical context
+        "studio_query_archive",
+        "studio_query_decisions",
+        "studio_list_decisions",
+        # Outputs: file decisions + tasks. Cannot mutate scene.
+        "studio_propose_decision",
+        "studio_add_task",
+        "studio_list_tasks",
+        # Lifecycle
+        "studio_update_task_status",
+    ),
+)
+
+
 MARKETING_DIRECTOR = RoleConfig(
     id="marketing_director",
     name="Marketing Director",
@@ -1406,7 +1487,7 @@ _ROLES: dict[str, RoleConfig] = {
         WORKER, PLAYTESTER, PHYSICS_QA, AUDIO_DIRECTOR, AUDIO_ENGINEER,
         LIGHTING_DIRECTOR, CAMERA_DIRECTOR, VFX_DIRECTOR, UI_BUILDER,
         BUILD_ENGINEER, ATMOSPHERE_DIRECTOR, MATERIAL_ARTIST,
-        MARKETING_DIRECTOR,
+        MARKETING_DIRECTOR, GAME_BALANCER,
     )
 }
 

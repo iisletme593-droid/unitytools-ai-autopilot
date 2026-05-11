@@ -508,6 +508,103 @@ def studio_unity_attach_audio_source(
     return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
 
 
+# ─── Balance audit (Phase 38) ──────────────────────────────────────────
+
+@tool(description="Aggregate the last `days` of regression data into balance-relevant signals: how many playtest smokes ran, which named objects went missing most often, vision-compare scores trending (composition_match average), recent perf budget violations. Read-only — the Game Balancer reads this and files specific tuning tasks. Use to answer 'what's going wrong recently?'.")
+def studio_balance_audit(days: float = 7.0, max_top_offenders: int = 5) -> dict:
+    state = _require_state()
+    path = state.paths.qa_regression
+    if not path.exists():
+        return {
+            "ok": True,
+            "days": days,
+            "total_entries": 0,
+            "playtest_smokes": 0,
+            "playtest_failures": 0,
+            "missing_objects": {},
+            "top_missing_objects": [],
+            "vision_compares": 0,
+            "avg_composition_match": None,
+            "avg_palette_match": None,
+            "asset_generations": 0,
+            "perf_violations": 0,
+            "recent_perf_violation_kinds": [],
+        }
+    cutoff = time.time() - max(0.0, float(days)) * 86400.0
+    missing_counter: dict[str, int] = {}
+    playtest_total = 0
+    playtest_failures = 0
+    composition_scores: list[float] = []
+    palette_scores: list[float] = []
+    vision_total = 0
+    asset_generations = 0
+    perf_violations = 0
+    perf_kinds: list[str] = []
+    total_entries = 0
+
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            for raw in f:
+                raw = raw.strip()
+                if not raw:
+                    continue
+                try:
+                    entry = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                ts = entry.get("ts")
+                if isinstance(ts, (int, float)) and ts < cutoff:
+                    continue
+                total_entries += 1
+                kind = entry.get("kind", "")
+                if kind == "playtest_smoke":
+                    playtest_total += 1
+                    missing = entry.get("missing") or []
+                    if missing:
+                        playtest_failures += 1
+                    for name in missing:
+                        if isinstance(name, str) and name:
+                            missing_counter[name] = missing_counter.get(name, 0) + 1
+                elif kind == "vision_compare":
+                    vision_total += 1
+                    cm = entry.get("composition_match")
+                    pm = entry.get("palette_match")
+                    if isinstance(cm, (int, float)):
+                        composition_scores.append(float(cm))
+                    if isinstance(pm, (int, float)):
+                        palette_scores.append(float(pm))
+                elif kind == "asset_generated":
+                    asset_generations += 1
+                elif kind == "perf_budget_violation":
+                    perf_violations += 1
+                    metric = entry.get("metric") or entry.get("violation") or ""
+                    if metric:
+                        perf_kinds.append(str(metric))
+    except OSError as exc:
+        return {"ok": False, "error": f"Could not read regression log: {exc}"}
+
+    top = sorted(missing_counter.items(), key=lambda kv: kv[1], reverse=True)[:max(1, int(max_top_offenders))]
+    avg_comp = (sum(composition_scores) / len(composition_scores)) if composition_scores else None
+    avg_pal = (sum(palette_scores) / len(palette_scores)) if palette_scores else None
+
+    return {
+        "ok": True,
+        "days": days,
+        "total_entries": total_entries,
+        "playtest_smokes": playtest_total,
+        "playtest_failures": playtest_failures,
+        "playtest_failure_rate": (playtest_failures / playtest_total) if playtest_total else 0.0,
+        "missing_objects": missing_counter,
+        "top_missing_objects": [{"name": n, "missing_count": c} for n, c in top],
+        "vision_compares": vision_total,
+        "avg_composition_match": round(avg_comp, 4) if avg_comp is not None else None,
+        "avg_palette_match": round(avg_pal, 4) if avg_pal is not None else None,
+        "asset_generations": asset_generations,
+        "perf_violations": perf_violations,
+        "recent_perf_violation_kinds": perf_kinds[-10:],
+    }
+
+
 # ─── Asset manifest (Phase 37) ─────────────────────────────────────────
 
 @tool(description="Inventory the studio's asset directories: studio/refs/, studio/refs/audio/, studio/qa/screenshots/, studio/assets/generated/, studio/builds/. Returns counts + total bytes per bucket + the 10 newest files in each. Read-only; no Unity calls.")
@@ -1632,6 +1729,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_atmosphere_audit",
     # marketing / press kit (Phase 37)
     "studio_asset_manifest",
+    # balance (Phase 38)
+    "studio_balance_audit",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

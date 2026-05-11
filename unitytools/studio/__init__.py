@@ -41,6 +41,7 @@ from .roles import (
     ATMOSPHERE_DIRECTOR,
     MATERIAL_ARTIST,
     MARKETING_DIRECTOR,
+    GAME_BALANCER,
     get_role,
     all_roles,
 )
@@ -130,6 +131,7 @@ __all__ = [
     "ATMOSPHERE_DIRECTOR",
     "MATERIAL_ARTIST",
     "MARKETING_DIRECTOR",
+    "GAME_BALANCER",
     "get_role",
     "all_roles",
     # runner
