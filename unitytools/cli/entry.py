@@ -1815,6 +1815,7 @@ def _default_brief_for(role_id: str) -> str:
         "ui_builder": "Build the UI described in the task: create the named canvas, then each text + button element at the listed positions. Capture a screenshot and verify the element counts via unity_list_ui_elements.",
         "build_engineer": "Run studio_build_check first. If it passes, build the target named in the task with unity_build_player into studio/builds/<date>/<target>/. Report errors + warnings.",
         "atmosphere_director": "Tune the scene's skybox + fog to match the Art Bible's palette and mood. Audit -> snapshot -> set skybox -> set fog -> re-audit -> capture -> save.",
+        "material_artist": "Tune PBR (metallic + smoothness + emission) on the target named in the task so it reads as gold / crystal / neon / etc. Inspect -> snapshot -> set_material_pbr -> capture -> save.",
     }.get(role_id, "Run your role on the current project state.")
 
 
@@ -2021,7 +2022,7 @@ def main() -> int:
     p_studio_run.add_argument(
         "--role",
         required=True,
-        choices=("producer", "designer", "critic", "level_designer", "art_director", "playtester", "physics_qa", "audio_director", "audio_engineer", "lighting_director", "camera_director", "vfx_director", "ui_builder", "build_engineer", "atmosphere_director"),
+        choices=("producer", "designer", "critic", "level_designer", "art_director", "playtester", "physics_qa", "audio_director", "audio_engineer", "lighting_director", "camera_director", "vfx_director", "ui_builder", "build_engineer", "atmosphere_director", "material_artist"),
         help="Which role to run",
     )
     p_studio_run.add_argument("--brief", default="", help="Free-text brief for the role; uses a sensible default if omitted")

@@ -74,6 +74,8 @@ namespace UnityTools.Bridge
                 case "set_skybox": return SetSkybox(p);
                 case "set_fog": return SetFog(p);
                 case "get_atmosphere_state": return GetAtmosphereState(p);
+                case "set_material_pbr": return SetMaterialPbr(p);
+                case "get_material_properties": return GetMaterialProperties(p);
                 case "find_by_tag": return FindByTag(p);
                 case "find_assets": return FindAssets(p);
                 case "list_prefabs": return ListPrefabs(p);
@@ -1415,6 +1417,127 @@ namespace UnityTools.Bridge
                 }
             }
             return new { ok = true, count = rows.Count, attached = rows };
+        }
+
+        // ─── Phase 36: Material PBR (metallic + smoothness + emission) ──
+
+        private static Material ResolveSharedMaterial(string targetName)
+        {
+            var go = GameObject.Find(targetName);
+            if (go == null) throw new InvalidOperationException($"Object not found: {targetName}");
+            var rend = go.GetComponent<Renderer>();
+            if (rend == null) throw new InvalidOperationException($"Renderer not found on {targetName}");
+            // Use sharedMaterial to avoid spawning a per-instance copy in editor —
+            // we want the change to persist on the asset / shared material.
+            var mat = rend.sharedMaterial;
+            if (mat == null) throw new InvalidOperationException($"No material on {targetName}");
+            return mat;
+        }
+
+        private static object SetMaterialPbr(JObject p)
+        {
+            string name = p["name"]?.ToString();
+            if (string.IsNullOrEmpty(name)) throw new ArgumentException("name is required");
+            Material mat = ResolveSharedMaterial(name);
+            Undo.RecordObject(mat, "Bridge: set PBR properties");
+
+            // Metallic (0..1)
+            if (p["metallic"] != null && mat.HasProperty("_Metallic"))
+            {
+                mat.SetFloat("_Metallic", Mathf.Clamp01(p["metallic"].ToObject<float>()));
+            }
+            // Smoothness (0..1) — propagates to both _Smoothness and _Glossiness
+            if (p["smoothness"] != null)
+            {
+                SetMaterialSmoothness(mat, Mathf.Clamp01(p["smoothness"].ToObject<float>()));
+            }
+            // Emission: enable keyword + set color + intensity
+            bool emissionTouched = false;
+            JObject ecol = p["emission_color"] as JObject;
+            float emissionIntensity = p["emission_intensity"]?.ToObject<float>() ?? -1f;
+            if (p["emission_enabled"] != null)
+            {
+                bool en = p["emission_enabled"].ToObject<bool>();
+                if (en) mat.EnableKeyword("_EMISSION");
+                else mat.DisableKeyword("_EMISSION");
+                emissionTouched = true;
+            }
+            if (ecol != null || emissionIntensity >= 0f)
+            {
+                Color baseE = mat.HasProperty("_EmissionColor") ? mat.GetColor("_EmissionColor") : Color.black;
+                Color targetE = baseE;
+                if (ecol != null)
+                {
+                    targetE = new Color(
+                        ecol["r"]?.ToObject<float>() ?? baseE.r,
+                        ecol["g"]?.ToObject<float>() ?? baseE.g,
+                        ecol["b"]?.ToObject<float>() ?? baseE.b,
+                        ecol["a"]?.ToObject<float>() ?? baseE.a
+                    );
+                }
+                if (emissionIntensity >= 0f)
+                {
+                    // Treat the color as normalised hue/sat/val and scale by intensity
+                    targetE *= Mathf.Max(0f, emissionIntensity);
+                }
+                if (mat.HasProperty("_EmissionColor"))
+                {
+                    mat.SetColor("_EmissionColor", targetE);
+                }
+                if (!emissionTouched)
+                {
+                    // Setting an emission color implies enabling emission
+                    mat.EnableKeyword("_EMISSION");
+                }
+            }
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            EditorUtility.SetDirty(mat);
+
+            return new
+            {
+                ok = true,
+                target = name,
+                material = mat.name,
+                shader = mat.shader != null ? mat.shader.name : "",
+                metallic = mat.HasProperty("_Metallic") ? mat.GetFloat("_Metallic") : 0f,
+                smoothness = mat.HasProperty("_Smoothness")
+                    ? mat.GetFloat("_Smoothness")
+                    : (mat.HasProperty("_Glossiness") ? mat.GetFloat("_Glossiness") : 0f),
+                emission_enabled = mat.IsKeywordEnabled("_EMISSION"),
+                emission_color_r = mat.HasProperty("_EmissionColor") ? mat.GetColor("_EmissionColor").r : 0f,
+                emission_color_g = mat.HasProperty("_EmissionColor") ? mat.GetColor("_EmissionColor").g : 0f,
+                emission_color_b = mat.HasProperty("_EmissionColor") ? mat.GetColor("_EmissionColor").b : 0f,
+            };
+        }
+
+        private static object GetMaterialProperties(JObject p)
+        {
+            string name = p["name"]?.ToString();
+            if (string.IsNullOrEmpty(name)) throw new ArgumentException("name is required");
+            Material mat = ResolveSharedMaterial(name);
+            Color baseColor = mat.HasProperty("_BaseColor")
+                ? mat.GetColor("_BaseColor")
+                : (mat.HasProperty("_Color") ? mat.GetColor("_Color") : Color.white);
+            Color emissionColor = mat.HasProperty("_EmissionColor") ? mat.GetColor("_EmissionColor") : Color.black;
+            return new
+            {
+                ok = true,
+                target = name,
+                material = mat.name,
+                shader = mat.shader != null ? mat.shader.name : "",
+                base_color_r = baseColor.r,
+                base_color_g = baseColor.g,
+                base_color_b = baseColor.b,
+                base_color_a = baseColor.a,
+                metallic = mat.HasProperty("_Metallic") ? mat.GetFloat("_Metallic") : 0f,
+                smoothness = mat.HasProperty("_Smoothness")
+                    ? mat.GetFloat("_Smoothness")
+                    : (mat.HasProperty("_Glossiness") ? mat.GetFloat("_Glossiness") : 0f),
+                emission_enabled = mat.IsKeywordEnabled("_EMISSION"),
+                emission_color_r = emissionColor.r,
+                emission_color_g = emissionColor.g,
+                emission_color_b = emissionColor.b,
+            };
         }
 
         // ─── Phase 35: Atmosphere (skybox + fog) ────────────────────────

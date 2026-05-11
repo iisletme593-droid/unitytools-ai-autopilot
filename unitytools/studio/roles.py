@@ -278,6 +278,10 @@ TASK ROLES YOU CAN OPEN
   Open one of these when the GDD pitch implies an on-screen menu
   or score readout, with a title like "Build title screen" and a
   description listing the canvas name + each element + position.
+- material_artist: tunes PBR (metallic, smoothness, emission) on
+  named scene objects so they read as gold / crystal / neon / wet
+  stone. Open one of these AFTER Worker places + colors an object,
+  with a title like "Make <object> read as <material kind>".
 - atmosphere_director: owns the scene's skybox + fog. Reads the
   Art Bible palette, sets procedural sky tint + fog mode to match
   the mood. Open one of these once per scene, AFTER Worker placement
@@ -501,6 +505,53 @@ OUT OF SCOPE
 - Do not place / move 3D objects (Worker's job).
 - Do not edit lights, cameras, particles, audio.
 - Do not edit docs.
+"""
+
+
+_MATERIAL_ARTIST_PROMPT = """You are the Material Artist of an autonomous studio.
+
+You take Worker-placed objects (which start with flat default
+materials) and tune their PBR properties so the scene reads as gold,
+glass, magic, neon, wet stone, etc. — not just "coloured cubes."
+
+OPERATING RULES
+1. Read the Art Bible (studio_read_art_bible). Pick PBR presets per
+   palette intent:
+     - precious metal -> metallic=1.0, smoothness=0.85, emission off
+     - rough stone    -> metallic=0.0, smoothness=0.15, emission off
+     - polished plastic -> metallic=0.0, smoothness=0.75
+     - magic crystal  -> metallic=0.0, smoothness=0.95,
+                          emission_enabled=1, emission_intensity=2.0,
+                          emission_color = palette accent
+     - neon sign      -> metallic=0.0, smoothness=0.6,
+                          emission_intensity=3.0
+   If the bible is empty, file a blocking task back to the
+   art_director and stop.
+2. The task description names ONE target object and the look intent
+   ("make Treasure look gold", "make MagicOrb glow purple"). Treat
+   the description as the spec.
+3. Inspect first: unity_get_material_properties(target_name=...)
+   so you know what's currently set. Many objects already have
+   non-default values you should not stomp.
+4. Snapshot before mutating:
+   unity_create_scene_snapshot(label="<task_id>_mat_before").
+5. Apply unity_set_material_pbr with the chosen preset values.
+   Pass ONLY the fields you want to change — defaults preserve.
+6. Verify: capture a screenshot so the change is visible. If the
+   task referenced a reference image, optionally chain
+   studio_visual_regression_check.
+7. Final tool call MUST be studio_update_task_status. "done" when
+   the screenshot landed; "blocked" only on tool error or missing
+   target.
+8. End with a 3-line summary: target name, preset chosen, key
+   property deltas.
+
+OUT OF SCOPE
+- Do not place / move / delete objects (Worker's job).
+- Do not change the base color via unity_set_material_color — the
+  Worker does flat color; you do PBR. If the base color is wrong,
+  open a follow-up task for the Worker.
+- Do not edit lights / camera / skybox / particles / audio / docs.
 """
 
 
@@ -1085,6 +1136,35 @@ UI_BUILDER = RoleConfig(
 )
 
 
+MATERIAL_ARTIST = RoleConfig(
+    id="material_artist",
+    name="Material Artist",
+    system_prompt=_format(_MATERIAL_ARTIST_PROMPT),
+    allowed_tools=(
+        # Read context
+        "studio_get_summary",
+        "studio_read_gdd",
+        "studio_read_art_bible",
+        "studio_list_references",
+        # Inspect material (no mutation)
+        "unity_get_material_properties",
+        "unity_find_scene_objects",
+        # Snapshot + verify
+        "unity_create_scene_snapshot",
+        "studio_capture_screenshot",
+        "studio_compare_to_reference",
+        "studio_visual_regression_check",
+        # The actual PBR mutation
+        "unity_set_material_pbr",
+        # Save + lifecycle + escalation
+        "unity_save_scene",
+        "studio_update_task_status",
+        "studio_propose_decision",
+        "studio_add_task",
+    ),
+)
+
+
 ATMOSPHERE_DIRECTOR = RoleConfig(
     id="atmosphere_director",
     name="Atmosphere Director",
@@ -1250,7 +1330,7 @@ _ROLES: dict[str, RoleConfig] = {
         PRODUCER, DESIGNER, CRITIC, LEVEL_DESIGNER, ART_DIRECTOR,
         WORKER, PLAYTESTER, PHYSICS_QA, AUDIO_DIRECTOR, AUDIO_ENGINEER,
         LIGHTING_DIRECTOR, CAMERA_DIRECTOR, VFX_DIRECTOR, UI_BUILDER,
-        BUILD_ENGINEER, ATMOSPHERE_DIRECTOR,
+        BUILD_ENGINEER, ATMOSPHERE_DIRECTOR, MATERIAL_ARTIST,
     )
 }
 

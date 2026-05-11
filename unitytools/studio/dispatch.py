@@ -54,6 +54,7 @@ DISPATCH_MAP: dict[str, Optional[str]] = {
     "ui_builder": "ui_builder",  # Phase 31: Canvas / Text / Button UI construction
     "build_engineer": "build_engineer",  # Phase 32: actually ship the binary
     "atmosphere_director": "atmosphere_director",  # Phase 35: skybox + fog
+    "material_artist": "material_artist",  # Phase 36: PBR (metallic, smoothness, emission)
     "level_designer": "worker",
     "tech_artist": "physics_qa",  # Phase 24: tech_artist tasks profile + optimise
     "physics_qa": "physics_qa",

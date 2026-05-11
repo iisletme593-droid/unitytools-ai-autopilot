@@ -682,6 +682,57 @@ def unity_create_ui_button(
         return {"ok": False, "error": str(e)}
 
 
+@tool(description="Set PBR properties on the shared material of a named GameObject's first Renderer. metallic + smoothness are 0-1; emission_enabled toggles the _EMISSION shader keyword; emission_color + emission_intensity drive HDR emission (intensity scales the color, so emission_color=(1,0.5,0.1) at intensity=2 gives bright orange glow). Leave any param at its default to skip it. Works on URP / Built-in / HDRP through HasProperty fallback.")
+def unity_set_material_pbr(
+    target_name: str,
+    metallic: float = -1.0,
+    smoothness: float = -1.0,
+    emission_enabled: int = -1,  # -1 = no change, 0 = off, 1 = on
+    emission_r: float = -1.0,
+    emission_g: float = -1.0,
+    emission_b: float = -1.0,
+    emission_intensity: float = -1.0,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    if not target_name:
+        return {"ok": False, "error": "target_name is required"}
+    params: dict = {"name": target_name}
+    if metallic >= 0.0:
+        params["metallic"] = max(0.0, min(1.0, metallic))
+    if smoothness >= 0.0:
+        params["smoothness"] = max(0.0, min(1.0, smoothness))
+    if emission_enabled in (0, 1):
+        params["emission_enabled"] = bool(emission_enabled)
+    if emission_r >= 0.0 or emission_g >= 0.0 or emission_b >= 0.0:
+        params["emission_color"] = {
+            "r": max(0.0, emission_r if emission_r >= 0.0 else 1.0),
+            "g": max(0.0, emission_g if emission_g >= 0.0 else 1.0),
+            "b": max(0.0, emission_b if emission_b >= 0.0 else 1.0),
+            "a": 1.0,
+        }
+    if emission_intensity >= 0.0:
+        params["emission_intensity"] = emission_intensity
+    try:
+        result = _UNITY.call("set_material_pbr", params)
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Read the current material properties of a named GameObject's first Renderer: base color, metallic, smoothness, emission state + color. Read-only — use this before set_material_pbr to know what you're changing.")
+def unity_get_material_properties(target_name: str) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    if not target_name:
+        return {"ok": False, "error": "target_name is required"}
+    try:
+        result = _UNITY.call("get_material_properties", {"name": target_name})
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @tool(description="Configure the scene's skybox. material_path='Assets/.../sky.mat' loads a project asset; leave empty to use the procedural sky shader, which we then tune with sun_size (0..1, default 0.04), atmosphere_thickness (0..5, default 1.0), exposure (0..8, default 1.3), sky_tint and ground_color RGB. RGB 0-1.")
 def unity_set_skybox(
     material_path: str = "",
