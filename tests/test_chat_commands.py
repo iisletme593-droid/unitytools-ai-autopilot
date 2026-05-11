@@ -353,6 +353,177 @@ def test_decisions_command() -> None:
     print("OK /decisions lists decisions")
 
 
+# ─────────────────────────────────────────── Phase 60 inventory + meta
+
+
+def test_refs_command_lists_references() -> None:
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("refs")
+        assert r.handled is True
+        assert r.tool_name == "studio_list_references"
+    finally:
+        os.chdir(prev)
+    print("OK /refs -> studio_list_references")
+
+
+def test_screenshots_command_and_alias() -> None:
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        r1 = dispatch("screenshots")
+        r2 = dispatch("shots")
+        for r in (r1, r2):
+            assert r.handled is True
+            assert r.tool_name == "studio_list_screenshots"
+    finally:
+        os.chdir(prev)
+    print("OK /screenshots + /shots alias both route to studio_list_screenshots")
+
+
+def test_locales_command() -> None:
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("locales")
+        assert r.handled is True
+        assert r.tool_name == "studio_list_locales"
+    finally:
+        os.chdir(prev)
+    print("OK /locales -> studio_list_locales")
+
+
+def test_dialogs_command() -> None:
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("dialogs")
+        assert r.handled is True
+        assert r.tool_name == "studio_list_dialogs"
+    finally:
+        os.chdir(prev)
+    print("OK /dialogs -> studio_list_dialogs")
+
+
+def test_assets_command() -> None:
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("assets")
+        assert r.handled is True
+        assert r.tool_name == "studio_asset_manifest"
+    finally:
+        os.chdir(prev)
+    print("OK /assets -> studio_asset_manifest")
+
+
+def test_behaviours_command_lists_full_library() -> None:
+    # No studio needed; the behaviour library is a module constant
+    r = dispatch("behaviours")
+    assert r.handled is True
+    assert r.ok is True
+    assert r.tool_result["total"] == 30
+    # All 30 names match without filter
+    assert len(r.tool_result["matches"]) == 30
+    print("OK /behaviours lists all 30 entries when no filter")
+
+
+def test_behaviours_command_filters_by_substring() -> None:
+    """`/behaviours camera` should match only LookAtCamera + CameraShake."""
+    r = dispatch("behaviours camera")
+    assert r.handled is True
+    # The filter is case-insensitive substring match
+    matches = r.tool_result["matches"]
+    assert "LookAtCamera" in matches
+    assert "CameraShake" in matches
+    # Should NOT include unrelated ones
+    assert "Rotator" not in matches
+    print(f"OK /behaviours camera -> filtered to {len(matches)} matches (LookAtCamera, CameraShake)")
+
+
+def test_behaviors_us_spelling_works() -> None:
+    """US spelling alias 'behaviors' = 'behaviours'."""
+    r = dispatch("behaviors")
+    assert r.handled is True
+    assert r.tool_result["total"] == 30
+    print("OK /behaviors (US spelling) is an alias for /behaviours")
+
+
+def test_roles_command_lists_24_roles() -> None:
+    r = dispatch("roles")
+    assert r.handled is True
+    assert r.ok is True
+    # The studio has 24 roles
+    assert r.tool_result["count"] == 24
+    # Spot-check some role ids
+    role_ids = {row["id"] for row in r.tool_result["roles"]}
+    for expected in ("producer", "designer", "worker", "playtester",
+                      "build_engineer", "achievement_designer", "storyteller"):
+        assert expected in role_ids, f"role {expected!r} missing from /roles"
+    print("OK /roles lists 24 roles including all the new ones")
+
+
+def test_diag_command_reports_studio_state() -> None:
+    r = dispatch("diag")
+    assert r.handled is True
+    assert r.ok is True
+    info = r.tool_result
+    assert info["roles"] == 24
+    assert info["behaviour_library_size"] == 30
+    # 199+ total tools after both studio + unity_tools imported
+    assert info["total_tools"] >= 100
+    print(f"OK /diag reports tools={info['total_tools']} roles={info['roles']} "
+          f"behaviours={info['behaviour_library_size']}")
+
+
+def test_init_creates_studio_when_missing() -> None:
+    """In a fresh empty dir, /init should scaffold the studio."""
+    import tempfile
+    prev = os.getcwd()
+    tmp = Path(tempfile.mkdtemp(prefix="init-test-"))
+    os.chdir(tmp)
+    try:
+        r = dispatch("init")
+        assert r.handled is True
+        assert r.ok is True
+        # The marker docs should now exist
+        for marker in ("gdd.md", "art_bible.md", "audio_brief.md",
+                        "sprint_current.md"):
+            assert (tmp / "studio" / marker).exists(), f"missing scaffolded file: {marker}"
+        # /init again is idempotent — should report 'already initialised'
+        r2 = dispatch("init")
+        assert r2.handled is True
+        assert r2.ok is True
+        assert r2.tool_result.get("already_initialised") is True
+    finally:
+        os.chdir(prev)
+    print("OK /init scaffolds 4+ canonical docs; re-running is idempotent")
+
+
+def test_init_with_explicit_path() -> None:
+    """`/init /custom/path` should scaffold there, not in cwd."""
+    import tempfile
+    prev = os.getcwd()
+    cwd_tmp = Path(tempfile.mkdtemp(prefix="cwd-"))
+    target_tmp = Path(tempfile.mkdtemp(prefix="target-"))
+    os.chdir(cwd_tmp)
+    try:
+        # Path with quotes (could contain spaces)
+        r = dispatch(f'init "{target_tmp}"')
+        assert r.handled is True
+        assert r.ok is True
+        # Studio should be at target, NOT cwd
+        assert (target_tmp / "studio" / "gdd.md").exists()
+        assert not (cwd_tmp / "studio" / "gdd.md").exists()
+    finally:
+        os.chdir(prev)
+    print("OK /init <path> scaffolds at the given path, not cwd")
+
+
+def test_init_rejects_nonexistent_path() -> None:
+    r = dispatch("init /does/not/exist/anywhere")
+    assert r.handled is True
+    assert r.ok is False
+    assert "does not exist" in r.message.lower()
+    print("OK /init <nonexistent-path> -> clean error")
+
+
 # ─────────────────────────────────────────── argument parsing
 
 
@@ -416,7 +587,21 @@ def run_test() -> None:
     # Arg parsing
     test_dispatcher_handles_mismatched_quotes()
     test_command_lower_case()
-    print("All Phase 59 chat-command tests passed")
+    # Phase 60 inventory + meta
+    test_refs_command_lists_references()
+    test_screenshots_command_and_alias()
+    test_locales_command()
+    test_dialogs_command()
+    test_assets_command()
+    test_behaviours_command_lists_full_library()
+    test_behaviours_command_filters_by_substring()
+    test_behaviors_us_spelling_works()
+    test_roles_command_lists_24_roles()
+    test_diag_command_reports_studio_state()
+    test_init_creates_studio_when_missing()
+    test_init_with_explicit_path()
+    test_init_rejects_nonexistent_path()
+    print("All chat-command tests passed (Phase 59 + 60)")
 
 
 if __name__ == "__main__":

@@ -141,6 +141,42 @@ def dispatch(line: str) -> CommandResult:
     if cmd == "decisions":
         return _run_no_arg_tool("studio_list_decisions", "Decisions")
 
+    # ── refs   (list studio/refs/)
+    if cmd == "refs":
+        return _run_no_arg_tool("studio_list_references", "References")
+
+    # ── screenshots   (list studio/qa/screenshots/)
+    if cmd in ("screenshots", "shots"):
+        return _run_no_arg_tool("studio_list_screenshots", "Screenshots")
+
+    # ── locales   (list studio/strings/<code>.json)
+    if cmd == "locales":
+        return _run_no_arg_tool("studio_list_locales", "Locales")
+
+    # ── dialogs   (list studio/dialogs/<id>.json)
+    if cmd == "dialogs":
+        return _run_no_arg_tool("studio_list_dialogs", "Dialogs")
+
+    # ── assets   (asset manifest: refs / audio-refs / shots / generated / builds)
+    if cmd == "assets":
+        return _run_no_arg_tool("studio_asset_manifest", "Asset manifest")
+
+    # ── behaviours [filter]
+    if cmd in ("behaviours", "behaviors"):
+        return _dispatch_behaviours(args)
+
+    # ── roles
+    if cmd == "roles":
+        return _dispatch_roles()
+
+    # ── init [project-path]
+    if cmd == "init":
+        return _dispatch_init(args)
+
+    # ── diag   (quick infra checks)
+    if cmd == "diag":
+        return _dispatch_diag()
+
     return CommandResult(handled=False)
 
 
@@ -281,6 +317,160 @@ def _dispatch_tasks(args: list[str]) -> CommandResult:
     return CommandResult(handled=True, ok=True,
                           tool_name="studio_list_tasks",
                           tool_result=result, message=msg)
+
+
+def _dispatch_behaviours(args: list[str]) -> CommandResult:
+    """List the 30-entry Behaviour Library, optionally substring-filtered."""
+    try:
+        from ..tools.unity_tools import _BEHAVIOUR_LIBRARY
+    except ImportError:
+        return CommandResult(
+            handled=True, ok=False,
+            message="unitytools.tools.unity_tools not importable.",
+        )
+    needle = " ".join(args).strip().lower()
+    rows = [b for b in _BEHAVIOUR_LIBRARY
+             if not needle or needle in b.lower()]
+    summary_lines = ", ".join(rows[:10])
+    if len(rows) > 10:
+        summary_lines += f", ... (+{len(rows) - 10} more)"
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="unity_list_behaviour_library",
+        tool_result={"matches": rows, "total": len(_BEHAVIOUR_LIBRARY)},
+        message=(
+            f"Behaviour library ({len(rows)} of {len(_BEHAVIOUR_LIBRARY)}"
+            + (f" matching '{needle}'" if needle else "")
+            + f"): {summary_lines}"
+        ),
+    )
+
+
+def _dispatch_roles() -> CommandResult:
+    """List every studio role + its tool count."""
+    try:
+        from ..studio import all_roles
+    except ImportError:
+        return CommandResult(
+            handled=True, ok=False,
+            message="unitytools.studio not importable.",
+        )
+    rows = sorted(
+        [(r.id, r.name, len(r.allowed_tools), r.needs_engine, r.needs_vision)
+         for r in all_roles()],
+        key=lambda x: x[0],
+    )
+    summary = f"{len(rows)} roles: " + ", ".join(r[0] for r in rows[:6])
+    if len(rows) > 6:
+        summary += f", ... (+{len(rows) - 6} more)"
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio.all_roles",
+        tool_result={
+            "count": len(rows),
+            "roles": [
+                {"id": r[0], "name": r[1], "tool_count": r[2],
+                 "needs_engine": r[3], "needs_vision": r[4]}
+                for r in rows
+            ],
+        },
+        message=summary,
+    )
+
+
+def _dispatch_init(args: list[str]) -> CommandResult:
+    """Scaffold a fresh studio/ directory in the cwd (or a given path)."""
+    from pathlib import Path
+    from ..studio import StudioPaths, StudioState
+    from ..studio.templates import starter_files
+
+    project_root = Path(args[0]).expanduser().resolve() if args else Path.cwd().resolve()
+    if not project_root.exists():
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"Path does not exist: {project_root}",
+        )
+
+    paths = StudioPaths(project_root=project_root)
+    if paths.exists():
+        # Already initialised — just report
+        return CommandResult(
+            handled=True, ok=True,
+            tool_name="studio_init",
+            tool_result={"project_root": str(project_root),
+                          "already_initialised": True},
+            message=f"Studio already exists at {paths.root}",
+        )
+
+    # Create all canonical directories
+    for d in paths.all_dirs():
+        d.mkdir(parents=True, exist_ok=True)
+
+    # Drop the starter docs
+    files_written: list[str] = []
+    for rel_path, content in starter_files().items():
+        target = paths.root / rel_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists():
+            target.write_text(content, encoding="utf-8")
+            files_written.append(rel_path)
+
+    # Initial empty state files via StudioState helpers
+    state = StudioState(paths)
+    state.save_tasks([])  # writes backlog.json if missing
+    state.save_milestones([])
+
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_init",
+        tool_result={
+            "project_root": str(project_root),
+            "studio_root": str(paths.root),
+            "files_written": files_written,
+        },
+        message=(
+            f"Studio scaffolded at {paths.root} -- "
+            f"{len(files_written)} starter files, "
+            f"{len(paths.all_dirs())} directories. "
+            "Restart chat to pick up the new studio state."
+        ),
+    )
+
+
+def _dispatch_diag() -> CommandResult:
+    """Quick infrastructure summary: tool count, studio active, registry size."""
+    try:
+        from ..core.tool_registry import get_all_tools
+        from ..studio import all_roles
+        from ..tools.unity_tools import _BEHAVIOUR_LIBRARY
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"Import failed: {exc}",
+        )
+    tools = get_all_tools()
+    studio_tools = [t for t in tools if t.name.startswith("studio_")]
+    unity_tools = [t for t in tools if t.name.startswith("unity_")]
+
+    info = {
+        "total_tools": len(tools),
+        "studio_tools": len(studio_tools),
+        "unity_tools": len(unity_tools),
+        "roles": len(all_roles()),
+        "behaviour_library_size": len(_BEHAVIOUR_LIBRARY),
+    }
+    msg = (
+        f"Tools: {info['total_tools']} ({info['studio_tools']} studio_*, "
+        f"{info['unity_tools']} unity_*) | "
+        f"Roles: {info['roles']} | "
+        f"Behaviours: {info['behaviour_library_size']}"
+    )
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="diag",
+        tool_result=info,
+        message=msg,
+    )
 
 
 def _run_no_arg_tool(tool_name: str, label: str) -> CommandResult:
