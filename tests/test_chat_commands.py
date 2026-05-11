@@ -2387,6 +2387,168 @@ def test_help_lists_decide() -> None:
     print("OK /help advertises /decide")
 
 
+# ─────────────────────────────────────────── Phase 75: /find
+
+
+def _seed_searchable_studio() -> tuple:
+    """A studio with content in every searchable surface — so /find
+    can prove each bucket is hit."""
+    state, tmp, prev = _fresh_studio_cwd()
+    from unitytools.studio import StudioPaths
+    from unitytools.studio.models import Task, Decision, Milestone
+
+    paths = StudioPaths(project_root=Path(os.getcwd()))
+    paths.gdd.write_text(
+        "# GDD\nThe core loop is climbing the lighthouse and "
+        "lighting the lamp.\n",
+        encoding="utf-8",
+    )
+    paths.art_bible.write_text(
+        "# Art Bible\nWarm sunset palette. The lamp is the focal point.\n",
+        encoding="utf-8",
+    )
+    paths.sprint_current.write_text(
+        "# Sprint 3\n- Wire lighthouse pickup.\n",
+        encoding="utf-8",
+    )
+
+    state.add_task(Task(
+        title="Lighthouse VFX",
+        role="designer",
+        description="particle burst when the lamp ignites",
+    ))
+    state.add_task(Task(title="Unrelated task", role="qa"))
+
+    state.append_decision(Decision(
+        title="Use URP",
+        summary="already adopted; lighthouse renderer benefits from it",
+    ))
+    state.append_decision(Decision(
+        title="Procedural fog",
+        summary="something completely different",
+    ))
+
+    state.add_milestone(Milestone(
+        name="Lighthouse milestone",
+        description="Ship the lighthouse level slice",
+    ))
+
+    # Drop a journal entry mentioning the keyword
+    dispatch("log lighthouse spec noted today")
+    return state, tmp, prev
+
+
+def test_find_searches_every_surface() -> None:
+    state, _, prev = _seed_searchable_studio()
+    try:
+        r = dispatch("find lighthouse")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_find"
+        # Each bucket should have at least one hit
+        assert len(r.tool_result["tasks"]) >= 1, "tasks bucket missed lighthouse"
+        assert len(r.tool_result["decisions"]) >= 1, "decisions bucket missed lighthouse"
+        assert len(r.tool_result["docs"]) >= 1, "docs bucket missed lighthouse"
+        assert len(r.tool_result["milestones"]) >= 1, "milestones bucket missed"
+        assert len(r.tool_result["journal"]) >= 1, "journal bucket missed"
+        # all_hits aggregates them
+        sources = {h["source"] for h in r.tool_result["all_hits"]}
+        assert {"task", "decision", "doc", "milestone", "journal"}.issubset(sources)
+    finally:
+        os.chdir(prev)
+    print("OK /find <needle> hits every surface (tasks/decisions/docs/milestones/journal)")
+
+
+def test_find_excerpt_centred_on_match() -> None:
+    """Each hit's excerpt should include the needle, not just the
+    start of the file."""
+    state, _, prev = _seed_searchable_studio()
+    try:
+        r = dispatch("find lamp ignites")
+        # Find the task hit
+        task_hit = next(t for t in r.tool_result["tasks"]
+                         if "particle burst" in t.get("excerpt", ""))
+        # Excerpt mentions the needle substring
+        assert "lamp ignites" in task_hit["excerpt"].lower()
+    finally:
+        os.chdir(prev)
+    print("OK /find excerpts are centred on the match (not the file head)")
+
+
+def test_find_no_hits_returns_friendly_message() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("find zzzzzzzzzzzz_no_match")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_result["total_hits"] == 0
+        assert "No hits" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /find with no hits → ok=True, total_hits=0, friendly message")
+
+
+def test_find_empty_needle_returns_usage() -> None:
+    r = dispatch("find")
+    assert r.handled is True
+    assert r.ok is False
+    assert "Usage" in r.message
+    print("OK /find with no needle → usage hint")
+
+
+def test_find_case_insensitive() -> None:
+    state, _, prev = _seed_searchable_studio()
+    try:
+        r_lower = dispatch("find lighthouse")
+        r_upper = dispatch("find LIGHTHOUSE")
+        r_mixed = dispatch("find LightHouse")
+        assert (
+            r_lower.tool_result["total_hits"]
+            == r_upper.tool_result["total_hits"]
+            == r_mixed.tool_result["total_hits"]
+        ), "case should not affect hit count"
+    finally:
+        os.chdir(prev)
+    print("OK /find is case-insensitive")
+
+
+def test_find_multi_word_needle_joined() -> None:
+    """Multi-word needles are joined back to a single phrase, not
+    split into OR-terms."""
+    state, _, prev = _seed_searchable_studio()
+    try:
+        r = dispatch("find particle burst")
+        # Should find the task with that exact phrase in description
+        assert r.tool_result["total_hits"] >= 1
+        task_hit = next(t for t in r.tool_result["tasks"]
+                         if "particle burst" in t["excerpt"].lower())
+        assert task_hit is not None
+    finally:
+        os.chdir(prev)
+    print("OK /find joins multi-word args into a phrase (not OR split)")
+
+
+def test_find_turkish_aliases() -> None:
+    state, _, prev = _seed_searchable_studio()
+    try:
+        for alias in ("bul", "ara", "arama"):
+            r = dispatch(f"{alias} lighthouse")
+            assert r.handled is True, f"/{alias} should resolve to /find"
+            assert r.tool_name == "studio_find", (
+                f"/{alias} should fire studio_find; got {r.tool_name}"
+            )
+            assert r.tool_result["total_hits"] >= 1
+    finally:
+        os.chdir(prev)
+    print("OK /bul /ara /arama (Türkçe) all → /find with correct hit counts")
+
+
+def test_help_lists_find() -> None:
+    r = dispatch("help")
+    assert "/find" in r.message, "/help should advertise /find"
+    print("OK /help advertises /find")
+
+
 def run_test() -> None:
     # Plumbing
     test_empty_line_returns_not_handled()
@@ -2545,7 +2707,16 @@ def run_test() -> None:
     test_decide_multiple_titles_persist_in_order()
     test_decide_turkish_alias()
     test_help_lists_decide()
-    print("All chat-command tests passed (Phase 59-73)")
+    # Phase 75 /find cross-studio search
+    test_find_searches_every_surface()
+    test_find_excerpt_centred_on_match()
+    test_find_no_hits_returns_friendly_message()
+    test_find_empty_needle_returns_usage()
+    test_find_case_insensitive()
+    test_find_multi_word_needle_joined()
+    test_find_turkish_aliases()
+    test_help_lists_find()
+    print("All chat-command tests passed (Phase 59-75)")
 
 
 if __name__ == "__main__":

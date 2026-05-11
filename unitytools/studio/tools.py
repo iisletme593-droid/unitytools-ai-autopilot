@@ -327,6 +327,151 @@ def studio_block_task(task_id: str, reason: str = "") -> dict:
     return {"ok": False, "error": f"Task {task_id!r} not found."}
 
 
+@tool(description="Phase 75: Search across every text surface of the studio — tasks (title + description), decisions (title + summary + rationale), milestones, GDD, Art Bible, Audio Brief, Tutorial, Scene Catalog, Press Kit, Achievements, current sprint plan, and journal entries. Substring match, case-insensitive. Returns hits grouped by source plus a flat 'all_hits' list ranked by source priority (tasks first, then decisions, then docs, then journal). Optional max_per_source caps each bucket so large studios don't blow past payload limits.")
+def studio_find(needle: str, max_per_source: int = 10) -> dict:
+    state = _require_state()
+    n = (needle or "").strip().lower()
+    if not n:
+        return {"ok": False, "error": "needle is empty"}
+    if max_per_source <= 0:
+        return {"ok": False, "error": "max_per_source must be positive"}
+
+    def _excerpt(text: str, max_len: int = 120) -> str:
+        """Show a snippet centred on the first occurrence of the needle,
+        so the operator sees context rather than the head of the file."""
+        if not text:
+            return ""
+        idx = text.lower().find(n)
+        if idx < 0:
+            return text[:max_len]
+        start = max(0, idx - 30)
+        end = min(len(text), idx + len(n) + 60)
+        prefix = "..." if start > 0 else ""
+        suffix = "..." if end < len(text) else ""
+        return f"{prefix}{text[start:end].strip()}{suffix}"
+
+    # ── Tasks
+    task_hits: list[dict] = []
+    for t in state.load_tasks():
+        hay = f"{t.title}\n{t.description or ''}".lower()
+        if n in hay:
+            task_hits.append({
+                "id": t.id,
+                "title": t.title,
+                "role": t.role,
+                "status": t.status.value,
+                "milestone": t.milestone,
+                "excerpt": _excerpt(t.description or t.title),
+            })
+        if len(task_hits) >= max_per_source:
+            break
+
+    # ── Decisions
+    decision_hits: list[dict] = []
+    for d in state.load_decisions():
+        hay = f"{d.title}\n{d.summary}\n{d.rationale or ''}".lower()
+        if n in hay:
+            decision_hits.append({
+                "id": d.id,
+                "title": d.title,
+                "status": d.status.value,
+                "author_role": d.author_role,
+                "excerpt": _excerpt(f"{d.summary} {d.rationale}".strip()),
+            })
+        if len(decision_hits) >= max_per_source:
+            break
+
+    # ── Milestones
+    milestone_hits: list[dict] = []
+    for m in state.load_milestones():
+        hay = f"{m.name}\n{m.description or ''}".lower()
+        if n in hay:
+            milestone_hits.append({
+                "id": m.id,
+                "name": m.name,
+                "excerpt": _excerpt(m.description or m.name),
+            })
+        if len(milestone_hits) >= max_per_source:
+            break
+
+    # ── Docs (GDD / Art Bible / Audio Brief / ...)
+    doc_paths = [
+        ("gdd", state.paths.gdd),
+        ("art_bible", state.paths.art_bible),
+        ("audio_brief", state.paths.audio_brief),
+        ("press_kit", state.paths.press_kit),
+        ("tutorial", state.paths.tutorial),
+        ("scene_catalog", state.paths.scene_catalog),
+        ("achievements", state.paths.achievements),
+        ("sprint_current", state.paths.sprint_current),
+    ]
+    doc_hits: list[dict] = []
+    for label, path in doc_paths:
+        if not path.is_file():
+            continue
+        try:
+            content = path.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        if n in content.lower():
+            doc_hits.append({
+                "doc": label,
+                "path": str(path),
+                "excerpt": _excerpt(content),
+            })
+        if len(doc_hits) >= max_per_source:
+            break
+
+    # ── Journal entries (last 30 days)
+    import time
+    journal_hits: list[dict] = []
+    today_ts = time.time()
+    if state.paths.journal.is_dir():
+        for offset in range(30):
+            day_ts = today_ts - offset * 86400
+            date_iso = time.strftime("%Y-%m-%d", time.localtime(day_ts))
+            jpath = state.paths.journal_for_date(date_iso)
+            if not jpath.is_file():
+                continue
+            try:
+                content = jpath.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            if n in content.lower():
+                journal_hits.append({
+                    "date": date_iso,
+                    "path": str(jpath),
+                    "excerpt": _excerpt(content),
+                })
+            if len(journal_hits) >= max_per_source:
+                break
+
+    # Flat ranked stream — tasks first (most actionable), then decisions,
+    # docs, milestones, journal.
+    all_hits: list[dict] = []
+    for src_label, bucket in (
+        ("task", task_hits),
+        ("decision", decision_hits),
+        ("doc", doc_hits),
+        ("milestone", milestone_hits),
+        ("journal", journal_hits),
+    ):
+        for hit in bucket:
+            all_hits.append({"source": src_label, **hit})
+
+    return {
+        "ok": True,
+        "needle": n,
+        "tasks": task_hits,
+        "decisions": decision_hits,
+        "milestones": milestone_hits,
+        "docs": doc_hits,
+        "journal": journal_hits,
+        "all_hits": all_hits,
+        "total_hits": len(all_hits),
+    }
+
+
 @tool(description="Phase 72: Append a free-text journal entry to today's studio/memory/journal/<YYYY-MM-DD>.md file. Each entry is timestamped (HH:MM:SS) so the daily log builds a chronological record. Used by the /log slash command for the operator's personal notes — kept separate from tasks, decisions, and reviews.")
 def studio_journal_append(message: str) -> dict:
     import time

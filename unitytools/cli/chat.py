@@ -282,6 +282,7 @@ def _handle_slash(
                 "[cyan]/log[/cyan] <message>             append a timestamped note to today's journal\n"
                 "[cyan]/journal[/cyan] [days]            read last N days of journal entries\n"
                 "[cyan]/decide[/cyan] <title> | <summary>  record a design decision (proposed)\n"
+                "[cyan]/find[/cyan] <substring>          search tasks/decisions/docs/journal at once\n"
                 "[cyan]/dashboard[/cyan] [--save] [days]  operator's morning glance\n"
                 "[cyan]/ship[/cyan]                    ship readiness check (go/no-go)\n"
                 "[cyan]/cost[/cyan] [days]             LLM token + USD spend (default 7d)\n"

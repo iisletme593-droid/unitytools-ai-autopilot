@@ -143,6 +143,8 @@ _ALIASES: dict[str, str] = {
     "geçmiş": "journal", "gecmis": "journal",
     # Phase 73 decide
     "karar": "decide", "karara": "decide",
+    # Phase 75 cross-studio search
+    "bul": "find", "ara": "find", "arama": "find",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -340,6 +342,10 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── decide <title> | <summary>   (Phase 73: fast decision capture)
     if cmd == "decide":
         return _dispatch_decide(args)
+
+    # ── find <substring>   (Phase 75: cross-studio search)
+    if cmd == "find":
+        return _dispatch_find(args)
 
     return CommandResult(handled=False)
 
@@ -635,6 +641,7 @@ def _dispatch_help() -> CommandResult:
                 ("/log <message>", "append timestamped entry to today's journal"),
                 ("/journal [days]", "read last N days of journal entries"),
                 ("/decide <title> | <summary>", "record a design decision (proposed)"),
+                ("/find <substring>", "search tasks/decisions/docs/journal at once"),
                 ("/sprint", "read studio/sprint_current.md"),
                 ("/next [role]", "next pending task ready to pick up"),
                 ("/take <id>", "mark task in_progress"),
@@ -674,7 +681,7 @@ def _dispatch_help() -> CommandResult:
     lines.append(
         "Türkçe aliases: /yardım /durum /sağlık /başlat /eşitle /oluştur "
         "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
-        "/al /tamam /engelle /aç /neden /toplantı /not /günlük /karar "
+        "/al /tamam /engelle /aç /neden /toplantı /not /günlük /karar /bul "
         "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
@@ -1439,6 +1446,69 @@ def _dispatch_why(args: list[str]) -> CommandResult:
     return CommandResult(
         handled=True, ok=True,
         tool_name="studio_explain_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_find(args: list[str]) -> CommandResult:
+    """Phase 75: /find <substring> — search every text surface of the
+    studio at once. Joins multi-word args back into a single needle
+    so the user doesn't need to quote phrases.
+
+    Returns a structured payload grouped by source (tasks, decisions,
+    milestones, docs, journal) plus a flat all_hits list for chat
+    panels that want a single ranked stream.
+    """
+    needle = " ".join(args).strip()
+    if not needle:
+        return CommandResult(
+            handled=True, ok=False,
+            message=(
+                "Usage: /find <substring>   "
+                "(e.g. /find boss arena, /find URP, /find pickup VFX)"
+            ),
+        )
+    try:
+        from ..studio.tools import studio_find
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_find not importable: {exc}",
+        )
+    try:
+        result = studio_find(needle)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_find",
+            message=f"find failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_find",
+            tool_result=result,
+            message=result.get("error") or "find failed",
+        )
+
+    total = result.get("total_hits", 0)
+    if total == 0:
+        msg = f"No hits for {needle!r} across tasks/decisions/docs/journal."
+    else:
+        # Build a per-bucket breakdown for the one-line summary
+        parts: list[str] = []
+        for label, key in (("tasks", "tasks"), ("decisions", "decisions"),
+                            ("docs", "docs"), ("milestones", "milestones"),
+                            ("journal", "journal")):
+            count = len(result.get(key, []))
+            if count:
+                parts.append(f"{count} {label}")
+        breakdown = ", ".join(parts) if parts else "0 hits"
+        msg = f"{total} hit(s) for {needle!r}: {breakdown}"
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_find",
         tool_result=result,
         message=msg,
     )
