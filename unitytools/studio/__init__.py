@@ -54,6 +54,14 @@ from .runner import (
 )
 from .vision import VisionClient, AnthropicVisionClient, make_default_vision_client
 from .config import StudioThresholds, STUDIO_DEFAULTS, load_thresholds
+from .cost import (
+    CostEntry,
+    append_cost_entry,
+    cost_log_path,
+    estimate_cost,
+    load_cost_entries,
+    summarise as cost_summarise,
+)
 from .review import Phase, ReviewRecord, brief_for, run_review, write_review
 from .loop import LoopRunner, LoopStats
 from .dispatch import Dispatcher, DispatchResult, DispatchSummary, DISPATCH_MAP
@@ -132,6 +140,13 @@ __all__ = [
     "StudioThresholds",
     "STUDIO_DEFAULTS",
     "load_thresholds",
+    # cost observability
+    "CostEntry",
+    "append_cost_entry",
+    "cost_log_path",
+    "estimate_cost",
+    "load_cost_entries",
+    "cost_summarise",
     # vision
     "VisionClient",
     "AnthropicVisionClient",

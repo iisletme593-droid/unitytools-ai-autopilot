@@ -224,7 +224,7 @@ class Dispatcher:
                 reason=f"client_factory error: {exc}",
             )
 
-        runner = RoleRunner(client, max_iterations=self.max_iterations)
+        runner = RoleRunner(client, max_iterations=self.max_iterations, state=self.state)
         try:
             result: RoleRunResult = runner.run(role, self._build_brief(task, role))
         except Exception as exc:  # noqa: BLE001

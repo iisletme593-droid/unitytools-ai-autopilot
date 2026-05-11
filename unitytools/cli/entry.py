@@ -1183,6 +1183,57 @@ def cmd_studio_doctor(args: argparse.Namespace) -> int:
     return 1 if has_failure(checks) else 0
 
 
+def cmd_studio_cost(args: argparse.Namespace) -> int:
+    from ..studio.cost import summarise
+    from ..studio.paths import StudioPaths
+    from ..studio.state import StudioState
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio init --project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    days = max(0, int(args.days))
+    summary = summarise(state, days=days)
+
+    label = "all time" if days == 0 else f"last {days}d"
+    console.print(f"[bold cyan]Cost summary[/bold cyan] ({label}) - {paths.qa / 'cost_log.jsonl'}")
+    console.print(
+        f"  calls={summary['total_calls']}  "
+        f"in={summary['total_input_tokens']:,}t  "
+        f"out={summary['total_output_tokens']:,}t  "
+        f"USD=${summary['total_cost_usd']:.4f}"
+    )
+    if summary["by_role"]:
+        console.print("[bold]By role[/bold]")
+        rows = sorted(summary["by_role"].items(), key=lambda kv: kv[1]["cost_usd"], reverse=True)
+        for role_id, row in rows:
+            console.print(
+                f"  {role_id:<18} calls={row['calls']:<4}  "
+                f"in={row['input_tokens']:>8,}t  "
+                f"out={row['output_tokens']:>8,}t  "
+                f"USD=${row['cost_usd']:.4f}"
+            )
+    if summary["by_model"]:
+        console.print("[bold]By model[/bold]")
+        rows = sorted(summary["by_model"].items(), key=lambda kv: kv[1]["cost_usd"], reverse=True)
+        for model, row in rows:
+            console.print(
+                f"  {model:<32} calls={row['calls']:<4}  USD=${row['cost_usd']:.4f}"
+            )
+    if summary["by_day"] and days != 1:
+        console.print("[bold]By day[/bold]")
+        for day in sorted(summary["by_day"].keys()):
+            row = summary["by_day"][day]
+            console.print(
+                f"  {day}  calls={row['calls']:<4}  USD=${row['cost_usd']:.4f}"
+            )
+    return 0
+
+
 def cmd_studio_status(args: argparse.Namespace) -> int:
     import dataclasses as _dc
 
@@ -1961,6 +2012,9 @@ def main() -> int:
     p_studio_archive.add_argument("--dry-run", action="store_true", help="Preview what would be archived without writing.")
     p_studio_status = sub.add_parser("studio-status", help="Show studio task / decision / milestone counts")
     p_studio_status.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_cost = sub.add_parser("studio-cost", help="Summarise LLM token + USD spend from studio/qa/cost_log.jsonl")
+    p_studio_cost.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_cost.add_argument("--days", type=int, default=7, help="Window in days (default 7). Use 0 for all-time.")
     p_studio_run = sub.add_parser("studio-run", help="Run one studio role (producer | designer | critic) against the current project state")
     p_studio_run.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_run.add_argument(
@@ -2091,6 +2145,7 @@ def main() -> int:
         "studio-export": cmd_studio_export,
         "studio-import": cmd_studio_import,
         "studio-status": cmd_studio_status,
+        "studio-cost": cmd_studio_cost,
         "studio-run": cmd_studio_run,
         "studio-review": cmd_studio_review,
         "studio-loop": cmd_studio_loop,

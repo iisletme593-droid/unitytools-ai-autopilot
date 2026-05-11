@@ -495,6 +495,15 @@ def studio_unity_attach_audio_source(
     return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
 
 
+# ─── Cost observability (Phase 33) ─────────────────────────────────────
+
+@tool(description="Summarise the studio's LLM cost log (studio/qa/cost_log.jsonl). days=1 by default (last 24h); days=0 means 'all time'. Returns total tokens + cost USD plus breakdowns by role, model, and day. Free for local Ollama models; priced for Anthropic Claude.")
+def studio_cost_summary(days: int = 1) -> dict:
+    state = _require_state()
+    from .cost import summarise
+    return summarise(state, days=days)
+
+
 # ─── Build preflight (Phase 32) ────────────────────────────────────────
 
 @tool(description="Preflight a build: verify the project has at least one scene in EditorBuildSettings, the GDD is non-empty (or the user explicitly waived it), and the last perf budget check (if any) didn't fail catastrophically. Returns verdict + violations. No mutations — call this before unity_build_player.")
@@ -1496,6 +1505,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_vfx_audit",
     # build pipeline (Phase 32)
     "studio_build_check",
+    # cost observability (Phase 33)
+    "studio_cost_summary",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

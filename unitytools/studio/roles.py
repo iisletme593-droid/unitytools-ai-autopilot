@@ -795,6 +795,9 @@ PRODUCER = RoleConfig(
         "studio_query_decisions",
         # Phase 16: per-milestone completion progress
         "studio_milestone_progress",
+        # Phase 33: spend observability — the Producer cites yesterday's
+        # cost in retro / standup summaries so the operator sees burn rate.
+        "studio_cost_summary",
     ),
 )
 

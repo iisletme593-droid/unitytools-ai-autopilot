@@ -21,11 +21,14 @@ import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol
 
 from ..core.config import Config
 from ..core.tool_registry import get_tool, to_anthropic_format
 from .roles import RoleConfig
+
+if TYPE_CHECKING:
+    from .state import StudioState  # noqa: F401 (used in type hints only)
 
 logger = logging.getLogger(__name__)
 
@@ -115,12 +118,21 @@ class AnthropicClient:
                 text += block.text
             elif btype == "tool_use":
                 tool_calls.append({"id": block.id, "name": block.name, "input": block.input or {}})
+        usage = getattr(response, "usage", None)
+        usage_block: Optional[dict] = None
+        if usage is not None:
+            usage_block = {
+                "model": self._model,
+                "input_tokens": int(getattr(usage, "input_tokens", 0) or 0),
+                "output_tokens": int(getattr(usage, "output_tokens", 0) or 0),
+            }
         return {
             "text": text,
             "tool_calls": tool_calls,
             "stop_reason": response.stop_reason or "end_turn",
             # Pass full content back so we can build the next assistant message accurately.
             "raw_content": list(response.content),
+            "usage": usage_block,
         }
 
 
@@ -167,11 +179,23 @@ def _execute_tool(name: str, args: dict, allowed: Optional[set[str]] = None) -> 
 
 
 class RoleRunner:
-    """Drive one RoleConfig through a brief using a tool-calling loop."""
+    """Drive one RoleConfig through a brief using a tool-calling loop.
 
-    def __init__(self, client: LLMClient, max_iterations: int = 8):
+    Phase 33: when `state` is provided and the LLMClient returns a
+    `usage` block, each round's tokens get appended to
+    studio/qa/cost_log.jsonl for the studio_cost_summary tool. Tests
+    that pass a FakeLLM without usage are unaffected.
+    """
+
+    def __init__(
+        self,
+        client: LLMClient,
+        max_iterations: int = 8,
+        state: Optional["StudioState"] = None,
+    ):
         self.client = client
         self.max_iterations = max_iterations
+        self.state = state
 
     def run(
         self,
@@ -196,6 +220,23 @@ class RoleRunner:
             text = response.get("text", "") or ""
             tool_calls = response.get("tool_calls") or []
             stop_reason = response.get("stop_reason") or "end_turn"
+
+            # Phase 33: append a cost row when the client returned usage
+            # and we have a StudioState to write into. Silently skips for
+            # FakeLLM / RehearsalLLM tests.
+            usage = response.get("usage")
+            if usage and self.state is not None:
+                try:
+                    from .cost import append_cost_entry
+                    append_cost_entry(
+                        self.state,
+                        role_id=role.id,
+                        model=str(usage.get("model", "")),
+                        input_tokens=int(usage.get("input_tokens", 0)),
+                        output_tokens=int(usage.get("output_tokens", 0)),
+                    )
+                except Exception:
+                    logger.exception("Cost log append failed (non-fatal)")
 
             if text:
                 result.text = (result.text + text).strip() if not result.text else result.text + "\n" + text
@@ -370,11 +411,21 @@ class OllamaClient:
                 args = {}
             tool_calls.append({"id": call.get("id") or f"oll-{i}", "name": name, "input": args})
 
+        # Ollama returns prompt_eval_count + eval_count (request + response token counts)
+        # when streaming is off. Surface these so the studio's cost log records
+        # local-model usage at $0 cost (still visible).
+        prompt_toks = int(data.get("prompt_eval_count") or 0)
+        eval_toks = int(data.get("eval_count") or 0)
         return {
             "text": text,
             "tool_calls": tool_calls,
             "stop_reason": "tool_use" if tool_calls else "end_turn",
             "raw_content": None,
+            "usage": {
+                "model": self._model,
+                "input_tokens": prompt_toks,
+                "output_tokens": eval_toks,
+            } if (prompt_toks or eval_toks) else None,
         }
 
     # ---- translation helpers ----
