@@ -98,10 +98,12 @@ def test_behaviour_library_contains_known_behaviours() -> None:
         "LocalizedText",
         # Phase 40 game-loop primitives
         "GameSession", "Collectible", "ScoreHUD",
+        # Phase 41 pause + persistent settings
+        "PauseMenu", "SettingsStore",
     }
     assert set(_BEHAVIOUR_LIBRARY) == expected
-    assert len(_BEHAVIOUR_LIBRARY) == 13
-    print("OK Behaviour library exposes 13 known names")
+    assert len(_BEHAVIOUR_LIBRARY) == 15
+    print("OK Behaviour library exposes 15 known names")
 
 
 def test_each_behaviour_has_a_corresponding_cs_file() -> None:
@@ -196,6 +198,51 @@ def test_game_loop_trio_lives_in_runtime_namespace() -> None:
         # in player builds
         assert "using UnityEditor;" not in body, f"{name}.cs must not import UnityEditor at runtime"
     print("OK game-loop trio (GameSession + Collectible + ScoreHUD) all in UnityTools.Behaviours, no UnityEditor leak")
+
+
+# ───────────────────────────────────────────── pause + settings (Phase 41)
+
+
+def test_pause_menu_toggles_panel_and_time_scale() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "PauseMenu.cs").read_text(encoding="utf-8")
+    # Toggle key serialized so the studio can rebind from Escape -> P / etc.
+    assert "KeyCode toggleKey" in body
+    # Public state machine: IsPaused getter, Pause / Resume / Toggle
+    assert re.search(r"public\s+bool\s+IsPaused\s*{\s*get", body), "PauseMenu must expose IsPaused getter"
+    for method in ("Pause", "Resume", "Toggle"):
+        assert re.search(rf"public\s+void\s+{method}\s*\(", body), f"PauseMenu.{method}() missing"
+    # Time.timeScale handling — must restore on resume + on disable so
+    # removing the component mid-pause doesn't leave the game frozen
+    assert "Time.timeScale" in body
+    assert "OnDisable" in body
+    # Listens to a configured key in Update
+    assert "Input.GetKeyDown" in body
+    print("OK PauseMenu contract: IsPaused + Pause/Resume/Toggle + Time.timeScale + safe OnDisable restore")
+
+
+def test_settings_store_uses_player_prefs_with_namespace() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "SettingsStore.cs").read_text(encoding="utf-8")
+    # All PlayerPrefs keys are namespaced under 'unitytools.' so the
+    # studio's keys don't collide with whatever the project's existing
+    # code might be writing.
+    assert "KeyPrefix" in body
+    assert '"unitytools."' in body, "SettingsStore must namespace under 'unitytools.'"
+    # Static convenience API for non-MonoBehaviour callers
+    for method in ("SetFloat", "GetFloat", "SetInt", "GetInt", "SetString", "GetString", "HasKey", "DeleteKey", "Save"):
+        assert re.search(rf"public\s+static\s+\S+\s+{method}\s*\(", body), f"SettingsStore.{method}() missing"
+    # Defaults apply only on first run (HasKey check)
+    assert "HasKey" in body
+    # Saves on disable so PlayerPrefs.Save isn't called every frame
+    assert "OnDisable" in body
+    print("OK SettingsStore contract: 'unitytools.' namespace + static {Set,Get}{Float,Int,String} API + HasKey/DeleteKey/Save + idempotent defaults")
+
+
+def test_pause_and_settings_in_runtime_namespace() -> None:
+    for name in ("PauseMenu", "SettingsStore"):
+        body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / f"{name}.cs").read_text(encoding="utf-8")
+        assert "namespace UnityTools.Behaviours" in body, f"{name}.cs has wrong namespace"
+        assert "using UnityEditor;" not in body, f"{name}.cs must not import UnityEditor"
+    print("OK PauseMenu + SettingsStore in UnityTools.Behaviours, no UnityEditor leak")
 
 
 # ───────────────────────────────────────────── wrapper validation
@@ -336,6 +383,10 @@ def run_test() -> None:
     test_collectible_requires_trigger_collider_and_calls_game_session()
     test_score_hud_requires_text_and_renders_format_tokens()
     test_game_loop_trio_lives_in_runtime_namespace()
+    # Phase 41 pause + settings
+    test_pause_menu_toggles_panel_and_time_scale()
+    test_settings_store_uses_player_prefs_with_namespace()
+    test_pause_and_settings_in_runtime_namespace()
     # Wrappers
     test_attach_behaviour_rejects_unknown_name()
     test_attach_behaviour_requires_target_name()

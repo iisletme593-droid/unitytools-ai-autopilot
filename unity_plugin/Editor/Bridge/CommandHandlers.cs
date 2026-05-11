@@ -1221,6 +1221,8 @@ namespace UnityTools.Bridge
             "QuitOnClick", "KeyboardMover", "LocalizedText",
             // Phase 40: game-loop primitives
             "GameSession", "Collectible", "ScoreHUD",
+            // Phase 41: pause + persistent settings
+            "PauseMenu", "SettingsStore",
         };
 
         private static Type ResolveBehaviourType(string name)

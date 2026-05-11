@@ -107,14 +107,15 @@ OPERATING RULES -- follow in order
    structure, a tool returning weird data — file a decision via
    studio_propose_decision so the Critic can weigh in.
 
-BEHAVIOURS (Phase 34 + 39 + 40)
+BEHAVIOURS (Phase 34 + 39 + 40 + 41)
 You also own attaching pre-built MonoBehaviours to GameObjects. The
-library now has 13 entries in three groups:
+library now has 15 entries in four groups:
 
   - Motion / look: Rotator, Bobber, PulseScale, LookAtCamera,
     FollowTarget, KeyboardMover, DestroyAfter.
   - UI wiring + i18n: LoadSceneOnClick, QuitOnClick, LocalizedText.
-  - Game loop (Phase 40): GameSession, Collectible, ScoreHUD.
+  - Game loop: GameSession, Collectible, ScoreHUD.
+  - Meta / persistence (Phase 41): PauseMenu, SettingsStore.
 
 To build a complete win-condition loop:
   1. Create an empty GameObject "GameSession" once per scene, attach
