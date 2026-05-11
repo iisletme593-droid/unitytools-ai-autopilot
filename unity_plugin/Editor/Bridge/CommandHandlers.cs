@@ -49,6 +49,9 @@ namespace UnityTools.Bridge
                 case "add_collider": return AddCollider(p);
                 case "set_rigidbody": return SetRigidbody(p);
                 case "set_audio_source": return SetAudioSource(p);
+                case "set_light_properties": return SetLightProperties(p);
+                case "set_ambient_light": return SetAmbientLight(p);
+                case "list_lights": return ListLights(p);
                 case "find_by_tag": return FindByTag(p);
                 case "find_assets": return FindAssets(p);
                 case "list_prefabs": return ListPrefabs(p);
@@ -778,6 +781,112 @@ namespace UnityTools.Bridge
                 loop = src.loop,
                 volume = src.volume,
                 spatial_blend = src.spatialBlend,
+            };
+        }
+
+        private static object SetLightProperties(JObject p)
+        {
+            string name = p["name"]?.ToString();
+            if (string.IsNullOrEmpty(name)) throw new ArgumentException("name is required");
+            var go = GameObject.Find(name);
+            if (go == null) throw new InvalidOperationException($"Object not found: {name}");
+            var light = go.GetComponent<Light>();
+            if (light == null) throw new InvalidOperationException($"Light component not found on {name}");
+            Undo.RecordObject(light, "Bridge: set light properties");
+            JObject col = p["color"] as JObject;
+            if (col != null)
+                light.color = new Color(
+                    col["r"]?.ToObject<float>() ?? light.color.r,
+                    col["g"]?.ToObject<float>() ?? light.color.g,
+                    col["b"]?.ToObject<float>() ?? light.color.b,
+                    col["a"]?.ToObject<float>() ?? light.color.a
+                );
+            if (p["intensity"] != null) light.intensity = Mathf.Max(0f, p["intensity"].ToObject<float>());
+            if (p["range"] != null) light.range = Mathf.Max(0f, p["range"].ToObject<float>());
+            if (p["spot_angle"] != null) light.spotAngle = Mathf.Clamp(p["spot_angle"].ToObject<float>(), 1f, 179f);
+            if (p["shadows_enabled"] != null)
+                light.shadows = p["shadows_enabled"].ToObject<bool>() ? LightShadows.Soft : LightShadows.None;
+            if (p["shadow_strength"] != null) light.shadowStrength = Mathf.Clamp01(p["shadow_strength"].ToObject<float>());
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                name = name,
+                light_type = light.type.ToString(),
+                intensity = light.intensity,
+                range = light.range,
+                shadows = light.shadows.ToString(),
+                color_r = light.color.r,
+                color_g = light.color.g,
+                color_b = light.color.b,
+            };
+        }
+
+        private static object SetAmbientLight(JObject p)
+        {
+            JObject col = p["color"] as JObject;
+            if (col != null)
+                RenderSettings.ambientLight = new Color(
+                    col["r"]?.ToObject<float>() ?? RenderSettings.ambientLight.r,
+                    col["g"]?.ToObject<float>() ?? RenderSettings.ambientLight.g,
+                    col["b"]?.ToObject<float>() ?? RenderSettings.ambientLight.b,
+                    col["a"]?.ToObject<float>() ?? RenderSettings.ambientLight.a
+                );
+            if (p["intensity"] != null) RenderSettings.ambientIntensity = Mathf.Max(0f, p["intensity"].ToObject<float>());
+            string modeStr = p["mode"]?.ToString();
+            if (!string.IsNullOrEmpty(modeStr))
+            {
+                if (Enum.TryParse<UnityEngine.Rendering.AmbientMode>(modeStr, true, out var mode))
+                    RenderSettings.ambientMode = mode;
+            }
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                color_r = RenderSettings.ambientLight.r,
+                color_g = RenderSettings.ambientLight.g,
+                color_b = RenderSettings.ambientLight.b,
+                intensity = RenderSettings.ambientIntensity,
+                mode = RenderSettings.ambientMode.ToString(),
+            };
+        }
+
+        private static object ListLights(JObject p)
+        {
+            var all = UnityEngine.Object.FindObjectsByType<Light>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var rows = new List<object>();
+            float totalIntensity = 0f;
+            int shadowCount = 0;
+            foreach (var light in all)
+            {
+                if (!light.gameObject.scene.IsValid()) continue;
+                totalIntensity += light.intensity;
+                if (light.shadows != LightShadows.None) shadowCount++;
+                rows.Add(new
+                {
+                    name = light.gameObject.name,
+                    light_type = light.type.ToString(),
+                    intensity = light.intensity,
+                    range = light.range,
+                    color_r = light.color.r,
+                    color_g = light.color.g,
+                    color_b = light.color.b,
+                    shadows = light.shadows.ToString(),
+                    active = light.gameObject.activeInHierarchy,
+                });
+            }
+            return new
+            {
+                ok = true,
+                count = rows.Count,
+                total_intensity = totalIntensity,
+                shadow_casting_count = shadowCount,
+                ambient_intensity = RenderSettings.ambientIntensity,
+                ambient_mode = RenderSettings.ambientMode.ToString(),
+                ambient_color_r = RenderSettings.ambientLight.r,
+                ambient_color_g = RenderSettings.ambientLight.g,
+                ambient_color_b = RenderSettings.ambientLight.b,
+                lights = rows,
             };
         }
 

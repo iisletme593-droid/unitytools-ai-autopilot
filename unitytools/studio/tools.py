@@ -495,6 +495,77 @@ def studio_unity_attach_audio_source(
     return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
 
 
+# ─── Lighting audit (Phase 28) ─────────────────────────────────────────
+
+@tool(description="Audit the scene's lighting setup. Calls list_lights on the Unity bridge, then verdicts against soft budgets: at least 1 directional light, no more than 8 shadow-casting lights, total intensity below 50. Returns a 'verdict' string + 'recommendations' list the Lighting Director can act on. No mutations.")
+def studio_lighting_audit(
+    max_shadow_casters: int = 8,
+    max_total_intensity: float = 50.0,
+    require_directional: bool = True,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected."}
+    if hasattr(_UNITY, "is_connected") and not _UNITY.is_connected():
+        return {"ok": False, "error": "Unity Editor is not connected."}
+    try:
+        result = _UNITY.call("list_lights", {}, timeout=30)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"list_lights failed: {exc}", "error_type": type(exc).__name__}
+    if not isinstance(result, dict):
+        return {"ok": False, "error": "Unity returned non-dict from list_lights.", "raw": result}
+    lights = result.get("lights", []) or []
+    count = int(result.get("count", len(lights)))
+    total_intensity = float(result.get("total_intensity", 0.0))
+    shadow_count = int(result.get("shadow_casting_count", 0))
+    has_directional = any(
+        str(l.get("light_type", "")).lower() == "directional"
+        for l in lights
+    )
+
+    violations: list[str] = []
+    recommendations: list[str] = []
+    if require_directional and not has_directional:
+        violations.append("no_directional_light")
+        recommendations.append(
+            "Add a Directional light: unity_create_light(name='SunLight', "
+            "light_type='Directional', intensity=1.0). Most outdoor scenes need one."
+        )
+    if shadow_count > max_shadow_casters:
+        violations.append(f"shadow_casters_over_budget:{shadow_count}>{max_shadow_casters}")
+        recommendations.append(
+            f"{shadow_count} lights cast shadows (budget {max_shadow_casters}); "
+            "disable shadows on the smallest / most distant lights via "
+            "unity_set_light_properties(name=..., shadows_enabled=0)."
+        )
+    if total_intensity > max_total_intensity:
+        violations.append(f"total_intensity_over_budget:{total_intensity:.1f}>{max_total_intensity}")
+        recommendations.append(
+            f"Scene total intensity is {total_intensity:.1f} (budget {max_total_intensity}); "
+            "halve the intensity on the brightest lights before adding more."
+        )
+    if count == 0:
+        violations.append("scene_has_no_lights")
+        recommendations.append(
+            "Scene has zero Light components. Add at least one directional light "
+            "plus ambient via unity_set_ambient_light(r=0.3, g=0.3, b=0.35, intensity=1.0)."
+        )
+
+    verdict = "pass" if not violations else "fail"
+    return {
+        "ok": True,
+        "verdict": verdict,
+        "count": count,
+        "total_intensity": total_intensity,
+        "shadow_casting_count": shadow_count,
+        "has_directional": has_directional,
+        "ambient_intensity": result.get("ambient_intensity"),
+        "ambient_mode": result.get("ambient_mode"),
+        "violations": violations,
+        "recommendations": recommendations,
+        "lights": lights,
+    }
+
+
 # ─── Asset generation via Blender (Phase 25) ───────────────────────────
 
 @tool(description="Generate a procedural prop (rock / crate / pillar / column) via Blender and save the FBX under studio/assets/generated/. Deterministic per seed: same prop_type+seed produces the same mesh, so re-runs converge. Optionally imports into Unity if import_into_unity=True and a Unity bridge is wired. Returns the FBX path so the Worker can chain unity_import_asset afterwards.")
@@ -1191,6 +1262,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     # audio engine (Phase 27)
     "studio_unity_import_audio",
     "studio_unity_attach_audio_source",
+    # lighting (Phase 28)
+    "studio_lighting_audit",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

@@ -382,6 +382,87 @@ def unity_create_light(
         return {"ok": False, "error": str(e)}
 
 
+@tool(description="Adjust an existing Light component by name. Pass only the fields you want to change; missing fields keep their current Unity values. RGB 0-1; intensity >=0; spot_angle 1-179; shadows_enabled toggles soft shadows.")
+def unity_set_light_properties(
+    name: str,
+    r: float = -1.0,
+    g: float = -1.0,
+    b: float = -1.0,
+    intensity: float = -1.0,
+    range_val: float = -1.0,
+    spot_angle: float = -1.0,
+    shadows_enabled: int = -1,  # -1 = no change, 0 = off, 1 = on
+    shadow_strength: float = -1.0,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    if not name:
+        return {"ok": False, "error": "name is required"}
+    params: dict = {"name": name}
+    if r >= 0.0 or g >= 0.0 or b >= 0.0:
+        params["color"] = {
+            "r": max(0.0, r if r >= 0.0 else 0.0),
+            "g": max(0.0, g if g >= 0.0 else 0.0),
+            "b": max(0.0, b if b >= 0.0 else 0.0),
+            "a": 1.0,
+        }
+    if intensity >= 0.0:
+        params["intensity"] = intensity
+    if range_val >= 0.0:
+        params["range"] = range_val
+    if spot_angle >= 0.0:
+        params["spot_angle"] = spot_angle
+    if shadows_enabled in (0, 1):
+        params["shadows_enabled"] = bool(shadows_enabled)
+    if shadow_strength >= 0.0:
+        params["shadow_strength"] = shadow_strength
+    try:
+        result = _UNITY.call("set_light_properties", params)
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Set the scene's ambient lighting (RenderSettings). RGB 0-1, intensity >=0. mode is one of Flat / Trilight / Skybox. Affects every object that isn't lit by a direct Light component.")
+def unity_set_ambient_light(
+    r: float = -1.0,
+    g: float = -1.0,
+    b: float = -1.0,
+    intensity: float = -1.0,
+    mode: str = "",
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    params: dict = {}
+    if r >= 0.0 or g >= 0.0 or b >= 0.0:
+        params["color"] = {
+            "r": max(0.0, r if r >= 0.0 else 0.0),
+            "g": max(0.0, g if g >= 0.0 else 0.0),
+            "b": max(0.0, b if b >= 0.0 else 0.0),
+            "a": 1.0,
+        }
+    if intensity >= 0.0:
+        params["intensity"] = intensity
+    if mode:
+        params["mode"] = mode
+    try:
+        result = _UNITY.call("set_ambient_light", params)
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="List every Light in the active scene with type, intensity, color, range, shadow flag. Also returns ambient color/intensity/mode. Use this before mutating lights so you know what's there.")
+def unity_list_lights() -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("list_lights", {})
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @tool(description="Set camera settings on a GameObject that has a Camera component. FOV in degrees, near/far clip planes, orthographic toggle, orthographic size.")
 def unity_set_camera(
     name: str,
