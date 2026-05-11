@@ -1431,6 +1431,10 @@ PRODUCER = RoleConfig(
         # Phase 58: morning-glance dashboard that aggregates 7 audits +
         # signals into one report. Producer's standup-opening call.
         "studio_dashboard",
+        # Phase 63: bring the studio up to current schema after a
+        # UnityTools update. Producer notices the drift in standup
+        # and runs sync if needed.
+        "studio_sync",
     ),
 )
 

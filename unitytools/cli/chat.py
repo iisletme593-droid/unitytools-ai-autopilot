@@ -171,7 +171,22 @@ def _init_studio_for_chat(
         state = StudioState(paths)
         init_studio_tools(state)
         init_studio_unity(unity)
-        suffix = " (auto-scaffolded)" if auto_created else ""
+        # Phase 63: auto-sync. Migrate any older studio (missing
+        # docs / dirs introduced by later phases) up to current
+        # schema. Never overwrites existing files.
+        sync_suffix = ""
+        if not auto_created:
+            try:
+                from ..studio.tools import studio_sync
+                sync_result = studio_sync(check_only=False)
+                applied = sync_result.get("actions_applied", [])
+                if applied:
+                    sync_suffix = f" (+{len(applied)} schema migrations)"
+                    logger.info("Phase 63 auto-sync: %d step(s) applied",
+                                 len(applied))
+            except Exception:  # noqa: BLE001
+                logger.exception("auto-sync failed (non-fatal)")
+        suffix = " (auto-scaffolded)" if auto_created else sync_suffix
         return True, f"{project_root}{suffix}"
     except Exception as exc:  # noqa: BLE001
         logger.exception("Failed to init studio for chat")
@@ -246,6 +261,7 @@ def _handle_slash(
                 "[cyan]/quit[/cyan]                  exit\n\n"
                 "[bold]Studio actions[/bold]\n"
                 "[cyan]/init[/cyan] [path]            scaffold a fresh studio/ at cwd or path\n"
+                "[cyan]/sync[/cyan] [--check]          bring older studio up to current schema (auto-runs on chat start)\n"
                 "[cyan]/scaffold[/cyan] <genre> [name]   collectathon/shooter/runner/platformer\n"
                 "[cyan]/dispatch[/cyan] [N] [--dry-run]   run N pending tasks through their roles (autopilot)\n"
                 "[cyan]/dashboard[/cyan] [--save] [days]  operator's morning glance\n"

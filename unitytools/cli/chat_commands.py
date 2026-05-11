@@ -198,6 +198,10 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     if cmd == "dispatch":
         return _dispatch_autopilot(args, ctx)
 
+    # ── sync [--check]   bring studio up to current schema
+    if cmd == "sync":
+        return _dispatch_sync(args)
+
     return CommandResult(handled=False)
 
 
@@ -491,6 +495,47 @@ def _dispatch_diag() -> CommandResult:
         tool_name="diag",
         tool_result=info,
         message=msg,
+    )
+
+
+def _dispatch_sync(args: list[str]) -> CommandResult:
+    """/sync [--check] — migrate the active studio to current schema."""
+    check_only = any(a in ("--check", "-c", "--dry") for a in args)
+    try:
+        from ..studio.tools import studio_sync
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_sync not importable: {exc}",
+        )
+    try:
+        result = studio_sync(check_only=check_only)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_sync",
+            message=f"sync failed: {exc}",
+        )
+    if result["in_sync"]:
+        msg = (
+            f"In sync ({result['schema_info']['expected_doc_count']} docs / "
+            f"{result['schema_info']['behaviour_library_size']} behaviours / "
+            f"{result['schema_info']['role_count']} roles current)."
+        )
+    elif check_only:
+        msg = (
+            f"{result['drift_count']} drift item(s): "
+            f"{len(result['missing_files'])} files, "
+            f"{len(result['missing_dirs'])} dirs missing. "
+            "Run /sync to apply."
+        )
+    else:
+        msg = (
+            f"Applied {len(result['actions_applied'])} migration step(s)."
+        )
+    return CommandResult(
+        handled=True, ok=True, tool_name="studio_sync",
+        tool_result=result, message=msg,
     )
 
 

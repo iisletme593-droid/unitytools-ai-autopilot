@@ -548,6 +548,89 @@ def studio_unity_attach_audio_source(
     return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
 
 
+# ─── Studio sync — migrate older studios to current schema (Phase 63) ─
+
+@tool(description="Bring the active studio up to the current UnityTools schema. As phases ship, new starter docs (tutorial.md / scene_catalog.md / achievements.md / ...) and new directories (studio/dialogs/ / studio/strings/) are added. An older scaffolded studio misses these. studio_sync compares the studio against templates.starter_files() + paths.all_dirs(), reports what's missing, and optionally creates it. check_only=True is a read-only diff for CI. Never overwrites existing files.")
+def studio_sync(check_only: bool = False) -> dict:
+    from .templates import starter_files
+    state = _require_state()
+    paths = state.paths
+
+    # 1. Directory check
+    expected_dirs = paths.all_dirs()
+    missing_dirs: list[str] = []
+    for d in expected_dirs:
+        if not d.is_dir():
+            missing_dirs.append(str(d.relative_to(paths.root.parent))
+                                if d.is_relative_to(paths.root.parent)
+                                else str(d))
+
+    # 2. Starter doc check
+    expected_files = starter_files()
+    missing_files: list[str] = []
+    for rel_path in expected_files.keys():
+        target = paths.root / rel_path
+        if not target.exists():
+            missing_files.append(rel_path)
+
+    # 3. Schema version markers — surface info even when nothing to do
+    behaviours_supported = 0
+    try:
+        from ..tools.unity_tools import _BEHAVIOUR_LIBRARY
+        behaviours_supported = len(_BEHAVIOUR_LIBRARY)
+    except ImportError:
+        pass
+    role_count = 0
+    try:
+        from .roles import all_roles
+        role_count = len(all_roles())
+    except ImportError:
+        pass
+
+    drift_count = len(missing_dirs) + len(missing_files)
+    actions: list[str] = []
+
+    if not check_only and drift_count > 0:
+        # Apply migrations
+        for d in expected_dirs:
+            if not d.is_dir():
+                d.mkdir(parents=True, exist_ok=True)
+                rel = str(d.relative_to(paths.root.parent)) if d.is_relative_to(paths.root.parent) else str(d)
+                actions.append(f"created dir: {rel}")
+        for rel_path, content in expected_files.items():
+            target = paths.root / rel_path
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+                actions.append(f"created file: {rel_path}")
+
+    return {
+        "ok": True,
+        "in_sync": drift_count == 0,
+        "check_only": check_only,
+        "drift_count": drift_count,
+        "missing_dirs": missing_dirs,
+        "missing_files": missing_files,
+        "actions_applied": actions,
+        "schema_info": {
+            "expected_doc_count": len(expected_files),
+            "expected_dir_count": len(expected_dirs),
+            "behaviour_library_size": behaviours_supported,
+            "role_count": role_count,
+        },
+        "recommendation": (
+            "Studio is in sync with the current UnityTools schema."
+            if drift_count == 0
+            else (
+                f"{drift_count} drift item(s); run studio_sync(check_only=False) "
+                "to apply migrations. Existing files are never overwritten."
+                if check_only
+                else f"Applied {len(actions)} migration step(s)."
+            )
+        ),
+    }
+
+
 # ─── Studio Dashboard (Phase 58) ───────────────────────────────────────
 
 @tool(description="Operator's morning glance. Aggregates every signal across the studio into ONE structured report: task / milestone / decision counts, ship readiness verdict, internal consistency drift, cost summary, balance audit, recent regressions, in-progress milestones with %. Use this as the first call of a producer standup. Optionally writes the report as markdown to studio/reviews/dashboard_<date>.md so the human sees the same view next morning. Engine-gated audits (lighting/atmosphere/vfx) are run only when a Unity bridge is connected; offline runs skip them cleanly.")
@@ -3474,6 +3557,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_internal_consistency_check",
     # studio dashboard (Phase 58)
     "studio_dashboard",
+    # studio sync (Phase 63)
+    "studio_sync",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

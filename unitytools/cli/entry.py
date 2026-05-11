@@ -1236,6 +1236,51 @@ def cmd_studio_cost(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_studio_sync(args: argparse.Namespace) -> int:
+    """Bring an existing studio up to the current UnityTools schema."""
+    from ..studio.paths import StudioPaths
+    from ..studio.state import StudioState
+    from ..studio.tools import init_studio_tools, studio_sync
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init "
+            f"--project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    check_only = bool(getattr(args, "check", False))
+    result = studio_sync(check_only=check_only)
+    if result["in_sync"]:
+        console.print(
+            f"[green][OK][/green] Studio is in sync with the current "
+            f"UnityTools schema "
+            f"({result['schema_info']['expected_doc_count']} starter docs, "
+            f"{result['schema_info']['behaviour_library_size']} behaviours, "
+            f"{result['schema_info']['role_count']} roles)."
+        )
+        return 0
+    drift = result["drift_count"]
+    if check_only:
+        console.print(f"[yellow]{drift} drift item(s) — studio is behind current schema:[/yellow]")
+        for name in result.get("missing_dirs", []):
+            console.print(f"  [yellow]missing dir:[/yellow] {name}")
+        for name in result.get("missing_files", []):
+            console.print(f"  [yellow]missing file:[/yellow] {name}")
+        console.print()
+        console.print(f"[dim]Run `unitytools studio-sync` (without --check) to apply.[/dim]")
+        return 1
+    actions = result.get("actions_applied", [])
+    console.print(f"[green][OK][/green] Applied {len(actions)} migration step(s):")
+    for line in actions:
+        console.print(f"  [green]+ {line}[/green]")
+    return 0
+
+
 def cmd_studio_dashboard(args: argparse.Namespace) -> int:
     """One-shot operator dashboard. Aggregates every audit + signal."""
     from ..studio.paths import StudioPaths
@@ -2084,6 +2129,9 @@ def main() -> int:
     p_studio_dashboard.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_dashboard.add_argument("--days", type=int, default=7, help="Window in days for cost / balance / regressions (default 7).")
     p_studio_dashboard.add_argument("--save", action="store_true", help="Also write the markdown report to studio/reviews/dashboard_<date>.md.")
+    p_studio_sync = sub.add_parser("studio-sync", help="Bring an existing studio up to the current UnityTools schema (adds new starter docs + dirs introduced by later phases). Never overwrites.")
+    p_studio_sync.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_sync.add_argument("--check", action="store_true", help="Read-only diff: report drift but don't write. CI-friendly.")
     p_studio_run = sub.add_parser("studio-run", help="Run one studio role (producer | designer | critic) against the current project state")
     p_studio_run.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_run.add_argument(
@@ -2216,6 +2264,7 @@ def main() -> int:
         "studio-status": cmd_studio_status,
         "studio-cost": cmd_studio_cost,
         "studio-dashboard": cmd_studio_dashboard,
+        "studio-sync": cmd_studio_sync,
         "studio-run": cmd_studio_run,
         "studio-review": cmd_studio_review,
         "studio-loop": cmd_studio_loop,
