@@ -100,6 +100,49 @@ _AUDIT_BY_KIND: dict[str, str] = {
 }
 
 
+# Phase 65: Turkish slash-command aliases. The operator types in
+# Turkish; commands should match. Each Turkish key resolves to its
+# canonical English equivalent BEFORE the dispatch switch runs.
+# Both forms work; /help shows the English form by default.
+_ALIASES: dict[str, str] = {
+    # Meta
+    "yardım": "help", "yardim": "help",
+    "temizle": "clear",
+    "araç": "tools", "araclar": "tools", "araçlar": "tools",
+    "durum": "status",
+    "sağlık": "diag", "saglik": "diag",
+    "çıkış": "quit", "cikis": "quit", "çık": "quit", "cik": "quit",
+    # Studio actions
+    "başlat": "init", "baslat": "init",
+    "eşitle": "sync", "esitle": "sync", "güncel": "sync", "guncel": "sync",
+    "oluştur": "scaffold", "olustur": "scaffold", "kur": "scaffold",
+    "yürüt": "dispatch", "yurut": "dispatch", "yur": "dispatch",
+    "rol": "role",
+    "rapor": "dashboard", "panel": "dashboard",
+    "satış": "ship", "satis": "ship", "yayın": "ship", "yayin": "ship",
+    "maliyet": "cost", "masraf": "cost",
+    "denetim": "audit", "tarama": "audit",
+    # Inventory
+    "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
+    "hedef": "milestones", "hedefler": "milestones",
+    "kararlar": "decisions",
+    "referans": "refs",
+    "ekran": "screenshots",
+    "diller": "locales", "dil": "locales",
+    "diyalog": "dialogs", "dialoglar": "dialogs", "diyaloglar": "dialogs",
+    "varlık": "assets", "varlik": "assets",
+    "varlıklar": "assets", "varliklar": "assets",
+    "davranış": "behaviours", "davranis": "behaviours", "davranışlar": "behaviours",
+    "roller": "roles",
+}
+
+
+def _resolve_alias(cmd: str) -> str:
+    """Map a Turkish-language slash command to its canonical English
+    form, or return cmd unchanged. Case-insensitive."""
+    return _ALIASES.get(cmd.lower(), cmd.lower())
+
+
 def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResult:
     """Parse one slash-command line and dispatch.
 
@@ -111,6 +154,10 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     need an LLM client + Unity bridge (currently /dispatch). When
     omitted, those commands return a 'context unavailable' error
     without crashing.
+
+    Turkish aliases are resolved to their English equivalents
+    before the switch — so /oluştur / /yürüt / /sağlık work just
+    like /scaffold / /dispatch / /diag.
     """
     try:
         parts = shlex.split(line)
@@ -119,7 +166,7 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
         parts = line.split()
     if not parts:
         return CommandResult(handled=False)
-    cmd = parts[0].lower()
+    cmd = _resolve_alias(parts[0])
     args = parts[1:]
 
     # ── exit

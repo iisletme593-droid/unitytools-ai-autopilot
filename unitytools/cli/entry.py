@@ -483,7 +483,9 @@ def cmd_chat(args: argparse.Namespace) -> int:
         return 1
     from .chat import run_chat
     auto_scaffold = not getattr(args, "no_auto_init", False)
-    return run_chat(config, blender, unity, auto_scaffold=auto_scaffold)
+    auto_sync = not getattr(args, "no_auto_sync", False)
+    return run_chat(config, blender, unity,
+                     auto_scaffold=auto_scaffold, auto_sync=auto_sync)
 
 
 def cmd_dual_chat(args: argparse.Namespace) -> int:
@@ -2019,6 +2021,12 @@ def main() -> int:
         action="store_true",
         help="Don't auto-scaffold studio/ when cwd is a Unity project without one. "
              "Default: auto-scaffold to zero-friction onboard (you can still /init later).",
+    )
+    p_chat.add_argument(
+        "--no-auto-sync",
+        action="store_true",
+        help="Don't auto-run studio_sync on chat start. Default: auto-sync to bring "
+             "older studios up to current schema. Use /sync manually instead.",
     )
     p_dual = sub.add_parser("dual-chat", help="Start dual-agent chat (Qwen 3.6 planner + Qwen 2.5 reader/worker by default)")
     p_dual.add_argument("--master", default="gemma4:latest", help="Master model for planning (default: gemma4:latest, falls back if missing)")

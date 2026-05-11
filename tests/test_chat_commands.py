@@ -760,6 +760,137 @@ def test_role_brief_joins_remaining_args() -> None:
     print("OK /role brief = remaining args after role-id (smoke check)")
 
 
+# ─────────────────────────────────────────── Phase 65 Türkçe aliases
+
+
+def test_resolve_alias_maps_turkish_to_english() -> None:
+    """The _resolve_alias helper converts Turkish slash commands to
+    their English canonical form. Case-insensitive."""
+    from unitytools.cli.chat_commands import _resolve_alias
+    cases = [
+        # Meta
+        ("yardım", "help"), ("yardim", "help"),
+        ("temizle", "clear"),
+        ("durum", "status"),
+        ("sağlık", "diag"), ("saglik", "diag"),
+        ("çıkış", "quit"), ("cikis", "quit"),
+        # Actions
+        ("başlat", "init"), ("baslat", "init"),
+        ("eşitle", "sync"), ("esitle", "sync"),
+        ("oluştur", "scaffold"), ("olustur", "scaffold"), ("kur", "scaffold"),
+        ("yürüt", "dispatch"), ("yurut", "dispatch"),
+        ("rol", "role"),
+        ("rapor", "dashboard"), ("panel", "dashboard"),
+        ("satış", "ship"), ("satis", "ship"),
+        ("maliyet", "cost"),
+        ("denetim", "audit"), ("tarama", "audit"),
+        # Inventory
+        ("görev", "tasks"), ("gorev", "tasks"),
+        ("hedef", "milestones"),
+        ("kararlar", "decisions"),
+        ("referans", "refs"),
+        ("ekran", "screenshots"),
+        ("dil", "locales"), ("diller", "locales"),
+        ("diyalog", "dialogs"),
+        ("varlık", "assets"), ("varlik", "assets"),
+        ("davranış", "behaviours"), ("davranis", "behaviours"),
+        ("roller", "roles"),
+    ]
+    for tr, expected in cases:
+        got = _resolve_alias(tr)
+        assert got == expected, f"_resolve_alias({tr!r}) = {got!r}, expected {expected!r}"
+    print(f"OK {len(cases)} Turkish aliases all resolve to canonical English form")
+
+
+def test_resolve_alias_is_case_insensitive() -> None:
+    """`/Oluştur` and `/OLUŞTUR` should both work like `/oluştur`."""
+    from unitytools.cli.chat_commands import _resolve_alias
+    assert _resolve_alias("Oluştur") == "scaffold"
+    assert _resolve_alias("OLUŞTUR") == "scaffold"
+    assert _resolve_alias("rapor".upper()) == "dashboard"
+    print("OK Turkish aliases are case-insensitive")
+
+
+def test_resolve_alias_passes_english_through_unchanged() -> None:
+    """English commands aren't in the alias table; they stay
+    as-is (lowercased)."""
+    from unitytools.cli.chat_commands import _resolve_alias
+    for english in ("scaffold", "dispatch", "ship", "audit", "init", "diag"):
+        got = _resolve_alias(english)
+        assert got == english
+        # Uppercase also lowercases
+        assert _resolve_alias(english.upper()) == english
+    print("OK English commands pass through alias resolver unchanged")
+
+
+def test_turkish_oluştur_actually_scaffolds() -> None:
+    """End-to-end: /oluştur collectathon Demo fires the
+    collectathon scaffolder."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("oluştur collectathon Demo")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_scaffold_collectathon_game"
+        assert len(state.load_tasks()) == 13
+    finally:
+        os.chdir(prev)
+    print("OK /oluştur collectathon Demo fires the scaffolder end-to-end")
+
+
+def test_turkish_yürüt_actually_dispatches() -> None:
+    """End-to-end: /yürüt --dry-run fires the autopilot."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        dispatch("scaffold collectathon Demo")
+        r = dispatch("yürüt 3 --dry-run")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio.dispatch_pending"
+        assert r.tool_result["dry_run"] is True
+    finally:
+        os.chdir(prev)
+    print("OK /yürüt 3 --dry-run fires autopilot end-to-end")
+
+
+def test_turkish_sağlık_fires_diag() -> None:
+    """End-to-end: /sağlık returns the diag info."""
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("sağlık")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "diag"
+        assert r.tool_result["roles"] == 24
+    finally:
+        os.chdir(prev)
+    print("OK /sağlık (and /saglik fallback) returns full diag info")
+
+
+def test_turkish_rapor_fires_dashboard() -> None:
+    """End-to-end: /rapor --save fires studio_dashboard."""
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("rapor")
+        assert r.handled is True
+        assert r.tool_name == "studio_dashboard"
+        # --save flag works through the alias too
+        r2 = dispatch("rapor --save")
+        assert r2.tool_result.get("saved_path") is not None
+    finally:
+        os.chdir(prev)
+    print("OK /rapor [--save] fires studio_dashboard with flags intact")
+
+
+def test_quit_aliases_carry_quit_flag() -> None:
+    """Turkish exit aliases should also return quit=True."""
+    for word in ("çıkış", "cikis", "çık", "cik"):
+        r = dispatch(word)
+        assert r.handled is True
+        assert r.quit is True, f"alias {word!r} should set quit=True"
+    print("OK Turkish quit aliases (çıkış / cikis / çık / cik) carry quit=True")
+
+
 def test_default_brief_table_covers_every_role() -> None:
     """The _default_brief_for_role helper should know about every
     registered role so users can omit the brief on any role."""
@@ -895,7 +1026,16 @@ def run_test() -> None:
     test_role_with_ctx_and_unreachable_llm_does_not_crash()
     test_role_brief_joins_remaining_args()
     test_default_brief_table_covers_every_role()
-    print("All chat-command tests passed (Phase 59 + 60 + 61 + 64)")
+    # Phase 65 Turkish aliases
+    test_resolve_alias_maps_turkish_to_english()
+    test_resolve_alias_is_case_insensitive()
+    test_resolve_alias_passes_english_through_unchanged()
+    test_turkish_oluştur_actually_scaffolds()
+    test_turkish_yürüt_actually_dispatches()
+    test_turkish_sağlık_fires_diag()
+    test_turkish_rapor_fires_dashboard()
+    test_quit_aliases_carry_quit_flag()
+    print("All chat-command tests passed (Phase 59 + 60 + 61 + 64 + 65)")
 
 
 if __name__ == "__main__":

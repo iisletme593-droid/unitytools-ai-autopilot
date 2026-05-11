@@ -111,6 +111,7 @@ def _auto_scaffold_studio(project_root: Path) -> tuple[bool, str]:
 def _init_studio_for_chat(
     unity: UnityBridge,
     auto_scaffold: bool = True,
+    auto_sync: bool = True,
 ) -> tuple[bool, str]:
     """Wire the studio + every engine tool module into the global
     @tool registry so the LLM can call them from chat. Returns
@@ -173,9 +174,10 @@ def _init_studio_for_chat(
         init_studio_unity(unity)
         # Phase 63: auto-sync. Migrate any older studio (missing
         # docs / dirs introduced by later phases) up to current
-        # schema. Never overwrites existing files.
+        # schema. Never overwrites existing files. Phase 65 added
+        # the auto_sync=False opt-out.
         sync_suffix = ""
-        if not auto_created:
+        if not auto_created and auto_sync:
             try:
                 from ..studio.tools import studio_sync
                 sync_result = studio_sync(check_only=False)
@@ -198,8 +200,11 @@ def run_chat(
     blender: BlenderBridge,
     unity: UnityBridge,
     auto_scaffold: bool = True,
+    auto_sync: bool = True,
 ) -> int:
-    studio_active, studio_info = _init_studio_for_chat(unity, auto_scaffold=auto_scaffold)
+    studio_active, studio_info = _init_studio_for_chat(
+        unity, auto_scaffold=auto_scaffold, auto_sync=auto_sync,
+    )
     orch = Orchestrator(config)
     session: PromptSession = PromptSession(history=InMemoryHistory())
 
@@ -281,7 +286,13 @@ def _handle_slash(
                 "[cyan]/behaviours[/cyan] [filter]     list Behaviour Library (motion/UI/combat/...)\n"
                 "[cyan]/roles[/cyan]                   list all 24 studio roles\n\n"
                 "[dim]Any non-slash message routes to gemma4 with all 199 tools available.[/dim]\n"
-                "[dim]Try: '/scaffold platformer Hop Quest' or 'scaffold a platformer called Hop Quest'.[/dim]",
+                "[dim]Try: '/scaffold platformer Hop Quest' or 'scaffold a platformer called Hop Quest'.[/dim]\n\n"
+                "[bold]Türkçe alias'ler[/bold] [dim](her komut Türkçe veya İngilizce yazılabilir)[/dim]\n"
+                "[dim]/yardım=/help  /durum=/status  /sağlık=/diag  /çıkış=/quit\n"
+                "/başlat=/init  /eşitle=/sync  /oluştur=/scaffold  /yürüt=/dispatch  /rol=/role\n"
+                "/rapor=/dashboard  /satış=/ship  /maliyet=/cost  /denetim=/audit\n"
+                "/görev=/tasks  /hedef=/milestones  /referans=/refs  /dil=/locales\n"
+                "/diyalog=/dialogs  /varlık=/assets  /davranış=/behaviours  /roller=/roles[/dim]",
                 title="Commands",
                 border_style="cyan",
             )
