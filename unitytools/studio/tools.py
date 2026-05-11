@@ -393,6 +393,98 @@ def studio_list_screenshots(limit: int = 20) -> dict:
     }
 
 
+# ─── Blockout helpers (Phase 22) ───────────────────────────────────────
+
+@tool(description="Create a group of primitives in a layout pattern (line/grid/circle/cluster) at one origin. Saves the Worker from making N separate unity_create_primitive + unity_set_position calls. Returns the list of created object names. layout: 'line' (along x-axis), 'grid' (NxN on xz-plane), 'circle' (ring on xz-plane around origin), 'cluster' (random scatter within a radius).")
+def studio_create_blockout_group(
+    name_prefix: str,
+    primitive_type: str = "Cube",
+    count: int = 4,
+    layout: str = "line",
+    spacing: float = 2.0,
+    origin_x: float = 0.0,
+    origin_y: float = 0.0,
+    origin_z: float = 0.0,
+    color_r: float = 0.7,
+    color_g: float = 0.7,
+    color_b: float = 0.7,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected."}
+    if hasattr(_UNITY, "is_connected") and not _UNITY.is_connected():
+        return {"ok": False, "error": "Unity Editor is not connected."}
+    if count < 1:
+        return {"ok": False, "error": "count must be >= 1."}
+    if count > 50:
+        return {"ok": False, "error": "count is capped at 50 for blockouts; use a procedural tool for larger sets."}
+    if layout not in ("line", "grid", "circle", "cluster"):
+        return {"ok": False, "error": f"Unknown layout {layout!r}. Use line / grid / circle / cluster."}
+    if primitive_type not in ("Cube", "Sphere", "Cylinder", "Capsule", "Plane", "Quad"):
+        return {"ok": False, "error": f"Unknown primitive_type {primitive_type!r}."}
+
+    # Compute positions per layout
+    positions: list[tuple[float, float, float]] = []
+    if layout == "line":
+        # Centered along x-axis
+        for i in range(count):
+            x = origin_x + (i - (count - 1) / 2.0) * spacing
+            positions.append((x, origin_y, origin_z))
+    elif layout == "grid":
+        # NxN grid; round-up the side length
+        side = int(count ** 0.5)
+        if side * side < count:
+            side += 1
+        for i in range(count):
+            row, col = divmod(i, side)
+            x = origin_x + (col - (side - 1) / 2.0) * spacing
+            z = origin_z + (row - (side - 1) / 2.0) * spacing
+            positions.append((x, origin_y, z))
+    elif layout == "circle":
+        import math
+        for i in range(count):
+            angle = 2 * math.pi * i / count
+            x = origin_x + spacing * math.cos(angle)
+            z = origin_z + spacing * math.sin(angle)
+            positions.append((x, origin_y, z))
+    elif layout == "cluster":
+        # Deterministic pseudo-random scatter (seeded with name_prefix hash)
+        import random
+        rng = random.Random(hash(name_prefix) & 0xFFFFFFFF)
+        for _ in range(count):
+            x = origin_x + (rng.random() - 0.5) * 2 * spacing
+            z = origin_z + (rng.random() - 0.5) * 2 * spacing
+            positions.append((x, origin_y, z))
+
+    created: list[dict] = []
+    errors: list[str] = []
+    for i, (x, y, z) in enumerate(positions):
+        name = f"{name_prefix}_{i:02d}"
+        try:
+            _UNITY.call(
+                "create_primitive",
+                {"type": primitive_type, "name": name, "position": {"x": x, "y": y, "z": z}},
+            )
+            # Apply color
+            try:
+                _UNITY.call(
+                    "set_material_color",
+                    {"name": name, "color": {"r": color_r, "g": color_g, "b": color_b, "a": 1.0}},
+                )
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"color {name}: {exc}")
+            created.append({"name": name, "position": {"x": x, "y": y, "z": z}})
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"create {name}: {exc}")
+    return {
+        "ok": bool(created),
+        "count": len(created),
+        "layout": layout,
+        "primitive_type": primitive_type,
+        "objects": created,
+        "errors": errors,
+    }
+
+
 # ─── Engine capture ────────────────────────────────────────────────────
 
 @tool(description="Capture a SceneView screenshot from Unity Editor and copy it under studio/qa/screenshots/. Requires Unity to be open and the bridge connected. Use a short hint name like 'level_1_overview' to label the file.")
@@ -687,6 +779,7 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_capture_screenshot",
     "studio_compare_to_reference",
     "studio_visual_regression_check",
+    "studio_create_blockout_group",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

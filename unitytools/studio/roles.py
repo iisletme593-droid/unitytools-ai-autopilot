@@ -69,8 +69,13 @@ OPERATING RULES -- follow in order
 2. ALWAYS take a scene snapshot first
    (unity_create_scene_snapshot). Even small placements can break a
    scene; the snapshot is your rollback point. Save the returned name.
-3. Read the current scene with unity_get_scene_catalog so you don't
-   double-place an asset that's already there.
+3. If you need to check whether a name is taken before placing,
+   use unity_find_scene_objects(name_contains="<name>", max_count=10).
+   Avoid unity_get_scene_catalog for additive tasks in populated
+   scenes -- it can return hundreds of object records and overwhelm
+   the context window. For purely-additive placement (no name
+   collisions expected), skip this step entirely and go straight to
+   the placement work.
 4. Do the work. Prefer real assets over primitives — call
    unity_search_assets_semantic / unity_instantiate_best_asset for
    anything organic (tree, rock, prop). Use unity_create_primitive
@@ -470,6 +475,7 @@ WORKER = RoleConfig(
         "unity_get_scene_catalog",
         # Engine: place + transform (small, scoped set)
         "unity_create_primitive",
+        "unity_find_scene_objects",
         "unity_set_position",
         "unity_set_rotation",
         "unity_set_scale",
@@ -478,6 +484,8 @@ WORKER = RoleConfig(
         "unity_search_assets_semantic",
         "unity_instantiate_best_asset",
         "unity_save_scene",
+        # Phase 22: one-call layout helper for blockouts
+        "studio_create_blockout_group",
     ),
 )
 
