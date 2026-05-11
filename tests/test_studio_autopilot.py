@@ -137,7 +137,7 @@ def test_dispatch_map_routes_engine_filers_to_worker() -> None:
     assert DISPATCH_MAP["art_director"] == "art_director"
     assert DISPATCH_MAP["level_designer"] == "worker"
     assert DISPATCH_MAP["tech_artist"] == "worker"
-    assert DISPATCH_MAP["qa"] == "worker"
+    assert DISPATCH_MAP["qa"] == "playtester"  # Phase 23: qa goes to Playtester
     assert DISPATCH_MAP["worker"] == "worker"
     # Producer is intentionally not auto-dispatched
     assert DISPATCH_MAP["producer"] is None

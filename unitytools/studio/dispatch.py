@@ -48,8 +48,9 @@ DISPATCH_MAP: dict[str, Optional[str]] = {
     "art_director": "art_director",
     "level_designer": "worker",
     "tech_artist": "worker",
-    "qa": "worker",
+    "qa": "playtester",  # Phase 23: QA tasks go to the Playtester role
     "worker": "worker",
+    "playtester": "playtester",
     "producer": None,  # don't auto-dispatch back to producer; loop handles it
 }
 

@@ -28,6 +28,7 @@ from .roles import (
     LEVEL_DESIGNER,
     ART_DIRECTOR,
     WORKER,
+    PLAYTESTER,
     get_role,
     all_roles,
 )
@@ -96,6 +97,7 @@ __all__ = [
     "LEVEL_DESIGNER",
     "ART_DIRECTOR",
     "WORKER",
+    "PLAYTESTER",
     "get_role",
     "all_roles",
     # runner

@@ -393,6 +393,109 @@ def studio_list_screenshots(limit: int = 20) -> dict:
     }
 
 
+# ─── Playtest (Phase 23) ───────────────────────────────────────────────
+
+@tool(description="Run a smoke playtest: enter Unity play mode, wait `duration_seconds` (capped 0.5..30), check that each name in expected_object_names still exists in the scene, capture a play-mode screenshot, then exit play mode. Returns a structured report. Records a playtest_smoke row in qa/regression.jsonl for the time series.")
+def studio_playtest_smoke(
+    duration_seconds: float = 3.0,
+    expected_object_names: Optional[list[str]] = None,
+    capture_name: str = "playtest",
+) -> dict:
+    state = _require_state()
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected."}
+    if hasattr(_UNITY, "is_connected") and not _UNITY.is_connected():
+        return {"ok": False, "error": "Unity Editor is not connected."}
+
+    # Cap duration so a confused agent can't lock Unity for an hour.
+    duration = max(0.5, min(30.0, float(duration_seconds)))
+    expected = list(expected_object_names or [])
+    started_at = time.time()
+    entered = False
+    errors: list[str] = []
+
+    # 1. Enter play mode
+    try:
+        enter_result = _UNITY.call("play_mode", {"play": True}, timeout=15)
+        entered = True
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "error": f"Could not enter play mode: {exc}",
+            "error_type": type(exc).__name__,
+        }
+
+    presence: dict[str, bool] = {}
+    screenshot_path: Optional[str] = None
+    try:
+        # 2. Hold the smoke for the requested window
+        time.sleep(duration)
+
+        # 3. Verify each expected object survived play-mode entry
+        for name in expected:
+            try:
+                find_result = _UNITY.call(
+                    "find_scene_objects",
+                    {"name_contains": name, "max_count": 1},
+                    timeout=10,
+                )
+                objs = find_result.get("objects", []) if isinstance(find_result, dict) else []
+                presence[name] = len(objs) > 0
+            except Exception as exc:  # noqa: BLE001
+                presence[name] = False
+                errors.append(f"verify {name}: {exc}")
+
+        # 4. Capture a screenshot for the QA log (best-effort)
+        try:
+            qa = _UNITY.call("run_visual_qa", {"capture_screenshot": True}, timeout=30)
+            raw_path = (qa or {}).get("screenshot_path") if isinstance(qa, dict) else None
+            if raw_path:
+                src = Path(raw_path)
+                if src.exists():
+                    state.paths.qa_screenshots.mkdir(parents=True, exist_ok=True)
+                    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (capture_name or "playtest"))
+                    dest = state.paths.qa_screenshots / f"{time.strftime('%Y%m%d_%H%M%S')}_{safe}{src.suffix or '.png'}"
+                    shutil.copy2(src, dest)
+                    screenshot_path = str(dest)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"capture: {exc}")
+    finally:
+        # 5. ALWAYS exit play mode, even if a verification step raised.
+        if entered:
+            try:
+                _UNITY.call("play_mode", {"play": False}, timeout=15)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"exit play mode: {exc}")
+
+    finished_at = time.time()
+    missing = [n for n, present in presence.items() if not present]
+    ok = (not errors) and (not missing)
+
+    payload = {
+        "ok": ok,
+        "duration_seconds": duration,
+        "elapsed_seconds": finished_at - started_at,
+        "expected_count": len(expected),
+        "missing": missing,
+        "presence": presence,
+        "screenshot": screenshot_path,
+        "errors": errors,
+    }
+    # Append to the regression time series so studio_recent_regressions
+    # surfaces playtest results alongside vision / pixel diffs.
+    state.append_regression_entry(
+        {
+            "ts": finished_at,
+            "kind": "playtest_smoke",
+            "ok": ok,
+            "missing_count": len(missing),
+            "errors_count": len(errors),
+            "duration": duration,
+        }
+    )
+    return payload
+
+
 # ─── Blockout helpers (Phase 22) ───────────────────────────────────────
 
 @tool(description="Create a group of primitives in a layout pattern (line/grid/circle/cluster) at one origin. Saves the Worker from making N separate unity_create_primitive + unity_set_position calls. Returns the list of created object names. layout: 'line' (along x-axis), 'grid' (NxN on xz-plane), 'circle' (ring on xz-plane around origin), 'cluster' (random scatter within a radius).")
@@ -780,6 +883,7 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_compare_to_reference",
     "studio_visual_regression_check",
     "studio_create_blockout_group",
+    "studio_playtest_smoke",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",
