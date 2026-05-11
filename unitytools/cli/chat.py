@@ -1,7 +1,22 @@
-"""Interactive terminal chat REPL for UnityTools."""
+"""Interactive terminal chat REPL for UnityTools.
+
+Phase 56: the REPL is studio-aware by default. On launch it:
+- Auto-discovers a studio/ directory in the current working tree
+  and calls init_studio_tools(state) so studio_* tools work.
+- Calls init_studio_unity(unity) so studio_capture_screenshot +
+  studio_unity_attach_audio_source + every engine-gated studio
+  tool can reach the bridge.
+- Eagerly imports unitytools.tools.* so the @tool registry has
+  every Unity / Blender wrapper available to the LLM.
+Without these, the LLM could SEE studio_* tools but every call
+would error with 'state not initialized'. With them, the chat is
+the right way to drive the studio: 'scaffold a collectathon' or
+'run ship readiness check' just works.
+"""
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
@@ -22,11 +37,78 @@ console = Console()
 PROMPT_STYLE = Style.from_dict({"prompt": "ansicyan bold"})
 
 
+def _discover_studio_root(start: Path | None = None) -> Path | None:
+    """Walk up from `start` (default: cwd) looking for a sibling
+    'studio/' directory with a known doc file. Returns the studio
+    directory's parent (the project root) or None."""
+    cur = (start or Path.cwd()).resolve()
+    for candidate in [cur, *cur.parents]:
+        studio_dir = candidate / "studio"
+        if not studio_dir.is_dir():
+            continue
+        # Sniff for at least one of the canonical scaffolded files —
+        # avoids matching a random 'studio' folder unrelated to us.
+        markers = ("gdd.md", "backlog.json", "decisions.jsonl",
+                    "art_bible.md", "sprint_current.md")
+        if any((studio_dir / m).exists() for m in markers):
+            return candidate
+    return None
+
+
+def _init_studio_for_chat(unity: UnityBridge) -> tuple[bool, str]:
+    """Wire the studio + every engine tool module into the global
+    @tool registry so the LLM can call them from chat. Returns
+    (studio_active, summary_line)."""
+    # 1. Eagerly import all the engine + asset modules so their @tool
+    #    decorators populate the registry. Each import is a side
+    #    effect; missing optional modules are tolerated silently.
+    for mod in (
+        "unitytools.tools",
+        "unitytools.tools.unity_tools",
+        "unitytools.tools.asset_tools",
+        "unitytools.tools.snapshot_tools",
+        "unitytools.tools.scene_intelligence_tools",
+        "unitytools.tools.procedural_tools",
+        "unitytools.tools.autopilot_quality_tools",
+    ):
+        try:
+            __import__(mod)
+        except ImportError:
+            pass
+
+    # 2. Look for a studio/ scaffold near the cwd. If found, wire
+    #    init_studio_tools + init_studio_unity so studio_* calls work.
+    try:
+        from ..studio import StudioPaths, StudioState, init_studio_tools, init_studio_unity
+    except ImportError:
+        return False, "studio package not importable"
+
+    project_root = _discover_studio_root()
+    if project_root is None:
+        # Still useful: wire the bridge so non-studio unity_* tools work.
+        try:
+            init_studio_unity(unity)
+        except Exception:
+            pass
+        return False, "no studio/ found in cwd or its parents"
+
+    try:
+        paths = StudioPaths(project_root=project_root)
+        state = StudioState(paths)
+        init_studio_tools(state)
+        init_studio_unity(unity)
+        return True, str(project_root)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Failed to init studio for chat")
+        return False, f"init failed: {exc}"
+
+
 def run_chat(config: Config, blender: BlenderBridge, unity: UnityBridge) -> int:
+    studio_active, studio_info = _init_studio_for_chat(unity)
     orch = Orchestrator(config)
     session: PromptSession = PromptSession(history=InMemoryHistory())
 
-    _print_welcome(config, blender, unity)
+    _print_welcome(config, blender, unity, studio_active, studio_info)
 
     while True:
         try:
@@ -66,10 +148,12 @@ def _handle_slash(line: str, orch: Orchestrator, blender: BlenderBridge, unity: 
             Panel(
                 "[cyan]/help[/cyan]    show this help\n"
                 "[cyan]/clear[/cyan]   clear chat history\n"
-                "[cyan]/tools[/cyan]   list registered tools\n"
+                "[cyan]/tools[/cyan]   list registered tools (filter: '/tools studio')\n"
                 "[cyan]/status[/cyan]  show bridge status\n"
+                "[cyan]/studio[/cyan]  show active studio summary (gdd / tasks / milestones)\n"
                 "[cyan]/quit[/cyan]    exit\n\n"
-                "[dim]Any non-slash message goes to the selected AI provider.[/dim]",
+                "[dim]Any non-slash message goes to the LLM with every studio_* +\n"
+                "unity_* tool available. Try: 'scaffold a platformer called Hop Quest'.[/dim]",
                 title="Commands",
                 border_style="cyan",
             )
@@ -82,17 +166,55 @@ def _handle_slash(line: str, orch: Orchestrator, blender: BlenderBridge, unity: 
         return None
 
     if cmd == "tools":
-        table = Table(title="Registered Tools", show_lines=False)
+        # Optional substring filter so the user can prune the wall:
+        # /tools studio   -> only studio_* tools
+        # /tools scaffold -> only the scaffolders
+        needle = " ".join(parts[1:]).strip().lower()
+        rows = [
+            spec for spec in get_all_tools()
+            if not needle or needle in spec.name.lower()
+            or needle in spec.description.lower()
+        ]
+        title = "Registered Tools" + (f" matching '{needle}'" if needle else "")
+        table = Table(title=title, show_lines=False)
         table.add_column("Name", style="cyan")
         table.add_column("Description")
-        for spec in get_all_tools():
+        for spec in rows:
             table.add_row(spec.name, spec.description)
         console.print(table)
+        console.print(f"[dim]{len(rows)} of {len(get_all_tools())} tools shown.[/dim]")
         return None
 
     if cmd == "status":
         console.print(f"  Blender: {'[OK]' if blender.is_available() else '[ERR]'}")
         console.print(f"  Unity:   {'[OK] connected' if unity.connect(timeout=1.0) else '[WAIT] Editor offline'}")
+        return None
+
+    if cmd == "studio":
+        # Show what the LLM can see about the active studio.
+        try:
+            from ..studio.tools import studio_get_summary
+            summary = studio_get_summary()
+            if not summary.get("ok"):
+                console.print(f"[yellow]Studio inactive:[/yellow] {summary.get('error', '')}")
+                console.print("[dim]Run `unitytools studio-init` in your project root, "
+                              "then `/clear` + restart this chat.[/dim]")
+                return None
+            console.print(
+                Panel(
+                    f"Root: [cyan]{summary.get('studio_root', '?')}[/cyan]\n"
+                    f"GDD: {'OK' if summary.get('has_gdd') else 'missing'}   "
+                    f"Art Bible: {'OK' if summary.get('has_art_bible') else 'missing'}   "
+                    f"Sprint: {'OK' if summary.get('has_sprint') else 'missing'}\n"
+                    f"Tasks: [cyan]{summary.get('task_count', 0)}[/cyan]   "
+                    f"Milestones: [cyan]{summary.get('milestone_count', 0)}[/cyan]   "
+                    f"Decisions: [cyan]{summary.get('decision_count', 0)}[/cyan]",
+                    title="Studio status",
+                    border_style="cyan",
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            console.print(f"[red]/studio failed:[/red] {exc}")
         return None
 
     console.print(f"[red]Unknown command: /{cmd}[/red]")
@@ -124,17 +246,39 @@ def _send_to_llm(orch: Orchestrator, message: str) -> None:
         console.print("[yellow]Warning: max iteration limit reached.[/yellow]")
 
 
-def _print_welcome(config: Config, blender: BlenderBridge, unity: UnityBridge) -> None:
+def _print_welcome(
+    config: Config,
+    blender: BlenderBridge,
+    unity: UnityBridge,
+    studio_active: bool = False,
+    studio_info: str = "",
+) -> None:
     blender_ok = "[OK]" if blender.is_available() else "[ERR]"
     unity_ok = "[OK] connected" if unity.connect(timeout=1.0) else "[WAIT] offline"
     model_label = config.ollama_model if config.provider == "ollama" else config.model
+    studio_line = (
+        f"Studio: [green][OK][/green] {studio_info}"
+        if studio_active
+        else f"Studio: [yellow]inactive[/yellow] ({studio_info})"
+    )
+    tool_count = len(get_all_tools())
+    hint = (
+        "Try: 'scaffold a collectathon called Coin Hunter', "
+        "'run ship readiness check', 'show recent regressions'."
+        if studio_active
+        else "Studio tools won't work until a studio/ folder is "
+        "discoverable. Run `unitytools studio-init` first."
+    )
     console.print(
         Panel(
             f"[bold]UnityTools Chat[/bold]\n"
             f"Provider: [cyan]{config.provider}[/cyan]   "
-            f"Model: [cyan]{model_label}[/cyan]   "
+            f"Model: [cyan]{model_label}[/cyan]\n"
             f"Blender: [cyan]{blender_ok}[/cyan]   "
-            f"Unity: [cyan]{unity_ok}[/cyan]\n\n"
+            f"Unity: [cyan]{unity_ok}[/cyan]   "
+            f"{studio_line}\n"
+            f"Tools registered: [cyan]{tool_count}[/cyan]\n\n"
+            f"[dim]{hint}[/dim]\n"
             f"[dim]Type /help for commands, /quit to exit.[/dim]",
             border_style="cyan",
         )
