@@ -110,10 +110,12 @@ def test_behaviour_library_contains_known_behaviours() -> None:
         "Achievement",
         # Phase 52 audio + visual feedback
         "SoundOnEvent", "HitFlash",
+        # Phase 53 HUD + camera feel
+        "HealthBar", "CameraShake",
     }
     assert set(_BEHAVIOUR_LIBRARY) == expected
-    assert len(_BEHAVIOUR_LIBRARY) == 25
-    print("OK Behaviour library exposes 25 known names")
+    assert len(_BEHAVIOUR_LIBRARY) == 27
+    print("OK Behaviour library exposes 27 known names")
 
 
 def test_each_behaviour_has_a_corresponding_cs_file() -> None:
@@ -522,6 +524,65 @@ def test_feedback_duo_in_runtime_namespace() -> None:
     print("OK SoundOnEvent + HitFlash in UnityTools.Behaviours, no UnityEditor leak")
 
 
+# ───────────────────────────────────────────── HUD + camera feel (Phase 53)
+
+
+def test_health_bar_requires_image_and_tracks_lives_ratio() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "HealthBar.cs").read_text(encoding="utf-8")
+    # Hard contract: requires a UI Image component
+    assert "RequireComponent(typeof(Image))" in body, "HealthBar must RequireComponent<Image>"
+    # Tunables
+    for f in ("smoothDuration", "tintWithHealth", "fullColor", "emptyColor"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"HealthBar.{f} field missing"
+    # Subscribes / unsubscribes to GameSession.OnStateChanged
+    assert "OnStateChanged += Recompute" in body
+    assert "OnStateChanged -= Recompute" in body
+    # Auto-corrects Image.type to Filled if wrong (otherwise the bar
+    # wouldn't visually change)
+    assert "Image.Type.Filled" in body
+    assert "FillMethod.Horizontal" in body
+    # Reads denominator from GameSession.startingLives (not a hard-coded 3)
+    assert "startingLives" in body
+    # Lerps via MoveTowards for smoothing
+    assert "Mathf.MoveTowards" in body
+    # Optional tint between fullColor and emptyColor
+    assert "Color.Lerp(emptyColor, fullColor" in body
+    print("OK HealthBar contract: Image required + 4 tunables + state subscription + auto-correct fill mode + lives ratio + smooth lerp + tint")
+
+
+def test_camera_shake_late_update_and_decay() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "CameraShake.cs").read_text(encoding="utf-8")
+    # Tunables
+    for f in ("magnitude", "duration", "triggerKind"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"CameraShake.{f} field missing"
+    # Three trigger kinds (None + 2 auto-fire)
+    for kind in ("None", "OnLivesDecreased", "OnGameOver"):
+        assert kind in body, f"CameraShake.TriggerKind.{kind} missing"
+    # Public Shake() + ShakeCustom() API for inspector hookups
+    assert re.search(r"public\s+void\s+Shake\s*\(", body), "Shake() missing"
+    assert re.search(r"public\s+void\s+ShakeCustom\s*\(", body), "ShakeCustom() missing"
+    # LateUpdate (NOT Update) so shake fires AFTER camera follow
+    assert "void LateUpdate" in body, (
+        "CameraShake must run in LateUpdate so it composes on top of "
+        "FollowTarget / other camera scripts that set position in Update"
+    )
+    # Exponential decay so shake feels punchy at start
+    assert "Mathf.Exp" in body
+    # Restores rest position when shake completes / on destroy
+    assert "transform.localPosition = _restPosition" in body
+    # Subscribes / unsubscribes to OnStateChanged so the trigger fires
+    assert "OnStateChanged" in body
+    print("OK CameraShake contract: 3 tunables + 3 trigger kinds + Shake/ShakeCustom + LateUpdate + exp decay + rest restore + state subscription")
+
+
+def test_phase53_duo_in_runtime_namespace() -> None:
+    for name in ("HealthBar", "CameraShake"):
+        body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / f"{name}.cs").read_text(encoding="utf-8")
+        assert "namespace UnityTools.Behaviours" in body
+        assert "using UnityEditor;" not in body
+    print("OK HealthBar + CameraShake in UnityTools.Behaviours, no UnityEditor leak")
+
+
 # ───────────────────────────────────────────── wrapper validation
 
 
@@ -684,6 +745,10 @@ def run_test() -> None:
     test_sound_on_event_routes_to_named_audio_source()
     test_hit_flash_lerps_runtime_material_not_shared()
     test_feedback_duo_in_runtime_namespace()
+    # Phase 53 HUD + camera feel
+    test_health_bar_requires_image_and_tracks_lives_ratio()
+    test_camera_shake_late_update_and_decay()
+    test_phase53_duo_in_runtime_namespace()
     # Wrappers
     test_attach_behaviour_rejects_unknown_name()
     test_attach_behaviour_requires_target_name()

@@ -871,6 +871,8 @@ _BEHAVIOUR_LIBRARY = (
     "Achievement",
     # Phase 52: audio + visual feedback primitives
     "SoundOnEvent", "HitFlash",
+    # Phase 53: HUD + camera feel
+    "HealthBar", "CameraShake",
 )
 
 

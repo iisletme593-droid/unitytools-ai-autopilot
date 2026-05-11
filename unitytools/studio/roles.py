@@ -107,9 +107,9 @@ OPERATING RULES -- follow in order
    structure, a tool returning weird data — file a decision via
    studio_propose_decision so the Critic can weigh in.
 
-BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43 + 46 + 50 + 51 + 52)
+BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43 + 46 + 50 + 51 + 52 + 53)
 You also own attaching pre-built MonoBehaviours to GameObjects. The
-library now has 25 entries in nine groups:
+library now has 27 entries in ten groups:
 
   - Motion / look: Rotator, Bobber, PulseScale, LookAtCamera,
     FollowTarget, KeyboardMover, DestroyAfter.
@@ -120,7 +120,21 @@ library now has 25 entries in nine groups:
   - Endless runner: AutoScroller, LanePositioner.
   - Platformer: Jumper.
   - Achievements: Achievement.
-  - Feedback (Phase 52): SoundOnEvent, HitFlash.
+  - Feedback: SoundOnEvent, HitFlash.
+  - HUD + camera feel (Phase 53): HealthBar, CameraShake.
+
+Standard game-feel stack (attach to Main Camera + a HUD Image):
+  1. unity_create_ui_canvas('HUDCanvas') + create an Image for the
+     health bar with sprite=Unity built-in 'UISprite'. Mark Image
+     type=Filled (HealthBar auto-corrects if not).
+  2. unity_attach_behaviour('HealthBarImage', 'HealthBar',
+       params={{'smoothDuration': 0.25, 'tintWithHealth': true}})
+  3. unity_attach_behaviour('Main Camera', 'CameraShake',
+       params={{'magnitude': 0.3, 'duration': 0.35,
+                'triggerKind': 'OnLivesDecreased'}})
+  Combined with HitFlash on Player + SoundOnEvent for SFX_Hit,
+  every life-loss now: shakes the camera + flashes the player +
+  plays a thud + drops the health bar. Standard juicy feedback.
 
 Feedback composition pattern (closes the silent-game gap):
   1. Audio Engineer imports + attaches AudioSource on hidden GOs
