@@ -548,6 +548,203 @@ def studio_unity_attach_audio_source(
     return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
 
 
+# ─── Studio Dashboard (Phase 58) ───────────────────────────────────────
+
+@tool(description="Operator's morning glance. Aggregates every signal across the studio into ONE structured report: task / milestone / decision counts, ship readiness verdict, internal consistency drift, cost summary, balance audit, recent regressions, in-progress milestones with %. Use this as the first call of a producer standup. Optionally writes the report as markdown to studio/reviews/dashboard_<date>.md so the human sees the same view next morning. Engine-gated audits (lighting/atmosphere/vfx) are run only when a Unity bridge is connected; offline runs skip them cleanly.")
+def studio_dashboard(days: int = 7, save_report: bool = False) -> dict:
+    state = _require_state()
+    if days < 1 or days > 90:
+        return {"ok": False, "error": "days must be in 1..90."}
+
+    bridge_connected = (
+        _UNITY is not None
+        and (not hasattr(_UNITY, "is_connected") or _UNITY.is_connected())
+    )
+
+    sections: dict[str, dict] = {}
+
+    # 1) Counts — what's on the board right now
+    try:
+        sections["counts"] = studio_get_summary()
+    except Exception as exc:  # noqa: BLE001
+        sections["counts"] = {"ok": False, "error": str(exc)}
+
+    # 2) Ship readiness — go / no-go verdict
+    try:
+        sections["ship_readiness"] = studio_ship_readiness_check(recent_days=days)
+    except Exception as exc:  # noqa: BLE001
+        sections["ship_readiness"] = {"ok": False, "error": str(exc)}
+
+    # 3) Internal consistency — meta drift
+    try:
+        sections["internal_consistency"] = studio_internal_consistency_check()
+    except Exception as exc:  # noqa: BLE001
+        sections["internal_consistency"] = {"ok": False, "error": str(exc)}
+
+    # 4) Cost — last N days
+    try:
+        sections["cost"] = studio_cost_summary(days=days)
+    except Exception as exc:  # noqa: BLE001
+        sections["cost"] = {"ok": False, "error": str(exc)}
+
+    # 5) Balance — playtest + perf signals
+    try:
+        sections["balance"] = studio_balance_audit(days=days)
+    except Exception as exc:  # noqa: BLE001
+        sections["balance"] = {"ok": False, "error": str(exc)}
+
+    # 6) Recent regressions — last 5 entries, any kind
+    try:
+        sections["recent_regressions"] = studio_recent_regressions(
+            hours=days * 24, limit=5
+        )
+    except Exception as exc:  # noqa: BLE001
+        sections["recent_regressions"] = {"ok": False, "error": str(exc)}
+
+    # 7) Milestones with progress — only the in_progress ones
+    try:
+        from .milestones import all_milestones_with_progress
+        rows = all_milestones_with_progress(state)
+        in_progress = [
+            r for r in rows
+            if str(r.get("status", "")).lower() in ("in_progress", "planning")
+        ]
+        sections["milestones_in_flight"] = {
+            "ok": True,
+            "count": len(in_progress),
+            "rows": in_progress,
+        }
+    except Exception as exc:  # noqa: BLE001
+        sections["milestones_in_flight"] = {"ok": False, "error": str(exc)}
+
+    # ── Headline verdict
+    blockers: list[str] = []
+    ship_v = sections["ship_readiness"].get("verdict", "fail")
+    consist_v = sections["internal_consistency"].get("verdict", "fail")
+    balance_failure_rate = sections["balance"].get("playtest_failure_rate", 0.0) or 0.0
+    if ship_v != "pass":
+        blockers.append("ship_readiness_fail")
+    if consist_v != "pass":
+        blockers.append("internal_consistency_drift")
+    if balance_failure_rate > 0.5:
+        blockers.append(f"playtest_failure_rate_high:{balance_failure_rate:.2f}")
+    headline = "green" if not blockers else "blockers"
+
+    # ── Markdown summary (always built; optionally written to disk)
+    md = _format_dashboard_markdown(sections, days, headline, blockers)
+    saved_path: Optional[str] = None
+    if save_report:
+        state.paths.reviews.mkdir(parents=True, exist_ok=True)
+        dt = time.strftime("%Y-%m-%d")
+        path = state.paths.reviews / f"dashboard_{dt}.md"
+        path.write_text(md, encoding="utf-8")
+        saved_path = str(path)
+
+    return {
+        "ok": True,
+        "days": days,
+        "bridge_connected": bridge_connected,
+        "headline": headline,
+        "blockers": blockers,
+        "sections": sections,
+        "markdown": md,
+        "saved_path": saved_path,
+    }
+
+
+def _format_dashboard_markdown(sections: dict, days: int, headline: str, blockers: list[str]) -> str:
+    """Build a one-page markdown report from the dashboard sections."""
+    out: list[str] = []
+    today = time.strftime("%Y-%m-%d %H:%M")
+    out.append(f"# Studio Dashboard — {today}")
+    out.append(f"")
+    out.append(f"**Window:** last {days} day(s)   **Headline:** **{headline.upper()}**")
+    if blockers:
+        out.append(f"**Blockers:** " + ", ".join(f"`{b}`" for b in blockers))
+    out.append("")
+
+    # Counts
+    c = sections.get("counts", {})
+    if c.get("ok") is not False:
+        out.append("## Counts")
+        out.append(
+            f"- Tasks: **{c.get('task_count', 0)}** "
+            f"(by status: {c.get('tasks_by_status', {}) or '—'})"
+        )
+        out.append(f"- Milestones: **{c.get('milestone_count', 0)}**")
+        out.append(f"- Decisions: **{c.get('decision_count', 0)}**")
+        out.append("")
+
+    # Ship readiness
+    sr = sections.get("ship_readiness", {})
+    out.append("## Ship Readiness")
+    out.append(f"Verdict: **{sr.get('verdict', '?')}** "
+                f"({sr.get('blocker_count', 0)} blockers)")
+    if sr.get("blockers"):
+        for b in sr["blockers"][:8]:
+            out.append(f"- `{b}`")
+    out.append("")
+
+    # Internal consistency
+    ic = sections.get("internal_consistency", {})
+    out.append("## Internal Consistency")
+    out.append(f"Verdict: **{ic.get('verdict', '?')}** "
+                f"({ic.get('drift_count', 0)} drifts)")
+    if ic.get("drifts"):
+        for d in ic["drifts"][:6]:
+            out.append(f"- `{d}`")
+    out.append("")
+
+    # Cost
+    cs = sections.get("cost", {})
+    out.append(f"## Cost (last {days}d)")
+    out.append(f"- Total calls: **{cs.get('total_calls', 0)}**, "
+                f"USD: **${cs.get('total_cost_usd', 0.0):.4f}**")
+    top_role = sorted(
+        (cs.get("by_role") or {}).items(),
+        key=lambda kv: kv[1].get("cost_usd", 0.0),
+        reverse=True,
+    )[:3]
+    for role, row in top_role:
+        out.append(f"  - {role}: {row.get('calls', 0)} calls / ${row.get('cost_usd', 0.0):.4f}")
+    out.append("")
+
+    # Balance
+    ba = sections.get("balance", {})
+    out.append(f"## Balance (last {days}d)")
+    out.append(f"- Playtests: **{ba.get('playtest_smokes', 0)}**, "
+                f"failures: **{ba.get('playtest_failures', 0)}** "
+                f"(rate {ba.get('playtest_failure_rate', 0.0):.2f})")
+    if ba.get("top_missing_objects"):
+        out.append("- Top missing objects:")
+        for row in ba["top_missing_objects"][:3]:
+            out.append(f"  - {row.get('name', '?')}: {row.get('missing_count', 0)}x")
+    if ba.get("perf_violations"):
+        out.append(f"- Perf violations: {ba['perf_violations']}")
+    out.append("")
+
+    # Milestones in flight
+    ms = sections.get("milestones_in_flight", {})
+    if ms.get("count"):
+        out.append("## Milestones In Flight")
+        for r in ms.get("rows", [])[:6]:
+            pct = r.get("percent_done", 0)
+            out.append(f"- {r.get('name', r.get('title', '?'))} — **{pct}%** "
+                        f"({r.get('done_count', 0)}/{r.get('total_count', 0)})")
+        out.append("")
+
+    # Recent regressions
+    rr = sections.get("recent_regressions", {})
+    if rr.get("count"):
+        out.append("## Recent Regressions (last 5)")
+        for entry in rr.get("entries", [])[:5]:
+            kind = entry.get("kind", "?")
+            out.append(f"- `{kind}` — {entry.get('ts', '?')}")
+        out.append("")
+
+    return "\n".join(out) + "\n"
+
+
 # ─── Internal consistency audit (Phase 49) ─────────────────────────────
 
 @tool(description="Audit the studio's own moving parts for internal consistency drift. Cross-checks: DISPATCH_MAP keys vs the ROLES validation tuple, DISPATCH_MAP targets vs registered RoleConfigs, each role's allowlist vs the actual registered tool set, behaviour-library Python tuple vs the C# library list vs the .cs files on disk, the studio/strings/ tables for malformed JSON. Returns verdict='pass'/'fail' + per-section status + named drifts. This is meta-tooling: as the studio grows phases, things go out of sync; the Producer / Critic runs this to catch drift early.")
@@ -3275,6 +3472,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_ship_readiness_check",
     # internal consistency audit (Phase 49)
     "studio_internal_consistency_check",
+    # studio dashboard (Phase 58)
+    "studio_dashboard",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

@@ -12,6 +12,7 @@ import urllib.request
 from pathlib import Path
 
 from rich.console import Console
+from rich.panel import Panel
 
 from ..core.config import Config
 from ..bridges import BlenderBridge, UnityBridge, UnrealBridge
@@ -1234,6 +1235,54 @@ def cmd_studio_cost(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_studio_dashboard(args: argparse.Namespace) -> int:
+    """One-shot operator dashboard. Aggregates every audit + signal."""
+    from ..studio.paths import StudioPaths
+    from ..studio.state import StudioState
+    from ..studio.tools import init_studio_tools, studio_dashboard
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init "
+            f"--project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+    days = max(1, int(args.days))
+    save_report = bool(getattr(args, "save", False))
+
+    result = studio_dashboard(days=days, save_report=save_report)
+    if not result.get("ok"):
+        console.print(f"[red]Dashboard failed:[/red] {result.get('error', '?')}")
+        return 1
+
+    # Headline banner
+    headline = result["headline"]
+    badge = "[green][OK][/green]" if headline == "green" else "[red][BLOCKERS][/red]"
+    console.print(
+        Panel.fit(
+            f"[bold]Studio Dashboard[/bold]   {badge}\n"
+            f"Window: last {days}d   Bridge: "
+            f"{'connected' if result['bridge_connected'] else 'offline'}",
+            border_style="cyan",
+        )
+    )
+    if result["blockers"]:
+        console.print("[red]Blockers:[/red] " + ", ".join(f"`{b}`" for b in result["blockers"]))
+        console.print()
+
+    # Print the markdown body (renders nicely with rich.markdown.Markdown)
+    from rich.markdown import Markdown
+    console.print(Markdown(result["markdown"]))
+
+    if result.get("saved_path"):
+        console.print(f"[dim]Saved markdown -> {result['saved_path']}[/dim]")
+    return 0 if headline == "green" else 1
+
+
 def cmd_studio_status(args: argparse.Namespace) -> int:
     import dataclasses as _dc
 
@@ -2024,6 +2073,10 @@ def main() -> int:
     p_studio_cost = sub.add_parser("studio-cost", help="Summarise LLM token + USD spend from studio/qa/cost_log.jsonl")
     p_studio_cost.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_cost.add_argument("--days", type=int, default=7, help="Window in days (default 7). Use 0 for all-time.")
+    p_studio_dashboard = sub.add_parser("studio-dashboard", help="Operator's morning glance — ship readiness + consistency + cost + balance + counts + recent regressions + in-flight milestones in one report")
+    p_studio_dashboard.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_dashboard.add_argument("--days", type=int, default=7, help="Window in days for cost / balance / regressions (default 7).")
+    p_studio_dashboard.add_argument("--save", action="store_true", help="Also write the markdown report to studio/reviews/dashboard_<date>.md.")
     p_studio_run = sub.add_parser("studio-run", help="Run one studio role (producer | designer | critic) against the current project state")
     p_studio_run.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_run.add_argument(
@@ -2155,6 +2208,7 @@ def main() -> int:
         "studio-import": cmd_studio_import,
         "studio-status": cmd_studio_status,
         "studio-cost": cmd_studio_cost,
+        "studio-dashboard": cmd_studio_dashboard,
         "studio-run": cmd_studio_run,
         "studio-review": cmd_studio_review,
         "studio-loop": cmd_studio_loop,

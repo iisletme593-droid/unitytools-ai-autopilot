@@ -1428,6 +1428,9 @@ PRODUCER = RoleConfig(
         # behaviour library drift, role allowlists, malformed strings).
         # Cite drift in retro so the next sprint clears it.
         "studio_internal_consistency_check",
+        # Phase 58: morning-glance dashboard that aggregates 7 audits +
+        # signals into one report. Producer's standup-opening call.
+        "studio_dashboard",
     ),
 )
 
@@ -1473,6 +1476,10 @@ CRITIC = RoleConfig(
         # the studio's own moving parts (roles, behaviours, allowlists)
         # in the same review where it surfaces content contradictions.
         "studio_internal_consistency_check",
+        # Phase 58: dashboard aggregates every audit signal in one view
+        # so the Critic can read the full health snapshot before
+        # weighing in.
+        "studio_dashboard",
     ),
 )
 
