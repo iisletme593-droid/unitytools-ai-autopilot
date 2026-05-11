@@ -1218,7 +1218,7 @@ namespace UnityTools.Bridge
         {
             "Rotator", "Bobber", "PulseScale", "LookAtCamera",
             "DestroyAfter", "FollowTarget", "LoadSceneOnClick",
-            "QuitOnClick", "KeyboardMover",
+            "QuitOnClick", "KeyboardMover", "LocalizedText",
         };
 
         private static Type ResolveBehaviourType(string name)

@@ -11,6 +11,7 @@ commits so the Producer can reason about what changed since last run.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import time
@@ -506,6 +507,151 @@ def studio_unity_attach_audio_source(
     if not isinstance(result, dict) or not result.get("ok", True):
         return {"ok": False, "error": "Unity reported set_audio_source failure.", "raw": result}
     return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
+
+
+# ─── Localization (Phase 39) ───────────────────────────────────────────
+
+_LOCALE_CODE_RE = re.compile(r"^[a-z]{2}(?:-[A-Z]{2})?$")
+
+
+def _validate_locale(locale: str) -> tuple[bool, str]:
+    if not locale:
+        return False, "locale is required."
+    if not _LOCALE_CODE_RE.match(locale):
+        return False, (
+            f"locale {locale!r} should be a 2-letter code like 'en' or "
+            "'pt-BR' (lowercase region, uppercase country)."
+        )
+    return True, ""
+
+
+@tool(description="List every locale string-table file under studio/strings/. Each row reports the locale code, JSON path, and key count. Empty list if the directory doesn't exist yet.")
+def studio_list_locales() -> dict:
+    state = _require_state()
+    base = state.paths.strings
+    rows: list[dict] = []
+    if base.exists():
+        for p in sorted(base.glob("*.json")):
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                count = len(data) if isinstance(data, dict) else 0
+            except (OSError, json.JSONDecodeError):
+                count = -1  # signal a malformed table
+            rows.append({"locale": p.stem, "path": str(p), "key_count": count})
+    return {"ok": True, "count": len(rows), "locales": rows}
+
+
+@tool(description="Read one locale's string table from studio/strings/<locale>.json. Returns the {key: value} mapping. Empty dict if the file is absent. locale is a 2-letter code like 'en' or 'pt-BR'.")
+def studio_read_strings(locale: str) -> dict:
+    state = _require_state()
+    ok, err = _validate_locale(locale)
+    if not ok:
+        return {"ok": False, "error": err}
+    path = state.paths.strings / f"{locale}.json"
+    if not path.exists():
+        return {"ok": True, "locale": locale, "strings": {}}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return {"ok": False, "error": f"{path} is malformed JSON: {exc}"}
+    if not isinstance(data, dict):
+        return {"ok": False, "error": f"{path} must be a JSON object."}
+    return {"ok": True, "locale": locale, "strings": data, "key_count": len(data)}
+
+
+@tool(description="Replace or merge a locale's string table at studio/strings/<locale>.json. strings is a flat {key: value} mapping. When mode='merge' (default), existing keys not in the new dict are preserved; mode='replace' wipes the file first. locale is a 2-letter code.")
+def studio_write_strings(locale: str, strings: dict, mode: str = "merge") -> dict:
+    state = _require_state()
+    ok, err = _validate_locale(locale)
+    if not ok:
+        return {"ok": False, "error": err}
+    if not isinstance(strings, dict):
+        return {"ok": False, "error": "strings must be a dict."}
+    if mode not in ("merge", "replace"):
+        return {"ok": False, "error": f"mode must be 'merge' or 'replace'; got {mode!r}."}
+    # Validate values are all strings
+    for k, v in strings.items():
+        if not isinstance(k, str) or not isinstance(v, str):
+            return {"ok": False, "error": f"all keys + values must be strings (offender: {k!r})."}
+    state.paths.strings.mkdir(parents=True, exist_ok=True)
+    path = state.paths.strings / f"{locale}.json"
+    merged: dict[str, str] = {}
+    if mode == "merge" and path.exists():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(existing, dict):
+                merged.update({k: v for k, v in existing.items() if isinstance(k, str) and isinstance(v, str)})
+        except json.JSONDecodeError:
+            # Stale / malformed file: replace it on this write
+            pass
+    merged.update(strings)
+    # Sort keys deterministically for stable diffs
+    payload = json.dumps(merged, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    path.write_text(payload, encoding="utf-8")
+    return {"ok": True, "locale": locale, "path": str(path), "key_count": len(merged), "mode": mode}
+
+
+@tool(description="Audit the localization coverage: compares every other locale's keys to the chosen base_locale (default 'en'). Returns per-locale missing-key counts + sample names. No mutations.")
+def studio_localization_audit(base_locale: str = "en") -> dict:
+    state = _require_state()
+    base = state.paths.strings
+    if not base.exists():
+        return {"ok": True, "base_locale": base_locale, "verdict": "fail",
+                "violations": ["no_strings_dir"], "recommendations": [
+                    "studio/strings/ doesn't exist; create at least one locale "
+                    f"via studio_write_strings(locale='{base_locale}', strings={{...}})."
+                ], "locales": []}
+    base_path = base / f"{base_locale}.json"
+    if not base_path.exists():
+        return {"ok": True, "base_locale": base_locale, "verdict": "fail",
+                "violations": [f"base_locale_missing:{base_locale}"], "recommendations": [
+                    f"Base locale {base_locale!r} has no string table; create it first."
+                ], "locales": []}
+    try:
+        base_data = json.loads(base_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return {"ok": False, "error": f"{base_path} is malformed: {exc}"}
+    if not isinstance(base_data, dict):
+        return {"ok": False, "error": f"{base_path} must be a JSON object."}
+    base_keys = set(base_data.keys())
+
+    other_rows: list[dict] = []
+    violations: list[str] = []
+    for p in sorted(base.glob("*.json")):
+        if p.stem == base_locale:
+            continue
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            other_rows.append({"locale": p.stem, "key_count": -1, "missing_count": -1, "missing_keys": []})
+            violations.append(f"malformed:{p.stem}")
+            continue
+        if not isinstance(data, dict):
+            other_rows.append({"locale": p.stem, "key_count": -1, "missing_count": -1, "missing_keys": []})
+            violations.append(f"not_object:{p.stem}")
+            continue
+        missing = sorted(base_keys - set(data.keys()))
+        if missing:
+            violations.append(f"missing_keys:{p.stem}:{len(missing)}")
+        other_rows.append({
+            "locale": p.stem,
+            "key_count": len(data),
+            "missing_count": len(missing),
+            "missing_keys": missing[:10],   # sample
+        })
+
+    verdict = "pass" if not violations else "fail"
+    return {
+        "ok": True,
+        "base_locale": base_locale,
+        "verdict": verdict,
+        "base_key_count": len(base_keys),
+        "violations": violations,
+        "locales": other_rows,
+        "recommendations": [
+            f"Use studio_write_strings(locale='<code>', strings={{...}}) to add the missing keys."
+        ] if violations else [],
+    }
 
 
 # ─── Balance audit (Phase 38) ──────────────────────────────────────────
@@ -1731,6 +1877,11 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_asset_manifest",
     # balance (Phase 38)
     "studio_balance_audit",
+    # localization (Phase 39)
+    "studio_list_locales",
+    "studio_read_strings",
+    "studio_write_strings",
+    "studio_localization_audit",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

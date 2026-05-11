@@ -856,7 +856,7 @@ def unity_get_atmosphere_state() -> dict:
 _BEHAVIOUR_LIBRARY = (
     "Rotator", "Bobber", "PulseScale", "LookAtCamera",
     "DestroyAfter", "FollowTarget", "LoadSceneOnClick",
-    "QuitOnClick", "KeyboardMover",
+    "QuitOnClick", "KeyboardMover", "LocalizedText",
 )
 
 

@@ -36,6 +36,11 @@ class StudioPaths:
         return self.root / "press_kit.md"
 
     @property
+    def strings(self) -> Path:
+        """Directory holding per-locale string tables (<code>.json)."""
+        return self.root / "strings"
+
+    @property
     def sprint_current(self) -> Path:
         return self.root / "sprint_current.md"
 
@@ -94,7 +99,7 @@ class StudioPaths:
         return self.reviews / f"{date_iso}.md"
 
     def all_dirs(self) -> list[Path]:
-        return [self.root, self.refs, self.reviews, self.qa, self.qa_screenshots, self.qa_diffs, self.memory, self.archive_root]
+        return [self.root, self.refs, self.reviews, self.qa, self.qa_screenshots, self.qa_diffs, self.memory, self.archive_root, self.strings]
 
     def exists(self) -> bool:
         return self.root.is_dir()

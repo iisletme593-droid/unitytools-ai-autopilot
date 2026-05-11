@@ -89,15 +89,17 @@ class FakeUnity:
 # ───────────────────────────────────────────── library presence
 
 
-def test_behaviour_library_contains_nine_known_behaviours() -> None:
+def test_behaviour_library_contains_known_behaviours() -> None:
     expected = {
         "Rotator", "Bobber", "PulseScale", "LookAtCamera",
         "DestroyAfter", "FollowTarget", "LoadSceneOnClick",
         "QuitOnClick", "KeyboardMover",
+        # Phase 39
+        "LocalizedText",
     }
     assert set(_BEHAVIOUR_LIBRARY) == expected
-    assert len(_BEHAVIOUR_LIBRARY) == 9
-    print("OK Behaviour library exposes 9 known names")
+    assert len(_BEHAVIOUR_LIBRARY) == 10
+    print("OK Behaviour library exposes 10 known names")
 
 
 def test_each_behaviour_has_a_corresponding_cs_file() -> None:
@@ -263,7 +265,7 @@ def test_non_executor_roles_lack_behaviour_attach() -> None:
 
 def run_test() -> None:
     # Library presence
-    test_behaviour_library_contains_nine_known_behaviours()
+    test_behaviour_library_contains_known_behaviours()
     test_each_behaviour_has_a_corresponding_cs_file()
     test_runtime_scripts_do_not_use_editor_assembly()
     # Wrappers

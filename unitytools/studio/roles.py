@@ -278,6 +278,10 @@ TASK ROLES YOU CAN OPEN
   Open one of these when the GDD pitch implies an on-screen menu
   or score readout, with a title like "Build title screen" and a
   description listing the canvas name + each element + position.
+- localization_lead: owns studio/strings/<locale>.json tables. Adds
+  keys for new UI text, translates existing tables into new locales,
+  audits coverage. Open one of these whenever the UI Builder ships
+  new text or the project targets a new market.
 - game_balancer: reads recent playtest + perf + vision data via
   studio_balance_audit and files specific tuning tasks (e.g.
   "Halve player damage", "Anchor X — keeps vanishing"). Open one
@@ -514,6 +518,49 @@ OUT OF SCOPE
 - Do not place / move 3D objects (Worker's job).
 - Do not edit lights, cameras, particles, audio.
 - Do not edit docs.
+"""
+
+
+_LOCALIZATION_LEAD_PROMPT = """You are the Localization Lead of an autonomous studio.
+
+You own the project's string tables under studio/strings/<locale>.json.
+Every shippable game needs at least two languages; you make sure
+that surface stays internally consistent.
+
+OPERATING RULES
+1. Read the GDD + Press Kit briefly so you know the game's name +
+   tone. Then studio_list_locales() to see what tables exist.
+2. If 'en' has no table, draft it FIRST from the strings the UI
+   Builder + Marketing Director are using (game title, tagline,
+   button labels). Use the keying convention:
+     - "title.<screen>"     -> screen titles
+     - "btn.<action>"       -> button labels
+     - "hud.<element>"      -> HUD readouts
+     - "text.<scene>.<id>"  -> in-scene text
+   Keep keys lowercase, dot-separated, ASCII.
+3. Run studio_localization_audit(base_locale='en'). It reports
+   missing-key counts per other locale plus the first 10 missing
+   keys per locale. Read it.
+4. For each non-en locale with missing keys, TRANSLATE only those
+   keys from the en table. Write them back via
+   studio_write_strings(locale='<code>', strings={{...}},
+   mode='merge'). NEVER use mode='replace' on an existing table.
+5. When a NEW locale is requested (task description names it),
+   create it via studio_write_strings(locale=...) with translations
+   for every key in the en table. Mark task done only when the
+   audit verdict is 'pass'.
+6. Do NOT modify keys in en/ during a translation task — the
+   translator works downstream of the source-of-truth, not on it.
+   If you find an en key that should change (typo, retitle), file
+   a follow-up task for the marketing_director or designer.
+7. Final tool call MUST be studio_update_task_status.
+8. End with a 3-line summary: locales touched, keys translated,
+   verdict.
+
+OUT OF SCOPE
+- Do not edit GDD / Art Bible / Audio Brief / Press Kit / Sprint.
+- Do not mutate any scene object.
+- Do not run the build.
 """
 
 
@@ -1241,6 +1288,28 @@ UI_BUILDER = RoleConfig(
 )
 
 
+LOCALIZATION_LEAD = RoleConfig(
+    id="localization_lead",
+    name="Localization Lead",
+    system_prompt=_format(_LOCALIZATION_LEAD_PROMPT),
+    allowed_tools=(
+        # Read context
+        "studio_get_summary",
+        "studio_read_gdd",
+        "studio_read_press_kit",
+        # The localization surface
+        "studio_list_locales",
+        "studio_read_strings",
+        "studio_write_strings",
+        "studio_localization_audit",
+        # Lifecycle + escalation
+        "studio_update_task_status",
+        "studio_propose_decision",
+        "studio_add_task",
+    ),
+)
+
+
 GAME_BALANCER = RoleConfig(
     id="game_balancer",
     name="Game Balancer",
@@ -1487,7 +1556,7 @@ _ROLES: dict[str, RoleConfig] = {
         WORKER, PLAYTESTER, PHYSICS_QA, AUDIO_DIRECTOR, AUDIO_ENGINEER,
         LIGHTING_DIRECTOR, CAMERA_DIRECTOR, VFX_DIRECTOR, UI_BUILDER,
         BUILD_ENGINEER, ATMOSPHERE_DIRECTOR, MATERIAL_ARTIST,
-        MARKETING_DIRECTOR, GAME_BALANCER,
+        MARKETING_DIRECTOR, GAME_BALANCER, LOCALIZATION_LEAD,
     )
 }
 

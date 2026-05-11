@@ -57,6 +57,7 @@ DISPATCH_MAP: dict[str, Optional[str]] = {
     "material_artist": "material_artist",  # Phase 36: PBR (metallic, smoothness, emission)
     "marketing_director": "marketing_director",  # Phase 37: press kit + PlayerSettings + hero shots
     "game_balancer": "game_balancer",  # Phase 38: playtest + perf data -> tuning tasks
+    "localization_lead": "localization_lead",  # Phase 39: string tables per locale
     "level_designer": "worker",
     "tech_artist": "physics_qa",  # Phase 24: tech_artist tasks profile + optimise
     "physics_qa": "physics_qa",
