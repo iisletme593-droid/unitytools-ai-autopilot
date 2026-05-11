@@ -96,10 +96,12 @@ def test_behaviour_library_contains_known_behaviours() -> None:
         "QuitOnClick", "KeyboardMover",
         # Phase 39
         "LocalizedText",
+        # Phase 40 game-loop primitives
+        "GameSession", "Collectible", "ScoreHUD",
     }
     assert set(_BEHAVIOUR_LIBRARY) == expected
-    assert len(_BEHAVIOUR_LIBRARY) == 10
-    print("OK Behaviour library exposes 10 known names")
+    assert len(_BEHAVIOUR_LIBRARY) == 13
+    print("OK Behaviour library exposes 13 known names")
 
 
 def test_each_behaviour_has_a_corresponding_cs_file() -> None:
@@ -133,6 +135,67 @@ def test_runtime_scripts_do_not_use_editor_assembly() -> None:
                 f"{name}.cs uses UnityEditor unconditionally — breaks runtime builds"
             )
     print("OK no runtime behaviour pulls in UnityEditor unconditionally")
+
+
+# ───────────────────────────────────────────── game-loop primitives (Phase 40)
+
+
+def test_game_session_exposes_score_lives_and_state_machine() -> None:
+    """GameSession is the game's state hub: Score, Lives, IsOver, plus
+    AddScore / LoseLife / WinGame / LoseGame transitions. ScoreHUD +
+    Collectible read this contract, so it must stay intact."""
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "GameSession.cs").read_text(encoding="utf-8")
+    # Singleton accessor
+    assert "GameSession Current" in body, "GameSession must expose a static Current"
+    # Public state
+    for prop in ("Score", "Lives", "IsOver"):
+        assert re.search(rf"public\s+(?:int|bool)\s+{prop}\s*{{\s*get", body), f"GameSession.{prop} not exposed"
+    # State transitions
+    for method in ("AddScore", "LoseLife", "WinGame", "LoseGame", "Reset"):
+        assert re.search(rf"public\s+void\s+{method}\s*\(", body), f"GameSession.{method}() missing"
+    # Event subscribers can hook
+    assert "OnStateChanged" in body
+    # Win scene transition uses SceneManager
+    assert "SceneManager.LoadScene" in body
+    print("OK GameSession contract: Score/Lives/IsOver + AddScore/LoseLife/WinGame/LoseGame/Reset + OnStateChanged + SceneManager")
+
+
+def test_collectible_requires_trigger_collider_and_calls_game_session() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "Collectible.cs").read_text(encoding="utf-8")
+    # Trigger path: 3D + 2D
+    assert "OnTriggerEnter(Collider" in body, "Collectible must hook OnTriggerEnter (3D)"
+    assert "OnTriggerEnter2D" in body, "Collectible must hook OnTriggerEnter2D (2D)"
+    # Routes score to the active GameSession
+    assert "GameSession.Current" in body
+    assert "AddScore" in body
+    # Filter field exists (so a stray enemy doesn't trigger it)
+    assert "playerFilter" in body
+    print("OK Collectible: trigger 3D+2D, routes to GameSession.Current.AddScore, filtered by playerFilter")
+
+
+def test_score_hud_requires_text_and_renders_format_tokens() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "ScoreHUD.cs").read_text(encoding="utf-8")
+    # Requires Text — otherwise the attach would fail at runtime
+    assert "RequireComponent(typeof(Text))" in body, "ScoreHUD must RequireComponent<Text>"
+    # Subscribes / unsubscribes to OnStateChanged so it doesn't leak
+    assert "OnStateChanged += Refresh" in body
+    assert "OnStateChanged -= Refresh" in body
+    # Supports the three documented format tokens
+    for token in ("{score}", "{lives}", "{win}"):
+        assert token in body, f"ScoreHUD format must support {token}"
+    print("OK ScoreHUD: requires Text, manages OnStateChanged subscription, supports {score}/{lives}/{win} tokens")
+
+
+def test_game_loop_trio_lives_in_runtime_namespace() -> None:
+    """The Worker attaches by short name; reflection looks them up in
+    UnityTools.Behaviours. Lock that contract."""
+    for name in ("GameSession", "Collectible", "ScoreHUD"):
+        body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / f"{name}.cs").read_text(encoding="utf-8")
+        assert "namespace UnityTools.Behaviours" in body, f"{name}.cs has wrong namespace"
+        # No UnityEditor leak — Collectible / ScoreHUD / GameSession run
+        # in player builds
+        assert "using UnityEditor;" not in body, f"{name}.cs must not import UnityEditor at runtime"
+    print("OK game-loop trio (GameSession + Collectible + ScoreHUD) all in UnityTools.Behaviours, no UnityEditor leak")
 
 
 # ───────────────────────────────────────────── wrapper validation
@@ -268,6 +331,11 @@ def run_test() -> None:
     test_behaviour_library_contains_known_behaviours()
     test_each_behaviour_has_a_corresponding_cs_file()
     test_runtime_scripts_do_not_use_editor_assembly()
+    # Phase 40 game-loop contract
+    test_game_session_exposes_score_lives_and_state_machine()
+    test_collectible_requires_trigger_collider_and_calls_game_session()
+    test_score_hud_requires_text_and_renders_format_tokens()
+    test_game_loop_trio_lives_in_runtime_namespace()
     # Wrappers
     test_attach_behaviour_rejects_unknown_name()
     test_attach_behaviour_requires_target_name()

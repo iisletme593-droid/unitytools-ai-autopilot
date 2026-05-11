@@ -1219,6 +1219,8 @@ namespace UnityTools.Bridge
             "Rotator", "Bobber", "PulseScale", "LookAtCamera",
             "DestroyAfter", "FollowTarget", "LoadSceneOnClick",
             "QuitOnClick", "KeyboardMover", "LocalizedText",
+            // Phase 40: game-loop primitives
+            "GameSession", "Collectible", "ScoreHUD",
         };
 
         private static Type ResolveBehaviourType(string name)

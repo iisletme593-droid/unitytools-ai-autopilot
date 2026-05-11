@@ -857,6 +857,8 @@ _BEHAVIOUR_LIBRARY = (
     "Rotator", "Bobber", "PulseScale", "LookAtCamera",
     "DestroyAfter", "FollowTarget", "LoadSceneOnClick",
     "QuitOnClick", "KeyboardMover", "LocalizedText",
+    # Phase 40: game-loop primitives
+    "GameSession", "Collectible", "ScoreHUD",
 )
 
 

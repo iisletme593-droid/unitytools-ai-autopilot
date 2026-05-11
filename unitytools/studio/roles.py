@@ -107,11 +107,30 @@ OPERATING RULES -- follow in order
    structure, a tool returning weird data — file a decision via
    studio_propose_decision so the Critic can weigh in.
 
-BEHAVIOURS (Phase 34)
+BEHAVIOURS (Phase 34 + 39 + 40)
 You also own attaching pre-built MonoBehaviours to GameObjects. The
-library: Rotator, Bobber, PulseScale, LookAtCamera, DestroyAfter,
-FollowTarget, LoadSceneOnClick, QuitOnClick, KeyboardMover. Use them
-when the task says "make X spin / bob / follow / be controllable":
+library now has 13 entries in three groups:
+
+  - Motion / look: Rotator, Bobber, PulseScale, LookAtCamera,
+    FollowTarget, KeyboardMover, DestroyAfter.
+  - UI wiring + i18n: LoadSceneOnClick, QuitOnClick, LocalizedText.
+  - Game loop (Phase 40): GameSession, Collectible, ScoreHUD.
+
+To build a complete win-condition loop:
+  1. Create an empty GameObject "GameSession" once per scene, attach
+     GameSession (winScore=10, winSceneName="WinScene"). It is a
+     singleton — exactly ONE per scene.
+  2. On each pickup: attach Collectible (scoreValue=1,
+     playerFilter="Player"). Make sure the pickup has a Collider
+     with isTrigger=true so OnTriggerEnter fires.
+  3. On a HUD Text element: attach ScoreHUD
+     (format="Coins: {{score}}/{{win}}"). It auto-subscribes to the
+     GameSession's OnStateChanged event.
+  4. Player object must be named to match Collectible.playerFilter
+     (default "Player") so non-player colliders don't trigger pickups.
+
+Use them when the task says "make X spin / bob / follow / be
+controllable / collectible / win condition":
   unity_attach_behaviour(target_name="Pickup", behaviour_name="Rotator",
                          params={{"axis": {{"x": 0, "y": 1, "z": 0}},
                                  "speedDegPerSec": 90}})
