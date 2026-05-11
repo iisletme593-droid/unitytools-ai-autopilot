@@ -88,6 +88,19 @@ def studio_write_art_bible(content: str) -> dict:
     return {"ok": True, "path": str(state.paths.art_bible)}
 
 
+@tool(description="Read the current Audio Brief (mood, palette, reference tracks, implementation rules).")
+def studio_read_audio_brief() -> dict:
+    state = _require_state()
+    return {"ok": True, "content": state.read_doc(state.paths.audio_brief)}
+
+
+@tool(description="Replace the Audio Brief with new markdown. Owned by the Audio Director.")
+def studio_write_audio_brief(content: str) -> dict:
+    state = _require_state()
+    state.write_doc(state.paths.audio_brief, content)
+    return {"ok": True, "path": str(state.paths.audio_brief)}
+
+
 @tool(description="Read the current sprint plan markdown.")
 def studio_read_sprint() -> dict:
     state = _require_state()
@@ -1065,6 +1078,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_write_gdd",
     "studio_read_art_bible",
     "studio_write_art_bible",
+    "studio_read_audio_brief",
+    "studio_write_audio_brief",
     "studio_read_sprint",
     "studio_write_sprint",
     # backlog

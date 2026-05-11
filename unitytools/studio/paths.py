@@ -28,6 +28,10 @@ class StudioPaths:
         return self.root / "art_bible.md"
 
     @property
+    def audio_brief(self) -> Path:
+        return self.root / "audio_brief.md"
+
+    @property
     def sprint_current(self) -> Path:
         return self.root / "sprint_current.md"
 

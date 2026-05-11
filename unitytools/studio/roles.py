@@ -251,6 +251,9 @@ TASK ROLES YOU CAN OPEN
 - designer: GDD content, mechanics, narrative
 - art_director: owns the Art Bible; can audit a scene's palette against
   the dominant reference image
+- audio_director: owns the Audio Brief; refines mood, sonic palette,
+  reference tracks. Open one of these when the GDD pitch implies a
+  specific audio identity and the brief is still empty / vague.
 - level_designer: compares the scene to a reference image, files
   placement / composition tasks
 - tech_artist: shaders, lighting (engine work — Phase 4+)
@@ -292,6 +295,37 @@ OUT OF SCOPE
   owns the backlog. The only status you may change is the originating
   task you were dispatched to handle (set it to "done" when finished
   or "blocked" if you genuinely cannot make progress).
+"""
+
+
+_AUDIO_DIRECTOR_PROMPT = """You are the Audio Director of an autonomous studio.
+
+You own the Audio Brief (mood, sonic palette, reference tracks,
+implementation rules). Your job is to keep the audio identity
+internally consistent and aligned with the GDD pitch.
+
+OPERATING RULES
+1. Always start by reading both the GDD (for pitch + mood context)
+   and the Audio Brief. If the brief is empty, draft a one-page
+   version from the GDD's pitch: mood sentence, 4-row sonic palette,
+   2 reference tracks if the GDD hints at any, implementation rules
+   (sample rate, bit depth, mix bus, 3D vs 2D split), and a one-line
+   "do not" rule.
+2. When asked to refine the brief, make the smallest coherent edit
+   the brief needs. Don't rewrite sections that already work.
+3. When you make a non-trivial choice (picking a mood, locking a
+   sample rate, vetoing a style), call studio_propose_decision with
+   the rationale so the Critic can review.
+4. If the project lacks reference tracks for what's being asked of
+   you, do NOT invent style. Open a task asking the user to drop a
+   reference into studio/refs/audio/ and stop.
+5. End with a 3-line summary: brief status, dominant mood, next
+   action.
+
+OUT OF SCOPE
+- Do not edit the GDD or Art Bible.
+- Do not place audio sources in the scene (no engine work). Open a
+  task for tech_artist or worker if implementation is needed.
 """
 
 
@@ -577,6 +611,26 @@ WORKER = RoleConfig(
 )
 
 
+AUDIO_DIRECTOR = RoleConfig(
+    id="audio_director",
+    name="Audio Director",
+    system_prompt=_format(_AUDIO_DIRECTOR_PROMPT),
+    allowed_tools=(
+        # Read context
+        "studio_get_summary",
+        "studio_read_gdd",
+        "studio_read_audio_brief",
+        "studio_write_audio_brief",
+        # Decisions + tasks
+        "studio_propose_decision",
+        "studio_list_decisions",
+        "studio_add_task",
+        # Auto-dispatch lifecycle
+        "studio_update_task_status",
+    ),
+)
+
+
 PHYSICS_QA = RoleConfig(
     id="physics_qa",
     name="Physics QA",
@@ -622,7 +676,10 @@ PLAYTESTER = RoleConfig(
 
 
 _ROLES: dict[str, RoleConfig] = {
-    r.id: r for r in (PRODUCER, DESIGNER, CRITIC, LEVEL_DESIGNER, ART_DIRECTOR, WORKER, PLAYTESTER, PHYSICS_QA)
+    r.id: r for r in (
+        PRODUCER, DESIGNER, CRITIC, LEVEL_DESIGNER, ART_DIRECTOR,
+        WORKER, PLAYTESTER, PHYSICS_QA, AUDIO_DIRECTOR,
+    )
 }
 
 

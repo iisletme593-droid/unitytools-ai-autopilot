@@ -46,6 +46,7 @@ DISPATCH_MAP: dict[str, Optional[str]] = {
     "designer": "designer",
     "critic": "critic",
     "art_director": "art_director",
+    "audio_director": "audio_director",  # Phase 26: audio identity owner
     "level_designer": "worker",
     "tech_artist": "physics_qa",  # Phase 24: tech_artist tasks profile + optimise
     "physics_qa": "physics_qa",

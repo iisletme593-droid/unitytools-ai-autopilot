@@ -1756,6 +1756,7 @@ def _default_brief_for(role_id: str) -> str:
         "art_director": "Audit the current scene's palette against the dominant reference and the Art Bible. Update the bible only if the audit reveals a real direction shift; otherwise file tasks.",
         "playtester": "Run a 3-second smoke playtest on the current scene. Pick 3-5 named objects with unity_find_scene_objects, verify they survive play-mode entry, capture a play-shot, and report.",
         "physics_qa": "Profile the current scene against perf budgets (triangles, renderers, shadow casters, materials, shadow-lights). File a decision + follow-up task for each violation; one-line 'within budgets' report when clean.",
+        "audio_director": "Refine the Audio Brief in line with the GDD pitch. If empty, draft a one-page version. Propose a decision for any non-trivial mood / sample-rate / style lock.",
     }.get(role_id, "Run your role on the current project state.")
 
 
@@ -1959,7 +1960,7 @@ def main() -> int:
     p_studio_run.add_argument(
         "--role",
         required=True,
-        choices=("producer", "designer", "critic", "level_designer", "art_director", "playtester", "physics_qa"),
+        choices=("producer", "designer", "critic", "level_designer", "art_director", "playtester", "physics_qa", "audio_director"),
         help="Which role to run",
     )
     p_studio_run.add_argument("--brief", default="", help="Free-text brief for the role; uses a sensible default if omitted")
