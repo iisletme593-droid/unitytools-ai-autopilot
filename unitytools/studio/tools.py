@@ -393,6 +393,113 @@ def studio_list_screenshots(limit: int = 20) -> dict:
     }
 
 
+# ─── Physics QA / perf budget (Phase 24) ───────────────────────────────
+
+@tool(description="Profile the active Unity scene and check it against per-metric budgets (triangles, renderers, shadow casters, unique materials, shadow-casting lights). Returns the raw profile, the budget verdict per metric, and a list of violations. Records a perf_budget row in qa/regression.jsonl for the time series. Pass 0 for any budget to disable that check.")
+def studio_perf_budget_check(
+    triangle_budget: int = 0,
+    renderer_budget: int = 0,
+    shadow_caster_budget: int = 0,
+    unique_material_budget: int = 0,
+    shadow_light_budget: int = 0,
+    max_objects: int = 10000,
+) -> dict:
+    state = _require_state()
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected."}
+    if hasattr(_UNITY, "is_connected") and not _UNITY.is_connected():
+        return {"ok": False, "error": "Unity Editor is not connected."}
+
+    # Resolve "0 means defaults from StudioThresholds" so the role can call
+    # without arguments and still get an opinionated budget.
+    th = state.thresholds
+    triangle_budget = triangle_budget or th.perf_triangle_budget
+    renderer_budget = renderer_budget or th.perf_renderer_budget
+    shadow_caster_budget = shadow_caster_budget or th.perf_shadow_caster_budget
+    unique_material_budget = unique_material_budget or th.perf_unique_material_budget
+    shadow_light_budget = shadow_light_budget or th.perf_shadow_light_budget
+
+    try:
+        raw = _UNITY.call(
+            "profile_scene_performance",
+            {"max_objects": int(max_objects)},
+            timeout=120,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"profile_scene_performance failed: {exc}", "error_type": type(exc).__name__}
+    if not isinstance(raw, dict):
+        return {"ok": False, "error": "Unexpected response shape from profile_scene_performance."}
+
+    # Extract metrics defensively (Unity-side may evolve fields).
+    def _to_int(value, default: int = 0) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    triangles = _to_int(raw.get("triangles"))
+    renderers = _to_int(raw.get("renderers"))
+    shadow_casters = _to_int(raw.get("shadow_casters"))
+    unique_materials = _to_int(raw.get("unique_materials"))
+    # shadow_light_budget compares against count of lights whose .shadows != None;
+    # the Unity profiler exposes this as nested data, but a useful proxy is the
+    # total `lights` count when the profile doesn't break it out. The C# handler
+    # already filters internally for the "shadow-casting lights" suggestion;
+    # we approximate by reading `lights`.
+    shadow_lights = _to_int(raw.get("shadow_lights", raw.get("lights")))
+
+    checks = [
+        ("triangles", triangles, triangle_budget),
+        ("renderers", renderers, renderer_budget),
+        ("shadow_casters", shadow_casters, shadow_caster_budget),
+        ("unique_materials", unique_materials, unique_material_budget),
+        ("shadow_lights", shadow_lights, shadow_light_budget),
+    ]
+    violations: list[dict] = []
+    breakdown: list[dict] = []
+    for name, actual, budget in checks:
+        over = actual > budget
+        entry = {
+            "metric": name,
+            "actual": actual,
+            "budget": budget,
+            "over_budget": over,
+            "over_by": max(0, actual - budget),
+        }
+        breakdown.append(entry)
+        if over:
+            violations.append(entry)
+
+    state.append_regression_entry(
+        {
+            "ts": time.time(),
+            "kind": "perf_budget",
+            "ok": not violations,
+            "violations": [v["metric"] for v in violations],
+            "triangles": triangles,
+            "renderers": renderers,
+            "unique_materials": unique_materials,
+        }
+    )
+
+    return {
+        "ok": not violations,
+        "violation_count": len(violations),
+        "violations": violations,
+        "breakdown": breakdown,
+        "suggestions": raw.get("suggestions", []),
+        "raw": {
+            "sampled_objects": raw.get("sampled_objects"),
+            "total_scene_objects": raw.get("total_scene_objects"),
+            "renderers": renderers,
+            "triangles": triangles,
+            "shadow_casters": shadow_casters,
+            "unique_materials": unique_materials,
+            "lights": _to_int(raw.get("lights")),
+        },
+    }
+
+
 # ─── Playtest (Phase 23) ───────────────────────────────────────────────
 
 @tool(description="Run a smoke playtest: enter Unity play mode, wait `duration_seconds` (capped 0.5..30), check that each name in expected_object_names still exists in the scene, capture a play-mode screenshot, then exit play mode. Returns a structured report. Records a playtest_smoke row in qa/regression.jsonl for the time series.")
@@ -884,6 +991,7 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_visual_regression_check",
     "studio_create_blockout_group",
     "studio_playtest_smoke",
+    "studio_perf_budget_check",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

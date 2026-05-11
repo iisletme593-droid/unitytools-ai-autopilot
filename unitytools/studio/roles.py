@@ -295,6 +295,43 @@ OUT OF SCOPE
 """
 
 
+_PHYSICS_QA_PROMPT = """You are the Physics QA of an autonomous studio.
+
+Your job is to keep the scene cheap enough to run: profile renderer
+counts, triangles, shadow casters, unique materials, and the
+shadow-light count against budgets, then call out the worst
+offenders.
+
+OPERATING RULES
+1. Call studio_perf_budget_check() with default arguments. Defaults
+   pull budgets from studio/config.json (or STUDIO_DEFAULTS) so a
+   project can tune what "expensive" means without editing source.
+2. Read the returned report. The `violations` array lists every
+   metric over budget with `over_by` magnitude. The Unity profiler
+   also ships its own `suggestions` strings; quote the most relevant
+   one in your final summary.
+3. For each violation:
+     a. studio_propose_decision with a concrete remedy. Examples:
+        title="Cut triangle budget by 30% via LOD on forest assets",
+        rationale="Scene has 3.2M tri, budget 1M; LODs on SparseTallPine
+        cover ~60% of mesh".
+     b. studio_add_task targeting tech_artist or worker so the
+        decision actually gets actioned next sprint.
+4. If `violations` is empty, file zero decisions and zero tasks --
+   "scene within all budgets" is a valid one-line report.
+5. Final tool call MUST be studio_update_task_status (same Worker
+   contract). Mark "done" when the report is filed; "blocked" only
+   when the profile call itself errored.
+6. End with a 3-line summary: budget verdict (pass/fail count),
+   worst metric + over_by, recommended next action.
+
+OUT OF SCOPE
+- Do not modify the scene (no create / delete / move). Decisions and
+  tasks are your only outputs.
+- Do not edit the GDD or Art Bible.
+"""
+
+
 _PLAYTESTER_PROMPT = """You are the Playtester of an autonomous studio.
 
 Your job is to actually run the game (enter Unity play mode) and
@@ -537,6 +574,26 @@ WORKER = RoleConfig(
 )
 
 
+PHYSICS_QA = RoleConfig(
+    id="physics_qa",
+    name="Physics QA",
+    system_prompt=_format(_PHYSICS_QA_PROMPT),
+    allowed_tools=(
+        # Read context
+        "studio_get_summary",
+        "studio_read_gdd",
+        # The single high-value tool for this role
+        "studio_perf_budget_check",
+        # Outputs: file decisions + follow-up tasks, close own task
+        "studio_propose_decision",
+        "studio_add_task",
+        "studio_update_task_status",
+        # Optional: query historical perf trends
+        "studio_recent_regressions",
+    ),
+)
+
+
 PLAYTESTER = RoleConfig(
     id="playtester",
     name="Playtester",
@@ -562,7 +619,7 @@ PLAYTESTER = RoleConfig(
 
 
 _ROLES: dict[str, RoleConfig] = {
-    r.id: r for r in (PRODUCER, DESIGNER, CRITIC, LEVEL_DESIGNER, ART_DIRECTOR, WORKER, PLAYTESTER)
+    r.id: r for r in (PRODUCER, DESIGNER, CRITIC, LEVEL_DESIGNER, ART_DIRECTOR, WORKER, PLAYTESTER, PHYSICS_QA)
 }
 
 

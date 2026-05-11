@@ -55,6 +55,17 @@ class StudioThresholds:
     # in a half-day of focused work.
     max_tasks_per_producer_run: int = 5
 
+    # Phase 24: per-scene performance budgets. The Physics QA role
+    # checks the live scene against these; any metric over budget
+    # becomes a "violation" the role files as a decision + follow-up
+    # task. Defaults track Unity's own "too many" suggestion thresholds
+    # from ProfileScenePerformance.cs.
+    perf_triangle_budget: int = 1_000_000
+    perf_renderer_budget: int = 1_000
+    perf_shadow_caster_budget: int = 200
+    perf_unique_material_budget: int = 250
+    perf_shadow_light_budget: int = 2
+
 
 STUDIO_DEFAULTS = StudioThresholds()
 

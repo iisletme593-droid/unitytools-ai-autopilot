@@ -29,6 +29,7 @@ from .roles import (
     ART_DIRECTOR,
     WORKER,
     PLAYTESTER,
+    PHYSICS_QA,
     get_role,
     all_roles,
 )
@@ -98,6 +99,7 @@ __all__ = [
     "ART_DIRECTOR",
     "WORKER",
     "PLAYTESTER",
+    "PHYSICS_QA",
     "get_role",
     "all_roles",
     # runner

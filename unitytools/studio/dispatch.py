@@ -47,7 +47,8 @@ DISPATCH_MAP: dict[str, Optional[str]] = {
     "critic": "critic",
     "art_director": "art_director",
     "level_designer": "worker",
-    "tech_artist": "worker",
+    "tech_artist": "physics_qa",  # Phase 24: tech_artist tasks profile + optimise
+    "physics_qa": "physics_qa",
     "qa": "playtester",  # Phase 23: QA tasks go to the Playtester role
     "worker": "worker",
     "playtester": "playtester",
