@@ -44,6 +44,7 @@ from .roles import (
     GAME_BALANCER,
     LOCALIZATION_LEAD,
     TUTORIAL_DESIGNER,
+    SCENE_DIRECTOR,
     get_role,
     all_roles,
 )
@@ -136,6 +137,7 @@ __all__ = [
     "GAME_BALANCER",
     "LOCALIZATION_LEAD",
     "TUTORIAL_DESIGNER",
+    "SCENE_DIRECTOR",
     "get_role",
     "all_roles",
     # runner

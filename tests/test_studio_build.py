@@ -229,9 +229,15 @@ def test_build_engineer_owns_build_tools() -> None:
     assert "unity_set_light_properties" not in BUILD_ENGINEER.tool_set
     assert "unity_frame_object" not in BUILD_ENGINEER.tool_set
     assert "unity_add_particle_system" not in BUILD_ENGINEER.tool_set
-    # Cannot silently add a scene to build settings — that's a planning gap
-    assert "unity_add_scene_to_build" not in BUILD_ENGINEER.tool_set
-    print("OK Build Engineer allowlist: preflight + build only, no content edits, no scene mutation")
+    # Phase 48: Build Engineer now CAN add scenes to EditorBuildSettings,
+    # but only as the execution arm of Scene Director's catalog. The
+    # catalog is the source-of-truth; Build Engineer copies its
+    # checklist into the project. (Earlier rule treated this as a
+    # "planning gap"; Phase 48 introduced the catalog so there's a
+    # proper plan to act on.)
+    assert "unity_add_scene_to_build" in BUILD_ENGINEER.tool_set
+    assert "studio_read_scene_catalog" in BUILD_ENGINEER.tool_set
+    print("OK Build Engineer allowlist: preflight + build + (Phase 48) read catalog & add scenes to build settings")
 
 
 def test_other_roles_lack_build_tools() -> None:

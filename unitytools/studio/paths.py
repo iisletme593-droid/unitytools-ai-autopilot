@@ -40,6 +40,10 @@ class StudioPaths:
         return self.root / "tutorial.md"
 
     @property
+    def scene_catalog(self) -> Path:
+        return self.root / "scene_catalog.md"
+
+    @property
     def strings(self) -> Path:
         """Directory holding per-locale string tables (<code>.json)."""
         return self.root / "strings"

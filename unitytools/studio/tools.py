@@ -128,6 +128,19 @@ def studio_write_tutorial(content: str) -> dict:
     return {"ok": True, "path": str(state.paths.tutorial)}
 
 
+@tool(description="Read the scene catalog markdown — the scene-graph of the game (Title / Game / Win / GameOver / Credits / ...), the allowed transitions between them, the build-settings checklist, and any persistent state. Empty string if absent.")
+def studio_read_scene_catalog() -> dict:
+    state = _require_state()
+    return {"ok": True, "content": state.read_doc(state.paths.scene_catalog)}
+
+
+@tool(description="Replace the scene catalog markdown. Owned by the Scene Director. Must include at minimum: a Scenes table (path + role + loaded-by), a Transitions list, and a Build Settings checklist that the Build Engineer can act on.")
+def studio_write_scene_catalog(content: str) -> dict:
+    state = _require_state()
+    state.write_doc(state.paths.scene_catalog, content)
+    return {"ok": True, "path": str(state.paths.scene_catalog)}
+
+
 @tool(description="Read the current sprint plan markdown.")
 def studio_read_sprint() -> dict:
     state = _require_state()
@@ -2686,6 +2699,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_write_press_kit",
     "studio_read_tutorial",
     "studio_write_tutorial",
+    "studio_read_scene_catalog",
+    "studio_write_scene_catalog",
     "studio_read_sprint",
     "studio_write_sprint",
     # backlog

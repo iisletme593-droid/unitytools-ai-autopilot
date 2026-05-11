@@ -68,6 +68,7 @@ ROLES = (
     "game_balancer",
     "localization_lead",
     "tutorial_designer",
+    "scene_director",
 )
 
 

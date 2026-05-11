@@ -119,6 +119,53 @@ SPRINT_TEMPLATE = """# Current Sprint
 """
 
 
+SCENE_CATALOG_TEMPLATE = """# Scene Catalog
+
+> Scene Director maintains. The scene-graph of the game — every
+> scene the player can land on + how they get there + back. The
+> Build Engineer reads this to populate EditorBuildSettings; the
+> Worker reads it when wiring LoadSceneOnClick / GameSession
+> transitions.
+
+## Scenes
+
+| Path                       | Role            | Loaded by                              | Notes |
+|----------------------------|-----------------|----------------------------------------|-------|
+| Assets/Scenes/Title.unity  | title screen    | scene 0 (auto-load on launch)          | LoadSceneOnClick -> GameScene |
+| Assets/Scenes/Game.unity   | main play loop  | LoadSceneOnClick (Start button)        | GameSession winScene='Win', loseScene='GameOver' |
+| Assets/Scenes/Win.unity    | win celebration | GameSession.WinGame()                  | LoadSceneOnClick back to Title |
+| Assets/Scenes/GameOver.unity | lose / retry  | GameSession.LoseGame()                 | LoadSceneOnClick back to Title or Game |
+| Assets/Scenes/Credits.unity  | credits roll  | LoadSceneOnClick (Title 'Credits' btn) | LoadSceneOnClick back to Title |
+
+## Transitions
+*Each row = one allowed transition. Helps the Worker decide what
+LoadSceneOnClick.sceneName each button should carry.*
+- Title  -> Game        via "Start" button
+- Title  -> Credits     via "Credits" button
+- Game   -> Win         via GameSession auto-win
+- Game   -> GameOver    via GameSession lives==0
+- Win    -> Title       via "Return" button
+- GameOver -> Game      via "Retry" button
+- GameOver -> Title     via "Menu" button
+- Credits -> Title      via "Back" button or auto-return
+
+## Build Settings
+*All scenes the binary must include. Build Engineer adds them via
+unity_add_scene_to_build at scene-catalog approval time.*
+- [ ] Assets/Scenes/Title.unity
+- [ ] Assets/Scenes/Game.unity
+- [ ] Assets/Scenes/Win.unity
+- [ ] Assets/Scenes/GameOver.unity
+- [ ] Assets/Scenes/Credits.unity
+
+## Persistent State Across Scenes
+*What survives scene transitions? SettingsStore is automatic.
+DontDestroyOnLoad GameObjects (rare) listed here.*
+- SettingsStore: volume, locale, high_score (PlayerPrefs)
+- (none persistent GOs unless noted)
+"""
+
+
 TUTORIAL_TEMPLATE = """# Tutorial / Onboarding
 
 > Tutorial Designer maintains. The first 60 seconds a new player
@@ -228,6 +275,7 @@ def starter_files() -> dict[str, str]:
         "audio_brief.md": AUDIO_BRIEF_TEMPLATE,
         "press_kit.md": PRESS_KIT_TEMPLATE,
         "tutorial.md": TUTORIAL_TEMPLATE,
+        "scene_catalog.md": SCENE_CATALOG_TEMPLATE,
         "sprint_current.md": SPRINT_TEMPLATE,
         ".gitignore": GITIGNORE_TEMPLATE,
     }

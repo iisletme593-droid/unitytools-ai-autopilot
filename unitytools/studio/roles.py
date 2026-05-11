@@ -313,6 +313,11 @@ TASK ROLES YOU CAN OPEN
   Open one of these when the GDD pitch implies an on-screen menu
   or score readout, with a title like "Build title screen" and a
   description listing the canvas name + each element + position.
+- scene_director: owns studio/scene_catalog.md — the scene-graph
+  (Title / Game / Win / GameOver / Credits / ...) + transitions
+  table + build-settings checklist. Open one of these once the
+  GDD has win/lose conditions, BEFORE the UI Builder ships title-
+  screen buttons (they need to know which sceneName each loads).
 - tutorial_designer: owns studio/tutorial.md — the first-60-seconds
   player experience. Drafts the 3-5 onboarding beats + control list +
   skip path. Open one of these once the GDD pitch is locked, BEFORE
@@ -558,6 +563,60 @@ OUT OF SCOPE
 - Do not place / move 3D objects (Worker's job).
 - Do not edit lights, cameras, particles, audio.
 - Do not edit docs.
+"""
+
+
+_SCENE_DIRECTOR_PROMPT = """You are the Scene Director of an autonomous studio.
+
+You own studio/scene_catalog.md — the scene-graph that says which
+Unity scenes exist, what each one is for, and how the player
+transitions between them. Build Engineer reads it to populate
+EditorBuildSettings; Worker reads it when wiring
+LoadSceneOnClick.sceneName + GameSession.winSceneName /
+loseSceneName.
+
+OPERATING RULES
+1. Read the GDD (studio_read_gdd) for the pitch + win/lose
+   conditions and the tutorial (studio_read_tutorial) for how the
+   player onboards. If GDD is empty, file a designer task back
+   and stop — the scene-graph must come from a real pitch.
+2. Read the existing scene_catalog.md. Many runs are 'add a
+   Credits scene', not 'draft from scratch'.
+3. The catalog MUST contain at minimum:
+     - A Scenes table (Path | Role | Loaded by | Notes) — every
+       scene must have a project-relative Unity path ending in
+       .unity
+     - A Transitions list — every allowed move with the button /
+       trigger that fires it
+     - A Build Settings checklist — every scene the binary needs
+   Use the template structure from `studio init`.
+4. Genre baselines:
+     - Collectathon / runner / shooter MVP: Title + Game + Win +
+       GameOver (4 scenes) is the floor. Add Credits if the
+       Marketing Director's press kit mentions it.
+     - Multi-level games: Title + LevelSelect + Level_1..Level_N
+       + Win + GameOver.
+5. When you add a scene, file a follow-up Worker task: "Create
+   scene Assets/Scenes/<name>.unity with <objects>" and a
+   Build Engineer task: "Add <path> to EditorBuildSettings."
+   Never silently expect those to happen.
+6. When a transition implies new UI (a button), file a follow-up
+   ui_builder task. When a transition implies new strings (button
+   label), file a follow-up localization_lead task.
+7. If you're proposing a new genre-level scene (a Pause menu
+   scene, a Settings scene), call studio_propose_decision with
+   the rationale before writing.
+8. Final tool call MUST be studio_update_task_status.
+9. End with a 3-line summary: scenes drafted, transitions added,
+   follow-up task ids opened.
+
+OUT OF SCOPE
+- Do not edit GDD / Art Bible / Audio Brief / Press Kit /
+  Tutorial / Sprint / Strings — the relevant doc role owns
+  each of those.
+- Do not mutate any scene object. The Worker creates / opens
+  scenes; you only PLAN the graph.
+- Do not call unity_build_player. Build Engineer ships.
 """
 
 
@@ -1291,6 +1350,9 @@ WORKER = RoleConfig(
         "unity_attach_behaviour",
         "unity_list_behaviour_library",
         "unity_list_attached_behaviours",
+        # Phase 48: read the scene-graph so LoadSceneOnClick.sceneName +
+        # GameSession.winSceneName / loseSceneName match the catalog.
+        "studio_read_scene_catalog",
     ),
 )
 
@@ -1343,6 +1405,12 @@ BUILD_ENGINEER = RoleConfig(
         # Read context — needs to know what's expected
         "studio_get_summary",
         "studio_read_gdd",
+        # Phase 48: Scene Director's catalog is the source-of-truth for
+        # which scenes the binary must include.
+        "studio_read_scene_catalog",
+        # Phase 48: Build Engineer also adds scenes to build settings
+        # based on the catalog's checklist.
+        "unity_add_scene_to_build",
         # Preflight + inspect build settings
         "studio_build_check",
         # Phase 45: belt-and-braces — also check ship readiness so we
@@ -1385,6 +1453,28 @@ UI_BUILDER = RoleConfig(
         "unity_save_scene",
         "studio_update_task_status",
         "studio_propose_decision",
+    ),
+)
+
+
+SCENE_DIRECTOR = RoleConfig(
+    id="scene_director",
+    name="Scene Director",
+    system_prompt=_format(_SCENE_DIRECTOR_PROMPT),
+    allowed_tools=(
+        # Read context (no other doc writes)
+        "studio_get_summary",
+        "studio_read_gdd",
+        "studio_read_tutorial",
+        "studio_read_press_kit",
+        # Scene catalog doc r/w
+        "studio_read_scene_catalog",
+        "studio_write_scene_catalog",
+        # Outputs: file follow-up tasks + decisions
+        "studio_propose_decision",
+        "studio_add_task",
+        # Lifecycle
+        "studio_update_task_status",
     ),
 )
 
@@ -1680,7 +1770,7 @@ _ROLES: dict[str, RoleConfig] = {
         LIGHTING_DIRECTOR, CAMERA_DIRECTOR, VFX_DIRECTOR, UI_BUILDER,
         BUILD_ENGINEER, ATMOSPHERE_DIRECTOR, MATERIAL_ARTIST,
         MARKETING_DIRECTOR, GAME_BALANCER, LOCALIZATION_LEAD,
-        TUTORIAL_DESIGNER,
+        TUTORIAL_DESIGNER, SCENE_DIRECTOR,
     )
 }
 
