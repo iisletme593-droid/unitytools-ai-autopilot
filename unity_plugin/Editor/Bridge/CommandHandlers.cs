@@ -1235,6 +1235,8 @@ namespace UnityTools.Bridge
             "SoundOnEvent", "HitFlash",
             // Phase 53: HUD + camera feel
             "HealthBar", "CameraShake",
+            // Phase 54: settings menu primitives
+            "VolumeSlider", "LocaleSelector",
         };
 
         private static Type ResolveBehaviourType(string name)

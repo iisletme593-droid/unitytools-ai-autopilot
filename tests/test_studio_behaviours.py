@@ -112,10 +112,12 @@ def test_behaviour_library_contains_known_behaviours() -> None:
         "SoundOnEvent", "HitFlash",
         # Phase 53 HUD + camera feel
         "HealthBar", "CameraShake",
+        # Phase 54 settings menu primitives
+        "VolumeSlider", "LocaleSelector",
     }
     assert set(_BEHAVIOUR_LIBRARY) == expected
-    assert len(_BEHAVIOUR_LIBRARY) == 27
-    print("OK Behaviour library exposes 27 known names")
+    assert len(_BEHAVIOUR_LIBRARY) == 29
+    print("OK Behaviour library exposes 29 known names")
 
 
 def test_each_behaviour_has_a_corresponding_cs_file() -> None:
@@ -583,6 +585,63 @@ def test_phase53_duo_in_runtime_namespace() -> None:
     print("OK HealthBar + CameraShake in UnityTools.Behaviours, no UnityEditor leak")
 
 
+# ───────────────────────────────────────────── settings menu (Phase 54)
+
+
+def test_volume_slider_requires_slider_and_persists_via_settings_store() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "VolumeSlider.cs").read_text(encoding="utf-8")
+    # Hard contract: requires a UI Slider
+    assert "RequireComponent(typeof(Slider))" in body
+    # Tunables
+    for f in ("settingsKey", "defaultValue", "driveAudioListener"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"VolumeSlider.{f} field missing"
+    # Slider clamped to [0,1]
+    assert "_slider.minValue = 0f" in body
+    assert "_slider.maxValue = 1f" in body
+    # SettingsStore persistence
+    assert "SettingsStore.GetFloat" in body
+    assert "SettingsStore.SetFloat" in body
+    # Drives AudioListener.volume
+    assert "AudioListener.volume" in body
+    # Sets value WITHOUT triggering OnValueChanged on initial load
+    # (otherwise we'd write the loaded value back to itself + risk loops)
+    assert "SetValueWithoutNotify" in body
+    # Cleans up its listener on destroy
+    assert "RemoveListener" in body
+    print("OK VolumeSlider contract: Slider required + 3 tunables + [0,1] clamp + SettingsStore persist + AudioListener.volume + SetValueWithoutNotify + listener cleanup")
+
+
+def test_locale_selector_cycles_and_calls_localized_text() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "LocaleSelector.cs").read_text(encoding="utf-8")
+    # Hard contract: requires a UI Button
+    assert "RequireComponent(typeof(Button))" in body
+    # Tunables
+    for f in ("locales", "defaultLocale", "labelTextName", "settingsKey",
+              "labelFormat"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"LocaleSelector.{f} field missing"
+    # Cycles through the locales array
+    assert "% locales.Length" in body
+    # Drives the LocalizedText runtime
+    assert "LocalizedText.SetLocale" in body
+    # Persists via SettingsStore
+    assert "SettingsStore.GetString" in body
+    assert "SettingsStore.SetString" in body
+    # Label format token {locale} so designers can customise the
+    # button label (e.g. "Dil: {locale}" for Turkish UI)
+    assert "{locale}" in body
+    # Listener cleanup
+    assert "RemoveListener" in body
+    print("OK LocaleSelector contract: Button required + 5 tunables + cycle via modulo + LocalizedText.SetLocale + SettingsStore persist + {locale} label token + listener cleanup")
+
+
+def test_settings_duo_in_runtime_namespace() -> None:
+    for name in ("VolumeSlider", "LocaleSelector"):
+        body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / f"{name}.cs").read_text(encoding="utf-8")
+        assert "namespace UnityTools.Behaviours" in body
+        assert "using UnityEditor;" not in body
+    print("OK VolumeSlider + LocaleSelector in UnityTools.Behaviours, no UnityEditor leak")
+
+
 # ───────────────────────────────────────────── wrapper validation
 
 
@@ -749,6 +808,10 @@ def run_test() -> None:
     test_health_bar_requires_image_and_tracks_lives_ratio()
     test_camera_shake_late_update_and_decay()
     test_phase53_duo_in_runtime_namespace()
+    # Phase 54 settings menu
+    test_volume_slider_requires_slider_and_persists_via_settings_store()
+    test_locale_selector_cycles_and_calls_localized_text()
+    test_settings_duo_in_runtime_namespace()
     # Wrappers
     test_attach_behaviour_rejects_unknown_name()
     test_attach_behaviour_requires_target_name()

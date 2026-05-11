@@ -107,9 +107,9 @@ OPERATING RULES -- follow in order
    structure, a tool returning weird data — file a decision via
    studio_propose_decision so the Critic can weigh in.
 
-BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43 + 46 + 50 + 51 + 52 + 53)
+BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43 + 46 + 50 + 51 + 52 + 53 + 54)
 You also own attaching pre-built MonoBehaviours to GameObjects. The
-library now has 27 entries in ten groups:
+library now has 29 entries in eleven groups:
 
   - Motion / look: Rotator, Bobber, PulseScale, LookAtCamera,
     FollowTarget, KeyboardMover, DestroyAfter.
@@ -121,7 +121,25 @@ library now has 27 entries in ten groups:
   - Platformer: Jumper.
   - Achievements: Achievement.
   - Feedback: SoundOnEvent, HitFlash.
-  - HUD + camera feel (Phase 53): HealthBar, CameraShake.
+  - HUD + camera feel: HealthBar, CameraShake.
+  - Settings menu (Phase 54): VolumeSlider, LocaleSelector.
+
+Settings menu composition pattern:
+  1. UI Builder creates a SettingsCanvas with a Slider ('VolumeSlider')
+     + a Button child of 'LocaleButton'. PauseMenu opens this canvas.
+  2. Worker:
+     unity_attach_behaviour('VolumeSlider', 'VolumeSlider',
+        params={{'settingsKey': 'volume',
+                 'defaultValue': 1.0,
+                 'driveAudioListener': true}})
+     unity_attach_behaviour('LocaleButton', 'LocaleSelector',
+        params={{'locales': ['en', 'tr'],
+                 'defaultLocale': 'en',
+                 'labelTextName': 'LocaleButtonLabel',
+                 'settingsKey': 'locale',
+                 'labelFormat': 'Lang: {{locale}}'}})
+  3. AudioListener.volume + LocalizedText.ActiveLocale stay in sync
+     with SettingsStore across play sessions.
 
 Standard game-feel stack (attach to Main Camera + a HUD Image):
   1. unity_create_ui_canvas('HUDCanvas') + create an Image for the
