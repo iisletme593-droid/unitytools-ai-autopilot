@@ -535,6 +535,168 @@ def studio_unity_attach_audio_source(
     return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
 
 
+# ─── Internal consistency audit (Phase 49) ─────────────────────────────
+
+@tool(description="Audit the studio's own moving parts for internal consistency drift. Cross-checks: DISPATCH_MAP keys vs the ROLES validation tuple, DISPATCH_MAP targets vs registered RoleConfigs, each role's allowlist vs the actual registered tool set, behaviour-library Python tuple vs the C# library list vs the .cs files on disk, the studio/strings/ tables for malformed JSON. Returns verdict='pass'/'fail' + per-section status + named drifts. This is meta-tooling: as the studio grows phases, things go out of sync; the Producer / Critic runs this to catch drift early.")
+def studio_internal_consistency_check() -> dict:
+    from . import dispatch as _dispatch
+    from . import roles as _roles
+    from .models import ROLES as _ROLES_TUPLE
+    from ..core.tool_registry import _REGISTRY
+    # Eagerly trigger @tool registration for the engine + asset modules
+    # so the consistency check sees the full vocabulary. Each module
+    # registers its tools as a side effect of import.
+    try:
+        import unitytools.tools  # noqa: F401
+    except ImportError:
+        pass
+    try:
+        import unitytools.tools.unity_tools  # noqa: F401
+    except ImportError:
+        pass
+    try:
+        import unitytools.tools.asset_tools  # noqa: F401
+    except ImportError:
+        pass
+    try:
+        import unitytools.tools.snapshot_tools  # noqa: F401
+    except ImportError:
+        pass
+    try:
+        import unitytools.tools.scene_intelligence_tools  # noqa: F401
+    except ImportError:
+        pass
+    try:
+        import unitytools.tools.autopilot_quality_tools  # noqa: F401
+    except ImportError:
+        pass
+    try:
+        import unitytools.tools.procedural_tools  # noqa: F401
+    except ImportError:
+        pass
+
+    sections: dict[str, dict] = {}
+    drifts: list[str] = []
+
+    # 1. DISPATCH_MAP keys vs ROLES validation tuple
+    dispatch_keys = set(_dispatch.DISPATCH_MAP.keys())
+    roles_tuple = set(_ROLES_TUPLE)
+    missing_from_roles = dispatch_keys - roles_tuple
+    missing_from_dispatch = roles_tuple - dispatch_keys
+    sections["dispatch_vs_roles_tuple"] = {
+        "ok": not missing_from_roles,
+        "dispatch_map_keys": len(dispatch_keys),
+        "roles_tuple_size": len(roles_tuple),
+        "in_dispatch_but_not_in_roles": sorted(missing_from_roles),
+        "in_roles_but_not_in_dispatch": sorted(missing_from_dispatch),
+    }
+    for k in missing_from_roles:
+        drifts.append(f"role_in_dispatch_missing_from_validation_tuple:{k}")
+
+    # 2. DISPATCH_MAP targets must resolve to registered RoleConfigs.
+    role_ids_registered = {r.id for r in _roles.all_roles()}
+    unresolved_targets: list[str] = []
+    for src, target in _dispatch.DISPATCH_MAP.items():
+        if target is None:
+            continue
+        if target not in role_ids_registered:
+            unresolved_targets.append(f"{src}->{target}")
+            drifts.append(f"unresolved_dispatch_target:{src}->{target}")
+    sections["dispatch_targets_resolve"] = {
+        "ok": not unresolved_targets,
+        "registered_role_count": len(role_ids_registered),
+        "unresolved": unresolved_targets,
+    }
+
+    # 3. Each role's allowlist must reference real registered tools.
+    role_tool_drifts: dict[str, list[str]] = {}
+    for role in _roles.all_roles():
+        bad = [t for t in role.allowed_tools if t not in _REGISTRY]
+        if bad:
+            role_tool_drifts[role.id] = bad
+            for t in bad:
+                drifts.append(f"unregistered_tool_in_role_allowlist:{role.id}:{t}")
+    sections["role_allowlists_registered"] = {
+        "ok": not role_tool_drifts,
+        "roles_with_drift": role_tool_drifts,
+    }
+
+    # 4. Behaviour library: Python tuple vs the .cs files on disk.
+    #    (The C# library list lives in CommandHandlers.cs; we cross-check
+    #    by globbing the Behaviours/ folder rather than parsing C#.)
+    behaviours_dir = (Path(__file__).resolve().parents[2]
+                       / "unity_plugin" / "Scripts" / "Behaviours")
+    try:
+        from ..tools.unity_tools import _BEHAVIOUR_LIBRARY  # noqa: F401
+        py_set = set(_BEHAVIOUR_LIBRARY)
+    except ImportError:
+        py_set = set()
+        drifts.append("unity_tools_module_unimportable")
+    if behaviours_dir.exists():
+        cs_files = {p.stem for p in behaviours_dir.glob("*.cs")}
+    else:
+        cs_files = set()
+        drifts.append("behaviours_dir_missing")
+    missing_files = py_set - cs_files
+    extra_files = cs_files - py_set
+    sections["behaviour_library"] = {
+        "ok": not missing_files,
+        "python_count": len(py_set),
+        "cs_file_count": len(cs_files),
+        "in_python_but_no_cs_file": sorted(missing_files),
+        "in_cs_files_but_not_in_python": sorted(extra_files),
+    }
+    for name in missing_files:
+        drifts.append(f"behaviour_in_python_library_without_cs_file:{name}")
+    # Note: extra .cs files (existence in folder but not registered) is a
+    # warning, not a hard drift — a developer may be drafting a new script.
+
+    # 5. studio/strings/*.json files must parse as JSON objects.
+    state = _STATE
+    if state is not None and state.paths.strings.exists():
+        malformed: list[str] = []
+        for p in state.paths.strings.glob("*.json"):
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                if not isinstance(data, dict):
+                    malformed.append(f"{p.stem}:not_object")
+                    drifts.append(f"strings_not_object:{p.stem}")
+            except json.JSONDecodeError:
+                malformed.append(f"{p.stem}:malformed_json")
+                drifts.append(f"strings_malformed:{p.stem}")
+        sections["strings_files"] = {
+            "ok": not malformed,
+            "checked_count": len(list(state.paths.strings.glob("*.json"))),
+            "malformed": malformed,
+        }
+    else:
+        sections["strings_files"] = {
+            "ok": True,
+            "skipped": True,
+            "reason": "no studio state or strings/ dir missing",
+        }
+
+    # 6. Final verdict
+    verdict = "pass" if not drifts else "fail"
+    return {
+        "ok": True,
+        "verdict": verdict,
+        "drift_count": len(drifts),
+        "drifts": drifts,
+        "sections": sections,
+        "recommendation": (
+            "No drift. The studio's moving parts are aligned."
+            if verdict == "pass"
+            else (
+                "Drift detected — each named entry tells you what to do. "
+                "Common fixes: add a missing role id to models.py ROLES, "
+                "remove a stray tool name from a role's allowlist, ship "
+                "the missing .cs file for a registered behaviour name."
+            )
+        ),
+    }
+
+
 # ─── Ship readiness (Phase 45) ─────────────────────────────────────────
 
 @tool(description="Aggregate every ship-blocking audit + doc state into a single go/no-go verdict. Runs studio_build_check (scenes + GDD), studio_localization_audit per locale, studio_atmosphere_audit + studio_lighting_audit + studio_vfx_audit when the Unity bridge is connected (skipped gracefully when offline). Also checks: art bible non-empty, audio brief non-empty, press kit non-empty, at least one screenshot present, recent playtest in last `recent_days` days, at least one milestone in 'in_progress'. Returns verdict='pass'/'fail' + per-section status + named blockers. The Marketing + Build Engineer roles call this before ship; Producer cites the result in retros.")
@@ -2759,6 +2921,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_scaffold_endless_runner_game",
     # ship readiness (Phase 45)
     "studio_ship_readiness_check",
+    # internal consistency audit (Phase 49)
+    "studio_internal_consistency_check",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

@@ -1223,6 +1223,10 @@ PRODUCER = RoleConfig(
         # Cited in retro to call out blockers BEFORE telling
         # build_engineer to ship.
         "studio_ship_readiness_check",
+        # Phase 49: meta-consistency audit (DISPATCH ↔ ROLES drift,
+        # behaviour library drift, role allowlists, malformed strings).
+        # Cite drift in retro so the next sprint clears it.
+        "studio_internal_consistency_check",
     ),
 )
 
@@ -1264,6 +1268,10 @@ CRITIC = RoleConfig(
         "studio_milestone_progress",
         # Phase 18: accept / reject / supersede decisions (the Critic's job)
         "studio_ratify_decision",
+        # Phase 49: meta-consistency audit — Critic surfaces drift across
+        # the studio's own moving parts (roles, behaviours, allowlists)
+        # in the same review where it surfaces content contradictions.
+        "studio_internal_consistency_check",
     ),
 )
 
