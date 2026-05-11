@@ -279,6 +279,8 @@ def _handle_slash(
                 "[cyan]/unblock[/cyan] <id>             blocked -> pending\n"
                 "[cyan]/why[/cyan] <id>                 explain a task's status + unsatisfied deps\n"
                 "[cyan]/standup[/cyan] [hours]           daily digest: closed/in-flight/blocked/pending\n"
+                "[cyan]/log[/cyan] <message>             append a timestamped note to today's journal\n"
+                "[cyan]/journal[/cyan] [days]            read last N days of journal entries\n"
                 "[cyan]/dashboard[/cyan] [--save] [days]  operator's morning glance\n"
                 "[cyan]/ship[/cyan]                    ship readiness check (go/no-go)\n"
                 "[cyan]/cost[/cyan] [days]             LLM token + USD spend (default 7d)\n"

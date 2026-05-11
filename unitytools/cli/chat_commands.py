@@ -137,6 +137,10 @@ _ALIASES: dict[str, str] = {
     "toplantı": "standup", "toplanti": "standup",
     "özet": "standup", "ozet": "standup",
     "günbaşı": "standup", "gunbasi": "standup",
+    # Phase 72 journal
+    "not": "log", "kayıt": "log", "kayit": "log",
+    "günlük": "journal", "gunluk": "journal",
+    "geçmiş": "journal", "gecmis": "journal",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -322,6 +326,14 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── standup [hours]   (Phase 71: morning digest — closed/in-flight/blocked)
     if cmd == "standup":
         return _dispatch_standup(args)
+
+    # ── log <message>   (Phase 72: append a dated entry to today's journal)
+    if cmd == "log":
+        return _dispatch_log(args)
+
+    # ── journal [days]   (Phase 72: read last N days of journal entries)
+    if cmd == "journal":
+        return _dispatch_journal(args)
 
     return CommandResult(handled=False)
 
@@ -614,6 +626,8 @@ def _dispatch_help() -> CommandResult:
                 ("/build <target> [--dev]", "windows/mac/linux/webgl/android/ios"),
                 ("/dashboard [--save] [days]", "operator's morning glance"),
                 ("/standup [hours]", "daily digest: closed/in-flight/blocked/pending"),
+                ("/log <message>", "append timestamped entry to today's journal"),
+                ("/journal [days]", "read last N days of journal entries"),
                 ("/sprint", "read studio/sprint_current.md"),
                 ("/next [role]", "next pending task ready to pick up"),
                 ("/take <id>", "mark task in_progress"),
@@ -653,7 +667,7 @@ def _dispatch_help() -> CommandResult:
     lines.append(
         "Türkçe aliases: /yardım /durum /sağlık /başlat /eşitle /oluştur "
         "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
-        "/al /tamam /engelle /aç /neden /toplantı "
+        "/al /tamam /engelle /aç /neden /toplantı /not /günlük "
         "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
@@ -1418,6 +1432,114 @@ def _dispatch_why(args: list[str]) -> CommandResult:
     return CommandResult(
         handled=True, ok=True,
         tool_name="studio_explain_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_log(args: list[str]) -> CommandResult:
+    """Phase 72: /log <message words...> — append a timestamped entry
+    to today's studio/memory/journal/<YYYY-MM-DD>.md. Multi-word
+    messages are joined with spaces; no quoting required."""
+    message = " ".join(args).strip()
+    if not message:
+        return CommandResult(
+            handled=True, ok=False,
+            message="Usage: /log <your note>  (e.g. /log boss arena lit, ready for QA)",
+        )
+    try:
+        from ..studio.tools import studio_journal_append
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_journal_append not importable: {exc}",
+        )
+    try:
+        result = studio_journal_append(message)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_journal_append",
+            message=f"log failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_journal_append",
+            tool_result=result,
+            message=result.get("error") or "log failed",
+        )
+    msg = (
+        f"Logged at {result['timestamp']} "
+        f"({result['date']}): {message[:60]}"
+        + ("..." if len(message) > 60 else "")
+    )
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_journal_append",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_journal(args: list[str]) -> CommandResult:
+    """Phase 72: /journal [days] — read the last N days of journal
+    entries (default 1 = today only). Returns content per-day plus
+    a flat 'recent' list."""
+    days = 1
+    if args:
+        try:
+            days = int(args[0])
+        except ValueError:
+            return CommandResult(
+                handled=True, ok=False,
+                message=f"days must be an integer; got {args[0]!r}",
+            )
+        if days <= 0:
+            return CommandResult(
+                handled=True, ok=False,
+                message="days must be positive",
+            )
+    try:
+        from ..studio.tools import studio_journal_read
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_journal_read not importable: {exc}",
+        )
+    try:
+        result = studio_journal_read(days=days)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_journal_read",
+            message=f"journal read failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_journal_read",
+            tool_result=result,
+            message=result.get("error") or "journal read failed",
+        )
+
+    total_days = result.get("total_days", 0)
+    if total_days == 0:
+        msg = (
+            f"No journal entries in the last {days} day"
+            f"{'s' if days != 1 else ''} — drop one with /log <message>."
+        )
+    else:
+        # Show the most recent day's content preview as the message line
+        most_recent = result["recent"][0]
+        preview_lines = [
+            ln for ln in most_recent["content"].splitlines() if ln.strip()
+        ][:6]
+        preview = "\n".join(preview_lines)
+        msg = f"{total_days} day(s) with entries (most recent: {most_recent['date']})\n{preview}"
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_journal_read",
         tool_result=result,
         message=msg,
     )

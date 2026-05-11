@@ -2076,6 +2076,208 @@ def test_help_lists_standup() -> None:
     print("OK /help advertises /standup")
 
 
+# ─────────────────────────────────────────── Phase 72: /log + /journal
+
+
+def test_log_appends_entry_to_today_journal() -> None:
+    import time
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio import StudioPaths
+        paths = StudioPaths(project_root=Path(os.getcwd()))
+        r = dispatch("log first entry from chat")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_journal_append"
+        # File exists at today's date
+        today = time.strftime("%Y-%m-%d")
+        jpath = paths.journal_for_date(today)
+        assert jpath.is_file(), f"/log should create {jpath}"
+        content = jpath.read_text(encoding="utf-8")
+        assert "first entry from chat" in content
+        # File has a markdown date header
+        assert f"# Journal — {today}" in content
+    finally:
+        os.chdir(prev)
+    print("OK /log <msg> creates today's journal file with date header + entry")
+
+
+def test_log_appends_multiple_entries_chronologically() -> None:
+    import time
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio import StudioPaths
+        paths = StudioPaths(project_root=Path(os.getcwd()))
+        dispatch("log alpha note")
+        dispatch("log beta note")
+        dispatch("log gamma note")
+        today = time.strftime("%Y-%m-%d")
+        content = paths.journal_for_date(today).read_text(encoding="utf-8")
+        # All three entries land, in order
+        alpha_pos = content.find("alpha note")
+        beta_pos = content.find("beta note")
+        gamma_pos = content.find("gamma note")
+        assert 0 < alpha_pos < beta_pos < gamma_pos, (
+            "entries should appear in chronological order"
+        )
+        # Each line has a HH:MM:SS timestamp marker
+        assert content.count("**") >= 6, (
+            "every entry should be wrapped in `**timestamp**` bold markers"
+        )
+    finally:
+        os.chdir(prev)
+    print("OK /log appends multiple entries chronologically in same file")
+
+
+def test_log_without_message_returns_usage() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("log")
+        assert r.handled is True
+        assert r.ok is False
+        assert "Usage" in r.message
+        assert "/log" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /log with no args → usage hint")
+
+
+def test_log_joins_multi_word_message() -> None:
+    """/log treats every arg word as part of the message — no quoting
+    needed for natural notes."""
+    import time
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio import StudioPaths
+        paths = StudioPaths(project_root=Path(os.getcwd()))
+        dispatch("log shipped feature ABC behind feature_flag XYZ")
+        content = paths.journal_for_date(time.strftime("%Y-%m-%d")).read_text(
+            encoding="utf-8"
+        )
+        assert "shipped feature ABC behind feature_flag XYZ" in content
+    finally:
+        os.chdir(prev)
+    print("OK /log joins multi-word args without quoting")
+
+
+def test_journal_reads_today_entries() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        dispatch("log entry one")
+        dispatch("log entry two")
+        r = dispatch("journal")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_journal_read"
+        assert r.tool_result["total_days"] == 1
+        # The flat 'recent' list has today's content
+        recent = r.tool_result["recent"]
+        assert len(recent) == 1
+        assert "entry one" in recent[0]["content"]
+        assert "entry two" in recent[0]["content"]
+    finally:
+        os.chdir(prev)
+    print("OK /journal reads today's entries from the new journal file")
+
+
+def test_journal_empty_returns_friendly_message() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("journal")
+        assert r.ok is True
+        assert r.tool_result["total_days"] == 0
+        # Message hints how to get started
+        assert "/log" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /journal on empty journal → 'drop one with /log' hint")
+
+
+def test_journal_window_argument_widens_lookback() -> None:
+    """/journal 7 reads up to 7 days back. We can't fake date easily,
+    but we CAN verify that the days argument is passed through and the
+    result key reflects it."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        dispatch("log today's note")
+        r = dispatch("journal 7")
+        assert r.ok is True
+        assert r.tool_result["days"] == 7
+        # Only today has content, so total_days still == 1
+        assert r.tool_result["total_days"] == 1
+    finally:
+        os.chdir(prev)
+    print("OK /journal <days> threads days argument to studio_journal_read")
+
+
+def test_journal_bad_arg_rejected() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("journal abc")
+        assert r.ok is False
+        assert "integer" in r.message.lower() or "abc" in r.message
+        r2 = dispatch("journal -3")
+        assert r2.ok is False
+        r3 = dispatch("journal 0")
+        assert r3.ok is False
+    finally:
+        os.chdir(prev)
+    print("OK /journal rejects non-integer, negative, and zero days")
+
+
+def test_log_journal_turkish_aliases() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        # /not → log
+        r = dispatch("not bir not türkçe")
+        assert r.handled is True
+        assert r.tool_name == "studio_journal_append"
+        # /kayıt → log
+        r = dispatch("kayıt başka not")
+        assert r.tool_name == "studio_journal_append"
+        # /günlük → journal
+        r = dispatch("günlük")
+        assert r.tool_name == "studio_journal_read"
+        # /geçmiş → journal
+        r = dispatch("geçmiş 3")
+        assert r.tool_name == "studio_journal_read"
+    finally:
+        os.chdir(prev)
+    print("OK Türkçe journal aliases (/not /kayıt /günlük /geçmiş) all resolve")
+
+
+def test_help_lists_log_and_journal() -> None:
+    r = dispatch("help")
+    for required in ("/log", "/journal"):
+        assert required in r.message, (
+            f"/help should advertise {required} after Phase 72"
+        )
+    print("OK /help advertises /log and /journal")
+
+
+def test_journal_directory_auto_created_on_first_log() -> None:
+    """First /log call creates studio/memory/journal/ if it didn't exist
+    yet — for studios scaffolded before Phase 72 added the directory."""
+    import time
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio import StudioPaths
+        paths = StudioPaths(project_root=Path(os.getcwd()))
+        # Remove the journal dir to simulate pre-Phase-72 studio
+        import shutil
+        if paths.journal.is_dir():
+            shutil.rmtree(paths.journal)
+        assert not paths.journal.exists()
+
+        r = dispatch("log first ever entry")
+        assert r.ok is True
+        assert paths.journal.is_dir(), "log must auto-create journal dir"
+        assert paths.journal_for_date(time.strftime("%Y-%m-%d")).is_file()
+    finally:
+        os.chdir(prev)
+    print("OK /log auto-creates studio/memory/journal/ on a pre-Phase-72 studio")
+
+
 def run_test() -> None:
     # Plumbing
     test_empty_line_returns_not_handled()
@@ -2214,7 +2416,19 @@ def run_test() -> None:
     test_standup_empty_backlog_returns_zero_counts_cleanly()
     test_standup_turkish_aliases()
     test_help_lists_standup()
-    print("All chat-command tests passed (Phase 59 + 60 + 61 + 64 + 65 + 66 + 68 + 69 + 70 + 71)")
+    # Phase 72 /log + /journal
+    test_log_appends_entry_to_today_journal()
+    test_log_appends_multiple_entries_chronologically()
+    test_log_without_message_returns_usage()
+    test_log_joins_multi_word_message()
+    test_journal_reads_today_entries()
+    test_journal_empty_returns_friendly_message()
+    test_journal_window_argument_widens_lookback()
+    test_journal_bad_arg_rejected()
+    test_log_journal_turkish_aliases()
+    test_help_lists_log_and_journal()
+    test_journal_directory_auto_created_on_first_log()
+    print("All chat-command tests passed (Phase 59-72)")
 
 
 if __name__ == "__main__":

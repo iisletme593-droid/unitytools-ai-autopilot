@@ -327,6 +327,69 @@ def studio_block_task(task_id: str, reason: str = "") -> dict:
     return {"ok": False, "error": f"Task {task_id!r} not found."}
 
 
+@tool(description="Phase 72: Append a free-text journal entry to today's studio/memory/journal/<YYYY-MM-DD>.md file. Each entry is timestamped (HH:MM:SS) so the daily log builds a chronological record. Used by the /log slash command for the operator's personal notes — kept separate from tasks, decisions, and reviews.")
+def studio_journal_append(message: str) -> dict:
+    import time
+    state = _require_state()
+    message = (message or "").strip()
+    if not message:
+        return {"ok": False, "error": "message is empty"}
+    today = time.strftime("%Y-%m-%d", time.localtime())
+    timestamp = time.strftime("%H:%M:%S", time.localtime())
+    path = state.paths.journal_for_date(today)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # New file gets a date header so a quick `cat` is readable.
+    if not path.exists():
+        header = f"# Journal — {today}\n\n"
+    else:
+        header = ""
+    line = f"- **{timestamp}**  {message}\n"
+    with path.open("a", encoding="utf-8") as f:
+        if header:
+            f.write(header)
+        f.write(line)
+    return {
+        "ok": True,
+        "date": today,
+        "timestamp": timestamp,
+        "path": str(path),
+        "message": message,
+    }
+
+
+@tool(description="Phase 72: Read the last N days of journal entries from studio/memory/journal/. days defaults to 1 (today only). Returns each day's entries plus a flat 'recent' list so chat panels can render either a calendar view or a single stream. Days with no entries are skipped — the result never crashes when the journal directory is empty or missing.")
+def studio_journal_read(days: int = 1) -> dict:
+    import time
+    state = _require_state()
+    if days <= 0:
+        return {"ok": False, "error": "days must be positive"}
+
+    journal_dir = state.paths.journal
+    if not journal_dir.is_dir():
+        return {"ok": True, "days": days, "entries_by_date": {}, "recent": [], "total_days": 0}
+
+    today_ts = time.time()
+    entries_by_date: dict[str, str] = {}
+    recent: list[dict] = []
+    for offset in range(days):
+        day_ts = today_ts - offset * 86400
+        date_iso = time.strftime("%Y-%m-%d", time.localtime(day_ts))
+        path = state.paths.journal_for_date(date_iso)
+        if not path.is_file():
+            continue
+        content = path.read_text(encoding="utf-8")
+        entries_by_date[date_iso] = content
+        recent.append({"date": date_iso, "content": content})
+
+    return {
+        "ok": True,
+        "days": days,
+        "entries_by_date": entries_by_date,
+        "recent": recent,
+        "total_days": len(entries_by_date),
+    }
+
+
 @tool(description="Phase 71: Morning standup digest. Aggregates: tasks closed within the window, tasks currently in_progress, blocked tasks, pending backlog count, and a per-role breakdown of activity. window_hours defaults to 24 (since yesterday). The shape is consistent regardless of activity level so chat panels can render it without conditional logic.")
 def studio_standup(window_hours: float = 24.0) -> dict:
     import time

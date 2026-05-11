@@ -102,6 +102,15 @@ class StudioPaths:
         return self.root / "memory"
 
     @property
+    def journal(self) -> Path:
+        # Phase 72: studio/memory/journal/<YYYY-MM-DD>.md — daily log
+        # of /log entries the operator appends from chat.
+        return self.memory / "journal"
+
+    def journal_for_date(self, date_iso: str) -> Path:
+        return self.journal / f"{date_iso}.md"
+
+    @property
     def archive_root(self) -> Path:
         return self.root / "archive"
 
@@ -116,7 +125,7 @@ class StudioPaths:
         return self.reviews / f"{date_iso}.md"
 
     def all_dirs(self) -> list[Path]:
-        return [self.root, self.refs, self.reviews, self.qa, self.qa_screenshots, self.qa_diffs, self.memory, self.archive_root, self.strings, self.dialogs]
+        return [self.root, self.refs, self.reviews, self.qa, self.qa_screenshots, self.qa_diffs, self.memory, self.journal, self.archive_root, self.strings, self.dialogs]
 
     def exists(self) -> bool:
         return self.root.is_dir()
