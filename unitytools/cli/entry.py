@@ -491,9 +491,9 @@ def cmd_dual_chat(args: argparse.Namespace) -> int:
         console.print("[red]Dual-agent mode requires UNITYTOOLS_PROVIDER=ollama[/red]")
         return 1
     from .dual_chat import run_dual_chat
-    master = args.master or "qwen3.6:latest"
-    worker = args.worker or "qwen2.5:14b-instruct"
-    reader = getattr(args, "reader", None) or "qwen2.5:14b-instruct"
+    master = args.master or "gemma4:latest"
+    worker = args.worker or "gemma4:latest"
+    reader = getattr(args, "reader", None) or "gemma4:latest"
     master = _resolve_ollama_model(config, master, config.ollama_model)
     worker = _resolve_ollama_model(config, worker, config.ollama_model)
     reader = _resolve_ollama_model(config, reader, config.ollama_model)
@@ -1851,9 +1851,9 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
     # Check if dual-agent mode is enabled
     force_single = getattr(args, 'no_dual_agent', False)
     use_dual = False if force_single else getattr(args, 'use_dual_agent', False)
-    master_model = getattr(args, 'master', "qwen3.6:latest")
-    worker_model = getattr(args, 'worker', "qwen2.5:14b-instruct")
-    reader_model = getattr(args, 'reader', "qwen2.5:14b-instruct")
+    master_model = getattr(args, 'master', "gemma4:latest")
+    worker_model = getattr(args, 'worker', "gemma4:latest")
+    reader_model = getattr(args, 'reader', "gemma4:latest")
     enable_memory = getattr(args, 'enable_memory', True)
     enable_context = getattr(args, 'enable_context', True)
     
@@ -1920,9 +1920,9 @@ def main() -> int:
     sub.add_parser("cleanup-processes", help="Stop stale embedded UnityTools chat-server processes")
     sub.add_parser("chat", help="Start the terminal chat REPL")
     p_dual = sub.add_parser("dual-chat", help="Start dual-agent chat (Qwen 3.6 planner + Qwen 2.5 reader/worker by default)")
-    p_dual.add_argument("--master", default="qwen3.6:latest", help="Master model for planning (default: qwen3.6:latest, falls back if missing)")
-    p_dual.add_argument("--worker", default="qwen2.5:14b-instruct", help="Worker model for execution (default: qwen2.5:14b-instruct)")
-    p_dual.add_argument("--reader", default="qwen2.5:14b-instruct", help="Fast reader/context model (default: qwen2.5:14b-instruct)")
+    p_dual.add_argument("--master", default="gemma4:latest", help="Master model for planning (default: gemma4:latest, falls back if missing)")
+    p_dual.add_argument("--worker", default="gemma4:latest", help="Worker model for execution (default: gemma4:latest)")
+    p_dual.add_argument("--reader", default="gemma4:latest", help="Fast reader/context model (default: gemma4:latest)")
     sub.add_parser("unity-ping", help="Test the Unity Editor bridge")
     p_install = sub.add_parser("install-unity-plugin", help="Copy the Unity Editor panel, bridge, and Autopilot scripts into a Unity project")
     p_install.add_argument("--project", required=True, help="Path to the Unity project root")
@@ -2037,7 +2037,7 @@ def main() -> int:
     p_studio_run.add_argument(
         "--model",
         default="",
-        help="Override the LLM model for this run (e.g. gemma4:latest, qwen2.5:14b-instruct). Empty = use Config defaults.",
+        help="Override the LLM model for this run (e.g. gemma4:latest, gemma4:latest). Empty = use Config defaults.",
     )
     p_studio_run.add_argument(
         "--dry-run",
@@ -2122,9 +2122,9 @@ def main() -> int:
     p_chat_srv.add_argument("--port", type=int, default=7778)
     p_chat_srv.add_argument("--use-dual-agent", action="store_true", help="Enable dual-agent mode")
     p_chat_srv.add_argument("--no-dual-agent", action="store_true", help="Force fast single-agent mode even if USE_DUAL_AGENT=true")
-    p_chat_srv.add_argument("--master", default="qwen3.6:latest", help="Master model (dual-agent only; default: qwen3.6:latest, falls back if missing)")
-    p_chat_srv.add_argument("--worker", default="qwen2.5:14b-instruct", help="Worker model (dual-agent only)")
-    p_chat_srv.add_argument("--reader", default="qwen2.5:14b-instruct", help="Fast reader/context model (dual-agent only)")
+    p_chat_srv.add_argument("--master", default="gemma4:latest", help="Master model (dual-agent only; default: gemma4:latest, falls back if missing)")
+    p_chat_srv.add_argument("--worker", default="gemma4:latest", help="Worker model (dual-agent only)")
+    p_chat_srv.add_argument("--reader", default="gemma4:latest", help="Fast reader/context model (dual-agent only)")
     p_chat_srv.add_argument("--enable-memory", action="store_true", default=True, help="Enable memory system (default: true)")
     p_chat_srv.add_argument("--enable-context", action="store_true", default=True, help="Enable context management (default: true)")
     p_chat_srv.add_argument("--no-memory", dest="enable_memory", action="store_false", help="Disable memory system")

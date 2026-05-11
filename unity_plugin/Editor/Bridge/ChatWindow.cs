@@ -76,7 +76,7 @@ namespace UnityTools.Bridge
             _serverHost = EditorPrefs.GetString(PrefHostKey, "127.0.0.1");
             _serverPort = EditorPrefs.GetInt(PrefPortKey, 7778);
             _autoConnectEnabled = EditorPrefs.GetBool(PrefAutoConnectKey, true);
-            _providerLabel = ReadEnvValue("UNITYTOOLS_PROVIDER", "ollama") + " / " + ReadEnvValue("OLLAMA_MODEL", "qwen2.5:14b-instruct");
+            _providerLabel = ReadEnvValue("UNITYTOOLS_PROVIDER", "ollama") + " / " + ReadEnvValue("OLLAMA_MODEL", "gemma4:latest");
             EditorApplication.update += OnEditorUpdate;
             RefreshScenes();
             AddSystemMessage("UnityTools AI hazir. Gomulu core otomatik baslar.");
