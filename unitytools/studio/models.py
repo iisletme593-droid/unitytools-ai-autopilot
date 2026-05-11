@@ -36,8 +36,12 @@ class MilestoneStatus(str, Enum):
     ABANDONED = "abandoned"
 
 
-# Roles that can own tasks. Phase 2 will give each one a RoleAgent.
+# Roles that can own tasks. Each one has a dispatcher route in
+# studio/dispatch.py (DISPATCH_MAP). Extend this list whenever a new
+# RoleConfig is added in studio/roles.py — studio_add_task validates
+# the role field against this tuple.
 ROLES = (
+    # Phase 2 originals
     "producer",
     "designer",
     "art_director",
@@ -45,6 +49,24 @@ ROLES = (
     "tech_artist",
     "qa",
     "critic",
+    # Phase 4+ executors
+    "worker",
+    # Phase 23-30 specialists
+    "playtester",
+    "physics_qa",
+    "audio_director",
+    "audio_engineer",
+    "lighting_director",
+    "camera_director",
+    "vfx_director",
+    # Phase 31-41 specialists
+    "ui_builder",
+    "build_engineer",
+    "atmosphere_director",
+    "material_artist",
+    "marketing_director",
+    "game_balancer",
+    "localization_lead",
 )
 
 

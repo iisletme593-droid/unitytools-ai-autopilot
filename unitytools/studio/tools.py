@@ -509,6 +509,186 @@ def studio_unity_attach_audio_source(
     return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
 
 
+# ─── Game template scaffolder (Phase 42) ───────────────────────────────
+
+@tool(description="Scaffold a complete collectathon mini-game: drafts a milestone + a structured task batch covering Designer, Worker, UI Builder, Camera, Lighting, Atmosphere, Material, Audio Director + Engineer, Localization, Marketing, Build Engineer. Each task has concrete instructions referring to the Behaviour Library (GameSession / Collectible / ScoreHUD / KeyboardMover / PauseMenu). One Producer call -> a full backlog ready to dispatch. Returns the milestone id + list of opened task ids.")
+def studio_scaffold_collectathon_game(
+    game_name: str = "Coin Hunter",
+    coin_count: int = 10,
+    play_area_radius: float = 8.0,
+    win_scene_name: str = "WinScene",
+) -> dict:
+    state = _require_state()
+    if coin_count < 1 or coin_count > 100:
+        return {"ok": False, "error": "coin_count must be in 1..100."}
+    if play_area_radius <= 0 or play_area_radius > 50:
+        return {"ok": False, "error": "play_area_radius must be in (0, 50]."}
+
+    # 1) Create a milestone so all tasks link to one tracking row.
+    milestone_name = f"Ship MVP: {game_name}"
+    milestone = Milestone(
+        name=milestone_name,
+        description=(
+            f"End-to-end collectathon MVP. Player walks with KeyboardMover, "
+            f"collects {coin_count} coins (Collectible -> GameSession), HUD "
+            f"shows progress (ScoreHUD), win condition loads {win_scene_name!r}, "
+            f"Escape pauses (PauseMenu), settings persist (SettingsStore)."
+        ),
+    )
+    state.add_milestone(milestone)
+    milestone_id = milestone.id
+
+    # 2) Define the task batch. Each is intentionally concrete enough that a
+    #    Worker / specialist can execute without follow-up questions.
+    tasks_spec: list[tuple[str, str, str]] = [
+        (
+            "designer",
+            f"Draft GDD for {game_name}",
+            f"Write a one-page GDD for a collectathon MVP. Pitch: 'Walk + collect "
+            f"{coin_count} coins to win.' Pillars: discoverable, no fail state, "
+            f"under 5-minute runs. Win scene: {win_scene_name!r}. Update GDD via "
+            "studio_write_gdd; propose any non-trivial decisions."
+        ),
+        (
+            "art_director",
+            "Draft Art Bible — palette + style",
+            "Pick a 4-colour palette + style sentence + lighting recipe + 'do not' "
+            "list. Save via studio_write_art_bible. Propose a decision for the "
+            "dominant palette so downstream Lighting + Atmosphere + Material "
+            "Artist roles align."
+        ),
+        (
+            "worker",
+            f"Place player + {coin_count} coins + GameSession",
+            f"Step-by-step:\n"
+            f"1. unity_create_scene_snapshot(label='{{task_id}}_before')\n"
+            f"2. unity_create_primitive(primitive_type='Capsule', name='Player')\n"
+            f"   then unity_set_position(name='Player', y=1.0)\n"
+            f"3. unity_attach_behaviour(target_name='Player', behaviour_name='KeyboardMover',\n"
+            f"   params={{'speed': 5.0, 'applyGravity': true}})\n"
+            f"4. Create an empty GameObject 'GameSession' (unity_create_empty),\n"
+            f"   attach GameSession with winScore={coin_count}, winSceneName='{win_scene_name}'.\n"
+            f"5. Place {coin_count} coins on a circle of radius {play_area_radius} around (0,0,0):\n"
+            f"   for i in 0..{coin_count-1}: unity_create_primitive('Sphere', name='Coin_{{i}}'),\n"
+            f"   set_position to (cos(angle)*r, 1, sin(angle)*r), set_scale to 0.4,\n"
+            f"   add SphereCollider with isTrigger=true (via unity_add_component),\n"
+            f"   unity_attach_behaviour(behaviour_name='Collectible',\n"
+            f"      params={{'scoreValue': 1, 'playerFilter': 'Player'}}),\n"
+            f"   unity_attach_behaviour(behaviour_name='Rotator',\n"
+            f"      params={{'speedDegPerSec': 90}}).\n"
+            f"6. unity_save_scene()\n"
+            f"7. studio_update_task_status('{{task_id}}', 'done')"
+        ),
+        (
+            "ui_builder",
+            "Build HUD + Pause Canvas",
+            f"Step-by-step:\n"
+            f"1. unity_create_ui_canvas(name='HUDCanvas')\n"
+            f"2. unity_create_ui_text(canvas_name='HUDCanvas', name='ScoreText',\n"
+            f"   text='Coins: 0/{coin_count}', position_x=0, position_y=320, font_size=42)\n"
+            f"3. unity_attach_behaviour(target_name='ScoreText',\n"
+            f"   behaviour_name='ScoreHUD', params={{'format': 'Coins: {{score}}/{{win}}'}})\n"
+            f"4. unity_create_ui_canvas(name='PauseCanvas')\n"
+            f"5. unity_create_ui_text(canvas_name='PauseCanvas', name='PausedLabel',\n"
+            f"   text='Paused', position_y=80, font_size=64)\n"
+            f"6. unity_create_ui_button(canvas_name='PauseCanvas', name='ResumeButton',\n"
+            f"   label='Resume', position_y=-80, width=240, height=72)\n"
+            f"7. unity_attach_behaviour(target_name='PauseCanvas',\n"
+            f"   behaviour_name='PauseMenu', params={{'toggleKey': 'Escape'}})\n"
+            f"8. unity_attach_behaviour(target_name='HUDCanvas',\n"
+            f"   behaviour_name='SettingsStore')\n"
+            f"9. unity_save_scene(); studio_update_task_status('{{task_id}}', 'done')"
+        ),
+        (
+            "lighting_director",
+            "Light the playfield",
+            "Audit lighting (studio_lighting_audit). If no directional light, add "
+            "one tinted toward the Art Bible palette. Land verdict=pass."
+        ),
+        (
+            "atmosphere_director",
+            "Set sky + fog matching palette",
+            "Read Art Bible. Configure procedural skybox + fog mode that fits the "
+            "dominant palette. Run studio_atmosphere_audit until verdict=pass."
+        ),
+        (
+            "camera_director",
+            "Frame the play area",
+            f"Frame the play area at center=(0,0,0) radius={play_area_radius}. Use "
+            f"studio_camera_frame_check(target_name='GameSession', "
+            f"distance={play_area_radius * 1.8:.1f}, yaw_degrees=-30, "
+            f"pitch_degrees=55) for an overhead hero shot."
+        ),
+        (
+            "material_artist",
+            "Make coins read as gold",
+            "For each Coin_N, set_material_pbr(metallic=1.0, smoothness=0.85). "
+            "Skip if Worker already left a non-default PBR."
+        ),
+        (
+            "audio_director",
+            "Draft Audio Brief",
+            "Write a one-page brief: upbeat / playful mood, 44.1kHz / 16-bit, "
+            "1 ambient music loop + 1 pickup SFX. Save via studio_write_audio_brief."
+        ),
+        (
+            "localization_lead",
+            "Seed en + tr string tables",
+            f"studio_write_strings('en', strings={{"
+            f"'title.main': '{game_name}', 'btn.start': 'Start', 'btn.resume': 'Resume', "
+            f"'hud.coins': 'Coins: ', 'screen.win': 'You Win!', 'screen.pause': 'Paused'"
+            f"}}). Then translate the same keys into 'tr'. Run "
+            f"studio_localization_audit until verdict=pass."
+        ),
+        (
+            "marketing_director",
+            "Finalize PlayerSettings + press kit",
+            f"unity_set_player_settings(product_name='{game_name}', "
+            f"company_name='UnityTools Studio', version='0.1.0', "
+            f"bundle_id='com.unitytools.{game_name.lower().replace(' ', '')}'). "
+            "Capture a hero shot. Write press_kit citing real screenshot paths."
+        ),
+        (
+            "playtester",
+            "Smoke-test the build",
+            "Run studio_playtest_smoke(expected_object_names=['Player', 'GameSession', "
+            "'HUDCanvas']). Mark blocked if any go missing."
+        ),
+        (
+            "build_engineer",
+            "Ship Windows build",
+            "Run studio_build_check; if pass, unity_build_player(target='windows', "
+            f"output_path='studio/builds/<date>/windows/{game_name.replace(' ', '')}.exe'). "
+            "Report warnings."
+        ),
+    ]
+
+    opened: list[dict] = []
+    for role, title, description in tasks_spec:
+        if role not in ROLES:
+            # Skip a role that isn't registered (e.g. older ROLES tuple). Log
+            # silently rather than failing the whole scaffold.
+            continue
+        task = Task(
+            title=title,
+            role=role,
+            description=description,
+            milestone=milestone_id,
+        )
+        state.add_task(task)
+        opened.append({"task_id": task.id, "role": task.role, "title": task.title})
+
+    return {
+        "ok": True,
+        "game_name": game_name,
+        "coin_count": coin_count,
+        "milestone_id": milestone_id,
+        "milestone_name": milestone_name,
+        "task_count": len(opened),
+        "tasks": opened,
+    }
+
+
 # ─── Localization (Phase 39) ───────────────────────────────────────────
 
 _LOCALE_CODE_RE = re.compile(r"^[a-z]{2}(?:-[A-Z]{2})?$")
@@ -1882,6 +2062,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_read_strings",
     "studio_write_strings",
     "studio_localization_audit",
+    # game template scaffolder (Phase 42)
+    "studio_scaffold_collectathon_game",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

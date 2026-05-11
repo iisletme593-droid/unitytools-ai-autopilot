@@ -1086,6 +1086,9 @@ PRODUCER = RoleConfig(
         # Phase 33: spend observability — the Producer cites yesterday's
         # cost in retro / standup summaries so the operator sees burn rate.
         "studio_cost_summary",
+        # Phase 42: scaffold a complete collectathon MVP in one call when
+        # the GDD is empty and the user asked for a "make me a game" task.
+        "studio_scaffold_collectathon_game",
     ),
 )
 
