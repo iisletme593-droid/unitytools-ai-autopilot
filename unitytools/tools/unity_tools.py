@@ -861,6 +861,8 @@ _BEHAVIOUR_LIBRARY = (
     "GameSession", "Collectible", "ScoreHUD",
     # Phase 41: pause + persistent settings
     "PauseMenu", "SettingsStore",
+    # Phase 43: combat primitives
+    "Projectile", "Shooter", "Spawner", "Enemy",
 )
 
 

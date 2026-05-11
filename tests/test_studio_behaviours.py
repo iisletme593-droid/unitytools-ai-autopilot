@@ -100,10 +100,12 @@ def test_behaviour_library_contains_known_behaviours() -> None:
         "GameSession", "Collectible", "ScoreHUD",
         # Phase 41 pause + persistent settings
         "PauseMenu", "SettingsStore",
+        # Phase 43 combat primitives
+        "Projectile", "Shooter", "Spawner", "Enemy",
     }
     assert set(_BEHAVIOUR_LIBRARY) == expected
-    assert len(_BEHAVIOUR_LIBRARY) == 15
-    print("OK Behaviour library exposes 15 known names")
+    assert len(_BEHAVIOUR_LIBRARY) == 19
+    print("OK Behaviour library exposes 19 known names")
 
 
 def test_each_behaviour_has_a_corresponding_cs_file() -> None:
@@ -243,6 +245,86 @@ def test_pause_and_settings_in_runtime_namespace() -> None:
         assert "namespace UnityTools.Behaviours" in body, f"{name}.cs has wrong namespace"
         assert "using UnityEditor;" not in body, f"{name}.cs must not import UnityEditor"
     print("OK PauseMenu + SettingsStore in UnityTools.Behaviours, no UnityEditor leak")
+
+
+# ───────────────────────────────────────────── combat primitives (Phase 43)
+
+
+def test_projectile_moves_lifetime_and_damages_enemy() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "Projectile.cs").read_text(encoding="utf-8")
+    # Tunable fields
+    for f in ("speed", "lifetime", "damage", "ignoreNamePrefix"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"Projectile.{f} field missing"
+    # Lifetime path
+    assert "Destroy(gameObject, lifetime)" in body
+    # Hooks both 3D + 2D physics
+    assert "OnTriggerEnter(Collider" in body
+    assert "OnTriggerEnter2D(Collider2D" in body
+    # Calls Enemy.TakeDamage when hitting an Enemy
+    assert "Enemy" in body
+    assert "TakeDamage" in body
+    # Ignore-prefix safety so the projectile doesn't kill its own shooter
+    assert "ignoreNamePrefix" in body
+    print("OK Projectile contract: speed/lifetime/damage + 3D+2D trigger + Enemy.TakeDamage + ignore prefix")
+
+
+def test_enemy_takes_damage_and_awards_score_on_death() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "Enemy.cs").read_text(encoding="utf-8")
+    # Public state machine
+    for f in ("health", "scoreOnDeath", "contactDamage", "playerNamePrefix"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"Enemy.{f} field missing"
+    # TakeDamage entry point
+    assert re.search(r"public\s+void\s+TakeDamage\s*\(", body), "Enemy.TakeDamage(int) missing"
+    # Die path -> GameSession score reward
+    assert "GameSession.Current" in body
+    assert "AddScore" in body
+    # Contact damage path -> LoseLife
+    assert "LoseLife" in body
+    # Death actually removes the GameObject
+    assert "Destroy(gameObject)" in body
+    print("OK Enemy contract: TakeDamage + die + AddScore on death + LoseLife on player contact")
+
+
+def test_shooter_resolves_template_and_rate_limits() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "Shooter.cs").read_text(encoding="utf-8")
+    # Tunable fields
+    for f in ("projectileTemplateName", "fireKey", "fireRate", "aimAtMouse"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"Shooter.{f} field missing"
+    # Rate limit by Time.time
+    assert "Time.time" in body
+    assert "fireRate" in body
+    # Aim with mouse uses Camera.main + ScreenPointToRay
+    assert "Camera.main" in body
+    assert "ScreenPointToRay" in body
+    # Clones template via Instantiate
+    assert "Instantiate(_template" in body
+    # Hides the template so it doesn't show in scene
+    assert "_template.SetActive(false)" in body
+    print("OK Shooter contract: template-by-name + fireRate gate + mouse aim + Instantiate clone + template hidden")
+
+
+def test_spawner_caps_alive_and_prunes_dead_refs() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "Spawner.cs").read_text(encoding="utf-8")
+    # Tunable fields
+    for f in ("templateName", "interval", "maxAlive", "spawnRadius", "warmup", "flatXZ"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"Spawner.{f} field missing"
+    # Tracks live clones
+    assert "List<GameObject>" in body
+    # Prunes destroyed clones each frame
+    assert "_alive[i] == null" in body or "alive[i] == null" in body
+    # Caps spawn at maxAlive
+    assert "maxAlive" in body
+    # Hides template
+    assert "_template.SetActive(false)" in body
+    print("OK Spawner contract: template-by-name + interval + cap maxAlive + flatXZ option + prunes dead refs")
+
+
+def test_combat_quartet_in_runtime_namespace() -> None:
+    for name in ("Projectile", "Shooter", "Spawner", "Enemy"):
+        body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / f"{name}.cs").read_text(encoding="utf-8")
+        assert "namespace UnityTools.Behaviours" in body, f"{name}.cs has wrong namespace"
+        assert "using UnityEditor;" not in body, f"{name}.cs must not import UnityEditor"
+    print("OK combat quartet (Projectile + Shooter + Spawner + Enemy) all in UnityTools.Behaviours, no UnityEditor leak")
 
 
 # ───────────────────────────────────────────── wrapper validation
@@ -387,6 +469,12 @@ def run_test() -> None:
     test_pause_menu_toggles_panel_and_time_scale()
     test_settings_store_uses_player_prefs_with_namespace()
     test_pause_and_settings_in_runtime_namespace()
+    # Phase 43 combat
+    test_projectile_moves_lifetime_and_damages_enemy()
+    test_enemy_takes_damage_and_awards_score_on_death()
+    test_shooter_resolves_template_and_rate_limits()
+    test_spawner_caps_alive_and_prunes_dead_refs()
+    test_combat_quartet_in_runtime_namespace()
     # Wrappers
     test_attach_behaviour_rejects_unknown_name()
     test_attach_behaviour_requires_target_name()

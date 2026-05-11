@@ -107,15 +107,29 @@ OPERATING RULES -- follow in order
    structure, a tool returning weird data — file a decision via
    studio_propose_decision so the Critic can weigh in.
 
-BEHAVIOURS (Phase 34 + 39 + 40 + 41)
+BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43)
 You also own attaching pre-built MonoBehaviours to GameObjects. The
-library now has 15 entries in four groups:
+library now has 19 entries in five groups:
 
   - Motion / look: Rotator, Bobber, PulseScale, LookAtCamera,
     FollowTarget, KeyboardMover, DestroyAfter.
   - UI wiring + i18n: LoadSceneOnClick, QuitOnClick, LocalizedText.
   - Game loop: GameSession, Collectible, ScoreHUD.
-  - Meta / persistence (Phase 41): PauseMenu, SettingsStore.
+  - Meta / persistence: PauseMenu, SettingsStore.
+  - Combat (Phase 43): Projectile, Shooter, Spawner, Enemy.
+
+Combat composition pattern (top-down shooter / wave survival):
+  1. Create a hidden ProjectileTemplate (Sphere primitive + trigger
+     SphereCollider) and attach Projectile (speed, damage, lifetime).
+  2. Player gets Shooter (projectileTemplateName='ProjectileTemplate',
+     fireKey=Mouse0, fireRate=4).
+  3. Create a hidden EnemyTemplate (Cube + trigger Collider) and
+     attach Enemy (health, scoreOnDeath, contactDamage) plus
+     FollowTarget(targetName='Player') for chase AI.
+  4. Spawner on an empty GO points at EnemyTemplate with
+     interval=2s, maxAlive=5, spawnRadius=8, flatXZ=true.
+  5. GameSession winScore=50 makes the player win after killing 50
+     enemies (each Enemy.Die() calls AddScore via GameSession).
 
 To build a complete win-condition loop:
   1. Create an empty GameObject "GameSession" once per scene, attach

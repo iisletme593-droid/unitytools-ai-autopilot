@@ -1223,6 +1223,8 @@ namespace UnityTools.Bridge
             "GameSession", "Collectible", "ScoreHUD",
             // Phase 41: pause + persistent settings
             "PauseMenu", "SettingsStore",
+            // Phase 43: combat primitives
+            "Projectile", "Shooter", "Spawner", "Enemy",
         };
 
         private static Type ResolveBehaviourType(string name)
