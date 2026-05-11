@@ -70,6 +70,7 @@ ROLES = (
     "tutorial_designer",
     "scene_director",
     "achievement_designer",
+    "storyteller",
 )
 
 

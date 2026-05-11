@@ -114,10 +114,12 @@ def test_behaviour_library_contains_known_behaviours() -> None:
         "HealthBar", "CameraShake",
         # Phase 54 settings menu primitives
         "VolumeSlider", "LocaleSelector",
+        # Phase 55 narrative primitive
+        "DialogText",
     }
     assert set(_BEHAVIOUR_LIBRARY) == expected
-    assert len(_BEHAVIOUR_LIBRARY) == 29
-    print("OK Behaviour library exposes 29 known names")
+    assert len(_BEHAVIOUR_LIBRARY) == 30
+    print("OK Behaviour library exposes 30 known names")
 
 
 def test_each_behaviour_has_a_corresponding_cs_file() -> None:
@@ -642,6 +644,41 @@ def test_settings_duo_in_runtime_namespace() -> None:
     print("OK VolumeSlider + LocaleSelector in UnityTools.Behaviours, no UnityEditor leak")
 
 
+# ───────────────────────────────────────────── narrative (Phase 55)
+
+
+def test_dialog_text_requires_text_and_walks_lines_on_advance_key() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "DialogText.cs").read_text(encoding="utf-8")
+    # Hard contract: requires a UI Text
+    assert "RequireComponent(typeof(Text))" in body
+    # Tunables
+    for f in ("dialogId", "advanceKey", "autoAdvanceSeconds"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"DialogText.{f} field missing"
+    # UnityEvent OnComplete (so designers can hook scene transitions
+    # in the inspector when the last line is advanced past)
+    assert "UnityEvent" in body
+    assert "OnComplete" in body
+    # Public read-only state
+    assert re.search(r"public\s+int\s+CurrentIndex\s*{\s*get", body), "CurrentIndex getter missing"
+    assert re.search(r"public\s+bool\s+IsComplete\s*{\s*get", body), "IsComplete getter missing"
+    # Public Advance + Reset methods
+    assert re.search(r"public\s+void\s+Advance\s*\(", body), "Advance() missing"
+    assert re.search(r"public\s+void\s+Reset\s*\(", body), "Reset() missing"
+    # Loads from Resources/Dialogs/<dialogId> at runtime
+    assert 'Resources.Load<TextAsset>' in body
+    assert "Dialogs/" in body
+    # Advance on key press
+    assert "Input.GetKeyDown(advanceKey)" in body
+    print("OK DialogText contract: Text required + 3 tunables + UnityEvent OnComplete + CurrentIndex/IsComplete + Advance/Reset + Resources.Load + key advance")
+
+
+def test_dialog_text_in_runtime_namespace() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "DialogText.cs").read_text(encoding="utf-8")
+    assert "namespace UnityTools.Behaviours" in body
+    assert "using UnityEditor;" not in body
+    print("OK DialogText in UnityTools.Behaviours, no UnityEditor leak")
+
+
 # ───────────────────────────────────────────── wrapper validation
 
 
@@ -812,6 +849,9 @@ def run_test() -> None:
     test_volume_slider_requires_slider_and_persists_via_settings_store()
     test_locale_selector_cycles_and_calls_localized_text()
     test_settings_duo_in_runtime_namespace()
+    # Phase 55 narrative
+    test_dialog_text_requires_text_and_walks_lines_on_advance_key()
+    test_dialog_text_in_runtime_namespace()
     # Wrappers
     test_attach_behaviour_rejects_unknown_name()
     test_attach_behaviour_requires_target_name()

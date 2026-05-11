@@ -875,6 +875,8 @@ _BEHAVIOUR_LIBRARY = (
     "HealthBar", "CameraShake",
     # Phase 54: settings menu primitives
     "VolumeSlider", "LocaleSelector",
+    # Phase 55: narrative primitive
+    "DialogText",
 )
 
 

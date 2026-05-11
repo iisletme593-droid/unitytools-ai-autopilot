@@ -53,6 +53,11 @@ class StudioPaths:
         return self.root / "strings"
 
     @property
+    def dialogs(self) -> Path:
+        """Directory holding per-id dialog files (<id>.json, flat string array)."""
+        return self.root / "dialogs"
+
+    @property
     def sprint_current(self) -> Path:
         return self.root / "sprint_current.md"
 
@@ -111,7 +116,7 @@ class StudioPaths:
         return self.reviews / f"{date_iso}.md"
 
     def all_dirs(self) -> list[Path]:
-        return [self.root, self.refs, self.reviews, self.qa, self.qa_screenshots, self.qa_diffs, self.memory, self.archive_root, self.strings]
+        return [self.root, self.refs, self.reviews, self.qa, self.qa_screenshots, self.qa_diffs, self.memory, self.archive_root, self.strings, self.dialogs]
 
     def exists(self) -> bool:
         return self.root.is_dir()

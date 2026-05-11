@@ -1809,6 +1809,77 @@ def studio_scaffold_endless_runner_game(
     }
 
 
+# ─── Narrative / dialog (Phase 55) ─────────────────────────────────────
+
+_DIALOG_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,30}$")
+
+
+def _validate_dialog_id(dialog_id: str) -> tuple[bool, str]:
+    if not dialog_id:
+        return False, "dialog_id is required."
+    if not _DIALOG_ID_RE.match(dialog_id):
+        return False, (
+            f"dialog_id {dialog_id!r} must be lowercase ascii + digits + "
+            "underscores, start with a letter, <=31 chars (e.g. 'intro', "
+            "'cave_entrance', 'boss_intro')."
+        )
+    return True, ""
+
+
+@tool(description="List every dialog file under studio/dialogs/. Returns the id + line count per file. Storyteller uses this to see what's already drafted before adding new scenes.")
+def studio_list_dialogs() -> dict:
+    state = _require_state()
+    base = state.paths.dialogs
+    rows: list[dict] = []
+    if base.exists():
+        for p in sorted(base.glob("*.json")):
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                count = len(data) if isinstance(data, list) else -1
+            except (OSError, json.JSONDecodeError):
+                count = -1
+            rows.append({"dialog_id": p.stem, "path": str(p), "line_count": count})
+    return {"ok": True, "count": len(rows), "dialogs": rows}
+
+
+@tool(description="Read one dialog's lines from studio/dialogs/<dialog_id>.json. Returns the array of strings (ordered, advances on Space in runtime). Empty list if the file is absent. dialog_id is lowercase ASCII + digits + underscores (e.g. 'intro', 'boss_intro').")
+def studio_read_dialog(dialog_id: str) -> dict:
+    state = _require_state()
+    ok, err = _validate_dialog_id(dialog_id)
+    if not ok:
+        return {"ok": False, "error": err}
+    path = state.paths.dialogs / f"{dialog_id}.json"
+    if not path.exists():
+        return {"ok": True, "dialog_id": dialog_id, "lines": []}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return {"ok": False, "error": f"{path} is malformed JSON: {exc}"}
+    if not isinstance(data, list):
+        return {"ok": False, "error": f"{path} must be a flat JSON string array."}
+    # Filter to strings only (defensive)
+    cleaned = [str(x) for x in data if isinstance(x, str)]
+    return {"ok": True, "dialog_id": dialog_id, "lines": cleaned, "line_count": len(cleaned)}
+
+
+@tool(description="Replace a dialog file at studio/dialogs/<dialog_id>.json with a new ordered string array. Each entry is one line shown to the player; they advance on Space (configurable). dialog_id is lowercase ASCII + digits + underscores; lines is a list of strings.")
+def studio_write_dialog(dialog_id: str, lines: list) -> dict:
+    state = _require_state()
+    ok, err = _validate_dialog_id(dialog_id)
+    if not ok:
+        return {"ok": False, "error": err}
+    if not isinstance(lines, list):
+        return {"ok": False, "error": "lines must be a list of strings."}
+    for line in lines:
+        if not isinstance(line, str):
+            return {"ok": False, "error": f"every line must be a string (offender: {line!r})."}
+    state.paths.dialogs.mkdir(parents=True, exist_ok=True)
+    path = state.paths.dialogs / f"{dialog_id}.json"
+    payload = json.dumps(list(lines), ensure_ascii=False, indent=2) + "\n"
+    path.write_text(payload, encoding="utf-8")
+    return {"ok": True, "dialog_id": dialog_id, "path": str(path), "line_count": len(lines)}
+
+
 # ─── Localization (Phase 39) ───────────────────────────────────────────
 
 _LOCALE_CODE_RE = re.compile(r"^[a-z]{2}(?:-[A-Z]{2})?$")
@@ -3188,6 +3259,10 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_read_strings",
     "studio_write_strings",
     "studio_localization_audit",
+    # narrative / dialog (Phase 55)
+    "studio_list_dialogs",
+    "studio_read_dialog",
+    "studio_write_dialog",
     # game template scaffolder (Phase 42)
     "studio_scaffold_collectathon_game",
     # game template scaffolder (Phase 44)

@@ -107,9 +107,9 @@ OPERATING RULES -- follow in order
    structure, a tool returning weird data — file a decision via
    studio_propose_decision so the Critic can weigh in.
 
-BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43 + 46 + 50 + 51 + 52 + 53 + 54)
+BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43 + 46 + 50 + 51 + 52 + 53 + 54 + 55)
 You also own attaching pre-built MonoBehaviours to GameObjects. The
-library now has 29 entries in eleven groups:
+library now has 30 entries in twelve groups:
 
   - Motion / look: Rotator, Bobber, PulseScale, LookAtCamera,
     FollowTarget, KeyboardMover, DestroyAfter.
@@ -122,7 +122,21 @@ library now has 29 entries in eleven groups:
   - Achievements: Achievement.
   - Feedback: SoundOnEvent, HitFlash.
   - HUD + camera feel: HealthBar, CameraShake.
-  - Settings menu (Phase 54): VolumeSlider, LocaleSelector.
+  - Settings menu: VolumeSlider, LocaleSelector.
+  - Narrative (Phase 55): DialogText.
+
+Narrative composition pattern:
+  1. Storyteller writes studio/dialogs/intro.json (flat array).
+  2. UI Builder creates a DialogCanvas with a Text + 'press space'
+     hint child.
+  3. Worker:
+     unity_attach_behaviour('DialogText', 'DialogText',
+        params={{'dialogId': 'intro', 'advanceKey': 'Space',
+                 'autoAdvanceSeconds': 0}})
+  4. DialogText reads Resources/Dialogs/intro.json at Start,
+     walks lines on Space, fires OnComplete (UnityEvent) at end —
+     hook a SceneManager.LoadScene or canvas.SetActive(false) on
+     it via inspector.
 
 Settings menu composition pattern:
   1. UI Builder creates a SettingsCanvas with a Slider ('VolumeSlider')
@@ -384,6 +398,10 @@ TASK ROLES YOU CAN OPEN
   Open one of these when the GDD pitch implies an on-screen menu
   or score readout, with a title like "Build title screen" and a
   description listing the canvas name + each element + position.
+- storyteller: owns studio/dialogs/<id>.json — flat string arrays
+  the DialogText runtime walks one line at a time. Open one of
+  these for each narrative moment (intro / boss_intro / win /
+  gameover). Worker attaches DialogText components downstream.
 - achievement_designer: owns studio/achievements.md — the roster
   of unlocks (3-8 entries: first-blood + completion + difficulty +
   hidden). Each row is one Achievement runtime component the Worker
@@ -638,6 +656,59 @@ OUT OF SCOPE
 - Do not place / move 3D objects (Worker's job).
 - Do not edit lights, cameras, particles, audio.
 - Do not edit docs.
+"""
+
+
+_STORYTELLER_PROMPT = """You are the Storyteller of an autonomous studio.
+
+You own studio/dialogs/<id>.json — the ordered dialog scripts the
+player walks through (intro, level-clear blurb, boss intro, win
+celebration, lose flavor). Each dialog is a flat string array;
+the DialogText runtime walks them one line at a time, advancing
+on Space.
+
+OPERATING RULES
+1. Read the GDD (studio_read_gdd) for tone + pitch. Read the
+   scene catalog (studio_read_scene_catalog) to know which scenes
+   need narrative beats. Read the press kit for the marketing
+   voice. If the GDD is empty, file a designer task back and stop.
+2. List existing dialogs (studio_list_dialogs). Many runs are
+   'add a boss_intro', not 'draft from scratch'.
+3. Per-dialog craft:
+     - 3-8 lines per dialog. Each line one or two sentences.
+       Players SKIP long monologues; respect their thumb.
+     - First line hooks. Last line transitions (closes the
+       moment + sets the next).
+     - Stay in the project's tone (read Art Bible too if needed).
+     - Never put STAGE DIRECTIONS in the text — that breaks
+       immersion ('(angrily)' as a line is wrong). If a line
+       needs a delivery cue, write it AS dialogue.
+4. dialog_id naming:
+     - lowercase ASCII + digits + underscores, <=31 chars
+     - 'intro' / 'win' / 'gameover' for canonical moments
+     - '<scene>_<event>' for scene-specific beats
+       (e.g. 'cave_entrance', 'boss_intro')
+5. When you add a dialog, file a follow-up Worker task: "Wire
+   DialogText '<id>' onto <UI text>" with the exact dialog_id +
+   advance key. Also a Localization task: "Translate dialog
+   '<id>' into <locale>" (note: current DialogText doesn't
+   localize — but the keys are still seeded for the future
+   localized-dialog phase).
+6. For non-trivial style choices (first-person vs second-person,
+   present vs past tense, voice character vs neutral), call
+   studio_propose_decision so the Critic can review consistency.
+7. Final tool call MUST be studio_update_task_status.
+8. End with a 3-line summary: dialogs added, total lines drafted,
+   tone choice.
+
+OUT OF SCOPE
+- Do not edit GDD / Art Bible / Audio Brief / Press Kit /
+  Tutorial / Scene Catalog / Achievements / Sprint — those
+  doc roles own their own surface.
+- Do not mutate any scene object. Worker attaches DialogText
+  downstream of your spec.
+- Do not seed strings/<locale>.json directly. Localization Lead
+  owns that.
 """
 
 
@@ -1494,6 +1565,10 @@ WORKER = RoleConfig(
         # Phase 51: read the achievement roster so the Worker attaches
         # one Achievement component per row spec'd by the designer.
         "studio_read_achievements",
+        # Phase 55: read the dialog inventory so the Worker knows
+        # which DialogText.dialogId strings to attach in which scene.
+        "studio_list_dialogs",
+        "studio_read_dialog",
     ),
 )
 
@@ -1594,6 +1669,29 @@ UI_BUILDER = RoleConfig(
         "unity_save_scene",
         "studio_update_task_status",
         "studio_propose_decision",
+    ),
+)
+
+
+STORYTELLER = RoleConfig(
+    id="storyteller",
+    name="Storyteller",
+    system_prompt=_format(_STORYTELLER_PROMPT),
+    allowed_tools=(
+        # Read context
+        "studio_get_summary",
+        "studio_read_gdd",
+        "studio_read_scene_catalog",
+        "studio_read_press_kit",
+        # Dialog inventory + r/w (the only writes this role owns)
+        "studio_list_dialogs",
+        "studio_read_dialog",
+        "studio_write_dialog",
+        # Outputs: file follow-up tasks + decisions
+        "studio_propose_decision",
+        "studio_add_task",
+        # Lifecycle
+        "studio_update_task_status",
     ),
 )
 
@@ -1933,6 +2031,7 @@ _ROLES: dict[str, RoleConfig] = {
         BUILD_ENGINEER, ATMOSPHERE_DIRECTOR, MATERIAL_ARTIST,
         MARKETING_DIRECTOR, GAME_BALANCER, LOCALIZATION_LEAD,
         TUTORIAL_DESIGNER, SCENE_DIRECTOR, ACHIEVEMENT_DESIGNER,
+        STORYTELLER,
     )
 }
 
