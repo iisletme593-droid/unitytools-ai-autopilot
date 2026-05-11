@@ -589,6 +589,64 @@ def cmd_studio_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_studio_export(args: argparse.Namespace) -> int:
+    """Build a single-file JSON snapshot of the studio."""
+    from ..studio import (
+        StudioPaths,
+        StudioState,
+        build_snapshot,
+        init_studio_tools,
+        snapshot_to_json,
+    )
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init --project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    config = None
+    if args.include_doctor:
+        config, _, _ = _bootstrap()
+
+    snapshot = build_snapshot(
+        state,
+        config=config,
+        include_doctor=args.include_doctor,
+        include_history=args.include_history,
+        include_reviews=args.include_reviews,
+        include_regression=args.include_regression,
+    )
+    payload = snapshot_to_json(snapshot, pretty=not args.compact)
+
+    if args.output and args.output != "-":
+        out_path = Path(args.output).expanduser().resolve()
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(payload, encoding="utf-8", newline="\n")
+        console.print(
+            f"[green][OK][/green] Wrote {len(payload):,} bytes to {out_path}"
+        )
+        # Brief summary at stderr-like emphasis
+        tasks_n = len(snapshot.get("tasks", []))
+        decisions_n = len(snapshot.get("decisions", []))
+        milestones_n = len(snapshot.get("milestones", []))
+        console.print(
+            f"[dim]  tasks={tasks_n}, decisions={decisions_n}, milestones={milestones_n}, "
+            f"archive_total={snapshot.get('archive_summary', {}).get('total', 0)}[/dim]"
+        )
+    else:
+        # Print to stdout (default). Use a plain print so jq / less work without
+        # rich's ANSI wrappers tangling the output.
+        import sys as _sys
+        _sys.stdout.write(payload)
+        _sys.stdout.flush()
+    return 0
+
+
 def cmd_studio_tasks(args: argparse.Namespace) -> int:
     """Browse active backlog tasks with filters."""
     from ..studio import (
@@ -1749,6 +1807,18 @@ def main() -> int:
     p_studio_init.add_argument("--force", action="store_true", help="Overwrite starter docs if they already exist (JSON state is always preserved)")
     p_studio_doctor = sub.add_parser("studio-doctor", help="Run studio health checks (provider, Ollama, Pillow, Unity bridge, disk state, recent activity).")
     p_studio_doctor.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_export = sub.add_parser(
+        "studio-export",
+        help="Single-file JSON snapshot of the studio (docs, tasks, decisions, milestones+progress, archive summary, thresholds).",
+    )
+    p_studio_export.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_export.add_argument("--output", "-o", default="-", help="Output file path; '-' or omit for stdout.")
+    p_studio_export.add_argument("--compact", action="store_true", help="No indentation (compact one-line JSON).")
+    p_studio_export.add_argument("--include-doctor", action="store_true", help="Run health checks and embed under 'doctor'.")
+    p_studio_export.add_argument("--include-history", type=int, default=0, help="Embed last N archived tasks (default 0: archive summary only).")
+    p_studio_export.add_argument("--include-reviews", type=int, default=0, help="Embed last N review markdown files verbatim (default 0: filenames only).")
+    p_studio_export.add_argument("--include-regression", type=int, default=50, help="Tail of qa/regression.jsonl entries (default 50; 0 to omit).")
+
     p_studio_tasks = sub.add_parser("studio-tasks", help="Browse active backlog tasks with filters.")
     p_studio_tasks.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
     p_studio_tasks.add_argument("--status", default="", help="Filter by status (pending/in_progress/blocked/review/done/rejected).")
@@ -1921,6 +1991,7 @@ def main() -> int:
         "studio-decisions": cmd_studio_decisions,
         "studio-tasks": cmd_studio_tasks,
         "studio-milestones": cmd_studio_milestones,
+        "studio-export": cmd_studio_export,
         "studio-status": cmd_studio_status,
         "studio-run": cmd_studio_run,
         "studio-review": cmd_studio_review,

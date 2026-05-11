@@ -65,6 +65,7 @@ from .decisions import (
     ratify_decision,
 )
 from .milestones import all_milestones_with_progress, milestone_progress
+from .export import SCHEMA_VERSION as EXPORT_SCHEMA_VERSION, build_snapshot, snapshot_to_json
 
 __all__ = [
     # state
@@ -141,4 +142,8 @@ __all__ = [
     "find_decision",
     "milestone_progress",
     "all_milestones_with_progress",
+    # export
+    "EXPORT_SCHEMA_VERSION",
+    "build_snapshot",
+    "snapshot_to_json",
 ]

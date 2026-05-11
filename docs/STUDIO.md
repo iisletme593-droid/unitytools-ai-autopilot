@@ -93,6 +93,7 @@ graph layer; later phases depend only on earlier ones, never sideways.
 | 16 | `milestones.py`, `studio-milestones` + `studio-tasks` CLIs, `studio_milestone_progress` tool | Computed milestone completion (counts active + archived); filtered backlog browser |
 | 17 | Producer milestone-aware prompt + `_check_stale_in_progress` | Standup cites real % per in_progress milestone; doctor warns on >7d stuck tasks |
 | 18 | `ratify_decision`, `latest_decisions`, `find_decision`, `--accept`/`--reject`/`--supersede`, id prefix matching | Critic can accept/reject/supersede decisions; ids accept unique prefixes everywhere |
+| 19 | `studio/export.py`, `studio-export` CLI | Single-file JSON snapshot for backup / PR review / migration |
 
 ### File layout
 
@@ -216,6 +217,51 @@ unitytools studio-doctor
 Exit code: 1 only when at least one check is `[FAIL]`. Warnings and
 waits are 0-exit so cron / CI does not flap on transient
 editor-not-connected states.
+
+### `studio-export`
+
+Bundle the whole studio (docs, tasks, decisions, milestones+progress,
+archive summary, thresholds, regression tail) into one JSON document.
+Useful for backup, PR review (a reviewer sees the whole studio in one
+file), migration between machines, or piping into jq.
+
+```sh
+unitytools studio-export                                # stdout, pretty
+unitytools studio-export -o snapshot.json
+unitytools studio-export --compact                      # one-line JSON
+unitytools studio-export --include-doctor               # embed health checks
+unitytools studio-export --include-history 50           # last 50 archived tasks
+unitytools studio-export --include-reviews 7            # last 7 review .md verbatim
+unitytools studio-export -o - | jq '.milestones[0]'
+```
+
+Schema (top-level keys):
+
+```text
+schema_version              integer (currently 1)
+exported_at / *_iso         timestamps
+project_root, studio_root   paths
+docs                        {gdd, art_bible, sprint_current} -> full markdown
+tasks                       active backlog (not archive)
+decisions                   latest-per-id (current state)
+milestones                  each entry has computed progress block
+archive_summary             {total, years[], files[]}
+thresholds, thresholds_default   effective vs source defaults
+review_files                filenames only
+qa_regression_tail          last N rows of qa/regression.jsonl
+                            (controlled by --include-regression)
+```
+
+Optional sections (off by default):
+
+```text
+doctor             list of Check dicts (requires --include-doctor)
+archive_recent     last N archived tasks (requires --include-history N)
+reviews            {filename: markdown body} (--include-reviews N)
+```
+
+Pure read; never mutates state. Crash-proof against missing files
+(each section degrades to a sensible empty default).
 
 ### `studio-tasks`
 
