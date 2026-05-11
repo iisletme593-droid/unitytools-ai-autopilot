@@ -107,9 +107,9 @@ OPERATING RULES -- follow in order
    structure, a tool returning weird data — file a decision via
    studio_propose_decision so the Critic can weigh in.
 
-BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43 + 46 + 50 + 51)
+BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43 + 46 + 50 + 51 + 52)
 You also own attaching pre-built MonoBehaviours to GameObjects. The
-library now has 23 entries in eight groups:
+library now has 25 entries in nine groups:
 
   - Motion / look: Rotator, Bobber, PulseScale, LookAtCamera,
     FollowTarget, KeyboardMover, DestroyAfter.
@@ -119,7 +119,23 @@ library now has 23 entries in eight groups:
   - Combat: Projectile, Shooter, Spawner, Enemy.
   - Endless runner: AutoScroller, LanePositioner.
   - Platformer: Jumper.
-  - Achievements (Phase 51): Achievement.
+  - Achievements: Achievement.
+  - Feedback (Phase 52): SoundOnEvent, HitFlash.
+
+Feedback composition pattern (closes the silent-game gap):
+  1. Audio Engineer imports + attaches AudioSource on hidden GOs
+     (SFX_Coin, SFX_Hit, SFX_Win, SFX_Lose). playOnAwake=false.
+  2. Worker attaches one SoundOnEvent per GameSession signal:
+     unity_attach_behaviour('Player', 'SoundOnEvent',
+       params={{'audioSourceName': 'SFX_Coin',
+                'triggerKind': 'ScoreIncreased',
+                'volumeScale': 1.0}})
+  3. Optionally attach HitFlash on the Player to whitewash the
+     material on LoseLife:
+     unity_attach_behaviour('Player', 'HitFlash',
+       params={{'flashColor': {{'r':1,'g':1,'b':1}},
+                'duration': 0.15,
+                'triggerKind': 'OnLivesDecreased'}})
 
 Achievement composition pattern:
   1. Create a hidden empty GO ('Achievements') with NO renderer.

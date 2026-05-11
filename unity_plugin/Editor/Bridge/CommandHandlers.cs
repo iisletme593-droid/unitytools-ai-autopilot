@@ -1231,6 +1231,8 @@ namespace UnityTools.Bridge
             "Jumper",
             // Phase 51: achievement primitive
             "Achievement",
+            // Phase 52: audio + visual feedback primitives
+            "SoundOnEvent", "HitFlash",
         };
 
         private static Type ResolveBehaviourType(string name)

@@ -869,6 +869,8 @@ _BEHAVIOUR_LIBRARY = (
     "Jumper",
     # Phase 51: achievement primitive
     "Achievement",
+    # Phase 52: audio + visual feedback primitives
+    "SoundOnEvent", "HitFlash",
 )
 
 

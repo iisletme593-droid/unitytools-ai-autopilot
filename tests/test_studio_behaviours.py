@@ -108,10 +108,12 @@ def test_behaviour_library_contains_known_behaviours() -> None:
         "Jumper",
         # Phase 51 achievement primitive
         "Achievement",
+        # Phase 52 audio + visual feedback
+        "SoundOnEvent", "HitFlash",
     }
     assert set(_BEHAVIOUR_LIBRARY) == expected
-    assert len(_BEHAVIOUR_LIBRARY) == 23
-    print("OK Behaviour library exposes 23 known names")
+    assert len(_BEHAVIOUR_LIBRARY) == 25
+    print("OK Behaviour library exposes 25 known names")
 
 
 def test_each_behaviour_has_a_corresponding_cs_file() -> None:
@@ -457,6 +459,69 @@ def test_achievement_in_runtime_namespace() -> None:
     print("OK Achievement in UnityTools.Behaviours, no UnityEditor leak")
 
 
+# ───────────────────────────────────────────── feedback (Phase 52)
+
+
+def test_sound_on_event_routes_to_named_audio_source() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "SoundOnEvent.cs").read_text(encoding="utf-8")
+    for f in ("audioSourceName", "triggerKind", "volumeScale"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"SoundOnEvent.{f} field missing"
+    # Five trigger kinds covering common gameplay signals
+    for kind in ("ScoreIncreased", "LivesDecreased", "GameWon", "GameLost", "AnyStateChange"):
+        assert kind in body, f"SoundOnEvent.TriggerKind.{kind} missing"
+    # Resolves the AudioSource by GameObject name
+    assert "GameObject.Find" in body
+    assert "GetComponent<AudioSource>" in body
+    # Plays via PlayOneShot so it doesn't stomp ambient music on the
+    # same source
+    assert "PlayOneShot" in body
+    # Subscribes to GameSession.OnStateChanged
+    assert "OnStateChanged" in body
+    # Volume scale clamped before play
+    assert "Clamp01(volumeScale)" in body
+    print("OK SoundOnEvent contract: 3 tunables + 5 trigger kinds + GameObject.Find + PlayOneShot + state subscription + clamped volume")
+
+
+def test_hit_flash_lerps_runtime_material_not_shared() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "HitFlash.cs").read_text(encoding="utf-8")
+    for f in ("flashColor", "duration", "triggerKind"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"HitFlash.{f} field missing"
+    # Trigger kinds (Manual + 2 auto-fire)
+    for kind in ("None", "OnLivesDecreased", "OnScoreIncreased"):
+        assert kind in body, f"HitFlash.TriggerKind.{kind} missing"
+    # Public Flash() so designers can fire it manually from a
+    # UnityEvent (e.g. Achievement.OnUnlock -> Flash)
+    assert re.search(r"public\s+void\s+Flash\s*\(", body)
+    # Uses _renderer.material (NOT sharedMaterial) so we don't mutate
+    # the asset / other instances. Comments may mention sharedMaterial
+    # (in fact the design rationale is documented there); check only
+    # non-comment lines.
+    assert ".material" in body
+    for line in body.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("//"):
+            continue
+        assert "sharedMaterial" not in line, (
+            f"HitFlash must NOT call sharedMaterial — line leaks "
+            f"flash into all instances: {line!r}"
+        )
+    # Coroutine-based fade back to base color
+    assert "Coroutine" in body or "IEnumerator" in body
+    assert "Color.Lerp" in body
+    # Shader-agnostic property handling (URP _BaseColor vs Built-in _Color)
+    assert "_BaseColor" in body
+    assert "_Color" in body
+    print("OK HitFlash contract: 3 tunables + 3 trigger kinds + public Flash() + instance material (not shared) + coroutine fade + URP/Builtin properties")
+
+
+def test_feedback_duo_in_runtime_namespace() -> None:
+    for name in ("SoundOnEvent", "HitFlash"):
+        body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / f"{name}.cs").read_text(encoding="utf-8")
+        assert "namespace UnityTools.Behaviours" in body
+        assert "using UnityEditor;" not in body
+    print("OK SoundOnEvent + HitFlash in UnityTools.Behaviours, no UnityEditor leak")
+
+
 # ───────────────────────────────────────────── wrapper validation
 
 
@@ -615,6 +680,10 @@ def run_test() -> None:
     # Phase 51 achievement
     test_achievement_three_trigger_kinds_and_settings_store_persist()
     test_achievement_in_runtime_namespace()
+    # Phase 52 feedback
+    test_sound_on_event_routes_to_named_audio_source()
+    test_hit_flash_lerps_runtime_material_not_shared()
+    test_feedback_duo_in_runtime_namespace()
     # Wrappers
     test_attach_behaviour_rejects_unknown_name()
     test_attach_behaviour_requires_target_name()
