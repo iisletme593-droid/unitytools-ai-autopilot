@@ -32,6 +32,7 @@ from .roles import (
     PLAYTESTER,
     PHYSICS_QA,
     AUDIO_DIRECTOR,
+    AUDIO_ENGINEER,
     get_role,
     all_roles,
 )
@@ -104,6 +105,7 @@ __all__ = [
     "PLAYTESTER",
     "PHYSICS_QA",
     "AUDIO_DIRECTOR",
+    "AUDIO_ENGINEER",
     "get_role",
     "all_roles",
     # runner

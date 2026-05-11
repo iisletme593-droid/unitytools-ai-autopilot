@@ -413,6 +413,88 @@ def studio_list_screenshots(limit: int = 20) -> dict:
     }
 
 
+# ─── Audio engine integration (Phase 27) ───────────────────────────────
+
+@tool(description="Import an audio file (wav/mp3/ogg) into Unity at the given destination folder. The file is copied through Unity's import pipeline so it becomes a real AudioClip asset. Returns the imported asset path. Best paired with studio_unity_attach_audio_source afterwards.")
+def studio_unity_import_audio(source_path: str, unity_destination: str = "Assets/Studio/Audio") -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected."}
+    if hasattr(_UNITY, "is_connected") and not _UNITY.is_connected():
+        return {"ok": False, "error": "Unity Editor is not connected."}
+    src = Path(source_path)
+    if not src.exists():
+        return {"ok": False, "error": f"Audio source not found: {src}"}
+    suffix = src.suffix.lower()
+    if suffix not in (".wav", ".mp3", ".ogg", ".aiff", ".flac"):
+        return {"ok": False, "error": f"Unsupported audio extension {suffix!r}; use wav/mp3/ogg/aiff/flac."}
+    destination = unity_destination.rstrip("/")
+    try:
+        result = _UNITY.call(
+            "import_asset",
+            {
+                "source_path": str(src),
+                "destination": destination,
+                "replace_existing": True,
+            },
+            timeout=120,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"Unity import_asset failed: {exc}", "error_type": type(exc).__name__}
+    if not isinstance(result, dict) or not result.get("ok", True):
+        return {"ok": False, "error": "Unity reported import_asset failure.", "raw": result}
+    imported_paths = result.get("imported_object_paths") or []
+    return {
+        "ok": True,
+        "source": str(src),
+        "destination": destination,
+        "imported_paths": imported_paths,
+        "raw": result,
+    }
+
+
+@tool(description="Attach (or update) an AudioSource component on a named scene object. Sets clip (Unity asset path), loop, play_on_awake, volume (0..1), pitch, spatial_blend (0=2D, 1=3D), min/max distance. Any property left as default is not modified. Object must exist; clip_path must point to an imported AudioClip asset.")
+def studio_unity_attach_audio_source(
+    target_name: str,
+    clip_path: str = "",
+    loop: bool = False,
+    play_on_awake: bool = True,
+    volume: float = 1.0,
+    pitch: float = 1.0,
+    spatial_blend: float = 0.0,
+    min_distance: float = 1.0,
+    max_distance: float = 500.0,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected."}
+    if hasattr(_UNITY, "is_connected") and not _UNITY.is_connected():
+        return {"ok": False, "error": "Unity Editor is not connected."}
+    if not target_name:
+        return {"ok": False, "error": "target_name is required."}
+    if not 0.0 <= volume <= 1.0:
+        return {"ok": False, "error": "volume must be in 0..1."}
+    if not 0.0 <= spatial_blend <= 1.0:
+        return {"ok": False, "error": "spatial_blend must be in 0..1 (0=2D, 1=3D)."}
+    params: dict[str, Any] = {
+        "name": target_name,
+        "loop": bool(loop),
+        "play_on_awake": bool(play_on_awake),
+        "volume": float(volume),
+        "pitch": float(pitch),
+        "spatial_blend": float(spatial_blend),
+        "min_distance": float(min_distance),
+        "max_distance": float(max_distance),
+    }
+    if clip_path:
+        params["clip_path"] = clip_path
+    try:
+        result = _UNITY.call("set_audio_source", params, timeout=30)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"set_audio_source failed: {exc}", "error_type": type(exc).__name__}
+    if not isinstance(result, dict) or not result.get("ok", True):
+        return {"ok": False, "error": "Unity reported set_audio_source failure.", "raw": result}
+    return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
+
+
 # ─── Asset generation via Blender (Phase 25) ───────────────────────────
 
 @tool(description="Generate a procedural prop (rock / crate / pillar / column) via Blender and save the FBX under studio/assets/generated/. Deterministic per seed: same prop_type+seed produces the same mesh, so re-runs converge. Optionally imports into Unity if import_into_unity=True and a Unity bridge is wired. Returns the FBX path so the Worker can chain unity_import_asset afterwards.")
@@ -1106,6 +1188,9 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_playtest_smoke",
     "studio_perf_budget_check",
     "studio_generate_prop_asset",
+    # audio engine (Phase 27)
+    "studio_unity_import_audio",
+    "studio_unity_attach_audio_source",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

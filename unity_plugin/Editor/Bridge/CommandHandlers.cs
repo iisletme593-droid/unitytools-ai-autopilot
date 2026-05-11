@@ -48,6 +48,7 @@ namespace UnityTools.Bridge
                 case "instantiate_prefabs": return InstantiatePrefabs(p);
                 case "add_collider": return AddCollider(p);
                 case "set_rigidbody": return SetRigidbody(p);
+                case "set_audio_source": return SetAudioSource(p);
                 case "find_by_tag": return FindByTag(p);
                 case "find_assets": return FindAssets(p);
                 case "list_prefabs": return ListPrefabs(p);
@@ -725,6 +726,59 @@ namespace UnityTools.Bridge
             }
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             return new { ok = true };
+        }
+
+        private static object SetAudioSource(JObject p)
+        {
+            string name = p["name"]?.ToString();
+            if (string.IsNullOrEmpty(name)) throw new ArgumentException("name is required");
+            var go = GameObject.Find(name);
+            if (go == null) throw new InvalidOperationException($"Object not found: {name}");
+            var src = go.GetComponent<AudioSource>();
+            if (src == null)
+            {
+                src = go.AddComponent<AudioSource>();
+                Undo.RegisterCreatedObjectUndo(src, "Bridge: add AudioSource");
+            }
+            else
+            {
+                Undo.RecordObject(src, "Bridge: set AudioSource");
+            }
+            string clipResult = "";
+            if (p["clip_path"] != null)
+            {
+                string clipPath = p["clip_path"].ToString();
+                if (!string.IsNullOrEmpty(clipPath))
+                {
+                    var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(clipPath);
+                    if (clip == null)
+                    {
+                        clipResult = $"clip not found at {clipPath}";
+                    }
+                    else
+                    {
+                        src.clip = clip;
+                        clipResult = clipPath;
+                    }
+                }
+            }
+            if (p["loop"] != null) src.loop = p["loop"].ToObject<bool>();
+            if (p["play_on_awake"] != null) src.playOnAwake = p["play_on_awake"].ToObject<bool>();
+            if (p["volume"] != null) src.volume = Mathf.Clamp01(p["volume"].ToObject<float>());
+            if (p["pitch"] != null) src.pitch = p["pitch"].ToObject<float>();
+            if (p["spatial_blend"] != null) src.spatialBlend = Mathf.Clamp01(p["spatial_blend"].ToObject<float>());
+            if (p["min_distance"] != null) src.minDistance = Mathf.Max(0f, p["min_distance"].ToObject<float>());
+            if (p["max_distance"] != null) src.maxDistance = Mathf.Max(0.001f, p["max_distance"].ToObject<float>());
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                name = name,
+                clip = clipResult,
+                loop = src.loop,
+                volume = src.volume,
+                spatial_blend = src.spatialBlend,
+            };
         }
 
         private static object FindByTag(JObject p)
