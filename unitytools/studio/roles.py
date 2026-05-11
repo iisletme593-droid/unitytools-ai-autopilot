@@ -1103,6 +1103,9 @@ PRODUCER = RoleConfig(
         # Phase 42: scaffold a complete collectathon MVP in one call when
         # the GDD is empty and the user asked for a "make me a game" task.
         "studio_scaffold_collectathon_game",
+        # Phase 44: action-genre scaffolder using the combat primitives
+        # from Phase 43 (Projectile / Shooter / Spawner / Enemy).
+        "studio_scaffold_top_down_shooter_game",
     ),
 )
 

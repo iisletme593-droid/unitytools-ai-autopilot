@@ -689,6 +689,239 @@ def studio_scaffold_collectathon_game(
     }
 
 
+@tool(description="Scaffold a complete top-down shooter / wave-survival mini-game: drafts a milestone + a structured task batch using the combat Behaviour Library (Projectile / Shooter / Spawner / Enemy). target_kills sets the win condition; spawn_interval + max_alive control wave pacing. One Producer call -> a full action-genre backlog. Returns the milestone id + list of opened task ids.")
+def studio_scaffold_top_down_shooter_game(
+    game_name: str = "Wave Hunter",
+    target_kills: int = 30,
+    spawn_interval: float = 2.0,
+    max_alive: int = 5,
+    play_area_radius: float = 12.0,
+    win_scene_name: str = "WinScene",
+) -> dict:
+    state = _require_state()
+    if target_kills < 1 or target_kills > 500:
+        return {"ok": False, "error": "target_kills must be in 1..500."}
+    if spawn_interval <= 0 or spawn_interval > 30:
+        return {"ok": False, "error": "spawn_interval must be in (0, 30] seconds."}
+    if max_alive < 1 or max_alive > 50:
+        return {"ok": False, "error": "max_alive must be in 1..50."}
+    if play_area_radius <= 0 or play_area_radius > 50:
+        return {"ok": False, "error": "play_area_radius must be in (0, 50]."}
+
+    milestone_name = f"Ship MVP: {game_name}"
+    milestone = Milestone(
+        name=milestone_name,
+        description=(
+            f"End-to-end top-down shooter MVP. Player walks with KeyboardMover, "
+            f"clicks to fire (Shooter -> Projectile), enemies spawn on a "
+            f"{spawn_interval}s interval (Spawner, cap {max_alive}) and chase "
+            f"the player (Enemy + FollowTarget). Win after {target_kills} kills "
+            f"loads {win_scene_name!r}; lose-on-contact via Enemy.contactDamage."
+        ),
+    )
+    state.add_milestone(milestone)
+    milestone_id = milestone.id
+
+    tasks_spec: list[tuple[str, str, str]] = [
+        (
+            "designer",
+            f"Draft GDD for {game_name}",
+            f"Write a one-page GDD for a top-down wave-survival MVP. Pitch: "
+            f"'Click to shoot, survive {target_kills} enemy kills.' Pillars: "
+            f"tight loop, 3 minutes to complete a run, fail state matters. "
+            f"Win scene: {win_scene_name!r}. Update GDD via studio_write_gdd."
+        ),
+        (
+            "art_director",
+            "Draft Art Bible — combat palette",
+            "Pick a 4-colour palette where ENEMY and PROJECTILE colours read "
+            "against the background (the player needs to see incoming threats "
+            "fast). Save via studio_write_art_bible."
+        ),
+        (
+            "worker",
+            f"Place player + templates + GameSession + Spawner",
+            f"Step-by-step:\n"
+            f"1. unity_create_scene_snapshot(label='{{task_id}}_before')\n"
+            f"2. Player setup:\n"
+            f"   unity_create_primitive('Capsule', name='Player')\n"
+            f"   unity_set_position(name='Player', y=1.0)\n"
+            f"   unity_attach_behaviour('Player', 'KeyboardMover',\n"
+            f"      params={{'speed': 6.0, 'applyGravity': true}})\n"
+            f"3. ProjectileTemplate (hidden, cloned by Shooter):\n"
+            f"   unity_create_primitive('Sphere', name='ProjectileTemplate')\n"
+            f"   unity_set_scale(name='ProjectileTemplate', uniform=0.3)\n"
+            f"   unity_add_component('ProjectileTemplate', 'SphereCollider')\n"
+            f"   (set isTrigger=true on the collider)\n"
+            f"   unity_attach_behaviour('ProjectileTemplate', 'Projectile',\n"
+            f"      params={{'speed': 18, 'lifetime': 3, 'damage': 1,\n"
+            f"               'ignoreNamePrefix': 'Player'}})\n"
+            f"4. Shooter on the Player:\n"
+            f"   unity_attach_behaviour('Player', 'Shooter',\n"
+            f"      params={{'projectileTemplateName': 'ProjectileTemplate',\n"
+            f"               'fireRate': 5, 'aimAtMouse': true}})\n"
+            f"5. EnemyTemplate (hidden, cloned by Spawner):\n"
+            f"   unity_create_primitive('Cube', name='EnemyTemplate')\n"
+            f"   unity_add_component('EnemyTemplate', 'BoxCollider')\n"
+            f"   (set isTrigger=true)\n"
+            f"   unity_attach_behaviour('EnemyTemplate', 'Enemy',\n"
+            f"      params={{'health': 1, 'scoreOnDeath': 1,\n"
+            f"               'contactDamage': 1, 'playerNamePrefix': 'Player'}})\n"
+            f"   unity_attach_behaviour('EnemyTemplate', 'FollowTarget',\n"
+            f"      params={{'targetName': 'Player', 'smoothing': 2.0,\n"
+            f"               'lookAtTarget': true}})\n"
+            f"6. Spawner on an empty GO at origin:\n"
+            f"   unity_create_empty(name='Spawner')\n"
+            f"   unity_attach_behaviour('Spawner', 'Spawner',\n"
+            f"      params={{'templateName': 'EnemyTemplate',\n"
+            f"               'interval': {spawn_interval},\n"
+            f"               'maxAlive': {max_alive},\n"
+            f"               'spawnRadius': {play_area_radius},\n"
+            f"               'warmup': 2.0, 'flatXZ': true}})\n"
+            f"7. GameSession:\n"
+            f"   unity_create_empty(name='GameSession')\n"
+            f"   unity_attach_behaviour('GameSession', 'GameSession',\n"
+            f"      params={{'winScore': {target_kills},\n"
+            f"               'winSceneName': '{win_scene_name}',\n"
+            f"               'startingLives': 3,\n"
+            f"               'loseSceneName': 'GameOverScene'}})\n"
+            f"8. unity_save_scene(); studio_update_task_status('{{task_id}}', 'done')"
+        ),
+        (
+            "ui_builder",
+            "Build HUD + Pause Canvas",
+            f"Step-by-step:\n"
+            f"1. unity_create_ui_canvas(name='HUDCanvas')\n"
+            f"2. unity_create_ui_text(canvas_name='HUDCanvas', name='ScoreText',\n"
+            f"   text='Kills: 0/{target_kills}', position_x=0, position_y=320, font_size=42)\n"
+            f"3. unity_attach_behaviour('ScoreText', 'ScoreHUD',\n"
+            f"   params={{'format': 'Kills: {{score}}/{{win}}  Lives: {{lives}}'}})\n"
+            f"4. unity_create_ui_canvas(name='PauseCanvas')\n"
+            f"5. unity_create_ui_text(canvas_name='PauseCanvas', name='PausedLabel',\n"
+            f"   text='Paused', position_y=80, font_size=64)\n"
+            f"6. unity_attach_behaviour('PauseCanvas', 'PauseMenu',\n"
+            f"   params={{'toggleKey': 'Escape'}})\n"
+            f"7. unity_attach_behaviour('HUDCanvas', 'SettingsStore')\n"
+            f"8. unity_save_scene(); studio_update_task_status('{{task_id}}', 'done')"
+        ),
+        (
+            "lighting_director",
+            "Light the arena",
+            "Audit + add a directional light tinted toward the combat palette. "
+            "Action games benefit from slightly higher contrast — keep "
+            "shadow_casting_count low (the spawned enemies otherwise blow the "
+            "shadow budget). Land verdict=pass."
+        ),
+        (
+            "atmosphere_director",
+            "Set sky + fog for the arena",
+            "Tighter fog than collectathon (mode='Linear', start=15, end=80) "
+            "so distant spawns fade in dramatically. Sky tinted to palette."
+        ),
+        (
+            "camera_director",
+            "Frame the arena top-down",
+            f"Use studio_camera_frame_check(target_name='Player', "
+            f"distance={play_area_radius * 1.4:.1f}, yaw_degrees=0, "
+            f"pitch_degrees=75) for a near-overhead view. Action games need "
+            f"the player to see incoming threats from all 4 directions."
+        ),
+        (
+            "material_artist",
+            "Make projectile + enemy POP",
+            "ProjectileTemplate: set_material_pbr(emission_enabled=1, "
+            "emission_intensity=2.5, emission_r=1.0, emission_g=0.8, "
+            "emission_b=0.2) so it reads as bright energy bolt. "
+            "EnemyTemplate: keep matte (metallic=0, smoothness=0.2) so it "
+            "doesn't compete visually with projectiles."
+        ),
+        (
+            "audio_director",
+            "Draft Audio Brief — combat",
+            "Aggressive / tense mood. 1 ambient music loop + 1 pickup SFX is "
+            "NOT enough — list 4: ambient combat loop, projectile fire, enemy "
+            "hit, enemy death. 44.1kHz / 16-bit. Save via studio_write_audio_brief."
+        ),
+        (
+            "localization_lead",
+            "Seed en + tr string tables",
+            f"studio_write_strings('en', strings={{"
+            f"'title.main': '{game_name}', 'btn.start': 'Start', 'btn.resume': 'Resume', "
+            f"'hud.kills': 'Kills: ', 'hud.lives': 'Lives: ', "
+            f"'screen.win': 'Survived!', 'screen.lose': 'Eliminated', "
+            f"'screen.pause': 'Paused'"
+            f"}}). Translate the same keys into 'tr'. Run "
+            f"studio_localization_audit until verdict=pass."
+        ),
+        (
+            "marketing_director",
+            "Finalize PlayerSettings + press kit",
+            f"unity_set_player_settings(product_name='{game_name}', "
+            f"company_name='UnityTools Studio', version='0.1.0', "
+            f"bundle_id='com.unitytools.{game_name.lower().replace(' ', '')}'). "
+            "Capture a hero shot DURING combat (projectile mid-flight). "
+            "Press kit must call out the wave-survival angle."
+        ),
+        (
+            "physics_qa",
+            "Profile under wave load",
+            f"Run studio_perf_budget_check with the EnemyTemplate spawner active. "
+            f"Worst case: {max_alive} live enemies + their FollowTarget update + "
+            f"in-flight projectiles. If triangle / renderer budgets blow, file a "
+            f"task for the Worker to drop EnemyTemplate scale or LOD."
+        ),
+        (
+            "playtester",
+            "Smoke-test the loop",
+            "Run studio_playtest_smoke(expected_object_names=['Player', "
+            "'GameSession', 'Spawner', 'HUDCanvas']). Block if any go missing "
+            "or if play mode errors fire (template GO might fail to clone)."
+        ),
+        (
+            "game_balancer",
+            "Audit after first playtest",
+            f"Once Playtester has run, call studio_balance_audit(days=1). If "
+            f"playtest_failure_rate > 0.5 (player keeps dying before "
+            f"{target_kills} kills), file a Worker task to halve "
+            f"Enemy.contactDamage. If failure_rate < 0.1 (too easy), file a "
+            f"task to raise it or increase spawn_interval."
+        ),
+        (
+            "build_engineer",
+            "Ship Windows build",
+            f"Run studio_build_check; if pass, unity_build_player(target='windows', "
+            f"output_path='studio/builds/<date>/windows/{game_name.replace(' ', '')}.exe'). "
+            "Wave games leak particle systems if the spawner doesn't prune — "
+            "watch the warning count."
+        ),
+    ]
+
+    opened: list[dict] = []
+    for role, title, description in tasks_spec:
+        if role not in ROLES:
+            continue
+        task = Task(
+            title=title,
+            role=role,
+            description=description,
+            milestone=milestone_id,
+        )
+        state.add_task(task)
+        opened.append({"task_id": task.id, "role": task.role, "title": task.title})
+
+    return {
+        "ok": True,
+        "game_name": game_name,
+        "target_kills": target_kills,
+        "spawn_interval": spawn_interval,
+        "max_alive": max_alive,
+        "milestone_id": milestone_id,
+        "milestone_name": milestone_name,
+        "task_count": len(opened),
+        "tasks": opened,
+    }
+
+
 # ─── Localization (Phase 39) ───────────────────────────────────────────
 
 _LOCALE_CODE_RE = re.compile(r"^[a-z]{2}(?:-[A-Z]{2})?$")
@@ -2064,6 +2297,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_localization_audit",
     # game template scaffolder (Phase 42)
     "studio_scaffold_collectathon_game",
+    # game template scaffolder (Phase 44)
+    "studio_scaffold_top_down_shooter_game",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",
