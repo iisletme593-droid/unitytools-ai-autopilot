@@ -524,6 +524,145 @@ def test_init_rejects_nonexistent_path() -> None:
     print("OK /init <nonexistent-path> -> clean error")
 
 
+# ─────────────────────────────────────────── Phase 61 /dispatch
+
+
+def test_dispatch_command_recognised() -> None:
+    """/dispatch is handled by the dispatcher (even on errors)."""
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("dispatch")
+        assert r.handled is True
+    finally:
+        os.chdir(prev)
+    print("OK /dispatch is a recognised command")
+
+
+def test_dispatch_without_studio_fails_clean() -> None:
+    """In a clean cwd with no studio, /dispatch should error with a
+    helpful message — not crash."""
+    import tempfile
+    prev = os.getcwd()
+    tmp = Path(tempfile.mkdtemp(prefix="no-studio-"))
+    os.chdir(tmp)
+    # Reset the global studio state so this matches a 'no studio' run
+    import unitytools.studio.tools as st
+    saved = st._STATE
+    st._STATE = None
+    try:
+        r = dispatch("dispatch 3")
+        assert r.handled is True
+        assert r.ok is False
+        assert "studio" in r.message.lower()
+    finally:
+        st._STATE = saved
+        os.chdir(prev)
+    print("OK /dispatch without active studio -> clean error")
+
+
+def test_dispatch_without_context_or_dry_run_fails_clean() -> None:
+    """A real /dispatch needs an LLM client (via DispatchContext).
+    Without one + not in dry-run, it should error helpfully."""
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("dispatch 3")   # no ctx
+        assert r.handled is True
+        assert r.ok is False
+        assert "context" in r.message.lower() or "config" in r.message.lower()
+        # Hint at the dry-run escape hatch
+        assert "dry-run" in r.message.lower() or "dry_run" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /dispatch without ctx (no dry-run) -> clean error + dry-run hint")
+
+
+def test_dispatch_dry_run_works_without_context() -> None:
+    """Dry-run mode uses RehearsalLLM, doesn't need an LLM client.
+    Should run even without ctx."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        # Seed some pending tasks via the scaffolder
+        dispatch("scaffold collectathon Demo")
+        r = dispatch("dispatch 3 --dry-run")
+        assert r.handled is True
+        assert r.ok is True, f"dry-run should succeed; got {r.message}"
+        assert r.tool_result["dry_run"] is True
+        assert r.tool_result["total"] >= 1, "should have processed at least 1 task"
+    finally:
+        os.chdir(prev)
+    print("OK /dispatch --dry-run works without DispatchContext")
+
+
+def test_dispatch_caps_limit_at_50() -> None:
+    """Operator typing /dispatch 999 shouldn't kick off an unbounded
+    run. Cap at 50 with a friendly error."""
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("dispatch 100 --dry-run")
+        assert r.handled is True
+        assert r.ok is False
+        assert "50" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /dispatch caps at 50 tasks per run (anti-runaway guard)")
+
+
+def test_dispatch_parses_only_filter() -> None:
+    """--only role1,role2 parses to a tuple of role ids."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        dispatch("scaffold collectathon Demo")
+        r = dispatch("dispatch 5 --only designer,critic --dry-run")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_result["only_roles"] == ["designer", "critic"]
+        # 'only' filter is empty for our seed (none of the scaffolded
+        # tasks are role=designer / role=critic) but we still parsed correctly
+    finally:
+        os.chdir(prev)
+    print("OK /dispatch --only designer,critic parses to a 2-element role tuple")
+
+
+def test_dispatch_default_limit_is_5() -> None:
+    """Bare /dispatch (no arg) caps at 5."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        dispatch("scaffold collectathon Demo")
+        r = dispatch("dispatch --dry-run")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_result["limit"] == 5
+    finally:
+        os.chdir(prev)
+    print("OK bare /dispatch defaults limit=5")
+
+
+def test_dispatch_with_context_uses_real_client_path() -> None:
+    """When DispatchContext is provided, /dispatch goes through
+    make_default_client. With UNITYTOOLS_PROVIDER=ollama + no ollama
+    running, this should still return cleanly (no crash)."""
+    from unitytools.cli.chat_commands import DispatchContext
+    from unitytools.core.config import Config
+    state, _, prev = _fresh_studio_cwd()
+    cfg = Config(provider="ollama", ollama_host="http://127.0.0.1:1",
+                  ollama_model="gemma4:latest")
+    ctx = DispatchContext(config=cfg, unity_bridge=None)
+    try:
+        # No --dry-run: real client path. With a fake host, the LLM
+        # call will fail at runtime — but the slash command itself
+        # must not crash.
+        dispatch("scaffold collectathon Demo")
+        r = dispatch("dispatch 1", ctx=ctx)
+        # Either success (no pending tasks of right role) or failure
+        # via the runner exception path; either way handled=True.
+        assert r.handled is True
+        # tool_name must be set so the REPL can show it
+        assert r.tool_name == "studio.dispatch_pending" or r.tool_name is None
+    finally:
+        os.chdir(prev)
+    print("OK /dispatch with DispatchContext doesn't crash even when ollama is unreachable")
+
+
 # ─────────────────────────────────────────── argument parsing
 
 
@@ -601,7 +740,16 @@ def run_test() -> None:
     test_init_creates_studio_when_missing()
     test_init_with_explicit_path()
     test_init_rejects_nonexistent_path()
-    print("All chat-command tests passed (Phase 59 + 60)")
+    # Phase 61 /dispatch
+    test_dispatch_command_recognised()
+    test_dispatch_without_studio_fails_clean()
+    test_dispatch_without_context_or_dry_run_fails_clean()
+    test_dispatch_dry_run_works_without_context()
+    test_dispatch_caps_limit_at_50()
+    test_dispatch_parses_only_filter()
+    test_dispatch_default_limit_is_5()
+    test_dispatch_with_context_uses_real_client_path()
+    print("All chat-command tests passed (Phase 59 + 60 + 61)")
 
 
 if __name__ == "__main__":

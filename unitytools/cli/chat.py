@@ -109,6 +109,10 @@ def run_chat(config: Config, blender: BlenderBridge, unity: UnityBridge) -> int:
     orch = Orchestrator(config)
     session: PromptSession = PromptSession(history=InMemoryHistory())
 
+    # Phase 61: context for /dispatch (and any future slash command
+    # that needs a real LLM client + bridge).
+    dispatch_ctx = chat_commands.DispatchContext(config=config, unity_bridge=unity)
+
     _print_welcome(config, blender, unity, studio_active, studio_info)
 
     while True:
@@ -126,7 +130,7 @@ def run_chat(config: Config, blender: BlenderBridge, unity: UnityBridge) -> int:
             continue
 
         if user_in.startswith("/"):
-            cmd_result = _handle_slash(user_in, orch, blender, unity)
+            cmd_result = _handle_slash(user_in, orch, blender, unity, dispatch_ctx)
             if cmd_result == "quit":
                 return 0
             continue
@@ -134,7 +138,13 @@ def run_chat(config: Config, blender: BlenderBridge, unity: UnityBridge) -> int:
         _send_to_llm(orch, user_in)
 
 
-def _handle_slash(line: str, orch: Orchestrator, blender: BlenderBridge, unity: UnityBridge) -> str | None:
+def _handle_slash(
+    line: str,
+    orch: Orchestrator,
+    blender: BlenderBridge,
+    unity: UnityBridge,
+    dispatch_ctx: "chat_commands.DispatchContext | None" = None,
+) -> str | None:
     parts = line[1:].split()
     if not parts:
         return None
@@ -158,6 +168,7 @@ def _handle_slash(line: str, orch: Orchestrator, blender: BlenderBridge, unity: 
                 "[bold]Studio actions[/bold]\n"
                 "[cyan]/init[/cyan] [path]            scaffold a fresh studio/ at cwd or path\n"
                 "[cyan]/scaffold[/cyan] <genre> [name]   collectathon/shooter/runner/platformer\n"
+                "[cyan]/dispatch[/cyan] [N] [--dry-run]   run N pending tasks through their roles (autopilot)\n"
                 "[cyan]/dashboard[/cyan] [--save] [days]  operator's morning glance\n"
                 "[cyan]/ship[/cyan]                    ship readiness check (go/no-go)\n"
                 "[cyan]/cost[/cyan] [days]             LLM token + USD spend (default 7d)\n"
@@ -241,7 +252,7 @@ def _handle_slash(line: str, orch: Orchestrator, blender: BlenderBridge, unity: 
     # Phase 59: route to the deterministic command dispatcher
     # (scaffold / dashboard / ship / cost / audit / tasks / ...).
     # Unknown commands fall through to the error message.
-    cmd_result = chat_commands.dispatch(line[1:])
+    cmd_result = chat_commands.dispatch(line[1:], ctx=dispatch_ctx)
     if cmd_result.handled:
         if cmd_result.quit:
             console.print(f"[dim]{cmd_result.message}[/dim]")

@@ -37,6 +37,18 @@ class CommandResult:
     quit: bool = False           # True iff the caller should exit the REPL
 
 
+@dataclass
+class DispatchContext:
+    """Runtime context for slash commands that need infrastructure
+    (LLM client + Unity bridge). The chat REPL builds one of these
+    at start time + passes it to dispatch() so /dispatch can run
+    role agents end-to-end.
+    """
+
+    config: Any = None       # unitytools.core.config.Config
+    unity_bridge: Any = None  # unitytools.bridges.UnityBridge or None
+
+
 # ─────────────────────────────────────────────── public entry point
 
 
@@ -88,12 +100,17 @@ _AUDIT_BY_KIND: dict[str, str] = {
 }
 
 
-def dispatch(line: str) -> CommandResult:
+def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResult:
     """Parse one slash-command line and dispatch.
 
     Caller has already stripped the leading '/'.
     Returns CommandResult(handled=False) for unknown commands so the
     REPL can fall through.
+
+    ctx (optional) provides the runtime context for commands that
+    need an LLM client + Unity bridge (currently /dispatch). When
+    omitted, those commands return a 'context unavailable' error
+    without crashing.
     """
     try:
         parts = shlex.split(line)
@@ -176,6 +193,10 @@ def dispatch(line: str) -> CommandResult:
     # ── diag   (quick infra checks)
     if cmd == "diag":
         return _dispatch_diag()
+
+    # ── dispatch [limit] [--only role1,role2] [--dry-run]
+    if cmd == "dispatch":
+        return _dispatch_autopilot(args, ctx)
 
     return CommandResult(handled=False)
 
@@ -469,6 +490,157 @@ def _dispatch_diag() -> CommandResult:
         handled=True, ok=True,
         tool_name="diag",
         tool_result=info,
+        message=msg,
+    )
+
+
+def _dispatch_autopilot(args: list[str], ctx: Optional[DispatchContext]) -> CommandResult:
+    """/dispatch [limit] [--only r1,r2] [--dry-run]
+
+    Walks the backlog and runs each pending task's role. limit caps
+    the number of tasks (default 5). --only filters to specific
+    originating role ids. --dry-run uses RehearsalLLM (no API calls,
+    skips engine-dependent roles).
+    """
+    # Parse args
+    limit = 5
+    only_roles: Optional[tuple[str, ...]] = None
+    dry_run = False
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in ("--dry-run", "--dry"):
+            dry_run = True
+            i += 1
+        elif a in ("--only", "-o") and i + 1 < len(args):
+            only_roles = tuple(r.strip() for r in args[i + 1].split(",") if r.strip())
+            i += 2
+        elif a.isdigit():
+            limit = max(1, int(a))
+            i += 1
+        elif a.lstrip("-").isdigit() and a.startswith("-"):
+            # Negative number? Treat as positive.
+            limit = max(1, abs(int(a)))
+            i += 1
+        else:
+            i += 1
+    if limit > 50:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"limit {limit} > 50 — autopilot caps at 50 tasks per run. "
+                    "Run /dispatch repeatedly if you need more.",
+        )
+
+    # Need a studio state to dispatch into
+    try:
+        from ..studio.tools import _STATE
+    except ImportError:
+        return CommandResult(
+            handled=True, ok=False,
+            message="studio package not importable.",
+        )
+    if _STATE is None:
+        return CommandResult(
+            handled=True, ok=False,
+            message="No active studio. Run /init first (or restart chat in a "
+                    "directory containing studio/).",
+        )
+
+    # Build the client factory + bridge
+    try:
+        from ..studio import (
+            Dispatcher,
+            RehearsalLLM,
+            has_rehearsal_for,
+            make_default_client,
+            make_default_vision_client,
+        )
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"Studio runner imports failed: {exc}",
+        )
+
+    bridge_for_dispatcher = None
+    vision_for_dispatcher = None
+    if dry_run:
+        def client_factory(role_id: str):
+            return RehearsalLLM(role_id)
+    else:
+        if ctx is None or ctx.config is None:
+            return CommandResult(
+                handled=True, ok=False,
+                message="/dispatch needs a runtime context (LLM client + config). "
+                        "This usually means the chat REPL didn't pass one. "
+                        "Try /dispatch --dry-run for a no-network rehearsal.",
+            )
+        try:
+            shared_client = make_default_client(ctx.config)
+        except RuntimeError as exc:
+            return CommandResult(
+                handled=True, ok=False,
+                message=f"LLM client setup failed: {exc}",
+            )
+
+        def client_factory(role_id: str):
+            return shared_client
+
+        # Optional engine + vision wiring
+        if ctx.unity_bridge is not None:
+            try:
+                if ctx.unity_bridge.connect(timeout=2.0):
+                    bridge_for_dispatcher = ctx.unity_bridge
+            except Exception:  # noqa: BLE001
+                pass
+        try:
+            vision_for_dispatcher = make_default_vision_client(ctx.config)
+        except RuntimeError:
+            vision_for_dispatcher = None
+
+    # Build + run the dispatcher
+    thresholds = _STATE.thresholds
+    dispatcher = Dispatcher(
+        _STATE,
+        client_factory,
+        unity_bridge=bridge_for_dispatcher,
+        vision_client=vision_for_dispatcher,
+        max_iterations=thresholds.max_worker_iterations,
+    )
+
+    try:
+        summary = dispatcher.dispatch_pending(limit=limit, only_roles=only_roles)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio.dispatch_pending",
+            message=f"dispatch failed: {exc}",
+        )
+
+    # Aggregate the result counts
+    counts = summary.by_action()
+    pieces = [f"{action}={count}" for action, count in sorted(counts.items())]
+    summary_line = ", ".join(pieces) if pieces else "no tasks matched"
+    mode = "dry-run" if dry_run else "live"
+    filter_note = f" [only={','.join(only_roles)}]" if only_roles else ""
+    msg = (
+        f"Dispatched {summary.total} tasks ({mode}{filter_note}): {summary_line}"
+    )
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio.dispatch_pending",
+        tool_result={
+            "total": summary.total,
+            "counts": counts,
+            "results": [
+                {"task_id": r.task_id, "target_role": r.target_role,
+                 "action": r.action, "iterations": r.iterations,
+                 "tool_calls": r.tool_calls}
+                for r in summary.results
+            ],
+            "dry_run": dry_run,
+            "limit": limit,
+            "only_roles": list(only_roles) if only_roles else None,
+        },
         message=msg,
     )
 
