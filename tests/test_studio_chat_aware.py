@@ -160,6 +160,152 @@ def test_init_eagerly_imports_engine_tool_modules() -> None:
     print(f"OK engine tool modules eagerly imported; {len(tool_names)} tools registered")
 
 
+# ─────────────────────────────────────────── Phase 62 auto-scaffold
+
+
+def test_discover_unity_project_root_finds_assets_plus_settings() -> None:
+    """A directory with BOTH Assets/ and ProjectSettings/ qualifies
+    as a Unity project root."""
+    from unitytools.cli.chat import _discover_unity_project_root
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "Assets").mkdir()
+        (root / "ProjectSettings").mkdir()
+        result = _discover_unity_project_root(root)
+        assert result == root.resolve()
+    print("OK Unity project (Assets/ + ProjectSettings/) is detected")
+
+
+def test_discover_unity_project_root_walks_up() -> None:
+    """Running chat from a subdirectory of a Unity project should
+    still find the project root."""
+    from unitytools.cli.chat import _discover_unity_project_root
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "Assets").mkdir()
+        (root / "ProjectSettings").mkdir()
+        deep = root / "Assets" / "Scripts" / "Player"
+        deep.mkdir(parents=True)
+        result = _discover_unity_project_root(deep)
+        assert result == root.resolve()
+    print("OK Unity project root discovered by walking up from a subdirectory")
+
+
+def test_discover_unity_rejects_assets_without_settings() -> None:
+    """A folder named 'Assets' alone (e.g. some random art portfolio)
+    is NOT a Unity project. Need both Assets/ AND ProjectSettings/."""
+    from unitytools.cli.chat import _discover_unity_project_root
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "Assets").mkdir()
+        # NO ProjectSettings/
+        result = _discover_unity_project_root(root)
+        assert result is None
+    print("OK Assets/ alone (no ProjectSettings/) is NOT detected as Unity project")
+
+
+def test_auto_scaffold_when_chat_starts_in_unity_project() -> None:
+    """The whole point of Phase 62: open chat in a Unity project,
+    no studio/ yet, studio gets auto-created."""
+    from unitytools.cli.chat import _init_studio_for_chat
+    cwd_was = os.getcwd()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "Assets").mkdir()
+        (root / "ProjectSettings").mkdir()
+        os.chdir(root)
+        try:
+            active, info = _init_studio_for_chat(FakeBridge())
+            assert active is True, f"expected active studio; info={info}"
+            assert "auto-scaffolded" in info, (
+                f"expected auto-scaffolded marker in info string; got {info!r}"
+            )
+            # The studio/ dir + canonical docs exist
+            assert (root / "studio").is_dir()
+            for doc in ("gdd.md", "art_bible.md", "audio_brief.md",
+                         "press_kit.md", "tutorial.md",
+                         "scene_catalog.md", "achievements.md",
+                         "sprint_current.md"):
+                assert (root / "studio" / doc).exists(), f"missing {doc}"
+        finally:
+            os.chdir(cwd_was)
+    print("OK chat in Unity project w/o studio -> auto-scaffolds all 8 starter docs")
+
+
+def test_auto_scaffold_disabled_when_opted_out() -> None:
+    """--no-auto-init / auto_scaffold=False: the chat still launches,
+    but studio_* tools won't work until the user runs /init."""
+    from unitytools.cli.chat import _init_studio_for_chat
+    cwd_was = os.getcwd()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "Assets").mkdir()
+        (root / "ProjectSettings").mkdir()
+        os.chdir(root)
+        try:
+            active, info = _init_studio_for_chat(FakeBridge(), auto_scaffold=False)
+            assert active is False
+            assert "no studio" in info.lower()
+            assert not (root / "studio").exists(), (
+                "auto_scaffold=False should NOT create studio/"
+            )
+        finally:
+            os.chdir(cwd_was)
+    print("OK auto_scaffold=False respects the opt-out (no studio/ created)")
+
+
+def test_no_auto_scaffold_outside_unity_project() -> None:
+    """In a directory that doesn't look like a Unity project, do NOT
+    auto-create studio/. Otherwise we'd pollute random folders the
+    user happens to `cd` into."""
+    from unitytools.cli.chat import _init_studio_for_chat
+    cwd_was = os.getcwd()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        # No Assets/, no ProjectSettings/
+        os.chdir(root)
+        try:
+            active, info = _init_studio_for_chat(FakeBridge())
+            assert active is False
+            assert not (root / "studio").exists(), (
+                "non-Unity dir should NOT get a studio/ scaffolded"
+            )
+            # Helpful error message points to /init or cd
+            assert "/init" in info or "Unity project" in info
+        finally:
+            os.chdir(cwd_was)
+    print("OK non-Unity directory: no studio auto-created (no pollution)")
+
+
+def test_existing_studio_takes_priority_over_auto_scaffold() -> None:
+    """If a studio/ already exists, use it as-is. Don't overwrite."""
+    from unitytools.cli.chat import _init_studio_for_chat
+    from unitytools.studio import StudioPaths, StudioState
+    cwd_was = os.getcwd()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "Assets").mkdir()
+        (root / "ProjectSettings").mkdir()
+        # Pre-populate a studio with a sentinel value
+        paths = StudioPaths(project_root=root)
+        for d in paths.all_dirs():
+            d.mkdir(parents=True, exist_ok=True)
+        paths.gdd.write_text("# Pre-existing GDD\nUser content.\n", encoding="utf-8")
+        os.chdir(root)
+        try:
+            active, info = _init_studio_for_chat(FakeBridge())
+            assert active is True
+            # The "auto-scaffolded" marker should NOT be in info
+            assert "auto-scaffolded" not in info, (
+                "should NOT auto-scaffold over an existing studio"
+            )
+            # User content survives
+            assert "User content" in paths.gdd.read_text(encoding="utf-8")
+        finally:
+            os.chdir(cwd_was)
+    print("OK pre-existing studio/ takes priority — auto-scaffold doesn't overwrite")
+
+
 def test_init_makes_studio_tools_callable_after_state_wire() -> None:
     """After init, calling a studio_* tool should NOT error with
     'state not initialized'."""
@@ -194,7 +340,15 @@ def run_test() -> None:
     test_init_returns_active_with_real_studio()
     test_init_eagerly_imports_engine_tool_modules()
     test_init_makes_studio_tools_callable_after_state_wire()
-    print("All Phase 56 studio-aware chat tests passed")
+    # Phase 62 auto-scaffold
+    test_discover_unity_project_root_finds_assets_plus_settings()
+    test_discover_unity_project_root_walks_up()
+    test_discover_unity_rejects_assets_without_settings()
+    test_auto_scaffold_when_chat_starts_in_unity_project()
+    test_auto_scaffold_disabled_when_opted_out()
+    test_no_auto_scaffold_outside_unity_project()
+    test_existing_studio_takes_priority_over_auto_scaffold()
+    print("All studio-aware chat tests passed (Phase 56 + 62)")
 
 
 if __name__ == "__main__":

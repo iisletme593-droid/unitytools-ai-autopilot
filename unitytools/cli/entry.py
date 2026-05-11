@@ -482,7 +482,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
         console.print(f"[red]{api_problems[0]}[/red]")
         return 1
     from .chat import run_chat
-    return run_chat(config, blender, unity)
+    auto_scaffold = not getattr(args, "no_auto_init", False)
+    return run_chat(config, blender, unity, auto_scaffold=auto_scaffold)
 
 
 def cmd_dual_chat(args: argparse.Namespace) -> int:
@@ -1967,7 +1968,13 @@ def main() -> int:
     sub.add_parser("status", help="Show bridge and config status")
     sub.add_parser("doctor", help="Run local provider, Unity, and Blender diagnostics")
     sub.add_parser("cleanup-processes", help="Stop stale embedded UnityTools chat-server processes")
-    sub.add_parser("chat", help="Start the terminal chat REPL")
+    p_chat = sub.add_parser("chat", help="Start the terminal chat REPL")
+    p_chat.add_argument(
+        "--no-auto-init",
+        action="store_true",
+        help="Don't auto-scaffold studio/ when cwd is a Unity project without one. "
+             "Default: auto-scaffold to zero-friction onboard (you can still /init later).",
+    )
     p_dual = sub.add_parser("dual-chat", help="Start dual-agent chat (Qwen 3.6 planner + Qwen 2.5 reader/worker by default)")
     p_dual.add_argument("--master", default="gemma4:latest", help="Master model for planning (default: gemma4:latest, falls back if missing)")
     p_dual.add_argument("--worker", default="gemma4:latest", help="Worker model for execution (default: gemma4:latest)")

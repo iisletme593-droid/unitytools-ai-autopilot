@@ -56,10 +56,71 @@ def _discover_studio_root(start: Path | None = None) -> Path | None:
     return None
 
 
-def _init_studio_for_chat(unity: UnityBridge) -> tuple[bool, str]:
+def _discover_unity_project_root(start: Path | None = None) -> Path | None:
+    """Walk up from `start` looking for a Unity project root —
+    a directory containing both `Assets/` and `ProjectSettings/`.
+    Returns the project root, or None if we never find one.
+
+    These two folders are Unity's contract: every Unity project on
+    disk has them. Matching both (not just Assets/) means we never
+    confuse a random folder named 'Assets' with a real project.
+    """
+    cur = (start or Path.cwd()).resolve()
+    for candidate in [cur, *cur.parents]:
+        assets = candidate / "Assets"
+        settings = candidate / "ProjectSettings"
+        if assets.is_dir() and settings.is_dir():
+            return candidate
+    return None
+
+
+def _auto_scaffold_studio(project_root: Path) -> tuple[bool, str]:
+    """Phase 62: create studio/ + drop starter docs without
+    confirmation. Used when the operator opens chat inside a Unity
+    project that doesn't have a studio yet — zero-friction onboarding.
+
+    Returns (created, summary).
+    """
+    try:
+        from ..studio import StudioPaths, StudioState
+        from ..studio.templates import starter_files
+    except ImportError as exc:
+        return False, f"studio package not importable: {exc}"
+
+    paths = StudioPaths(project_root=project_root)
+    if paths.exists():
+        # Race / pre-existing studio — caller should have detected
+        # this via _discover_studio_root, but be defensive.
+        return False, "already exists"
+
+    for d in paths.all_dirs():
+        d.mkdir(parents=True, exist_ok=True)
+    files_written: list[str] = []
+    for rel_path, content in starter_files().items():
+        target = paths.root / rel_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists():
+            target.write_text(content, encoding="utf-8")
+            files_written.append(rel_path)
+    state = StudioState(paths)
+    state.save_tasks([])
+    state.save_milestones([])
+    return True, str(paths.root)
+
+
+def _init_studio_for_chat(
+    unity: UnityBridge,
+    auto_scaffold: bool = True,
+) -> tuple[bool, str]:
     """Wire the studio + every engine tool module into the global
     @tool registry so the LLM can call them from chat. Returns
-    (studio_active, summary_line)."""
+    (studio_active, summary_line).
+
+    Phase 62: when no studio is discoverable AND cwd looks like a
+    Unity project (Assets/ + ProjectSettings/), auto-scaffold one
+    rather than making the user run /init manually. Caller can
+    pass auto_scaffold=False to opt out (CLI flag --no-auto-init).
+    """
     # 1. Eagerly import all the engine + asset modules so their @tool
     #    decorators populate the registry. Each import is a side
     #    effect; missing optional modules are tolerated silently.
@@ -77,35 +138,53 @@ def _init_studio_for_chat(unity: UnityBridge) -> tuple[bool, str]:
         except ImportError:
             pass
 
-    # 2. Look for a studio/ scaffold near the cwd. If found, wire
-    #    init_studio_tools + init_studio_unity so studio_* calls work.
+    # 2. Look for a studio/ scaffold near the cwd.
     try:
         from ..studio import StudioPaths, StudioState, init_studio_tools, init_studio_unity
     except ImportError:
         return False, "studio package not importable"
 
     project_root = _discover_studio_root()
+
+    # Phase 62: if no studio exists, AND we're in a Unity project,
+    # AND the user didn't opt out, scaffold one automatically.
+    auto_created = False
+    if project_root is None and auto_scaffold:
+        unity_root = _discover_unity_project_root()
+        if unity_root is not None:
+            created, info = _auto_scaffold_studio(unity_root)
+            if created:
+                project_root = unity_root
+                auto_created = True
+                logger.info("Phase 62 auto-scaffold: studio created at %s", info)
+
     if project_root is None:
         # Still useful: wire the bridge so non-studio unity_* tools work.
         try:
             init_studio_unity(unity)
         except Exception:
             pass
-        return False, "no studio/ found in cwd or its parents"
+        return False, "no studio/ found and cwd isn't a Unity project (run /init or cd into a Unity project)"
 
     try:
         paths = StudioPaths(project_root=project_root)
         state = StudioState(paths)
         init_studio_tools(state)
         init_studio_unity(unity)
-        return True, str(project_root)
+        suffix = " (auto-scaffolded)" if auto_created else ""
+        return True, f"{project_root}{suffix}"
     except Exception as exc:  # noqa: BLE001
         logger.exception("Failed to init studio for chat")
         return False, f"init failed: {exc}"
 
 
-def run_chat(config: Config, blender: BlenderBridge, unity: UnityBridge) -> int:
-    studio_active, studio_info = _init_studio_for_chat(unity)
+def run_chat(
+    config: Config,
+    blender: BlenderBridge,
+    unity: UnityBridge,
+    auto_scaffold: bool = True,
+) -> int:
+    studio_active, studio_info = _init_studio_for_chat(unity, auto_scaffold=auto_scaffold)
     orch = Orchestrator(config)
     session: PromptSession = PromptSession(history=InMemoryHistory())
 
