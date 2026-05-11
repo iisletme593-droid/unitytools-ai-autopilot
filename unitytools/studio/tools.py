@@ -260,6 +260,74 @@ def studio_update_task_status(task_id: str, status: str) -> dict:
     return {"ok": False, "error": f"Task {task_id!r} not found."}
 
 
+@tool(description="Phase 69: Find the next pending task that's ready to be picked up. Skips tasks whose 'depends_on' includes anything not yet done. Optional role filter narrows to a single discipline (producer/designer/art_director/...). Returns the oldest ready task — FIFO by created_at — so the backlog moves in roughly the order it was planned.")
+def studio_next_task(role: str = "") -> dict:
+    """Return the single next ready-to-pick task (PENDING, dependencies
+    satisfied, oldest-first). Used by the /next slash command for the
+    daily 'what should I work on now' producer flow.
+
+    Optional `role` narrows to one discipline so a designer can ask
+    'next designer task' without seeing engineer work.
+    """
+    state = _require_state()
+    if role and role not in ROLES:
+        return {
+            "ok": False,
+            "error": f"Unknown role {role!r}. Allowed: {sorted(ROLES)}",
+        }
+
+    all_tasks = state.load_tasks()
+    done_ids = {t.id for t in all_tasks if t.status is TaskStatus.DONE}
+
+    pending: list[Task] = [t for t in all_tasks if t.status is TaskStatus.PENDING]
+    if role:
+        pending = [t for t in pending if t.role == role]
+
+    # Skip tasks that still wait on undone deps; tasks with empty
+    # depends_on are always considered ready.
+    ready = [
+        t for t in pending
+        if all(dep in done_ids for dep in (t.depends_on or []))
+    ]
+
+    if not ready:
+        # Why is nothing ready? Surface diagnostics so the producer can
+        # see whether the backlog is empty vs. blocked.
+        blocked_by_deps = [
+            t for t in pending
+            if any(dep not in done_ids for dep in (t.depends_on or []))
+        ]
+        return {
+            "ok": True,
+            "task": None,
+            "pending_count": len(pending),
+            "blocked_by_deps": len(blocked_by_deps),
+            "reason": (
+                "no pending tasks" if not pending
+                else "all pending tasks are blocked by unfinished dependencies"
+            ),
+        }
+
+    # Oldest-first; treats absent created_at defensively at 0
+    ready.sort(key=lambda t: getattr(t, "created_at", 0) or 0)
+    nxt = ready[0]
+    return {
+        "ok": True,
+        "task": {
+            "id": nxt.id,
+            "title": nxt.title,
+            "role": nxt.role,
+            "description": nxt.description,
+            "milestone": nxt.milestone,
+            "depends_on": list(nxt.depends_on or []),
+            "blockers": list(nxt.blockers or []),
+            "created_at": getattr(nxt, "created_at", None),
+        },
+        "pending_count": len(pending),
+        "ready_count": len(ready),
+    }
+
+
 # ─── Decisions ─────────────────────────────────────────────────────────
 
 @tool(description="Propose a design decision. Append-only. Default status is 'proposed'; use studio_accept_decision to ratify.")

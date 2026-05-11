@@ -271,6 +271,8 @@ def _handle_slash(
                 "[cyan]/dispatch[/cyan] [N] [--dry-run]   run N pending tasks through their roles (autopilot)\n"
                 "[cyan]/role[/cyan] <role-id> [brief]    run ONE role one-shot (e.g. /role designer 'Draft GDD')\n"
                 "[cyan]/build[/cyan] <target> [--dev]      windows/mac/linux/webgl/android/ios; auto-runs ship preflight first\n"
+                "[cyan]/sprint[/cyan]                   read studio/sprint_current.md\n"
+                "[cyan]/next[/cyan] [role]              next ready pending task (FIFO, deps respected)\n"
                 "[cyan]/dashboard[/cyan] [--save] [days]  operator's morning glance\n"
                 "[cyan]/ship[/cyan]                    ship readiness check (go/no-go)\n"
                 "[cyan]/cost[/cyan] [days]             LLM token + USD spend (default 7d)\n"

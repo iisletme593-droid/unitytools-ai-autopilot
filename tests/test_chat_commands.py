@@ -1426,6 +1426,191 @@ def test_studio_status_reports_inactive_when_no_state() -> None:
     print("OK /studio with no active state → ok=False, doesn't crash")
 
 
+# ─────────────────────────────────────────── Phase 69: /sprint + /next
+
+
+def test_sprint_command_recognised() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio import StudioPaths
+        paths = StudioPaths(project_root=Path(os.getcwd()))
+        paths.sprint_current.write_text(
+            "# Sprint 5\n- Tune jump physics\n- Add coin pickup VFX",
+            encoding="utf-8",
+        )
+        r = dispatch("sprint")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_read_sprint"
+        # The message line shows the file content (or a preview)
+        assert "Sprint" in r.message or "jump" in r.message
+        # tool_result carries the raw studio_read_sprint payload
+        assert r.tool_result["content"].startswith("# Sprint")
+    finally:
+        os.chdir(prev)
+    print("OK /sprint reads studio/sprint_current.md and surfaces it")
+
+
+def test_sprint_empty_file_surfaces_friendly_message() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio import StudioPaths
+        paths = StudioPaths(project_root=Path(os.getcwd()))
+        paths.sprint_current.write_text("", encoding="utf-8")
+        r = dispatch("sprint")
+        assert r.handled is True
+        assert r.ok is True
+        assert "empty" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /sprint on empty file shows actionable hint")
+
+
+def test_next_returns_oldest_ready_task() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t1 = Task(title="First task", role="designer")
+        t2 = Task(title="Second task", role="designer")
+        state.add_task(t1)
+        state.add_task(t2)
+        r = dispatch("next")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_next_task"
+        # FIFO — first-added pending task wins
+        assert r.tool_result["task"]["id"] == t1.id
+        assert r.tool_result["task"]["title"] == "First task"
+        assert r.tool_result["pending_count"] == 2
+        assert r.tool_result["ready_count"] == 2
+        assert "First task" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /next returns oldest ready PENDING task (FIFO)")
+
+
+def test_next_role_filter_narrows_to_discipline() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        # First task is for level_designer; second for designer.
+        # /next designer should skip the level_designer one.
+        state.add_task(Task(title="LD task", role="level_designer"))
+        state.add_task(Task(title="Designer task", role="designer"))
+        r = dispatch("next designer")
+        assert r.ok is True
+        assert r.tool_result["task"]["role"] == "designer"
+        assert r.tool_result["task"]["title"] == "Designer task"
+    finally:
+        os.chdir(prev)
+    print("OK /next <role> narrows to discipline")
+
+
+def test_next_with_unknown_role_fails_clean() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("next not_a_real_role")
+        assert r.handled is True
+        assert r.ok is False
+        assert "Unknown role" in r.message
+        # Message lists valid choices to help the user
+        assert "producer" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /next <bad-role> → ok=False with list of valid roles")
+
+
+def test_next_when_backlog_empty_says_no_pending() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("next")
+        assert r.ok is True
+        assert r.tool_result["task"] is None
+        # The reason field explains WHY we got no task
+        assert "no pending" in r.tool_result["reason"].lower()
+        assert "no task" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /next on empty backlog → task=None with diagnostic reason")
+
+
+def test_next_skips_tasks_blocked_by_deps() -> None:
+    """A task whose depends_on points to a non-done task must NOT
+    surface in /next; the next task without unresolved deps wins."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        # Add t1 first (pending, blocks t2). t3 is independent.
+        t1 = Task(title="Block out arena", role="level_designer")
+        state.add_task(t1)
+        t2 = Task(title="Light arena (needs t1)", role="tech_artist",
+                   depends_on=[t1.id])
+        state.add_task(t2)
+        t3 = Task(title="Tune SFX", role="designer")
+        state.add_task(t3)
+        r = dispatch("next")
+        assert r.ok is True
+        # The first ready task should be t1 (no deps), then t3 (no deps).
+        # t2 must NOT be returned because t1 is still PENDING.
+        nxt = r.tool_result["task"]
+        assert nxt["title"] in ("Block out arena", "Tune SFX")
+        assert nxt["title"] != "Light arena (needs t1)"
+        # 3 pending, 2 ready (t2 blocked by deps)
+        assert r.tool_result["pending_count"] == 3
+        assert r.tool_result["ready_count"] == 2
+    finally:
+        os.chdir(prev)
+    print("OK /next skips dep-blocked tasks; ready_count excludes them")
+
+
+def test_next_when_only_blocked_tasks_left_explains_why() -> None:
+    """All pending tasks blocked by unresolved deps → task=None with
+    'blocked_by_deps' explanation rather than 'no pending tasks'."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        # Fake dep id that doesn't exist (and isn't done):
+        # any task with this dep will be considered blocked.
+        t = Task(title="Needs unknown dep", role="designer",
+                  depends_on=["non-existent-id"])
+        state.add_task(t)
+        r = dispatch("next")
+        assert r.ok is True
+        assert r.tool_result["task"] is None
+        assert r.tool_result["pending_count"] == 1
+        assert r.tool_result["blocked_by_deps"] == 1
+        assert "blocked" in r.tool_result["reason"].lower()
+    finally:
+        os.chdir(prev)
+    print("OK /next when only blocked tasks remain → diagnostic blocked_by_deps")
+
+
+def test_next_turkish_aliases_resolve() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        state.add_task(Task(title="Some task", role="designer"))
+        for alias in ("sıradaki", "siradaki", "sıra", "sira", "sonraki"):
+            r = dispatch(alias)
+            assert r.handled is True, f"/{alias} should resolve to /next"
+            assert r.tool_name == "studio_next_task", (
+                f"/{alias} should fire studio_next_task; got {r.tool_name}"
+            )
+    finally:
+        os.chdir(prev)
+    print("OK /sıradaki, /siradaki, /sıra, /sira, /sonraki all → /next")
+
+
+def test_help_lists_phase_69_commands() -> None:
+    """Drift check: /sprint and /next must show up in /help."""
+    r = dispatch("help")
+    for required in ("/sprint", "/next"):
+        assert required in r.message, (
+            f"/help should advertise {required} after Phase 69"
+        )
+    print("OK /help advertises /sprint and /next")
+
+
 def run_test() -> None:
     # Plumbing
     test_empty_line_returns_not_handled()
@@ -1526,7 +1711,18 @@ def run_test() -> None:
     test_status_includes_provider_and_model_from_ctx()
     test_studio_status_returns_summary_on_active_studio()
     test_studio_status_reports_inactive_when_no_state()
-    print("All chat-command tests passed (Phase 59 + 60 + 61 + 64 + 65 + 66 + 68)")
+    # Phase 69 /sprint + /next producer shortcuts
+    test_sprint_command_recognised()
+    test_sprint_empty_file_surfaces_friendly_message()
+    test_next_returns_oldest_ready_task()
+    test_next_role_filter_narrows_to_discipline()
+    test_next_with_unknown_role_fails_clean()
+    test_next_when_backlog_empty_says_no_pending()
+    test_next_skips_tasks_blocked_by_deps()
+    test_next_when_only_blocked_tasks_left_explains_why()
+    test_next_turkish_aliases_resolve()
+    test_help_lists_phase_69_commands()
+    print("All chat-command tests passed (Phase 59 + 60 + 61 + 64 + 65 + 66 + 68 + 69)")
 
 
 if __name__ == "__main__":

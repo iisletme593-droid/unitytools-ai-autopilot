@@ -123,6 +123,10 @@ _ALIASES: dict[str, str] = {
     "maliyet": "cost", "masraf": "cost",
     "denetim": "audit", "tarama": "audit",
     "yapı": "build", "yapi": "build", "derle": "build", "inşa": "build", "insa": "build",
+    # Phase 69 producer-flow shortcuts
+    "sprint": "sprint",  # English passthrough (no Turkish word commonly used)
+    "sıradaki": "next", "siradaki": "next", "sıra": "next", "sira": "next",
+    "sonraki": "next",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -276,6 +280,14 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── build <target> [--dev] [--out PATH] [--force]
     if cmd == "build":
         return _dispatch_build(args, ctx)
+
+    # ── sprint   (Phase 69: read sprint_current.md)
+    if cmd == "sprint":
+        return _dispatch_sprint()
+
+    # ── next [role]   (Phase 69: surface the next ready pending task)
+    if cmd == "next":
+        return _dispatch_next(args)
 
     return CommandResult(handled=False)
 
@@ -567,6 +579,8 @@ def _dispatch_help() -> CommandResult:
                 ("/role <role-id> [brief]", "run one role one-shot"),
                 ("/build <target> [--dev]", "windows/mac/linux/webgl/android/ios"),
                 ("/dashboard [--save] [days]", "operator's morning glance"),
+                ("/sprint", "read studio/sprint_current.md"),
+                ("/next [role]", "next pending task ready to pick up"),
                 ("/ship", "ship readiness check"),
                 ("/cost [days]", "LLM token + USD spend"),
                 ("/audit <kind>", "lighting/atmosphere/vfx/build/balance/..."),
@@ -598,8 +612,8 @@ def _dispatch_help() -> CommandResult:
     lines.append("")
     lines.append(
         "Türkçe aliases: /yardım /durum /sağlık /başlat /eşitle /oluştur "
-        "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /görev /hedef "
-        "/referans /dil /diyalog /varlık /davranış /roller"
+        "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
+        "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
     return CommandResult(
@@ -1164,6 +1178,126 @@ def _default_brief_for_role(role_id: str) -> str:
         "worker": "Execute this task now per the description; snapshot first, save, status update last.",
     }
     return table.get(role_id, "Run your role on the current project state.")
+
+
+def _dispatch_sprint() -> CommandResult:
+    """Phase 69: /sprint — read studio/sprint_current.md, surface the
+    plan for today's stand-up.
+
+    Editor users get the same content the LLM would when calling
+    studio_read_sprint, but as a one-shot deterministic dispatch.
+    """
+    try:
+        from ..studio.tools import studio_read_sprint
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_read_sprint not importable: {exc}",
+        )
+    try:
+        result = studio_read_sprint()
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_read_sprint",
+            message=f"sprint read failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_read_sprint",
+            tool_result=result,
+            message=result.get("error") or "sprint read failed",
+        )
+    content = (result.get("content") or "").strip()
+    if not content:
+        msg = "Sprint plan is empty — drop a quick note in studio/sprint_current.md."
+    else:
+        # First non-empty line is the human-readable summary; show up
+        # to ~10 lines for the message line so the chat panel can render
+        # a useful glance without dumping the whole file.
+        preview_lines = [
+            ln for ln in content.splitlines()[:10] if ln.strip()
+        ]
+        msg = "\n".join(preview_lines)
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_read_sprint",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_next(args: list[str]) -> CommandResult:
+    """Phase 69: /next [role] — find the next pending task ready to be
+    picked up. Optional role filter narrows by discipline.
+
+    A producer's daily move: open chat, `/next`, work on that task.
+    No 'list backlog, eyeball priorities, pick something' mental load.
+    """
+    try:
+        from ..studio.tools import studio_next_task
+        from ..studio.models import ROLES
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_next_task not importable: {exc}",
+        )
+
+    role = args[0] if args else ""
+    if role and role not in ROLES:
+        return CommandResult(
+            handled=True, ok=False,
+            message=(
+                f"Unknown role {role!r}. Try one of: {', '.join(sorted(ROLES))}, "
+                f"or omit the role to get the next task across all disciplines."
+            ),
+        )
+
+    try:
+        result = studio_next_task(role=role)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_next_task",
+            message=f"next task lookup failed: {exc}",
+        )
+
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_next_task",
+            tool_result=result,
+            message=result.get("error") or "next task lookup failed",
+        )
+
+    nxt = result.get("task")
+    if nxt is None:
+        reason = result.get("reason") or "no ready task"
+        msg = (
+            f"No task ready to pick up — {reason}"
+            + (f" (role filter: {role})" if role else "")
+        )
+        return CommandResult(
+            handled=True, ok=True,
+            tool_name="studio_next_task",
+            tool_result=result,
+            message=msg,
+        )
+
+    msg = (
+        f"Next up: '{nxt['title']}' "
+        f"[{nxt['role']}, id={nxt['id'][:8]}"
+        + (f", milestone={nxt['milestone']}" if nxt.get("milestone") else "")
+        + f"] — {result.get('ready_count', 0)} ready / "
+        f"{result.get('pending_count', 0)} pending"
+    )
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_next_task",
+        tool_result=result,
+        message=msg,
+    )
 
 
 def _dispatch_sync(args: list[str]) -> CommandResult:
