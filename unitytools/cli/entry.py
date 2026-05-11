@@ -1969,6 +1969,23 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
         worker_model = _resolve_ollama_model(config, worker_model, config.ollama_model)
         reader_model = _resolve_ollama_model(config, reader_model, config.ollama_model)
     
+    # Phase 67: auto-scaffold + auto-sync the studio for the editor user too,
+    # so opening the Unity chat panel in a Unity project does the same
+    # zero-friction onboarding the REPL does. Same opt-out flags.
+    try:
+        from .chat import _init_studio_for_chat
+        studio_active, studio_info = _init_studio_for_chat(
+            unity,
+            auto_scaffold=not getattr(args, "no_auto_init", False),
+            auto_sync=not getattr(args, "no_auto_sync", False),
+        )
+        if studio_active:
+            console.print(f"[cyan]Studio:[/cyan] {studio_info}")
+        else:
+            console.print(f"[dim]Studio inactive: {studio_info}[/dim]")
+    except Exception as exc:  # noqa: BLE001
+        console.print(f"[yellow]Studio init skipped:[/yellow] {exc}")
+
     from ..core.chat_server import ChatServer
     server = ChatServer(
         config,
@@ -1981,6 +1998,8 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
         enable_memory=enable_memory,
         enable_context=enable_context,
         engine_context=getattr(args, "engine", "auto"),
+        unity_bridge=unity,  # Phase 67: needed by /build + other bridge-aware
+                             # slash commands so the editor panel can drive them.
     )
     
     mode_label = f"dual-agent (Reader: {reader_model}, Master: {master_model}, Worker: {worker_model})" if use_dual else "single-agent"
@@ -2236,6 +2255,16 @@ def main() -> int:
     p_chat_srv = sub.add_parser("chat-server", help="Start the TCP chat server for the Editor window")
     p_chat_srv.add_argument("--host", default="127.0.0.1")
     p_chat_srv.add_argument("--port", type=int, default=7778)
+    p_chat_srv.add_argument(
+        "--no-auto-init",
+        action="store_true",
+        help="Phase 67: don't auto-scaffold studio/ when launched in a Unity project without one.",
+    )
+    p_chat_srv.add_argument(
+        "--no-auto-sync",
+        action="store_true",
+        help="Phase 67: don't auto-run studio_sync on chat-server start (matches the REPL flag).",
+    )
     p_chat_srv.add_argument("--use-dual-agent", action="store_true", help="Enable dual-agent mode")
     p_chat_srv.add_argument("--no-dual-agent", action="store_true", help="Force fast single-agent mode even if USE_DUAL_AGENT=true")
     p_chat_srv.add_argument("--master", default="gemma4:latest", help="Master model (dual-agent only; default: gemma4:latest, falls back if missing)")

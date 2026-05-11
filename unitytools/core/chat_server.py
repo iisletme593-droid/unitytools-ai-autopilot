@@ -55,6 +55,7 @@ class ChatServer:
         enable_memory: bool = True,
         enable_context: bool = True,
         engine_context: str = "auto",
+        unity_bridge: Any = None,
     ) -> None:
         self.config = config
         self.host = host
@@ -66,6 +67,7 @@ class ChatServer:
         self.enable_memory = enable_memory
         self.enable_context = enable_context
         self.engine_context = (engine_context or "auto").lower()
+        self.unity_bridge = unity_bridge  # Phase 67: needed by slash commands like /build
         self._listen_sock: Optional[socket.socket] = None
         self._running = False
         self._client_threads: list[threading.Thread] = []
@@ -213,6 +215,16 @@ class ChatServer:
             if not content:
                 send({"type": "error", "message": "Empty message"})
                 return
+            # Phase 67: route slash commands to the deterministic dispatcher
+            # so the Editor chat panel gets the same shortcuts the REPL does.
+            # Unknown slash commands return an error event rather than going
+            # to the LLM — same behaviour as the REPL's /help screen.
+            if content.startswith("/"):
+                handled = self._dispatch_slash_command(content, send)
+                if handled:
+                    return
+                # else: fall through to LLM (shouldn't happen — dispatcher
+                # also handles "unknown command" itself, but be defensive)
             content = self._apply_engine_context(content)
             self._process_user_message(content, orch, send)
             return
@@ -275,6 +287,93 @@ class ChatServer:
         if isinstance(content, list):
             return [{"type": "text", "text": hint}] + content
         return content
+
+    def _dispatch_slash_command(
+        self,
+        content: str,
+        send: Callable[[dict], None],
+    ) -> bool:
+        """Phase 67: route `/scaffold`, `/sync`, `/build`, etc. through the
+        same dispatcher the REPL uses, so Unity Editor users get the
+        identical slash-command surface without depending on the LLM.
+
+        Returns True if the line was recognised (or rejected as an unknown
+        slash command — both terminal outcomes). Returns False ONLY if the
+        caller should fall through to the LLM path (currently never; reserved
+        for future "let LLM handle non-slash short-circuits" extensions).
+
+        Emits the same event protocol as `_process_user_message`:
+          thinking → [tool_call → tool_result] → assistant_text → assistant_done
+        so the existing Unity ChatWindow renders slash output identically.
+        """
+        from ..cli import chat_commands
+
+        line = content[1:].strip()  # strip leading '/'
+        if not line:
+            send({"type": "error", "message": "Empty slash command"})
+            send({"type": "assistant_done", "stop_reason": "error"})
+            return True
+
+        send({"type": "thinking"})
+
+        ctx = chat_commands.DispatchContext(
+            config=self.config,
+            unity_bridge=self.unity_bridge,
+        )
+        try:
+            result = chat_commands.dispatch(line, ctx=ctx)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("slash command dispatch failed")
+            send({"type": "error", "message": f"Slash command failed: {exc}"})
+            send({"type": "assistant_done", "stop_reason": "error"})
+            return True
+
+        if not result.handled:
+            cmd = line.split(None, 1)[0] if line else ""
+            send(
+                {
+                    "type": "error",
+                    "message": f"Unknown command: /{cmd}. Type /help in the REPL or /tools to see available commands.",
+                }
+            )
+            send({"type": "assistant_done", "stop_reason": "unknown_command"})
+            return True
+
+        # Surface the tool execution as the same tool_call / tool_result
+        # event pair the LLM path emits, so the editor UI shows it the
+        # same way.
+        if result.tool_name:
+            send(
+                {
+                    "type": "tool_call",
+                    "tool": result.tool_name,
+                    "input": {"_via": "slash_command", "_line": line},
+                }
+            )
+            payload = result.tool_result if isinstance(result.tool_result, dict) else None
+            send(
+                {
+                    "type": "tool_result",
+                    "tool": result.tool_name,
+                    "ok": result.ok,
+                    "result": payload,
+                    "error": (payload or {}).get("error") if (not result.ok and isinstance(payload, dict)) else None,
+                }
+            )
+
+        text = result.message or ("OK" if result.ok else "Failed")
+        send({"type": "assistant_text", "content": text, "done": True})
+
+        if result.quit:
+            send({"type": "assistant_done", "stop_reason": "quit"})
+        else:
+            send(
+                {
+                    "type": "assistant_done",
+                    "stop_reason": "slash_command" if result.ok else "slash_command_error",
+                }
+            )
+        return True
 
     def _process_user_message(
         self,
