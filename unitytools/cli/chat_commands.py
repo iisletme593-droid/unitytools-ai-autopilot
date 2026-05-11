@@ -141,6 +141,8 @@ _ALIASES: dict[str, str] = {
     "not": "log", "kayıt": "log", "kayit": "log",
     "günlük": "journal", "gunluk": "journal",
     "geçmiş": "journal", "gecmis": "journal",
+    # Phase 73 decide
+    "karar": "decide", "karara": "decide",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -334,6 +336,10 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── journal [days]   (Phase 72: read last N days of journal entries)
     if cmd == "journal":
         return _dispatch_journal(args)
+
+    # ── decide <title> | <summary>   (Phase 73: fast decision capture)
+    if cmd == "decide":
+        return _dispatch_decide(args)
 
     return CommandResult(handled=False)
 
@@ -628,6 +634,7 @@ def _dispatch_help() -> CommandResult:
                 ("/standup [hours]", "daily digest: closed/in-flight/blocked/pending"),
                 ("/log <message>", "append timestamped entry to today's journal"),
                 ("/journal [days]", "read last N days of journal entries"),
+                ("/decide <title> | <summary>", "record a design decision (proposed)"),
                 ("/sprint", "read studio/sprint_current.md"),
                 ("/next [role]", "next pending task ready to pick up"),
                 ("/take <id>", "mark task in_progress"),
@@ -667,7 +674,7 @@ def _dispatch_help() -> CommandResult:
     lines.append(
         "Türkçe aliases: /yardım /durum /sağlık /başlat /eşitle /oluştur "
         "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
-        "/al /tamam /engelle /aç /neden /toplantı /not /günlük "
+        "/al /tamam /engelle /aç /neden /toplantı /not /günlük /karar "
         "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
@@ -1432,6 +1439,77 @@ def _dispatch_why(args: list[str]) -> CommandResult:
     return CommandResult(
         handled=True, ok=True,
         tool_name="studio_explain_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_decide(args: list[str]) -> CommandResult:
+    """Phase 73: /decide <title> | <summary>   — record a design decision.
+
+    The split delimiter is '|' so titles and summaries can each be
+    multi-word without quoting. Falls back to using the whole line as
+    the title (no summary) if no pipe is present.
+
+    The decision lands as 'proposed' — same as studio_propose_decision.
+    Operators can ratify with the existing studio_ratify_decision tool
+    once consensus is reached.
+    """
+    if not args:
+        return CommandResult(
+            handled=True, ok=False,
+            message=(
+                "Usage: /decide <title> | <summary>   "
+                "(e.g. /decide use URP | already adopted; SRP migration "
+                "later if needed)"
+            ),
+        )
+    line = " ".join(args)
+    if "|" in line:
+        title_part, _, summary_part = line.partition("|")
+        title = title_part.strip()
+        summary = summary_part.strip()
+    else:
+        # No pipe — treat the whole line as the title (no summary).
+        title = line.strip()
+        summary = ""
+
+    if not title:
+        return CommandResult(
+            handled=True, ok=False,
+            message="title cannot be empty; put text BEFORE the | character",
+        )
+
+    try:
+        from ..studio.tools import studio_propose_decision
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_propose_decision not importable: {exc}",
+        )
+    try:
+        result = studio_propose_decision(title=title, summary=summary)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_propose_decision",
+            message=f"decision propose failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_propose_decision",
+            tool_result=result,
+            message=result.get("error") or "decision propose failed",
+        )
+    msg = (
+        f"Recorded decision {result['decision_id'][:8]}: '{title}' "
+        f"(status: {result.get('status', 'proposed')})"
+        + ("" if summary else " — no summary; consider adding one")
+    )
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_propose_decision",
         tool_result=result,
         message=msg,
     )

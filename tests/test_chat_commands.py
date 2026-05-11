@@ -2278,6 +2278,115 @@ def test_journal_directory_auto_created_on_first_log() -> None:
     print("OK /log auto-creates studio/memory/journal/ on a pre-Phase-72 studio")
 
 
+# ─────────────────────────────────────────── Phase 73: /decide
+
+
+def test_decide_records_decision_with_title_and_summary() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("decide use URP | already adopted; SRP migration later")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_propose_decision"
+        # Decision actually persisted
+        decisions = state.load_decisions()
+        assert len(decisions) == 1
+        d = decisions[0]
+        assert d.title == "use URP"
+        assert d.summary == "already adopted; SRP migration later"
+        assert d.status.value == "proposed"
+        # Result message shows the short id + title
+        assert "URP" in r.message
+        assert "proposed" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /decide <title> | <summary> persists a proposed decision")
+
+
+def test_decide_title_only_works_with_hint() -> None:
+    """No pipe → whole line becomes title; message hints to add summary."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("decide switch to compute shaders for terrain LOD")
+        assert r.ok is True
+        decisions = state.load_decisions()
+        assert len(decisions) == 1
+        assert decisions[0].title == "switch to compute shaders for terrain LOD"
+        assert decisions[0].summary == ""
+        # Helpful hint to add a summary next time
+        assert "no summary" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /decide <title-only> persists decision + hints to add summary")
+
+
+def test_decide_without_args_returns_usage() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("decide")
+        assert r.handled is True
+        assert r.ok is False
+        assert "Usage" in r.message
+        assert "/decide" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /decide with no args → usage hint with example")
+
+
+def test_decide_with_empty_title_before_pipe_rejected() -> None:
+    """A pipe with nothing before it → no title → reject (don't silently
+    record a no-title decision)."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("decide | just a summary, no title")
+        assert r.handled is True
+        assert r.ok is False
+        assert "title" in r.message.lower()
+        # Nothing got persisted
+        assert state.load_decisions() == []
+    finally:
+        os.chdir(prev)
+    print("OK /decide with empty title rejected — nothing persisted")
+
+
+def test_decide_multiple_titles_persist_in_order() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        dispatch("decide first decision | summary one")
+        dispatch("decide second decision | summary two")
+        dispatch("decide third decision | summary three")
+        decisions = state.load_decisions()
+        assert len(decisions) == 3
+        titles = [d.title for d in decisions]
+        assert "first decision" in titles
+        assert "second decision" in titles
+        assert "third decision" in titles
+    finally:
+        os.chdir(prev)
+    print("OK /decide called 3 times persists 3 decisions")
+
+
+def test_decide_turkish_alias() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("karar yeni karar | açıklama metni")
+        assert r.handled is True
+        assert r.tool_name == "studio_propose_decision"
+        decisions = state.load_decisions()
+        assert len(decisions) == 1
+        assert decisions[0].title == "yeni karar"
+        assert decisions[0].summary == "açıklama metni"
+    finally:
+        os.chdir(prev)
+    print("OK /karar (Türkçe) resolves to /decide and persists correctly")
+
+
+def test_help_lists_decide() -> None:
+    r = dispatch("help")
+    assert "/decide" in r.message, "/help should advertise /decide"
+    print("OK /help advertises /decide")
+
+
 def run_test() -> None:
     # Plumbing
     test_empty_line_returns_not_handled()
@@ -2428,7 +2537,15 @@ def run_test() -> None:
     test_log_journal_turkish_aliases()
     test_help_lists_log_and_journal()
     test_journal_directory_auto_created_on_first_log()
-    print("All chat-command tests passed (Phase 59-72)")
+    # Phase 73 /decide
+    test_decide_records_decision_with_title_and_summary()
+    test_decide_title_only_works_with_hint()
+    test_decide_without_args_returns_usage()
+    test_decide_with_empty_title_before_pipe_rejected()
+    test_decide_multiple_titles_persist_in_order()
+    test_decide_turkish_alias()
+    test_help_lists_decide()
+    print("All chat-command tests passed (Phase 59-73)")
 
 
 if __name__ == "__main__":
