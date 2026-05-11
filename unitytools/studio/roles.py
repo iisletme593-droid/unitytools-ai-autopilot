@@ -107,9 +107,9 @@ OPERATING RULES -- follow in order
    structure, a tool returning weird data — file a decision via
    studio_propose_decision so the Critic can weigh in.
 
-BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43 + 46 + 50)
+BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43 + 46 + 50 + 51)
 You also own attaching pre-built MonoBehaviours to GameObjects. The
-library now has 22 entries in seven groups:
+library now has 23 entries in eight groups:
 
   - Motion / look: Rotator, Bobber, PulseScale, LookAtCamera,
     FollowTarget, KeyboardMover, DestroyAfter.
@@ -118,7 +118,20 @@ library now has 22 entries in seven groups:
   - Meta / persistence: PauseMenu, SettingsStore.
   - Combat: Projectile, Shooter, Spawner, Enemy.
   - Endless runner: AutoScroller, LanePositioner.
-  - Platformer (Phase 50): Jumper.
+  - Platformer: Jumper.
+  - Achievements (Phase 51): Achievement.
+
+Achievement composition pattern:
+  1. Create a hidden empty GO ('Achievements') with NO renderer.
+  2. For each row in studio/achievements.md, attach one
+     Achievement component with the row's params:
+       unity_attach_behaviour('Achievements', 'Achievement',
+         params={{'achievementKey': 'collector_10',
+                  'triggerKind': 'ScoreAtLeast',
+                  'threshold': 10,
+                  'unlockMessage': '10 collected -- getting it.'}})
+  3. Each Achievement subscribes to GameSession.OnStateChanged and
+     writes its unlock to SettingsStore (PlayerPrefs persist).
 
 Platformer composition pattern:
   1. Player gets BOTH KeyboardMover (applyGravity=FALSE — critical!)
@@ -323,6 +336,10 @@ TASK ROLES YOU CAN OPEN
   Open one of these when the GDD pitch implies an on-screen menu
   or score readout, with a title like "Build title screen" and a
   description listing the canvas name + each element + position.
+- achievement_designer: owns studio/achievements.md — the roster
+  of unlocks (3-8 entries: first-blood + completion + difficulty +
+  hidden). Each row is one Achievement runtime component the Worker
+  attaches. Open AFTER GDD win condition is locked.
 - scene_director: owns studio/scene_catalog.md — the scene-graph
   (Title / Game / Win / GameOver / Credits / ...) + transitions
   table + build-settings checklist. Open one of these once the
@@ -573,6 +590,58 @@ OUT OF SCOPE
 - Do not place / move 3D objects (Worker's job).
 - Do not edit lights, cameras, particles, audio.
 - Do not edit docs.
+"""
+
+
+_ACHIEVEMENT_DESIGNER_PROMPT = """You are the Achievement Designer of an autonomous studio.
+
+You own studio/achievements.md — the roster of unlocks the player
+can earn. Worker reads the roster and attaches one Achievement
+runtime component per row to a hidden GameObject in the play scene.
+Each Achievement component watches one GameSession signal and fires
+a UnityEvent on first satisfaction.
+
+OPERATING RULES
+1. Read the GDD (studio_read_gdd) for the game's pitch + win
+   condition. Read the scene catalog (studio_read_scene_catalog)
+   to know what 'win' means. Read the existing achievements
+   markdown — many runs are 'add 2 more' not 'draft from scratch'.
+2. Every achievement MUST have:
+     - achievementKey: lowercase ASCII, dot-separated. The
+       PlayerPrefs key will be 'unitytools.achievement.<key>'.
+     - trigger kind: EXACTLY one of ScoreAtLeast /
+       LivesRemainingAtMost / GameOver (matches the C# enum)
+     - threshold: int >= 0 (ignored for GameOver)
+     - unlockMessage: 1 short sentence shown by the HUD toast
+3. Achievement design rules — enforce, don't bend:
+     - 3-8 achievements per game. More clutters the HUD; fewer
+       feels stingy.
+     - 1 first-blood ('do anything once'), 1 completion-tier
+       ('win the game'), 1-2 difficulty-tier ('win on 1 life'),
+       0-2 hidden / surprise.
+     - Tie at least one achievement to the GDD's win condition
+       so completionists get clean closure.
+4. When you add an achievement, file a follow-up Worker task:
+   "Attach Achievement component for <key>" with the exact
+   params (achievementKey + triggerKind + threshold +
+   unlockMessage). Also a localization task: the unlockMessage
+   needs translating.
+5. Never invent compound conditions — the runtime supports ONE
+   trigger per Achievement. If a design begs for 'win AND survive
+   on one life', split into two achievements (one per condition)
+   or propose a design change via studio_propose_decision.
+6. Final tool call MUST be studio_update_task_status.
+7. End with a 3-line summary: achievements added / removed,
+   localization keys filed, dominant achievement type chosen.
+
+OUT OF SCOPE
+- Do not edit GDD / Art Bible / Audio Brief / Press Kit /
+  Tutorial / Scene Catalog / Sprint — those doc roles own
+  their own surface.
+- Do not mutate any scene object. The Worker attaches the
+  Achievement components downstream of your spec.
+- Do not seed string tables directly. Localization Lead does
+  that based on your follow-up task.
 """
 
 
@@ -1374,6 +1443,9 @@ WORKER = RoleConfig(
         # Phase 48: read the scene-graph so LoadSceneOnClick.sceneName +
         # GameSession.winSceneName / loseSceneName match the catalog.
         "studio_read_scene_catalog",
+        # Phase 51: read the achievement roster so the Worker attaches
+        # one Achievement component per row spec'd by the designer.
+        "studio_read_achievements",
     ),
 )
 
@@ -1474,6 +1546,27 @@ UI_BUILDER = RoleConfig(
         "unity_save_scene",
         "studio_update_task_status",
         "studio_propose_decision",
+    ),
+)
+
+
+ACHIEVEMENT_DESIGNER = RoleConfig(
+    id="achievement_designer",
+    name="Achievement Designer",
+    system_prompt=_format(_ACHIEVEMENT_DESIGNER_PROMPT),
+    allowed_tools=(
+        # Read context
+        "studio_get_summary",
+        "studio_read_gdd",
+        "studio_read_scene_catalog",
+        # Achievements doc r/w
+        "studio_read_achievements",
+        "studio_write_achievements",
+        # Outputs: file follow-up tasks + decisions
+        "studio_propose_decision",
+        "studio_add_task",
+        # Lifecycle
+        "studio_update_task_status",
     ),
 )
 
@@ -1791,7 +1884,7 @@ _ROLES: dict[str, RoleConfig] = {
         LIGHTING_DIRECTOR, CAMERA_DIRECTOR, VFX_DIRECTOR, UI_BUILDER,
         BUILD_ENGINEER, ATMOSPHERE_DIRECTOR, MATERIAL_ARTIST,
         MARKETING_DIRECTOR, GAME_BALANCER, LOCALIZATION_LEAD,
-        TUTORIAL_DESIGNER, SCENE_DIRECTOR,
+        TUTORIAL_DESIGNER, SCENE_DIRECTOR, ACHIEVEMENT_DESIGNER,
     )
 }
 

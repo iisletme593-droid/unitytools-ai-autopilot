@@ -69,6 +69,7 @@ ROLES = (
     "localization_lead",
     "tutorial_designer",
     "scene_director",
+    "achievement_designer",
 )
 
 

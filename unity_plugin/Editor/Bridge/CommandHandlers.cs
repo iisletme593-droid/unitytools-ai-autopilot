@@ -1229,6 +1229,8 @@ namespace UnityTools.Bridge
             "AutoScroller", "LanePositioner",
             // Phase 50: platformer primitive
             "Jumper",
+            // Phase 51: achievement primitive
+            "Achievement",
         };
 
         private static Type ResolveBehaviourType(string name)

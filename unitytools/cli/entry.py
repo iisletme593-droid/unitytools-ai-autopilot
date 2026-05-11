@@ -1821,6 +1821,7 @@ def _default_brief_for(role_id: str) -> str:
         "localization_lead": "Audit studio/strings/ coverage. Add missing keys to en first, then fill any non-en locale gap. Verdict must be 'pass' before closing.",
         "tutorial_designer": "Read GDD pitch. Draft / refine studio/tutorial.md with player goal + controls + 3-5 onboarding beats + UI surface + skip path. File UI Builder + Localization follow-up tasks for any new beats.",
         "scene_director": "Read GDD + tutorial. Draft / refine studio/scene_catalog.md with the scene-graph (Title/Game/Win/GameOver/Credits) + transitions table + build-settings checklist. File Worker + Build Engineer + UI Builder follow-up tasks per new scene.",
+        "achievement_designer": "Read GDD win condition. Draft / refine studio/achievements.md roster (3-8 entries: first-blood + completion + difficulty + hidden). File a Worker task per new achievement with achievementKey + triggerKind + threshold + unlockMessage.",
     }.get(role_id, "Run your role on the current project state.")
 
 
@@ -2027,7 +2028,7 @@ def main() -> int:
     p_studio_run.add_argument(
         "--role",
         required=True,
-        choices=("producer", "designer", "critic", "level_designer", "art_director", "playtester", "physics_qa", "audio_director", "audio_engineer", "lighting_director", "camera_director", "vfx_director", "ui_builder", "build_engineer", "atmosphere_director", "material_artist", "marketing_director", "game_balancer", "localization_lead", "tutorial_designer", "scene_director"),
+        choices=("producer", "designer", "critic", "level_designer", "art_director", "playtester", "physics_qa", "audio_director", "audio_engineer", "lighting_director", "camera_director", "vfx_director", "ui_builder", "build_engineer", "atmosphere_director", "material_artist", "marketing_director", "game_balancer", "localization_lead", "tutorial_designer", "scene_director", "achievement_designer"),
         help="Which role to run",
     )
     p_studio_run.add_argument("--brief", default="", help="Free-text brief for the role; uses a sensible default if omitted")

@@ -45,6 +45,7 @@ from .roles import (
     LOCALIZATION_LEAD,
     TUTORIAL_DESIGNER,
     SCENE_DIRECTOR,
+    ACHIEVEMENT_DESIGNER,
     get_role,
     all_roles,
 )
@@ -138,6 +139,7 @@ __all__ = [
     "LOCALIZATION_LEAD",
     "TUTORIAL_DESIGNER",
     "SCENE_DIRECTOR",
+    "ACHIEVEMENT_DESIGNER",
     "get_role",
     "all_roles",
     # runner

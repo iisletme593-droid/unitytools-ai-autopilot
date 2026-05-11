@@ -141,6 +141,19 @@ def studio_write_scene_catalog(content: str) -> dict:
     return {"ok": True, "path": str(state.paths.scene_catalog)}
 
 
+@tool(description="Read the achievements markdown — the roster of unlocks (key + trigger kind + threshold + display message). Empty string if absent.")
+def studio_read_achievements() -> dict:
+    state = _require_state()
+    return {"ok": True, "content": state.read_doc(state.paths.achievements)}
+
+
+@tool(description="Replace the achievements markdown. Owned by the Achievement Designer. Each entry must list: achievementKey (PlayerPrefs slug), trigger kind from {ScoreAtLeast, LivesRemainingAtMost, GameOver}, threshold (int; ignored for GameOver), and a one-line unlock message.")
+def studio_write_achievements(content: str) -> dict:
+    state = _require_state()
+    state.write_doc(state.paths.achievements, content)
+    return {"ok": True, "path": str(state.paths.achievements)}
+
+
 @tool(description="Read the current sprint plan markdown.")
 def studio_read_sprint() -> dict:
     state = _require_state()
@@ -3123,6 +3136,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_write_tutorial",
     "studio_read_scene_catalog",
     "studio_write_scene_catalog",
+    "studio_read_achievements",
+    "studio_write_achievements",
     "studio_read_sprint",
     "studio_write_sprint",
     # backlog

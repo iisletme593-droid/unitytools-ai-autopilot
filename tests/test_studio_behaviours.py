@@ -106,10 +106,12 @@ def test_behaviour_library_contains_known_behaviours() -> None:
         "AutoScroller", "LanePositioner",
         # Phase 50 platformer primitive
         "Jumper",
+        # Phase 51 achievement primitive
+        "Achievement",
     }
     assert set(_BEHAVIOUR_LIBRARY) == expected
-    assert len(_BEHAVIOUR_LIBRARY) == 22
-    print("OK Behaviour library exposes 22 known names")
+    assert len(_BEHAVIOUR_LIBRARY) == 23
+    print("OK Behaviour library exposes 23 known names")
 
 
 def test_each_behaviour_has_a_corresponding_cs_file() -> None:
@@ -423,6 +425,38 @@ def test_jumper_in_runtime_namespace() -> None:
     print("OK Jumper in UnityTools.Behaviours, no UnityEditor leak")
 
 
+# ───────────────────────────────────────────── achievement (Phase 51)
+
+
+def test_achievement_three_trigger_kinds_and_settings_store_persist() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "Achievement.cs").read_text(encoding="utf-8")
+    # Tunable fields
+    for f in ("achievementKey", "unlockMessage", "triggerKind", "threshold"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"Achievement.{f} field missing"
+    # Three trigger kinds exposed via enum
+    for kind in ("ScoreAtLeast", "LivesRemainingAtMost", "GameOver"):
+        assert kind in body, f"TriggerKind.{kind} missing from enum"
+    # Public IsUnlocked + Unlock + ResetUnlock API
+    assert re.search(r"public\s+bool\s+IsUnlocked\s*{\s*get", body), "IsUnlocked getter missing"
+    assert re.search(r"public\s+void\s+Unlock\s*\(", body), "public Unlock() missing"
+    assert re.search(r"public\s+void\s+ResetUnlock\s*\(", body), "public ResetUnlock() missing"
+    # UnityEvent OnUnlock so UI / SFX can hook in inspector
+    assert "UnityEvent" in body and "OnUnlock" in body
+    # Persistence routes through SettingsStore (so it survives play sessions)
+    assert "SettingsStore.SetInt" in body
+    assert "SettingsStore.GetInt" in body
+    # Subscribes + unsubscribes to GameSession.OnStateChanged
+    assert "OnStateChanged" in body
+    print("OK Achievement contract: 4 tunables + 3 trigger kinds + IsUnlocked + Unlock/ResetUnlock + UnityEvent + SettingsStore persist + OnStateChanged subscription")
+
+
+def test_achievement_in_runtime_namespace() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "Achievement.cs").read_text(encoding="utf-8")
+    assert "namespace UnityTools.Behaviours" in body
+    assert "using UnityEditor;" not in body
+    print("OK Achievement in UnityTools.Behaviours, no UnityEditor leak")
+
+
 # ───────────────────────────────────────────── wrapper validation
 
 
@@ -578,6 +612,9 @@ def run_test() -> None:
     # Phase 50 platformer
     test_jumper_jump_arc_and_ground_check()
     test_jumper_in_runtime_namespace()
+    # Phase 51 achievement
+    test_achievement_three_trigger_kinds_and_settings_store_persist()
+    test_achievement_in_runtime_namespace()
     # Wrappers
     test_attach_behaviour_rejects_unknown_name()
     test_attach_behaviour_requires_target_name()

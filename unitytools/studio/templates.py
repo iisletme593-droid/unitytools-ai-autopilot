@@ -119,6 +119,49 @@ SPRINT_TEMPLATE = """# Current Sprint
 """
 
 
+ACHIEVEMENTS_TEMPLATE = """# Achievements
+
+> Achievement Designer maintains. Every unlock the player can earn,
+> with its trigger condition + threshold + display copy. The Worker
+> reads this list and attaches one Achievement component per row to
+> a hidden 'Achievements' GameObject in the play scene.
+
+## Roster
+
+| Key            | Trigger              | Threshold | Unlock Message                |
+|----------------|----------------------|-----------|-------------------------------|
+| first_blood    | ScoreAtLeast         | 1         | First score!                  |
+| collector_10   | ScoreAtLeast         | 10        | 10 collected — getting it.    |
+| completionist  | ScoreAtLeast         | (winScore)| All coins!                    |
+| close_call     | LivesRemainingAtMost | 1         | Down to your last life...     |
+| game_over      | GameOver             | -         | Run complete.                 |
+
+## Design Rules
+*Keep additions tight. Each achievement must be:*
+- *Discoverable through normal play (no obscure conditions).*
+- *Tied to a single GameSession signal (no compound conditions —*
+  *the runtime supports one trigger per Achievement component).*
+- *Worth showing a toast for — if it would fire silently, drop it.*
+
+## Trigger Kinds
+*Match the C# Achievement.TriggerKind enum exactly:*
+- `ScoreAtLeast` — fires when `GameSession.Score >= threshold`
+- `LivesRemainingAtMost` — fires when `GameSession.Lives <= threshold`
+- `GameOver` — fires when `GameSession.IsOver` becomes true
+  (threshold is ignored)
+
+## UI Surface
+*Where the unlock toast appears + how long it stays. Coordinate
+with UI Builder if a new overlay is needed.*
+- Default: a 4-second slide-in label at the top-center of the HUD.
+
+## Persistence
+*Achievement keys are stored under PlayerPrefs key*
+*`unitytools.achievement.<key>`. Unlocks survive scene loads and*
+*game sessions. SettingsStore.DeleteKey clears them (new game+).*
+"""
+
+
 SCENE_CATALOG_TEMPLATE = """# Scene Catalog
 
 > Scene Director maintains. The scene-graph of the game — every
@@ -276,6 +319,7 @@ def starter_files() -> dict[str, str]:
         "press_kit.md": PRESS_KIT_TEMPLATE,
         "tutorial.md": TUTORIAL_TEMPLATE,
         "scene_catalog.md": SCENE_CATALOG_TEMPLATE,
+        "achievements.md": ACHIEVEMENTS_TEMPLATE,
         "sprint_current.md": SPRINT_TEMPLATE,
         ".gitignore": GITIGNORE_TEMPLATE,
     }

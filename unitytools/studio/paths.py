@@ -44,6 +44,10 @@ class StudioPaths:
         return self.root / "scene_catalog.md"
 
     @property
+    def achievements(self) -> Path:
+        return self.root / "achievements.md"
+
+    @property
     def strings(self) -> Path:
         """Directory holding per-locale string tables (<code>.json)."""
         return self.root / "strings"

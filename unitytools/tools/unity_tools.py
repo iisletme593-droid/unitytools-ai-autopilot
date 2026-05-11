@@ -867,6 +867,8 @@ _BEHAVIOUR_LIBRARY = (
     "AutoScroller", "LanePositioner",
     # Phase 50: platformer primitive
     "Jumper",
+    # Phase 51: achievement primitive
+    "Achievement",
 )
 
 

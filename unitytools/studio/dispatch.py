@@ -60,6 +60,7 @@ DISPATCH_MAP: dict[str, Optional[str]] = {
     "localization_lead": "localization_lead",  # Phase 39: string tables per locale
     "tutorial_designer": "tutorial_designer",  # Phase 47: onboarding flow doc
     "scene_director": "scene_director",  # Phase 48: scene-graph + transitions doc
+    "achievement_designer": "achievement_designer",  # Phase 51: unlock roster
     "level_designer": "worker",
     "tech_artist": "physics_qa",  # Phase 24: tech_artist tasks profile + optimise
     "physics_qa": "physics_qa",
