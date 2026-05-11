@@ -119,6 +119,56 @@ SPRINT_TEMPLATE = """# Current Sprint
 """
 
 
+TUTORIAL_TEMPLATE = """# Tutorial / Onboarding
+
+> Tutorial Designer maintains. The first 60 seconds a new player
+> experiences. The bridge between "they bought / clicked" and
+> "they understand the game's core loop."
+
+## Player Goal (one line)
+*What is the player trying to do? Steam refunds happen if this isn't
+clear within 90 seconds.*
+
+## Controls
+*List every key/button the player needs to press to play. Hide deeper
+options for later.*
+- ...
+- ...
+
+## Onboarding Flow (3-5 beats)
+*Each beat = one screen / one moment. Tell don't show; show don't
+explain at length.*
+
+### Beat 1 — Hook
+*First thing the player sees. Should make them want to press a key.*
+
+### Beat 2 — First Action
+*Reward the first button press immediately. Coin / hit / movement.*
+
+### Beat 3 — First Choice
+*Surface the game's first meaningful decision.*
+
+### Beat 4 (optional) — First Failure
+*Let the player lose once on a safe surface. Teach the fail state.*
+
+### Beat 5 — Off Training Wheels
+*The HUD is final, the rules are clear. Let them play.*
+
+## UI Surface
+*Which Canvas / overlay / text element shows each beat?*
+- Beat 1: ...
+- Beat 2: ...
+
+## Skip Path
+*Every tutorial needs a one-key skip. Document the binding.*
+- ...
+
+## Telemetry
+*Which events does Playtester log to track tutorial completion?*
+- ...
+"""
+
+
 PRESS_KIT_TEMPLATE = """# Press Kit
 
 > Marketing Director maintains. Ship-ready summary for store listings,
@@ -177,6 +227,7 @@ def starter_files() -> dict[str, str]:
         "art_bible.md": ART_BIBLE_TEMPLATE,
         "audio_brief.md": AUDIO_BRIEF_TEMPLATE,
         "press_kit.md": PRESS_KIT_TEMPLATE,
+        "tutorial.md": TUTORIAL_TEMPLATE,
         "sprint_current.md": SPRINT_TEMPLATE,
         ".gitignore": GITIGNORE_TEMPLATE,
     }

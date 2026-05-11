@@ -36,6 +36,10 @@ class StudioPaths:
         return self.root / "press_kit.md"
 
     @property
+    def tutorial(self) -> Path:
+        return self.root / "tutorial.md"
+
+    @property
     def strings(self) -> Path:
         """Directory holding per-locale string tables (<code>.json)."""
         return self.root / "strings"

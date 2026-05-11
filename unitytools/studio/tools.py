@@ -115,6 +115,19 @@ def studio_write_press_kit(content: str) -> dict:
     return {"ok": True, "path": str(state.paths.press_kit)}
 
 
+@tool(description="Read the tutorial / onboarding markdown — player goal, controls, the 3-5 beat first-60-seconds flow, UI surface, skip path. Empty string if absent.")
+def studio_read_tutorial() -> dict:
+    state = _require_state()
+    return {"ok": True, "content": state.read_doc(state.paths.tutorial)}
+
+
+@tool(description="Replace the tutorial / onboarding markdown. Owned by the Tutorial Designer. Must include at minimum: Player Goal, Controls, and 3+ beats describing the first 60 seconds of play.")
+def studio_write_tutorial(content: str) -> dict:
+    state = _require_state()
+    state.write_doc(state.paths.tutorial, content)
+    return {"ok": True, "path": str(state.paths.tutorial)}
+
+
 @tool(description="Read the current sprint plan markdown.")
 def studio_read_sprint() -> dict:
     state = _require_state()
@@ -2671,6 +2684,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_write_audio_brief",
     "studio_read_press_kit",
     "studio_write_press_kit",
+    "studio_read_tutorial",
+    "studio_write_tutorial",
     "studio_read_sprint",
     "studio_write_sprint",
     # backlog

@@ -1819,6 +1819,7 @@ def _default_brief_for(role_id: str) -> str:
         "marketing_director": "Finalise the press kit + Unity PlayerSettings (product name, version, bundle id) and capture a hero shot. Land everything the Build Engineer needs before shipping.",
         "game_balancer": "Run studio_balance_audit(days=7) and file specific tuning decisions + Worker tasks for each significant signal: repeating missing objects, high playtest failure rate, perf regressions, vision-compare drift.",
         "localization_lead": "Audit studio/strings/ coverage. Add missing keys to en first, then fill any non-en locale gap. Verdict must be 'pass' before closing.",
+        "tutorial_designer": "Read GDD pitch. Draft / refine studio/tutorial.md with player goal + controls + 3-5 onboarding beats + UI surface + skip path. File UI Builder + Localization follow-up tasks for any new beats.",
     }.get(role_id, "Run your role on the current project state.")
 
 
@@ -2025,7 +2026,7 @@ def main() -> int:
     p_studio_run.add_argument(
         "--role",
         required=True,
-        choices=("producer", "designer", "critic", "level_designer", "art_director", "playtester", "physics_qa", "audio_director", "audio_engineer", "lighting_director", "camera_director", "vfx_director", "ui_builder", "build_engineer", "atmosphere_director", "material_artist", "marketing_director", "game_balancer", "localization_lead"),
+        choices=("producer", "designer", "critic", "level_designer", "art_director", "playtester", "physics_qa", "audio_director", "audio_engineer", "lighting_director", "camera_director", "vfx_director", "ui_builder", "build_engineer", "atmosphere_director", "material_artist", "marketing_director", "game_balancer", "localization_lead", "tutorial_designer"),
         help="Which role to run",
     )
     p_studio_run.add_argument("--brief", default="", help="Free-text brief for the role; uses a sensible default if omitted")

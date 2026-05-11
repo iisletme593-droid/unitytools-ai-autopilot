@@ -58,6 +58,7 @@ DISPATCH_MAP: dict[str, Optional[str]] = {
     "marketing_director": "marketing_director",  # Phase 37: press kit + PlayerSettings + hero shots
     "game_balancer": "game_balancer",  # Phase 38: playtest + perf data -> tuning tasks
     "localization_lead": "localization_lead",  # Phase 39: string tables per locale
+    "tutorial_designer": "tutorial_designer",  # Phase 47: onboarding flow doc
     "level_designer": "worker",
     "tech_artist": "physics_qa",  # Phase 24: tech_artist tasks profile + optimise
     "physics_qa": "physics_qa",
