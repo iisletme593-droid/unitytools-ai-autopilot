@@ -101,6 +101,19 @@ def studio_write_audio_brief(content: str) -> dict:
     return {"ok": True, "path": str(state.paths.audio_brief)}
 
 
+@tool(description="Read the press kit markdown (title, tagline, description, features, hero shots, credits, links, build targets). Empty string if absent.")
+def studio_read_press_kit() -> dict:
+    state = _require_state()
+    return {"ok": True, "content": state.read_doc(state.paths.press_kit)}
+
+
+@tool(description="Replace the press kit markdown. Owned by the Marketing Director. Must include at minimum: Game Title, Tagline, Description, and hero shot references.")
+def studio_write_press_kit(content: str) -> dict:
+    state = _require_state()
+    state.write_doc(state.paths.press_kit, content)
+    return {"ok": True, "path": str(state.paths.press_kit)}
+
+
 @tool(description="Read the current sprint plan markdown.")
 def studio_read_sprint() -> dict:
     state = _require_state()
@@ -493,6 +506,56 @@ def studio_unity_attach_audio_source(
     if not isinstance(result, dict) or not result.get("ok", True):
         return {"ok": False, "error": "Unity reported set_audio_source failure.", "raw": result}
     return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
+
+
+# ─── Asset manifest (Phase 37) ─────────────────────────────────────────
+
+@tool(description="Inventory the studio's asset directories: studio/refs/, studio/refs/audio/, studio/qa/screenshots/, studio/assets/generated/, studio/builds/. Returns counts + total bytes per bucket + the 10 newest files in each. Read-only; no Unity calls.")
+def studio_asset_manifest() -> dict:
+    state = _require_state()
+    paths = state.paths
+
+    def _scan(directory: Path, exts: tuple[str, ...] = ()) -> dict:
+        if not directory.exists():
+            return {"count": 0, "total_bytes": 0, "newest": []}
+        rows: list[dict] = []
+        for p in directory.rglob("*"):
+            if not p.is_file():
+                continue
+            if exts and p.suffix.lower() not in exts:
+                continue
+            try:
+                stat = p.stat()
+            except OSError:
+                continue
+            rows.append({
+                "path": str(p.relative_to(paths.root)) if p.is_relative_to(paths.root) else str(p),
+                "size_bytes": stat.st_size,
+                "mtime": stat.st_mtime,
+            })
+        rows.sort(key=lambda r: r["mtime"], reverse=True)
+        total = sum(r["size_bytes"] for r in rows)
+        return {
+            "count": len(rows),
+            "total_bytes": total,
+            "newest": [{k: v for k, v in r.items() if k != "mtime"} for r in rows[:10]],
+        }
+
+    image_exts = (".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp")
+    audio_exts = (".wav", ".mp3", ".ogg", ".aiff", ".flac")
+    mesh_exts = (".fbx", ".obj", ".glb", ".gltf", ".blend")
+    build_exts = (".exe", ".app", ".x86_64", ".apk", ".ipa", ".html", ".js", ".wasm", ".data")
+
+    refs_audio = paths.refs / "audio"
+    return {
+        "ok": True,
+        "project_root": str(paths.root),
+        "references": _scan(paths.refs, image_exts),
+        "audio_references": _scan(refs_audio, audio_exts),
+        "screenshots": _scan(paths.qa_screenshots, image_exts),
+        "generated_assets": _scan(paths.root / "assets" / "generated", mesh_exts),
+        "builds": _scan(paths.root / "builds", build_exts),
+    }
 
 
 # ─── Atmosphere audit (Phase 35) ───────────────────────────────────────
@@ -1524,6 +1587,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_write_art_bible",
     "studio_read_audio_brief",
     "studio_write_audio_brief",
+    "studio_read_press_kit",
+    "studio_write_press_kit",
     "studio_read_sprint",
     "studio_write_sprint",
     # backlog
@@ -1565,6 +1630,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_cost_summary",
     # atmosphere (Phase 35)
     "studio_atmosphere_audit",
+    # marketing / press kit (Phase 37)
+    "studio_asset_manifest",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

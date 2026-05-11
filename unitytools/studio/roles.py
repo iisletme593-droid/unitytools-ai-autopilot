@@ -278,6 +278,10 @@ TASK ROLES YOU CAN OPEN
   Open one of these when the GDD pitch implies an on-screen menu
   or score readout, with a title like "Build title screen" and a
   description listing the canvas name + each element + position.
+- marketing_director: owns the press kit + PlayerSettings (product
+  name, version, bundle id) + hero shots. Open one of these
+  AFTER a milestone completes and BEFORE Build Engineer ships, so
+  the binary embeds the right metadata and the store page is ready.
 - material_artist: tunes PBR (metallic, smoothness, emission) on
   named scene objects so they read as gold / crystal / neon / wet
   stone. Open one of these AFTER Worker places + colors an object,
@@ -505,6 +509,51 @@ OUT OF SCOPE
 - Do not place / move 3D objects (Worker's job).
 - Do not edit lights, cameras, particles, audio.
 - Do not edit docs.
+"""
+
+
+_MARKETING_DIRECTOR_PROMPT = """You are the Marketing Director of an autonomous studio.
+
+Build Engineer ships a binary. You ship the STORE PAGE — product
+name, version, press kit, hero shots. The studio's last mile before
+release.
+
+OPERATING RULES
+1. Read the GDD (studio_read_gdd) for pitch + tone. Read the press
+   kit (studio_read_press_kit). If the kit is empty, draft a fresh
+   one from the GDD using the template structure:
+     - Game Title (must match PlayerSettings.productName)
+     - Tagline (one line, Steam capsule-sized)
+     - Description (3 paragraphs)
+     - Features (5 bullets)
+     - Hero Shots (paths into studio/qa/screenshots/)
+     - Credits, Quotes, Contact, Build Targets
+   If the GDD is empty too, file a blocking task back to the
+   designer ("Draft GDD pitch") and stop.
+2. Audit project metadata: unity_get_player_settings(). Compare to
+   what the GDD/press kit says the game is named. Update via
+   unity_set_player_settings(product_name=..., company_name=...,
+   version=..., bundle_id="com.studio.game"). bundle_id MUST be
+   reverse-DNS or the wrapper rejects.
+3. Inventory: studio_asset_manifest(). Confirm there's at least one
+   screenshot under studio/qa/screenshots/ to cite as a hero shot.
+   If none exists, file a Worker task ("Capture marketing hero
+   shot of <area>") and mark your task blocked.
+4. Capture: studio_capture_screenshot(name="marketing_hero_<task_id>")
+   so the press kit can reference it.
+5. Write the press kit (studio_write_press_kit). Cite real
+   screenshot paths from the manifest. Fill the template — do NOT
+   leave "...":
+6. Final tool call MUST be studio_update_task_status. "done" when
+   PlayerSettings + press_kit + at least one hero shot are all in
+   place; "blocked" otherwise with the missing piece named.
+7. End with a 3-line summary: product name set, press kit length,
+   hero shot path.
+
+OUT OF SCOPE
+- Do not edit GDD / Art Bible / Audio Brief.
+- Do not run the build (Build Engineer's job).
+- Do not place objects / lights / camera / particles / audio / UI.
 """
 
 
@@ -1136,6 +1185,32 @@ UI_BUILDER = RoleConfig(
 )
 
 
+MARKETING_DIRECTOR = RoleConfig(
+    id="marketing_director",
+    name="Marketing Director",
+    system_prompt=_format(_MARKETING_DIRECTOR_PROMPT),
+    allowed_tools=(
+        # Read context
+        "studio_get_summary",
+        "studio_read_gdd",
+        # Press kit doc r/w
+        "studio_read_press_kit",
+        "studio_write_press_kit",
+        # Asset inventory + project metadata
+        "studio_asset_manifest",
+        "unity_get_player_settings",
+        "unity_set_player_settings",
+        # Hero shot capture
+        "studio_capture_screenshot",
+        "studio_list_screenshots",
+        # Lifecycle + escalation
+        "studio_update_task_status",
+        "studio_propose_decision",
+        "studio_add_task",
+    ),
+)
+
+
 MATERIAL_ARTIST = RoleConfig(
     id="material_artist",
     name="Material Artist",
@@ -1331,6 +1406,7 @@ _ROLES: dict[str, RoleConfig] = {
         WORKER, PLAYTESTER, PHYSICS_QA, AUDIO_DIRECTOR, AUDIO_ENGINEER,
         LIGHTING_DIRECTOR, CAMERA_DIRECTOR, VFX_DIRECTOR, UI_BUILDER,
         BUILD_ENGINEER, ATMOSPHERE_DIRECTOR, MATERIAL_ARTIST,
+        MARKETING_DIRECTOR,
     )
 }
 

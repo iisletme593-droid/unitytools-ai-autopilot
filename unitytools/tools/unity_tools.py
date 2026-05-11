@@ -682,6 +682,46 @@ def unity_create_ui_button(
         return {"ok": False, "error": str(e)}
 
 
+@tool(description="Set Unity PlayerSettings: product_name (window title + binary name), company_name (registry path on Windows), version (bundleVersion), bundle_id (applicationIdentifier — reverse-DNS like 'com.studio.game'), default screen size. Each empty/zero param is skipped. Call this BEFORE unity_build_player so the build picks up the right metadata.")
+def unity_set_player_settings(
+    product_name: str = "",
+    company_name: str = "",
+    version: str = "",
+    bundle_id: str = "",
+    default_width: int = 0,
+    default_height: int = 0,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    if bundle_id and "." not in bundle_id:
+        return {"ok": False, "error": f"bundle_id should be reverse-DNS (e.g. com.studio.game); got {bundle_id!r}"}
+    params: dict = {}
+    if product_name: params["product_name"] = product_name
+    if company_name: params["company_name"] = company_name
+    if version: params["version"] = version
+    if bundle_id: params["bundle_id"] = bundle_id
+    if default_width > 0: params["default_width"] = default_width
+    if default_height > 0: params["default_height"] = default_height
+    if not params:
+        return {"ok": False, "error": "at least one field must be set"}
+    try:
+        result = _UNITY.call("set_player_settings", params)
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Read Unity PlayerSettings: product_name, company_name, version, bundle_id, default screen size, active build target, Unity version. Read-only.")
+def unity_get_player_settings() -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("get_player_settings", {})
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @tool(description="Set PBR properties on the shared material of a named GameObject's first Renderer. metallic + smoothness are 0-1; emission_enabled toggles the _EMISSION shader keyword; emission_color + emission_intensity drive HDR emission (intensity scales the color, so emission_color=(1,0.5,0.1) at intensity=2 gives bright orange glow). Leave any param at its default to skip it. Works on URP / Built-in / HDRP through HasProperty fallback.")
 def unity_set_material_pbr(
     target_name: str,

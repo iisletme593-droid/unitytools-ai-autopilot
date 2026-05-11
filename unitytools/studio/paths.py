@@ -32,6 +32,10 @@ class StudioPaths:
         return self.root / "audio_brief.md"
 
     @property
+    def press_kit(self) -> Path:
+        return self.root / "press_kit.md"
+
+    @property
     def sprint_current(self) -> Path:
         return self.root / "sprint_current.md"
 

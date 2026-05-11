@@ -119,6 +119,50 @@ SPRINT_TEMPLATE = """# Current Sprint
 """
 
 
+PRESS_KIT_TEMPLATE = """# Press Kit
+
+> Marketing Director maintains. Ship-ready summary for store listings,
+> press inquiries, social posts.
+
+## Game Title
+*Resmi ad. PlayerSettings.productName ile aynı olmalı.*
+
+## Tagline (one line)
+*Tek cümlede pitch. Steam capsule altında görünür.*
+
+## Description (3 paragraphs)
+*Paragraph 1: oyunun kalbinde ne var. Paragraph 2: temel mekanik / oyun
+deneyimi. Paragraph 3: ton + hedef kitle + müzik / estetik vurgusu.*
+
+## Features (5 bullets)
+- ...
+- ...
+- ...
+- ...
+- ...
+
+## Hero Shots
+*studio/qa/screenshots/ altındaki marketing_* dosyalarına işaret edin.
+En az 3 farklı kompozisyon: wide landscape, character closeup, action moment.*
+
+## Credits
+- Studio: ...
+- Developer: ...
+- Sound: ...
+
+## Quotes / Press Mentions
+- ...
+
+## Contact + Links
+- Email: ...
+- Website: ...
+- Store page: ...
+
+## Build Targets
+*Hangi platformlar shipped: Windows / Mac / Linux / WebGL / mobile.*
+"""
+
+
 GITIGNORE_TEMPLATE = """# Studio runtime artifacts — keep state, ignore large captures.
 qa/screenshots/
 qa/diffs/
@@ -132,6 +176,7 @@ def starter_files() -> dict[str, str]:
         "gdd.md": GDD_TEMPLATE,
         "art_bible.md": ART_BIBLE_TEMPLATE,
         "audio_brief.md": AUDIO_BRIEF_TEMPLATE,
+        "press_kit.md": PRESS_KIT_TEMPLATE,
         "sprint_current.md": SPRINT_TEMPLATE,
         ".gitignore": GITIGNORE_TEMPLATE,
     }

@@ -1816,6 +1816,7 @@ def _default_brief_for(role_id: str) -> str:
         "build_engineer": "Run studio_build_check first. If it passes, build the target named in the task with unity_build_player into studio/builds/<date>/<target>/. Report errors + warnings.",
         "atmosphere_director": "Tune the scene's skybox + fog to match the Art Bible's palette and mood. Audit -> snapshot -> set skybox -> set fog -> re-audit -> capture -> save.",
         "material_artist": "Tune PBR (metallic + smoothness + emission) on the target named in the task so it reads as gold / crystal / neon / etc. Inspect -> snapshot -> set_material_pbr -> capture -> save.",
+        "marketing_director": "Finalise the press kit + Unity PlayerSettings (product name, version, bundle id) and capture a hero shot. Land everything the Build Engineer needs before shipping.",
     }.get(role_id, "Run your role on the current project state.")
 
 
@@ -2022,7 +2023,7 @@ def main() -> int:
     p_studio_run.add_argument(
         "--role",
         required=True,
-        choices=("producer", "designer", "critic", "level_designer", "art_director", "playtester", "physics_qa", "audio_director", "audio_engineer", "lighting_director", "camera_director", "vfx_director", "ui_builder", "build_engineer", "atmosphere_director", "material_artist"),
+        choices=("producer", "designer", "critic", "level_designer", "art_director", "playtester", "physics_qa", "audio_director", "audio_engineer", "lighting_director", "camera_director", "vfx_director", "ui_builder", "build_engineer", "atmosphere_director", "material_artist", "marketing_director"),
         help="Which role to run",
     )
     p_studio_run.add_argument("--brief", default="", help="Free-text brief for the role; uses a sensible default if omitted")

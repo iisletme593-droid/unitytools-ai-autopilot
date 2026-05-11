@@ -76,6 +76,8 @@ namespace UnityTools.Bridge
                 case "get_atmosphere_state": return GetAtmosphereState(p);
                 case "set_material_pbr": return SetMaterialPbr(p);
                 case "get_material_properties": return GetMaterialProperties(p);
+                case "set_player_settings": return SetPlayerSettings(p);
+                case "get_player_settings": return GetPlayerSettings(p);
                 case "find_by_tag": return FindByTag(p);
                 case "find_assets": return FindAssets(p);
                 case "list_prefabs": return ListPrefabs(p);
@@ -1417,6 +1419,66 @@ namespace UnityTools.Bridge
                 }
             }
             return new { ok = true, count = rows.Count, attached = rows };
+        }
+
+        // ─── Phase 37: Marketing / project metadata ─────────────────────
+
+        private static object SetPlayerSettings(JObject p)
+        {
+            string productName = p["product_name"]?.ToString();
+            string companyName = p["company_name"]?.ToString();
+            string version = p["version"]?.ToString();
+            string bundleId = p["bundle_id"]?.ToString();
+            int? defaultWidth = p["default_width"]?.ToObject<int?>();
+            int? defaultHeight = p["default_height"]?.ToObject<int?>();
+
+            if (!string.IsNullOrEmpty(productName)) PlayerSettings.productName = productName;
+            if (!string.IsNullOrEmpty(companyName)) PlayerSettings.companyName = companyName;
+            if (!string.IsNullOrEmpty(version)) PlayerSettings.bundleVersion = version;
+            if (!string.IsNullOrEmpty(bundleId))
+            {
+                try
+                {
+                    PlayerSettings.SetApplicationIdentifier(
+                        UnityEditor.Build.NamedBuildTarget.Standalone, bundleId);
+                    PlayerSettings.SetApplicationIdentifier(
+                        UnityEditor.Build.NamedBuildTarget.WebGL, bundleId);
+                }
+                catch
+                {
+                    // Older Unity: fall back to the universal setter
+                    PlayerSettings.applicationIdentifier = bundleId;
+                }
+            }
+            if (defaultWidth.HasValue && defaultWidth.Value > 0) PlayerSettings.defaultScreenWidth = defaultWidth.Value;
+            if (defaultHeight.HasValue && defaultHeight.Value > 0) PlayerSettings.defaultScreenHeight = defaultHeight.Value;
+            AssetDatabase.SaveAssets();
+            return new
+            {
+                ok = true,
+                product_name = PlayerSettings.productName,
+                company_name = PlayerSettings.companyName,
+                version = PlayerSettings.bundleVersion,
+                bundle_id = PlayerSettings.applicationIdentifier,
+                default_width = PlayerSettings.defaultScreenWidth,
+                default_height = PlayerSettings.defaultScreenHeight,
+            };
+        }
+
+        private static object GetPlayerSettings(JObject p)
+        {
+            return new
+            {
+                ok = true,
+                product_name = PlayerSettings.productName,
+                company_name = PlayerSettings.companyName,
+                version = PlayerSettings.bundleVersion,
+                bundle_id = PlayerSettings.applicationIdentifier,
+                default_width = PlayerSettings.defaultScreenWidth,
+                default_height = PlayerSettings.defaultScreenHeight,
+                active_build_target = EditorUserBuildSettings.activeBuildTarget.ToString(),
+                unity_version = Application.unityVersion,
+            };
         }
 
         // ─── Phase 36: Material PBR (metallic + smoothness + emission) ──

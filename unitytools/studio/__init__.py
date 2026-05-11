@@ -40,6 +40,7 @@ from .roles import (
     BUILD_ENGINEER,
     ATMOSPHERE_DIRECTOR,
     MATERIAL_ARTIST,
+    MARKETING_DIRECTOR,
     get_role,
     all_roles,
 )
@@ -128,6 +129,7 @@ __all__ = [
     "BUILD_ENGINEER",
     "ATMOSPHERE_DIRECTOR",
     "MATERIAL_ARTIST",
+    "MARKETING_DIRECTOR",
     "get_role",
     "all_roles",
     # runner
