@@ -509,6 +509,169 @@ def studio_unity_attach_audio_source(
     return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
 
 
+# ─── Ship readiness (Phase 45) ─────────────────────────────────────────
+
+@tool(description="Aggregate every ship-blocking audit + doc state into a single go/no-go verdict. Runs studio_build_check (scenes + GDD), studio_localization_audit per locale, studio_atmosphere_audit + studio_lighting_audit + studio_vfx_audit when the Unity bridge is connected (skipped gracefully when offline). Also checks: art bible non-empty, audio brief non-empty, press kit non-empty, at least one screenshot present, recent playtest in last `recent_days` days, at least one milestone in 'in_progress'. Returns verdict='pass'/'fail' + per-section status + named blockers. The Marketing + Build Engineer roles call this before ship; Producer cites the result in retros.")
+def studio_ship_readiness_check(
+    target_locales: list[str] | None = None,
+    recent_days: int = 7,
+) -> dict:
+    state = _require_state()
+    if target_locales is None:
+        target_locales = ["en"]
+    if not isinstance(target_locales, list) or not target_locales:
+        return {"ok": False, "error": "target_locales must be a non-empty list of locale codes."}
+
+    sections: dict[str, dict] = {}
+    blockers: list[str] = []
+    bridge_connected = (
+        _UNITY is not None
+        and (not hasattr(_UNITY, "is_connected") or _UNITY.is_connected())
+    )
+
+    # 1) Docs — non-empty checks (file-system only, no bridge)
+    def _doc_status(doc_path: Path, label: str, required: bool) -> dict:
+        exists = doc_path.exists()
+        content = doc_path.read_text(encoding="utf-8").strip() if exists else ""
+        status = {
+            "ok": bool(content),
+            "exists": exists,
+            "non_empty": bool(content),
+            "byte_count": len(content.encode("utf-8")) if content else 0,
+        }
+        if required and not content:
+            blockers.append(f"{label}_empty_or_missing")
+        return status
+
+    sections["gdd"] = _doc_status(state.paths.gdd, "gdd", required=True)
+    sections["art_bible"] = _doc_status(state.paths.art_bible, "art_bible", required=True)
+    sections["audio_brief"] = _doc_status(state.paths.audio_brief, "audio_brief", required=False)
+    sections["press_kit"] = _doc_status(state.paths.press_kit, "press_kit", required=True)
+
+    # 2) Milestones — need at least one in_progress
+    try:
+        all_ms = state.load_milestones()
+        in_progress = [m for m in all_ms if m.status == MilestoneStatus.IN_PROGRESS]
+        sections["milestones"] = {
+            "ok": len(in_progress) >= 1,
+            "total": len(all_ms),
+            "in_progress": len(in_progress),
+        }
+        if not in_progress:
+            blockers.append("no_in_progress_milestone")
+    except Exception as exc:  # noqa: BLE001
+        sections["milestones"] = {"ok": False, "error": str(exc)}
+        blockers.append("milestones_unreadable")
+
+    # 3) Screenshots — at least one captured
+    shots = list(state.paths.qa_screenshots.glob("*.png")) if state.paths.qa_screenshots.exists() else []
+    sections["screenshots"] = {
+        "ok": len(shots) >= 1,
+        "count": len(shots),
+    }
+    if not shots:
+        blockers.append("no_screenshots_captured")
+
+    # 4) Recent playtest — should have at least one playtest_smoke entry
+    #    inside the recent_days window
+    playtest_recent = False
+    if state.paths.qa_regression.exists():
+        cutoff = time.time() - max(0, int(recent_days)) * 86400.0
+        try:
+            with state.paths.qa_regression.open("r", encoding="utf-8") as f:
+                for raw in f:
+                    raw = raw.strip()
+                    if not raw:
+                        continue
+                    try:
+                        entry = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+                    if entry.get("kind") != "playtest_smoke":
+                        continue
+                    ts = entry.get("ts")
+                    if isinstance(ts, (int, float)) and ts >= cutoff:
+                        playtest_recent = True
+                        break
+        except OSError:
+            pass
+    sections["recent_playtest"] = {
+        "ok": playtest_recent,
+        "window_days": recent_days,
+    }
+    if not playtest_recent:
+        blockers.append(f"no_playtest_in_last_{recent_days}d")
+
+    # 5) Localization — every target locale must have a non-empty table
+    loc_results: list[dict] = []
+    for loc in target_locales:
+        try:
+            r = studio_read_strings(loc)
+            count = r.get("key_count", len(r.get("strings", {})))
+            row = {"locale": loc, "ok": bool(count and count > 0), "key_count": count}
+            loc_results.append(row)
+            if not row["ok"]:
+                blockers.append(f"locale_empty:{loc}")
+        except Exception as exc:  # noqa: BLE001
+            loc_results.append({"locale": loc, "ok": False, "error": str(exc)})
+            blockers.append(f"locale_unreadable:{loc}")
+    sections["localization"] = {
+        "ok": all(r["ok"] for r in loc_results) if loc_results else False,
+        "target_locales": target_locales,
+        "results": loc_results,
+    }
+
+    # 6) Engine-gated audits — skip cleanly when offline
+    if not bridge_connected:
+        sections["engine_audits"] = {
+            "ok": False,
+            "skipped": True,
+            "reason": "Unity bridge not connected; engine-gated audits skipped. Re-run with the bridge online for a complete verdict.",
+        }
+    else:
+        engine_sections: dict[str, dict] = {}
+        for name, fn in (
+            ("build_check", studio_build_check),
+            ("lighting_audit", studio_lighting_audit),
+            ("atmosphere_audit", studio_atmosphere_audit),
+            ("vfx_audit", studio_vfx_audit),
+        ):
+            try:
+                result = fn()
+                verdict = result.get("verdict", "fail" if not result.get("ok") else "pass")
+                engine_sections[name] = {
+                    "ok": result.get("ok", False),
+                    "verdict": verdict,
+                    "violations": result.get("violations", []),
+                }
+                if verdict != "pass":
+                    blockers.append(f"{name}_verdict_{verdict}")
+            except Exception as exc:  # noqa: BLE001
+                engine_sections[name] = {"ok": False, "error": str(exc)}
+                blockers.append(f"{name}_errored")
+        all_pass = all(
+            s.get("ok") and s.get("verdict") == "pass"
+            for s in engine_sections.values()
+        )
+        sections["engine_audits"] = {"ok": all_pass, **engine_sections}
+
+    # 7) Final verdict
+    verdict = "pass" if not blockers else "fail"
+    return {
+        "ok": True,
+        "verdict": verdict,
+        "bridge_connected": bridge_connected,
+        "blocker_count": len(blockers),
+        "blockers": blockers,
+        "sections": sections,
+        "recommendation": (
+            "Ship: every gate is green. Run build_engineer next."
+            if verdict == "pass"
+            else "Hold ship: address the listed blockers, then re-run studio_ship_readiness_check."
+        ),
+    }
+
+
 # ─── Game template scaffolder (Phase 42) ───────────────────────────────
 
 @tool(description="Scaffold a complete collectathon mini-game: drafts a milestone + a structured task batch covering Designer, Worker, UI Builder, Camera, Lighting, Atmosphere, Material, Audio Director + Engineer, Localization, Marketing, Build Engineer. Each task has concrete instructions referring to the Behaviour Library (GameSession / Collectible / ScoreHUD / KeyboardMover / PauseMenu). One Producer call -> a full backlog ready to dispatch. Returns the milestone id + list of opened task ids.")
@@ -2299,6 +2462,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_scaffold_collectathon_game",
     # game template scaffolder (Phase 44)
     "studio_scaffold_top_down_shooter_game",
+    # ship readiness (Phase 45)
+    "studio_ship_readiness_check",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

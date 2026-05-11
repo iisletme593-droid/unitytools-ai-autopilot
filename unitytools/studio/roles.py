@@ -1106,6 +1106,10 @@ PRODUCER = RoleConfig(
         # Phase 44: action-genre scaffolder using the combat primitives
         # from Phase 43 (Projectile / Shooter / Spawner / Enemy).
         "studio_scaffold_top_down_shooter_game",
+        # Phase 45: aggregate go/no-go verdict across docs + audits.
+        # Cited in retro to call out blockers BEFORE telling
+        # build_engineer to ship.
+        "studio_ship_readiness_check",
     ),
 )
 
@@ -1287,6 +1291,9 @@ BUILD_ENGINEER = RoleConfig(
         "studio_read_gdd",
         # Preflight + inspect build settings
         "studio_build_check",
+        # Phase 45: belt-and-braces — also check ship readiness so we
+        # don't ship with an empty press kit / missing locale.
+        "studio_ship_readiness_check",
         "unity_list_build_scenes",
         # The actual build action
         "unity_build_player",
@@ -1393,6 +1400,8 @@ MARKETING_DIRECTOR = RoleConfig(
         # Hero shot capture
         "studio_capture_screenshot",
         "studio_list_screenshots",
+        # Phase 45: cross-check the ship gate
+        "studio_ship_readiness_check",
         # Lifecycle + escalation
         "studio_update_task_status",
         "studio_propose_decision",
