@@ -2549,6 +2549,172 @@ def test_help_lists_find() -> None:
     print("OK /help advertises /find")
 
 
+# ─────────────────────────────────────────── Phase 76: /burndown
+
+
+def _seed_milestone_studio() -> tuple:
+    """Studio with 2 milestones at different completion levels +
+    1 orphan task — exercises project rollup vs. per-milestone math."""
+    state, tmp, prev = _fresh_studio_cwd()
+    from unitytools.studio.models import Task, Milestone, TaskStatus
+
+    m1 = Milestone(name="Vertical slice")
+    m2 = Milestone(name="Demo build")
+    state.add_milestone(m1)
+    state.add_milestone(m2)
+    # M1: 3 of 5 done = 60%
+    for i in range(5):
+        t = Task(title=f"m1 task {i}", role="designer", milestone=m1.id)
+        if i < 3:
+            t.status = TaskStatus.DONE
+        state.add_task(t)
+    # M2: 1 of 4 done = 25%
+    for i in range(4):
+        t = Task(title=f"m2 task {i}", role="qa", milestone=m2.id)
+        if i < 1:
+            t.status = TaskStatus.DONE
+        state.add_task(t)
+    # Orphan (no milestone) — pulls project pct below pure milestone avg
+    state.add_task(Task(title="Orphan", role="producer"))
+    return state, tmp, prev, m1, m2
+
+
+def test_burndown_lists_every_milestone_sorted_by_ascending_pct() -> None:
+    state, _, prev, m1, m2 = _seed_milestone_studio()
+    try:
+        r = dispatch("burndown")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_burndown"
+        rows = r.tool_result["milestones"]
+        assert len(rows) == 2
+        # Demo build (25%) should come before Vertical slice (60%)
+        assert rows[0]["name"] == "Demo build"
+        assert rows[1]["name"] == "Vertical slice"
+        assert rows[0]["completion_pct"] < rows[1]["completion_pct"]
+    finally:
+        os.chdir(prev)
+    print("OK /burndown sorts milestones ascending by completion (farthest first)")
+
+
+def test_burndown_project_rollup_includes_orphan_tasks() -> None:
+    """Total task count must include the orphan task — milestone-linked
+    counts alone would miss it."""
+    state, _, prev, m1, m2 = _seed_milestone_studio()
+    try:
+        r = dispatch("burndown")
+        project = r.tool_result["project"]
+        # 5 + 4 + 1 (orphan) = 10 total; 3 + 1 = 4 done
+        assert project["task_count"] == 10
+        assert project["done_count"] == 4
+        assert project["completion_pct"] == 0.4
+    finally:
+        os.chdir(prev)
+    print("OK /burndown project rollup counts every task — including orphans")
+
+
+def test_burndown_ascii_bar_reflects_pct() -> None:
+    state, _, prev, m1, m2 = _seed_milestone_studio()
+    try:
+        r = dispatch("burndown")
+        # 40% project completion → 8 # chars in a 20-char bar
+        project_bar = r.tool_result["project"]["bar"]
+        assert "[########------------]" in project_bar, (
+            f"project bar should show 8/20 filled at 40%; got {project_bar!r}"
+        )
+        assert "40%" in project_bar
+        # Per-milestone bars also formatted
+        for row in r.tool_result["milestones"]:
+            assert row["bar"].startswith("[") and row["bar"].count("#") + row["bar"].count("-") == 20
+    finally:
+        os.chdir(prev)
+    print("OK /burndown bars are 20-char ASCII with correct fill at each pct")
+
+
+def test_burndown_message_renders_full_chart() -> None:
+    """The CommandResult.message itself should carry the multi-line
+    chart so chat panels can render it without parsing tool_result."""
+    state, _, prev, m1, m2 = _seed_milestone_studio()
+    try:
+        r = dispatch("burndown")
+        # Project line + 2 milestone lines = at least 3 lines
+        line_count = r.message.count("\n") + 1
+        assert line_count >= 3, f"message should have 3+ lines, got {line_count}"
+        # All milestone names appear in the message
+        assert "Vertical slice" in r.message
+        assert "Demo build" in r.message
+        # Project rollup is the first line
+        assert r.message.startswith("Project")
+    finally:
+        os.chdir(prev)
+    print("OK /burndown message line carries full multi-line ASCII chart")
+
+
+def test_burndown_specific_milestone_id() -> None:
+    state, _, prev, m1, m2 = _seed_milestone_studio()
+    try:
+        r = dispatch(f"burndown {m1.id}")
+        assert r.ok is True
+        # Only the requested milestone in the rows
+        rows = r.tool_result["milestones"]
+        assert len(rows) == 1
+        assert rows[0]["name"] == "Vertical slice"
+        assert rows[0]["completion_pct"] == 0.6
+    finally:
+        os.chdir(prev)
+    print("OK /burndown <id> narrows to one milestone")
+
+
+def test_burndown_unknown_id_fails_clean() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("burndown not-a-real-milestone-id")
+        assert r.handled is True
+        assert r.ok is False
+        assert "not found" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /burndown <bad-id> → ok=False with not-found message")
+
+
+def test_burndown_empty_studio_handles_gracefully() -> None:
+    """Studio with zero milestones still returns a clean result —
+    no division-by-zero, no crash on the chart builder."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("burndown")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_result["milestone_count"] == 0
+        assert r.tool_result["project"]["task_count"] == 0
+        assert r.tool_result["project"]["completion_pct"] == 0.0
+        # Message hints user how to seed
+        assert "scaffold" in r.message.lower() or "milestone" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /burndown on empty studio → clean zeros + hint, no crash")
+
+
+def test_burndown_turkish_aliases() -> None:
+    state, _, prev, _, _ = _seed_milestone_studio()
+    try:
+        for alias in ("ilerleme", "yakım", "yakim", "grafik"):
+            r = dispatch(alias)
+            assert r.handled is True, f"/{alias} should resolve to /burndown"
+            assert r.tool_name == "studio_burndown", (
+                f"/{alias} should fire studio_burndown; got {r.tool_name}"
+            )
+    finally:
+        os.chdir(prev)
+    print("OK /ilerleme /yakım /yakim /grafik (Türkçe) → /burndown")
+
+
+def test_help_lists_burndown() -> None:
+    r = dispatch("help")
+    assert "/burndown" in r.message, "/help should advertise /burndown"
+    print("OK /help advertises /burndown")
+
+
 def run_test() -> None:
     # Plumbing
     test_empty_line_returns_not_handled()
@@ -2716,7 +2882,17 @@ def run_test() -> None:
     test_find_multi_word_needle_joined()
     test_find_turkish_aliases()
     test_help_lists_find()
-    print("All chat-command tests passed (Phase 59-75)")
+    # Phase 76 /burndown
+    test_burndown_lists_every_milestone_sorted_by_ascending_pct()
+    test_burndown_project_rollup_includes_orphan_tasks()
+    test_burndown_ascii_bar_reflects_pct()
+    test_burndown_message_renders_full_chart()
+    test_burndown_specific_milestone_id()
+    test_burndown_unknown_id_fails_clean()
+    test_burndown_empty_studio_handles_gracefully()
+    test_burndown_turkish_aliases()
+    test_help_lists_burndown()
+    print("All chat-command tests passed (Phase 59-76)")
 
 
 if __name__ == "__main__":

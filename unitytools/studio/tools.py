@@ -327,6 +327,69 @@ def studio_block_task(task_id: str, reason: str = "") -> dict:
     return {"ok": False, "error": f"Task {task_id!r} not found."}
 
 
+@tool(description="Phase 76: Per-milestone burndown — % complete and a 20-char ASCII bar chart for each milestone. Optional milestone_id narrows to one. Always also returns a project-wide rollup (all tasks across the backlog, including those not linked to any milestone) so the operator can sanity-check the milestone numbers against total backlog state.")
+def studio_burndown(milestone_id: str = "") -> dict:
+    state = _require_state()
+    from .milestones import milestone_progress
+
+    def _bar(pct: float, width: int = 20) -> str:
+        pct = max(0.0, min(1.0, pct))
+        filled = int(round(pct * width))
+        return "[" + ("#" * filled) + ("-" * (width - filled)) + f"] {int(pct * 100)}%"
+
+    # Project-wide rollup — every task in the backlog
+    all_tasks = state.load_tasks()
+    total = len(all_tasks)
+    from collections import Counter
+    proj_counts = Counter(t.status.value for t in all_tasks)
+    proj_done = proj_counts.get("done", 0)
+    proj_pct = (proj_done / total) if total else 0.0
+    project = {
+        "task_count": total,
+        "done_count": proj_done,
+        "in_progress_count": proj_counts.get("in_progress", 0),
+        "blocked_count": proj_counts.get("blocked", 0),
+        "pending_count": proj_counts.get("pending", 0),
+        "review_count": proj_counts.get("review", 0),
+        "completion_pct": round(proj_pct, 4),
+        "bar": _bar(proj_pct),
+    }
+
+    # Per-milestone breakdown
+    milestones = state.load_milestones()
+    if milestone_id:
+        # Filter to one
+        milestones = [m for m in milestones if m.id == milestone_id]
+        if not milestones:
+            return {
+                "ok": False,
+                "error": f"Milestone {milestone_id!r} not found.",
+            }
+
+    milestone_rows: list[dict] = []
+    for m in milestones:
+        progress = milestone_progress(state, m.id)
+        if progress is None:
+            continue
+        pct = float(progress.get("completion_pct", 0.0))
+        milestone_rows.append({
+            **progress,
+            "bar": _bar(pct),
+        })
+
+    # Sort by ascending completion so the operator sees what's farthest
+    # from shipping first (most useful for a producer scan).
+    milestone_rows.sort(key=lambda r: r.get("completion_pct", 0.0))
+
+    return {
+        "ok": True,
+        "milestone_id": milestone_id or None,
+        "project": project,
+        "milestones": milestone_rows,
+        "milestone_count": len(milestone_rows),
+    }
+
+
 @tool(description="Phase 75: Search across every text surface of the studio — tasks (title + description), decisions (title + summary + rationale), milestones, GDD, Art Bible, Audio Brief, Tutorial, Scene Catalog, Press Kit, Achievements, current sprint plan, and journal entries. Substring match, case-insensitive. Returns hits grouped by source plus a flat 'all_hits' list ranked by source priority (tasks first, then decisions, then docs, then journal). Optional max_per_source caps each bucket so large studios don't blow past payload limits.")
 def studio_find(needle: str, max_per_source: int = 10) -> dict:
     state = _require_state()

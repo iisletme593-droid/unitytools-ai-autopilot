@@ -145,6 +145,9 @@ _ALIASES: dict[str, str] = {
     "karar": "decide", "karara": "decide",
     # Phase 75 cross-studio search
     "bul": "find", "ara": "find", "arama": "find",
+    # Phase 76 burndown
+    "ilerleme": "burndown", "yakım": "burndown", "yakim": "burndown",
+    "grafik": "burndown",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -346,6 +349,10 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── find <substring>   (Phase 75: cross-studio search)
     if cmd == "find":
         return _dispatch_find(args)
+
+    # ── burndown [milestone-id]   (Phase 76: ASCII bar chart per milestone)
+    if cmd == "burndown":
+        return _dispatch_burndown(args)
 
     return CommandResult(handled=False)
 
@@ -642,6 +649,7 @@ def _dispatch_help() -> CommandResult:
                 ("/journal [days]", "read last N days of journal entries"),
                 ("/decide <title> | <summary>", "record a design decision (proposed)"),
                 ("/find <substring>", "search tasks/decisions/docs/journal at once"),
+                ("/burndown [milestone-id]", "ASCII bar chart per milestone"),
                 ("/sprint", "read studio/sprint_current.md"),
                 ("/next [role]", "next pending task ready to pick up"),
                 ("/take <id>", "mark task in_progress"),
@@ -681,7 +689,7 @@ def _dispatch_help() -> CommandResult:
     lines.append(
         "Türkçe aliases: /yardım /durum /sağlık /başlat /eşitle /oluştur "
         "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
-        "/al /tamam /engelle /aç /neden /toplantı /not /günlük /karar /bul "
+        "/al /tamam /engelle /aç /neden /toplantı /not /günlük /karar /bul /ilerleme "
         "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
@@ -1446,6 +1454,69 @@ def _dispatch_why(args: list[str]) -> CommandResult:
     return CommandResult(
         handled=True, ok=True,
         tool_name="studio_explain_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_burndown(args: list[str]) -> CommandResult:
+    """Phase 76: /burndown [milestone-id] — ASCII bar chart per
+    milestone, showing how close each is to ship. Without an id it
+    surfaces every milestone (sorted by ascending completion so the
+    farthest-from-shipping ones bubble to the top). With an id, it
+    narrows to just that milestone. Always includes a project-wide
+    rollup so orphan-task drag is visible.
+    """
+    milestone_id = args[0] if args else ""
+    try:
+        from ..studio.tools import studio_burndown
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_burndown not importable: {exc}",
+        )
+    try:
+        result = studio_burndown(milestone_id=milestone_id)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_burndown",
+            message=f"burndown failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_burndown",
+            tool_result=result,
+            message=result.get("error") or "burndown failed",
+        )
+
+    project = result["project"]
+    milestone_rows = result["milestones"]
+    # Multi-line ASCII chart in message line so chat panels render it
+    # as-is (monospace).
+    lines: list[str] = []
+    lines.append(
+        f"Project {project['bar']}  "
+        f"({project['done_count']}/{project['task_count']} done, "
+        f"{project['in_progress_count']} in-flight, "
+        f"{project['blocked_count']} blocked)"
+    )
+    if milestone_rows:
+        for row in milestone_rows[:10]:  # cap to avoid wall-of-bars
+            lines.append(
+                f"  {row['name'][:30]:<30} {row['bar']}  "
+                f"({row['done_count']}/{row['task_count']})"
+            )
+        if len(milestone_rows) > 10:
+            lines.append(f"  ... +{len(milestone_rows) - 10} more milestones")
+    else:
+        lines.append("  No milestones in this studio yet — try /scaffold "
+                      "to seed some.")
+    msg = "\n".join(lines)
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_burndown",
         tool_result=result,
         message=msg,
     )
