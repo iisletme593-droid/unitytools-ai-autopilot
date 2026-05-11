@@ -96,11 +96,22 @@ def studio_write_sprint(content: str) -> dict:
 
 # ─── Backlog ───────────────────────────────────────────────────────────
 
-@tool(description="Add a task to the backlog. role must be one of: producer, designer, art_director, level_designer, tech_artist, qa, critic.")
+@tool(description="Add a task to the backlog. role must be one of: producer, designer, art_director, level_designer, tech_artist, qa, critic. If milestone is set it must be the id of an existing milestone (use studio_list_milestones to find ids); use empty string to skip linking.")
 def studio_add_task(title: str, role: str, description: str = "", milestone: str = "") -> dict:
     state = _require_state()
     if role not in ROLES:
         return {"ok": False, "error": f"Unknown role {role!r}. Allowed: {list(ROLES)}"}
+    if milestone:
+        valid_ids = {m.id for m in state.load_milestones()}
+        if milestone not in valid_ids:
+            return {
+                "ok": False,
+                "error": (
+                    f"Unknown milestone id {milestone!r}. Either pass an id from "
+                    f"studio_list_milestones, or leave milestone empty to skip linking. "
+                    f"Do not invent milestone names -- the field is an id reference."
+                ),
+            }
     task = Task(
         title=title,
         role=role,
