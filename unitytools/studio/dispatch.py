@@ -51,6 +51,7 @@ DISPATCH_MAP: dict[str, Optional[str]] = {
     "lighting_director": "lighting_director",  # Phase 28: scene lighting signature
     "camera_director": "camera_director",  # Phase 29: scene framing / composition
     "vfx_director": "vfx_director",  # Phase 30: particle systems / atmospheric VFX
+    "ui_builder": "ui_builder",  # Phase 31: Canvas / Text / Button UI construction
     "level_designer": "worker",
     "tech_artist": "physics_qa",  # Phase 24: tech_artist tasks profile + optimise
     "physics_qa": "physics_qa",

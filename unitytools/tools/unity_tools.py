@@ -590,6 +590,109 @@ def unity_set_particle_properties(
         return {"ok": False, "error": str(e)}
 
 
+@tool(description="Create a screen-space-overlay UI Canvas in the scene. If a Canvas with this name already exists, returns created=False and re-uses it (idempotent). Also installs an EventSystem if the scene doesn't have one. Use this first before adding any UI text or buttons.")
+def unity_create_ui_canvas(name: str = "UICanvas") -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    if not name:
+        return {"ok": False, "error": "name is required"}
+    try:
+        result = _UNITY.call("create_ui_canvas", {"name": name})
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Create a UI Text element under a Canvas. canvas_name='' uses the first Canvas in the scene. position is in Canvas coords (0,0 = center of canvas, +x right, +y up). Font is Unity's built-in legacy font. RGB 0-1.")
+def unity_create_ui_text(
+    canvas_name: str = "",
+    name: str = "UIText",
+    text: str = "",
+    position_x: float = 0.0,
+    position_y: float = 0.0,
+    width: float = 400.0,
+    height: float = 80.0,
+    font_size: int = 36,
+    r: float = 1.0,
+    g: float = 1.0,
+    b: float = 1.0,
+    a: float = 1.0,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    if not name:
+        return {"ok": False, "error": "name is required"}
+    params = {
+        "canvas_name": canvas_name,
+        "name": name,
+        "text": text,
+        "position_x": position_x,
+        "position_y": position_y,
+        "width": width,
+        "height": height,
+        "font_size": font_size,
+        "color": {"r": r, "g": g, "b": b, "a": a},
+    }
+    try:
+        result = _UNITY.call("create_ui_text", params)
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Create a UI Button under a Canvas with an Image background + Text label child. canvas_name='' uses the first Canvas in the scene. position is in Canvas coords. RGB 0-1.")
+def unity_create_ui_button(
+    canvas_name: str = "",
+    name: str = "UIButton",
+    label: str = "Button",
+    position_x: float = 0.0,
+    position_y: float = 0.0,
+    width: float = 200.0,
+    height: float = 60.0,
+    font_size: int = 24,
+    bg_r: float = 0.2,
+    bg_g: float = 0.2,
+    bg_b: float = 0.25,
+    bg_a: float = 1.0,
+    label_r: float = 1.0,
+    label_g: float = 1.0,
+    label_b: float = 1.0,
+    label_a: float = 1.0,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    if not name:
+        return {"ok": False, "error": "name is required"}
+    params = {
+        "canvas_name": canvas_name,
+        "name": name,
+        "label": label,
+        "position_x": position_x,
+        "position_y": position_y,
+        "width": width,
+        "height": height,
+        "font_size": font_size,
+        "background_color": {"r": bg_r, "g": bg_g, "b": bg_b, "a": bg_a},
+        "label_color": {"r": label_r, "g": label_g, "b": label_b, "a": label_a},
+    }
+    try:
+        result = _UNITY.call("create_ui_button", params)
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="List every UI Canvas in the scene with its Text + Button children. Also reports whether an EventSystem exists (buttons won't be clickable without one). Read-only.")
+def unity_list_ui_elements() -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("list_ui_elements", {})
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @tool(description="List every ParticleSystem in the active scene with emission rate, lifetime, speed, color, and max particles. Also returns scene-total emission rate and max-particle count. Read-only — use this before adding a system to avoid duplicates.")
 def unity_list_particle_systems() -> dict:
     if _UNITY is None:

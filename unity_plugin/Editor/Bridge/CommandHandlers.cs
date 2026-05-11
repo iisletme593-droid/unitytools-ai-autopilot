@@ -8,8 +8,10 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 namespace UnityTools.Bridge
 {
     public static class CommandHandlers
@@ -58,6 +60,10 @@ namespace UnityTools.Bridge
                 case "add_particle_system": return AddParticleSystem(p);
                 case "set_particle_properties": return SetParticleProperties(p);
                 case "list_particle_systems": return ListParticleSystems(p);
+                case "create_ui_canvas": return CreateUICanvas(p);
+                case "create_ui_text": return CreateUIText(p);
+                case "create_ui_button": return CreateUIButton(p);
+                case "list_ui_elements": return ListUIElements(p);
                 case "find_by_tag": return FindByTag(p);
                 case "find_assets": return FindAssets(p);
                 case "list_prefabs": return ListPrefabs(p);
@@ -818,6 +824,218 @@ namespace UnityTools.Bridge
                 total_emission_rate = totalEmission,
                 total_max_particles = totalMax,
                 systems = rows,
+            };
+        }
+
+        private static Color ColorFromJson(JObject c, Color fallback)
+        {
+            if (c == null) return fallback;
+            return new Color(
+                c["r"]?.ToObject<float>() ?? fallback.r,
+                c["g"]?.ToObject<float>() ?? fallback.g,
+                c["b"]?.ToObject<float>() ?? fallback.b,
+                c["a"]?.ToObject<float>() ?? fallback.a
+            );
+        }
+
+        private static void EnsureEventSystem()
+        {
+            if (UnityEngine.Object.FindFirstObjectByType<EventSystem>() != null) return;
+            var es = new GameObject("EventSystem");
+            es.AddComponent<EventSystem>();
+            es.AddComponent<StandaloneInputModule>();
+            Undo.RegisterCreatedObjectUndo(es, "Bridge: add EventSystem");
+        }
+
+        private static object CreateUICanvas(JObject p)
+        {
+            string name = p["name"]?.ToString() ?? "UICanvas";
+            // Re-use an existing canvas with that name if present
+            var existing = GameObject.Find(name);
+            if (existing != null)
+            {
+                var existingCanvas = existing.GetComponent<Canvas>();
+                if (existingCanvas != null)
+                {
+                    return new { ok = true, name = name, created = false, instance_id = existing.GetHashCode() };
+                }
+            }
+            var go = new GameObject(name);
+            var canvas = go.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            go.AddComponent<CanvasScaler>();
+            go.AddComponent<GraphicRaycaster>();
+            EnsureEventSystem();
+            Undo.RegisterCreatedObjectUndo(go, "Bridge: create UI Canvas");
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new { ok = true, name = name, created = true, instance_id = go.GetHashCode() };
+        }
+
+        private static Transform ResolveCanvasTransform(string canvasName)
+        {
+            if (string.IsNullOrEmpty(canvasName))
+            {
+                var canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
+                if (canvas == null) throw new InvalidOperationException("No Canvas in scene. Call create_ui_canvas first.");
+                return canvas.transform;
+            }
+            var go = GameObject.Find(canvasName);
+            if (go == null) throw new InvalidOperationException($"Canvas not found: {canvasName}");
+            if (go.GetComponent<Canvas>() == null) throw new InvalidOperationException($"Object {canvasName} is not a Canvas.");
+            return go.transform;
+        }
+
+        private static object CreateUIText(JObject p)
+        {
+            string canvasName = p["canvas_name"]?.ToString() ?? "";
+            string name = p["name"]?.ToString() ?? "UIText";
+            string text = p["text"]?.ToString() ?? "";
+            float x = p["position_x"]?.ToObject<float>() ?? 0f;
+            float y = p["position_y"]?.ToObject<float>() ?? 0f;
+            float width = p["width"]?.ToObject<float>() ?? 400f;
+            float height = p["height"]?.ToObject<float>() ?? 80f;
+            int fontSize = p["font_size"]?.ToObject<int>() ?? 36;
+            Color color = ColorFromJson(p["color"] as JObject, Color.white);
+
+            Transform parent = ResolveCanvasTransform(canvasName);
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var rect = go.AddComponent<RectTransform>();
+            rect.anchoredPosition = new Vector2(x, y);
+            rect.sizeDelta = new Vector2(width, height);
+            var t = go.AddComponent<Text>();
+            t.text = text;
+            t.color = color;
+            t.alignment = TextAnchor.MiddleCenter;
+            t.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            t.fontSize = fontSize;
+            t.horizontalOverflow = HorizontalWrapMode.Overflow;
+            t.verticalOverflow = VerticalWrapMode.Overflow;
+            Undo.RegisterCreatedObjectUndo(go, "Bridge: create UI Text");
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                name = name,
+                canvas = parent.name,
+                text = text,
+                position_x = x,
+                position_y = y,
+                width = width,
+                height = height,
+                font_size = fontSize,
+            };
+        }
+
+        private static object CreateUIButton(JObject p)
+        {
+            string canvasName = p["canvas_name"]?.ToString() ?? "";
+            string name = p["name"]?.ToString() ?? "UIButton";
+            string label = p["label"]?.ToString() ?? "Button";
+            float x = p["position_x"]?.ToObject<float>() ?? 0f;
+            float y = p["position_y"]?.ToObject<float>() ?? 0f;
+            float width = p["width"]?.ToObject<float>() ?? 200f;
+            float height = p["height"]?.ToObject<float>() ?? 60f;
+            int fontSize = p["font_size"]?.ToObject<int>() ?? 24;
+            Color bg = ColorFromJson(p["background_color"] as JObject, new Color(0.2f, 0.2f, 0.25f, 1f));
+            Color labelColor = ColorFromJson(p["label_color"] as JObject, Color.white);
+
+            Transform parent = ResolveCanvasTransform(canvasName);
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var rect = go.AddComponent<RectTransform>();
+            rect.anchoredPosition = new Vector2(x, y);
+            rect.sizeDelta = new Vector2(width, height);
+            var image = go.AddComponent<Image>();
+            image.color = bg;
+            var button = go.AddComponent<Button>();
+            button.targetGraphic = image;
+
+            // Label child
+            var labelGo = new GameObject("Label");
+            labelGo.transform.SetParent(go.transform, false);
+            var labelRect = labelGo.AddComponent<RectTransform>();
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.sizeDelta = Vector2.zero;
+            labelRect.anchoredPosition = Vector2.zero;
+            var labelText = labelGo.AddComponent<Text>();
+            labelText.text = label;
+            labelText.color = labelColor;
+            labelText.alignment = TextAnchor.MiddleCenter;
+            labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            labelText.fontSize = fontSize;
+
+            Undo.RegisterCreatedObjectUndo(go, "Bridge: create UI Button");
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                name = name,
+                canvas = parent.name,
+                label = label,
+                position_x = x,
+                position_y = y,
+                width = width,
+                height = height,
+            };
+        }
+
+        private static object ListUIElements(JObject p)
+        {
+            var canvases = UnityEngine.Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var canvasRows = new List<object>();
+            int totalTexts = 0;
+            int totalButtons = 0;
+            foreach (var canvas in canvases)
+            {
+                if (!canvas.gameObject.scene.IsValid()) continue;
+                var texts = canvas.GetComponentsInChildren<Text>(true);
+                var buttons = canvas.GetComponentsInChildren<Button>(true);
+                totalTexts += texts.Length;
+                totalButtons += buttons.Length;
+                var textRows = new List<object>();
+                foreach (var t in texts)
+                {
+                    // Skip the labels-inside-buttons by parent check
+                    if (t.GetComponentInParent<Button>() != null && t.transform.parent != canvas.transform) continue;
+                    textRows.Add(new
+                    {
+                        name = t.gameObject.name,
+                        text = t.text,
+                        font_size = t.fontSize,
+                    });
+                }
+                var buttonRows = new List<object>();
+                foreach (var b in buttons)
+                {
+                    var lbl = b.GetComponentInChildren<Text>(true);
+                    buttonRows.Add(new
+                    {
+                        name = b.gameObject.name,
+                        label = lbl != null ? lbl.text : "",
+                    });
+                }
+                canvasRows.Add(new
+                {
+                    name = canvas.gameObject.name,
+                    render_mode = canvas.renderMode.ToString(),
+                    active = canvas.gameObject.activeInHierarchy,
+                    text_count = textRows.Count,
+                    button_count = buttonRows.Count,
+                    texts = textRows,
+                    buttons = buttonRows,
+                });
+            }
+            bool hasEventSystem = UnityEngine.Object.FindFirstObjectByType<EventSystem>() != null;
+            return new
+            {
+                ok = true,
+                canvas_count = canvasRows.Count,
+                total_texts = totalTexts,
+                total_buttons = totalButtons,
+                has_event_system = hasEventSystem,
+                canvases = canvasRows,
             };
         }
 

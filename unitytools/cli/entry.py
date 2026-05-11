@@ -1761,6 +1761,7 @@ def _default_brief_for(role_id: str) -> str:
         "lighting_director": "Audit the scene's lighting against the Art Bible palette. If no directional light exists, add one. If shadow-caster count or total intensity is over budget, tune the offenders. Land 'verdict=pass' and a screenshot that reflects the palette mood.",
         "camera_director": "Frame the main camera on the target named in your task. Use studio_camera_frame_check to point + capture + verify; re-frame once with opposite yaw if composition_match misses the threshold.",
         "vfx_director": "Audit the scene's particle systems against budgets. Add one preset (dust/fire/smoke/magic) to the target named in the task OR tune the loudest offenders if the audit fails. Land 'verdict=pass' before closing.",
+        "ui_builder": "Build the UI described in the task: create the named canvas, then each text + button element at the listed positions. Capture a screenshot and verify the element counts via unity_list_ui_elements.",
     }.get(role_id, "Run your role on the current project state.")
 
 
@@ -1964,7 +1965,7 @@ def main() -> int:
     p_studio_run.add_argument(
         "--role",
         required=True,
-        choices=("producer", "designer", "critic", "level_designer", "art_director", "playtester", "physics_qa", "audio_director", "audio_engineer", "lighting_director", "camera_director", "vfx_director"),
+        choices=("producer", "designer", "critic", "level_designer", "art_director", "playtester", "physics_qa", "audio_director", "audio_engineer", "lighting_director", "camera_director", "vfx_director", "ui_builder"),
         help="Which role to run",
     )
     p_studio_run.add_argument("--brief", default="", help="Free-text brief for the role; uses a sensible default if omitted")
