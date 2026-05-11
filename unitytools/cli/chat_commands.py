@@ -202,6 +202,10 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     if cmd == "sync":
         return _dispatch_sync(args)
 
+    # ── role <role-id> <brief>   run one specific role one-shot
+    if cmd == "role":
+        return _dispatch_role(args, ctx)
+
     return CommandResult(handled=False)
 
 
@@ -496,6 +500,183 @@ def _dispatch_diag() -> CommandResult:
         tool_result=info,
         message=msg,
     )
+
+
+def _dispatch_role(args: list[str], ctx: Optional[DispatchContext]) -> CommandResult:
+    """/role <role-id> [brief]
+
+    Runs ONE specific role one-shot through a fresh RoleRunner.
+    Uses the configured LLM client. Wires engine + vision bridges
+    automatically when the role needs them. brief is the rest of
+    the line; if omitted, the role's default brief from CLI is used.
+    """
+    if not args:
+        return CommandResult(
+            handled=True, ok=False,
+            message="Usage: /role <role-id> [brief]   e.g. /role designer 'Draft GDD'",
+        )
+
+    role_id = args[0]
+    brief = " ".join(args[1:]).strip()
+
+    # Validate role
+    try:
+        from ..studio import get_role
+        try:
+            role = get_role(role_id)
+        except KeyError:
+            from ..studio import all_roles
+            available = sorted(r.id for r in all_roles())
+            return CommandResult(
+                handled=True, ok=False,
+                message=f"Unknown role {role_id!r}. Available: {available}",
+            )
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio package not importable: {exc}",
+        )
+
+    # Validate active state
+    try:
+        from ..studio.tools import _STATE
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio tools not importable: {exc}",
+        )
+    if _STATE is None:
+        return CommandResult(
+            handled=True, ok=False,
+            message="No active studio. Run /init first or `cd` into a Unity project.",
+        )
+
+    # Need a context for the LLM client
+    if ctx is None or ctx.config is None:
+        return CommandResult(
+            handled=True, ok=False,
+            message=(
+                "/role needs a runtime context (LLM client + config). "
+                "REPL didn't pass one. (Use the chat REPL — direct API has no LLM wiring.)"
+            ),
+        )
+
+    # Pick a default brief if none given (mirrors `unitytools studio-run` defaults)
+    if not brief:
+        brief = _default_brief_for_role(role.id)
+
+    # Build LLM client
+    try:
+        from ..studio import (
+            RoleRunner,
+            make_default_client,
+            make_default_vision_client,
+        )
+        from ..studio.tools import init_studio_unity, init_studio_vision
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"Studio runner imports failed: {exc}",
+        )
+
+    try:
+        client = make_default_client(ctx.config)
+    except RuntimeError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"LLM client setup failed: {exc}",
+        )
+
+    # Engine + vision wiring (when the role needs them)
+    if role.needs_engine and ctx.unity_bridge is not None:
+        try:
+            if ctx.unity_bridge.connect(timeout=2.0):
+                init_studio_unity(ctx.unity_bridge)
+        except Exception:  # noqa: BLE001
+            pass
+    if role.needs_vision:
+        try:
+            v = make_default_vision_client(ctx.config)
+            init_studio_vision(v)
+        except RuntimeError:
+            pass   # role tools error politely when vision unavailable
+
+    # Run the role
+    thresholds = _STATE.thresholds
+    runner = RoleRunner(
+        client,
+        max_iterations=thresholds.max_worker_iterations,
+        state=_STATE,
+    )
+    try:
+        result = runner.run(role, brief)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name=f"role:{role.id}",
+            message=f"Role {role.id!r} run failed: {exc}",
+        )
+
+    tool_call_count = len(result.tool_calls)
+    text_preview = (result.text or "").strip().splitlines()[:3]
+    text_summary = " / ".join(line.strip() for line in text_preview if line.strip())
+    if len(text_summary) > 160:
+        text_summary = text_summary[:157] + "..."
+
+    msg = (
+        f"Role {role.id!r} done -- {result.iterations} iter, "
+        f"{tool_call_count} tool call(s), stop={result.stop_reason}"
+    )
+    if text_summary:
+        msg += f"\n  text: {text_summary}"
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name=f"role:{role.id}",
+        tool_result={
+            "role_id": role.id,
+            "brief": brief,
+            "iterations": result.iterations,
+            "tool_calls": [
+                {"name": tc.name, "ok": tc.ok}
+                for tc in result.tool_calls
+            ],
+            "stop_reason": result.stop_reason,
+            "text": result.text,
+        },
+        message=msg,
+    )
+
+
+def _default_brief_for_role(role_id: str) -> str:
+    """Mirror the CLI's _default_brief_for_role table so chat /role
+    uses the same sensible defaults when the user omits a brief."""
+    table = {
+        "producer": "Plan the next round of work. Read state, decide priorities, open up to 5 tasks.",
+        "designer": "Read the current GDD and produce the smallest coherent improvement.",
+        "critic": "Review the project for inconsistency between GDD, art bible, and recent decisions.",
+        "level_designer": "Pick a reference from studio/refs/, compare to current scene, file follow-up tasks.",
+        "art_director": "Audit current scene palette against the dominant reference and Art Bible.",
+        "playtester": "Run a 3-second smoke playtest on the current scene.",
+        "physics_qa": "Profile the current scene against perf budgets.",
+        "audio_director": "Refine the Audio Brief in line with the GDD pitch.",
+        "audio_engineer": "Import audio + attach AudioSource as the task describes.",
+        "lighting_director": "Audit + tune scene lighting against the Art Bible palette.",
+        "camera_director": "Frame the main camera on the target named in the task.",
+        "vfx_director": "Audit particle systems against budgets and tune offenders.",
+        "ui_builder": "Build the UI named in the task.",
+        "build_engineer": "Run studio_ship_readiness_check; if pass, build the configured target.",
+        "atmosphere_director": "Tune skybox + fog to match Art Bible palette and mood.",
+        "material_artist": "Tune PBR on the target named in the task.",
+        "marketing_director": "Finalise press kit + PlayerSettings; capture a hero shot.",
+        "game_balancer": "Run studio_balance_audit and file specific tuning tasks.",
+        "localization_lead": "Audit studio/strings/ coverage; fill gaps.",
+        "tutorial_designer": "Refine studio/tutorial.md with player goal + controls + beats.",
+        "scene_director": "Refine studio/scene_catalog.md with scene graph + transitions.",
+        "achievement_designer": "Refine studio/achievements.md roster.",
+        "storyteller": "Draft a dialog script for the moment named in the task.",
+        "worker": "Execute this task now per the description; snapshot first, save, status update last.",
+    }
+    return table.get(role_id, "Run your role on the current project state.")
 
 
 def _dispatch_sync(args: list[str]) -> CommandResult:

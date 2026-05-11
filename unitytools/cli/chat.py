@@ -264,6 +264,7 @@ def _handle_slash(
                 "[cyan]/sync[/cyan] [--check]          bring older studio up to current schema (auto-runs on chat start)\n"
                 "[cyan]/scaffold[/cyan] <genre> [name]   collectathon/shooter/runner/platformer\n"
                 "[cyan]/dispatch[/cyan] [N] [--dry-run]   run N pending tasks through their roles (autopilot)\n"
+                "[cyan]/role[/cyan] <role-id> [brief]    run ONE role one-shot (e.g. /role designer 'Draft GDD')\n"
                 "[cyan]/dashboard[/cyan] [--save] [days]  operator's morning glance\n"
                 "[cyan]/ship[/cyan]                    ship readiness check (go/no-go)\n"
                 "[cyan]/cost[/cyan] [days]             LLM token + USD spend (default 7d)\n"
