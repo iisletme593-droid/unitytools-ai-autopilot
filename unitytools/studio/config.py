@@ -66,6 +66,13 @@ class StudioThresholds:
     perf_unique_material_budget: int = 250
     perf_shadow_light_budget: int = 2
 
+    # Phase 29: Camera Director tries one re-frame (opposite yaw) when
+    # the composition_match score from a reference compare falls below
+    # this. Below ~0.5 a fresh frame is cheap and often recovers a
+    # better shot; above it, the first frame is "good enough".
+    # NOTE: also templated into the Camera Director's system prompt.
+    camera_director_recompose_threshold: float = 0.6
+
 
 STUDIO_DEFAULTS = StudioThresholds()
 

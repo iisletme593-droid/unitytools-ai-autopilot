@@ -52,6 +52,9 @@ namespace UnityTools.Bridge
                 case "set_light_properties": return SetLightProperties(p);
                 case "set_ambient_light": return SetAmbientLight(p);
                 case "list_lights": return ListLights(p);
+                case "set_camera_transform": return SetCameraTransform(p);
+                case "frame_object": return FrameObject(p);
+                case "list_cameras": return ListCameras(p);
                 case "find_by_tag": return FindByTag(p);
                 case "find_assets": return FindAssets(p);
                 case "list_prefabs": return ListPrefabs(p);
@@ -538,6 +541,139 @@ namespace UnityTools.Bridge
             Undo.RegisterCreatedObjectUndo(go, $"Bridge: create light {name}");
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             return new { name = go.name, instance_id = go.GetHashCode(), light_type = lightType.ToString() };
+        }
+
+        private static Camera ResolveCamera(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                var main = Camera.main;
+                if (main != null) return main;
+                throw new InvalidOperationException("No camera name given and no MainCamera in scene.");
+            }
+            var go = GameObject.Find(name);
+            if (go == null) throw new InvalidOperationException($"Object not found: {name}");
+            var cam = go.GetComponent<Camera>();
+            if (cam == null) throw new InvalidOperationException($"Camera component not found on {name}");
+            return cam;
+        }
+
+        private static object SetCameraTransform(JObject p)
+        {
+            Camera cam = ResolveCamera(p["name"]?.ToString());
+            Undo.RecordObject(cam.transform, "Bridge: set camera transform");
+            JObject pos = p["position"] as JObject;
+            if (pos != null)
+                cam.transform.position = new Vector3(
+                    pos["x"]?.ToObject<float>() ?? cam.transform.position.x,
+                    pos["y"]?.ToObject<float>() ?? cam.transform.position.y,
+                    pos["z"]?.ToObject<float>() ?? cam.transform.position.z
+                );
+            JObject rot = p["rotation_euler"] as JObject;
+            if (rot != null)
+                cam.transform.eulerAngles = new Vector3(
+                    rot["x"]?.ToObject<float>() ?? cam.transform.eulerAngles.x,
+                    rot["y"]?.ToObject<float>() ?? cam.transform.eulerAngles.y,
+                    rot["z"]?.ToObject<float>() ?? cam.transform.eulerAngles.z
+                );
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                name = cam.gameObject.name,
+                position_x = cam.transform.position.x,
+                position_y = cam.transform.position.y,
+                position_z = cam.transform.position.z,
+                rotation_x = cam.transform.eulerAngles.x,
+                rotation_y = cam.transform.eulerAngles.y,
+                rotation_z = cam.transform.eulerAngles.z,
+            };
+        }
+
+        private static object FrameObject(JObject p)
+        {
+            string targetName = p["target_name"]?.ToString();
+            if (string.IsNullOrEmpty(targetName)) throw new ArgumentException("target_name is required");
+            var target = GameObject.Find(targetName);
+            if (target == null) throw new InvalidOperationException($"Target object not found: {targetName}");
+            Camera cam = ResolveCamera(p["camera_name"]?.ToString());
+
+            // Compute target world-space center: use renderer bounds if any, else transform.position.
+            Vector3 center = target.transform.position;
+            float radius = 1.0f;
+            var renderers = target.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length > 0)
+            {
+                var bounds = renderers[0].bounds;
+                for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
+                center = bounds.center;
+                radius = Mathf.Max(0.5f, bounds.extents.magnitude);
+            }
+
+            float distance = p["distance"]?.ToObject<float>() ?? (radius * 3f);
+            float yaw = p["yaw_degrees"]?.ToObject<float>() ?? -30f;        // around Y
+            float pitch = p["pitch_degrees"]?.ToObject<float>() ?? 20f;      // tilt down
+            float heightOffset = p["height_offset"]?.ToObject<float>() ?? 0f;
+
+            // Place the camera on a sphere around `center` and look at it.
+            float yawRad = yaw * Mathf.Deg2Rad;
+            float pitchRad = pitch * Mathf.Deg2Rad;
+            Vector3 offset = new Vector3(
+                Mathf.Sin(yawRad) * Mathf.Cos(pitchRad),
+                Mathf.Sin(pitchRad),
+                -Mathf.Cos(yawRad) * Mathf.Cos(pitchRad)
+            ) * distance;
+            Vector3 newPos = center + offset + new Vector3(0f, heightOffset, 0f);
+
+            Undo.RecordObject(cam.transform, "Bridge: frame object");
+            cam.transform.position = newPos;
+            cam.transform.LookAt(center);
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+
+            return new
+            {
+                ok = true,
+                camera = cam.gameObject.name,
+                target = targetName,
+                center_x = center.x,
+                center_y = center.y,
+                center_z = center.z,
+                distance = distance,
+                yaw = yaw,
+                pitch = pitch,
+                camera_position_x = cam.transform.position.x,
+                camera_position_y = cam.transform.position.y,
+                camera_position_z = cam.transform.position.z,
+                target_radius = radius,
+            };
+        }
+
+        private static object ListCameras(JObject p)
+        {
+            var all = UnityEngine.Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var rows = new List<object>();
+            foreach (var cam in all)
+            {
+                if (!cam.gameObject.scene.IsValid()) continue;
+                rows.Add(new
+                {
+                    name = cam.gameObject.name,
+                    is_main = (cam == Camera.main),
+                    fov = cam.fieldOfView,
+                    orthographic = cam.orthographic,
+                    orthographic_size = cam.orthographicSize,
+                    near_clip = cam.nearClipPlane,
+                    far_clip = cam.farClipPlane,
+                    position_x = cam.transform.position.x,
+                    position_y = cam.transform.position.y,
+                    position_z = cam.transform.position.z,
+                    rotation_x = cam.transform.eulerAngles.x,
+                    rotation_y = cam.transform.eulerAngles.y,
+                    rotation_z = cam.transform.eulerAngles.z,
+                    active = cam.gameObject.activeInHierarchy,
+                });
+            }
+            return new { ok = true, count = rows.Count, cameras = rows };
         }
 
         private static object SetCamera(JObject p)

@@ -495,6 +495,115 @@ def studio_unity_attach_audio_source(
     return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
 
 
+# ─── Camera framing audit (Phase 29) ───────────────────────────────────
+
+@tool(description="Frame the named target object with the main (or named) camera, capture a screenshot, and optionally compare against a reference image. Returns the screenshot path, the camera placement, and (if reference_path given) the composition_match score. The Camera Director uses this to verify a frame before saving.")
+def studio_camera_frame_check(
+    target_name: str,
+    label: str = "frame",
+    camera_name: str = "",
+    distance: float = 0.0,
+    yaw_degrees: float = -30.0,
+    pitch_degrees: float = 20.0,
+    reference_path: str = "",
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected."}
+    if hasattr(_UNITY, "is_connected") and not _UNITY.is_connected():
+        return {"ok": False, "error": "Unity Editor is not connected."}
+    if not target_name:
+        return {"ok": False, "error": "target_name is required."}
+    state = _require_state()
+
+    # 1. Frame the target.
+    frame_params: dict[str, Any] = {
+        "target_name": target_name,
+        "camera_name": camera_name,
+        "yaw_degrees": yaw_degrees,
+        "pitch_degrees": pitch_degrees,
+    }
+    if distance > 0:
+        frame_params["distance"] = distance
+    try:
+        frame_result = _UNITY.call("frame_object", frame_params, timeout=30)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"frame_object failed: {exc}", "error_type": type(exc).__name__}
+    if not isinstance(frame_result, dict) or not frame_result.get("ok", True):
+        return {"ok": False, "error": "Unity reported frame_object failure.", "raw": frame_result}
+
+    # 2. Capture from that frame (same path studio_capture_screenshot uses).
+    try:
+        capture_result = _UNITY.call("run_visual_qa", {"capture_screenshot": True}, timeout=60)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "error": f"run_visual_qa failed: {exc}",
+            "error_type": type(exc).__name__,
+            "frame": frame_result,
+        }
+    raw_path = ""
+    if isinstance(capture_result, dict):
+        raw_path = capture_result.get("screenshot_path") or capture_result.get("path") or ""
+    if not raw_path:
+        return {
+            "ok": False,
+            "error": "Unity did not return a screenshot path.",
+            "frame": frame_result,
+            "raw": capture_result,
+        }
+    src = Path(raw_path)
+    if not src.exists():
+        return {
+            "ok": False,
+            "error": f"Screenshot file does not exist: {src}",
+            "frame": frame_result,
+        }
+
+    # Copy the captured shot under studio/qa/screenshots/ with the chosen label.
+    state.paths.qa_screenshots.mkdir(parents=True, exist_ok=True)
+    safe_label = "".join(c if c.isalnum() or c in "-_" else "_" for c in label).strip("_") or "frame"
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    screenshot_path = state.paths.qa_screenshots / f"{timestamp}_{safe_label}_{target_name}{src.suffix or '.png'}"
+    try:
+        shutil.copy2(src, screenshot_path)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "error": f"failed to copy screenshot to studio/qa/screenshots/: {exc}",
+            "frame": frame_result,
+        }
+
+    out: dict[str, Any] = {
+        "ok": True,
+        "target": target_name,
+        "screenshot": str(screenshot_path),
+        "frame": frame_result,
+    }
+
+    # 3. Optional reference comparison.
+    if reference_path:
+        if _VISION is None:
+            out["compare"] = {"ok": False, "error": "Vision client not injected."}
+        else:
+            ref = Path(reference_path)
+            if not ref.exists():
+                out["compare"] = {"ok": False, "error": f"reference not found: {ref}"}
+            else:
+                try:
+                    diff = _VISION.compare(
+                        reference_bytes=ref.read_bytes(),
+                        reference_mime=guess_mime(ref),
+                        candidate_bytes=screenshot_path.read_bytes(),
+                        candidate_mime=guess_mime(screenshot_path),
+                        instruction=f"Camera frame check for target '{target_name}'.",
+                    )
+                    out["compare"] = {"ok": True, **(diff if isinstance(diff, dict) else {})}
+                except Exception as exc:  # noqa: BLE001
+                    out["compare"] = {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
+
+    return out
+
+
 # ─── Lighting audit (Phase 28) ─────────────────────────────────────────
 
 @tool(description="Audit the scene's lighting setup. Calls list_lights on the Unity bridge, then verdicts against soft budgets: at least 1 directional light, no more than 8 shadow-casting lights, total intensity below 50. Returns a 'verdict' string + 'recommendations' list the Lighting Director can act on. No mutations.")
@@ -1264,6 +1373,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_unity_attach_audio_source",
     # lighting (Phase 28)
     "studio_lighting_audit",
+    # camera framing (Phase 29)
+    "studio_camera_frame_check",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

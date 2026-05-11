@@ -1759,6 +1759,7 @@ def _default_brief_for(role_id: str) -> str:
         "audio_director": "Refine the Audio Brief in line with the GDD pitch. If empty, draft a one-page version. Propose a decision for any non-trivial mood / sample-rate / style lock.",
         "audio_engineer": "Import the audio asset named in your task, then attach an AudioSource on the target scene object using the parameters in the Audio Brief (sample rate, mix bus, 3D vs 2D split). Snapshot first; save the scene last.",
         "lighting_director": "Audit the scene's lighting against the Art Bible palette. If no directional light exists, add one. If shadow-caster count or total intensity is over budget, tune the offenders. Land 'verdict=pass' and a screenshot that reflects the palette mood.",
+        "camera_director": "Frame the main camera on the target named in your task. Use studio_camera_frame_check to point + capture + verify; re-frame once with opposite yaw if composition_match misses the threshold.",
     }.get(role_id, "Run your role on the current project state.")
 
 
@@ -1962,7 +1963,7 @@ def main() -> int:
     p_studio_run.add_argument(
         "--role",
         required=True,
-        choices=("producer", "designer", "critic", "level_designer", "art_director", "playtester", "physics_qa", "audio_director", "audio_engineer", "lighting_director"),
+        choices=("producer", "designer", "critic", "level_designer", "art_director", "playtester", "physics_qa", "audio_director", "audio_engineer", "lighting_director", "camera_director"),
         help="Which role to run",
     )
     p_studio_run.add_argument("--brief", default="", help="Free-text brief for the role; uses a sensible default if omitted")

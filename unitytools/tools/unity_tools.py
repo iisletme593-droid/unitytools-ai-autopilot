@@ -463,6 +463,77 @@ def unity_list_lights() -> dict:
         return {"ok": False, "error": str(e)}
 
 
+@tool(description="Set a camera's world position and/or Euler rotation. Empty name targets Camera.main. Pass only the axes you want to change; the others keep their current value. Use this when you know exact transform coords; for 'frame this object' use unity_frame_object instead.")
+def unity_set_camera_transform(
+    name: str = "",
+    position_x: float = float("nan"),
+    position_y: float = float("nan"),
+    position_z: float = float("nan"),
+    rotation_x: float = float("nan"),
+    rotation_y: float = float("nan"),
+    rotation_z: float = float("nan"),
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    import math
+    params: dict = {"name": name}
+    pos = {}
+    if not math.isnan(position_x): pos["x"] = position_x
+    if not math.isnan(position_y): pos["y"] = position_y
+    if not math.isnan(position_z): pos["z"] = position_z
+    if pos: params["position"] = pos
+    rot = {}
+    if not math.isnan(rotation_x): rot["x"] = rotation_x
+    if not math.isnan(rotation_y): rot["y"] = rotation_y
+    if not math.isnan(rotation_z): rot["z"] = rotation_z
+    if rot: params["rotation_euler"] = rot
+    try:
+        result = _UNITY.call("set_camera_transform", params)
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Position a camera so it frames a named GameObject. The camera is placed on a sphere of `distance` units around the target and aimed at the target's render-bounds center. Use yaw_degrees (around Y, default -30) and pitch_degrees (tilt down, default 20) to pick the angle. camera_name='' targets Camera.main. Distance defaults to 3x the target's bounds radius — leave at 0 for auto.")
+def unity_frame_object(
+    target_name: str,
+    camera_name: str = "",
+    distance: float = 0.0,
+    yaw_degrees: float = -30.0,
+    pitch_degrees: float = 20.0,
+    height_offset: float = 0.0,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    if not target_name:
+        return {"ok": False, "error": "target_name is required"}
+    params: dict = {
+        "target_name": target_name,
+        "camera_name": camera_name,
+        "yaw_degrees": yaw_degrees,
+        "pitch_degrees": pitch_degrees,
+        "height_offset": height_offset,
+    }
+    if distance > 0:
+        params["distance"] = distance
+    try:
+        result = _UNITY.call("frame_object", params)
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="List every Camera in the active scene with FOV, transform, ortho settings, and which one is the main camera. Read-only.")
+def unity_list_cameras() -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("list_cameras", {})
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @tool(description="Set camera settings on a GameObject that has a Camera component. FOV in degrees, near/far clip planes, orthographic toggle, orthographic size.")
 def unity_set_camera(
     name: str,
