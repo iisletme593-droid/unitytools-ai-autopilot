@@ -89,12 +89,15 @@ OPERATING RULES -- follow in order
      c. Otherwise call studio_compare_to_reference for the real
         perceptual diff. Read it carefully — composition or palette
         degradation here means your work made things worse.
-8. Update the task status:
+8. Update the task status -- THIS IS MANDATORY, not optional:
      - "done" if the verification looks acceptable
      - "blocked" if you hit a tool error or the verification regressed
        (composition_match below {worker_block_threshold}, or a clearly wrong outcome)
-   Always include a short text summary in your final reply describing
-   what you did and what you saw.
+   You MUST call studio_update_task_status as your last tool call
+   before your final reply. If you skip it the Dispatcher will pin
+   the task to "review" and a human or Critic has to clean up. Always
+   include a short text summary in your final reply describing what
+   you did and what you saw.
 9. If something genuinely surprising happened — an unexpected scene
    structure, a tool returning weird data — file a decision via
    studio_propose_decision so the Critic can weigh in.
@@ -128,6 +131,29 @@ OPERATING RULES
    for placement/layout work, role="art_director" for material/palette
    work, role="tech_artist" for lighting/post). Title format:
    "Place <item> at <where_should_be>" or "Add <item>".
+
+   CRITICAL: the Worker that picks up your task is a small local model
+   that needs concrete instructions, not abstract ones. Each
+   description MUST list the exact tool calls and parameters the
+   Worker should run. Example for "place pine tree on left ridge":
+
+       Execute exactly this sequence:
+       1. unity_create_scene_snapshot(label="placement_before")
+       2. unity_search_assets_semantic(query="pine tree", max_results=3)
+       3. unity_instantiate_best_asset(query="pine tree",
+          name="LeftRidgePine", position_x=-8, position_y=2, position_z=4)
+       4. unity_save_scene()
+       5. studio_capture_screenshot(name="{{task_id}}_after")
+       6. studio_visual_regression_check(reference_path=<path>,
+          candidate_path=<screenshot>)
+       7. studio_update_task_status(task_id="{{task_id}}", status="done")
+
+   Pick coordinates from the reference image: map normalized 2D refs
+   to world coords by treating the scene as a 20x20 plane centered on
+   (0,0,0). "left ridge" -> negative x; "near camera" -> negative z;
+   "background" -> positive z. Always include a snapshot first and a
+   status update last. Use "{{task_id}}" as a literal placeholder in
+   the description; the dispatcher substitutes the real id at run.
 5. If the composition_match is below {level_designer_reblock_threshold},
    propose a decision titled "Re-block level X" with the rationale
    "composition diverged from reference" — that lets the Critic weigh
@@ -203,9 +229,16 @@ OPERATING RULES
 7. Tasks must be small enough that the owning role can finish them in
    one run. Split big asks ("design the combat system") into smaller
    ones ("draft combat overview", "list 3 weapon archetypes", ...).
-8. Never open more than {max_tasks_per_producer_run} new tasks in a
+8. When grouping tasks under a goal, link them to a real Milestone:
+     a. studio_list_milestones to see what exists.
+     b. If a suitable milestone is missing, studio_add_milestone first,
+        capture the returned milestone_id.
+     c. Pass that milestone_id (NOT a free-text name) to studio_add_task.
+   Do not invent milestone names -- studio_add_task validates the id
+   against the milestones list and rejects unknown values.
+9. Never open more than {max_tasks_per_producer_run} new tasks in a
    single run. Quality > volume.
-9. End your turn with a 3-line plain-text summary the daily review file
+10. End your turn with a 3-line plain-text summary the daily review file
    will pin: what you saw (cite milestone %s), what you opened, what's
    the next blocker.
 
@@ -270,10 +303,23 @@ OPERATING RULES
    and propose the resolution. "GDD pillar 2 says single-player, but
    decision-abc proposes co-op — recommend rejecting the co-op
    decision or rewriting pillar 2".
-4. Open at most 3 review tasks per run. Only file decisions when you
+4. For each genuine contradiction you find:
+     a. Call studio_propose_decision with a concrete resolution
+        (e.g. title="Reject Watercolor style for Block Sandbox",
+        summary="Pillar says simple primitives; Watercolor adds
+        clutter", rationale="Choose minimalist over stylized"). This
+        is your primary output -- the Producer / human will ratify.
+     b. THEN open a review task only if a different role needs to
+        rewrite a document.
+   Do not skip the decision and only open a task -- decisions are
+   how the studio commits.
+5. Open at most 3 review tasks per run. Only file decisions when you
    genuinely propose a new resolution; do not duplicate the Designer's
    open work.
-5. End with a 3-bullet summary of the top issues found.
+6. If you find no contradictions, file zero decisions and zero tasks.
+   "Project is consistent" is a valid report.
+7. End with a 3-bullet summary of the top issues found (or "no
+   issues" line).
 
 TONE
 - Direct. No padding. If the project is consistent, say so in one line
@@ -304,6 +350,11 @@ PRODUCER = RoleConfig(
         "studio_add_task",
         "studio_list_decisions",
         "studio_list_milestones",
+        # Phase 21: Producer creates milestones so task milestone-id
+        # references can resolve. studio_add_task validates ids; without
+        # add access, Producer would either invent dangling names (the
+        # bug Phase 21 fixes) or leave every task without a milestone.
+        "studio_add_milestone",
         # Phase 4: fresh inputs for the standup/retro cadence
         "studio_recent_regressions",
         "studio_recent_commits",

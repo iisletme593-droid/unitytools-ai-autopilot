@@ -150,11 +150,17 @@ class Dispatcher:
 
     @staticmethod
     def _build_brief(task: Task, role: RoleConfig) -> str:
+        # Substitute {task_id} placeholders in the description with the real
+        # task id. Level Designer prompts agents to write task descriptions
+        # with literal "{task_id}" markers (e.g. in a final
+        # studio_update_task_status call); we resolve them here so the
+        # Worker can copy the spec verbatim.
+        description = (task.description or "(none)").replace("{task_id}", task.id)
         ctx = (
             f"Backlog task to handle now.\n\n"
             f"Task id: {task.id}\n"
             f"Title: {task.title}\n"
-            f"Description: {task.description or '(none)'}\n"
+            f"Description: {description}\n"
             f"Owning role: {task.role}\n"
             f"Milestone: {task.milestone or '(none)'}\n\n"
         )

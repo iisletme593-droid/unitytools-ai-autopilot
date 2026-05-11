@@ -1518,11 +1518,12 @@ def cmd_studio_execute(args: argparse.Namespace) -> int:
     target.status = TaskStatus.IN_PROGRESS
     state.update_task(target)
 
+    description = (target.description or "(none)").replace("{task_id}", target.id)
     brief = (
         f"Pick up backlog task and execute it now.\n\n"
         f"Task id: {target.id}\n"
         f"Title: {target.title}\n"
-        f"Description: {target.description or '(none)'}\n"
+        f"Description: {description}\n"
         f"Owning role: {target.role}\n"
         f"Milestone: {target.milestone or '(none)'}\n"
     )

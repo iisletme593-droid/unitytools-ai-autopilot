@@ -223,13 +223,20 @@ def test_runner_stops_at_max_iterations() -> None:
 
 
 def test_runner_uses_role_specific_system_prompt() -> None:
+    """Each role's system prompt must clearly identify it. Cross-role
+    mentions are allowed (the Critic prompt references the Producer
+    because Critic findings are ratified by the Producer/human), but
+    the prompt that arrives at the LLM must be the role's OWN prompt,
+    not someone else's by accident."""
     _fresh_studio()
     turns = [_ScriptedTurn(text="hi", stop_reason="end_turn")]
     fake = FakeLLM(turns)
     RoleRunner(fake).run(CRITIC, brief="anything")
     assert fake.systems_seen
-    assert "Critic" in fake.systems_seen[0]
-    assert "Producer" not in fake.systems_seen[0]
+    # The Critic prompt opens with "You are the Critic"; that's how we
+    # distinguish "this role's prompt was sent" from "any prompt that
+    # mentions Critic somewhere".
+    assert fake.systems_seen[0].lstrip().startswith("You are the Critic")
     print("OK role-specific system prompt sent to LLM")
 
 
