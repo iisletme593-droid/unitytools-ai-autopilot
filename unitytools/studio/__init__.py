@@ -66,6 +66,12 @@ from .decisions import (
 )
 from .milestones import all_milestones_with_progress, milestone_progress
 from .export import SCHEMA_VERSION as EXPORT_SCHEMA_VERSION, build_snapshot, snapshot_to_json
+from .import_snapshot import (
+    ImportResult,
+    SnapshotIncompatibleError,
+    import_snapshot,
+    load_snapshot_file,
+)
 
 __all__ = [
     # state
@@ -146,4 +152,8 @@ __all__ = [
     "EXPORT_SCHEMA_VERSION",
     "build_snapshot",
     "snapshot_to_json",
+    "ImportResult",
+    "SnapshotIncompatibleError",
+    "import_snapshot",
+    "load_snapshot_file",
 ]

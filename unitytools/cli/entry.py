@@ -589,6 +589,68 @@ def cmd_studio_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_studio_import(args: argparse.Namespace) -> int:
+    """Restore a studio from a snapshot JSON produced by `studio-export`."""
+    from ..studio import (
+        SnapshotIncompatibleError,
+        StudioPaths,
+        StudioState,
+        import_snapshot,
+        init_studio_tools,
+        load_snapshot_file,
+    )
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init --project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    try:
+        if args.input == "-" or not args.input:
+            import json as _json
+            import sys as _sys
+            snapshot = _json.load(_sys.stdin)
+        else:
+            snapshot = load_snapshot_file(Path(args.input).expanduser().resolve())
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 1
+    except json.JSONDecodeError as exc:
+        console.print(f"[red]Invalid JSON: {exc}[/red]")
+        return 1
+
+    if args.mode == "overwrite" and not args.dry_run and not args.yes:
+        console.print(
+            "[red]--mode overwrite is destructive (wipes backlog/decisions/milestones before restoring). "
+            "Re-run with --yes to confirm, or use --dry-run to preview.[/red]"
+        )
+        return 1
+
+    try:
+        result = import_snapshot(state, snapshot, mode=args.mode, dry_run=args.dry_run)
+    except SnapshotIncompatibleError as exc:
+        console.print(f"[red]Snapshot incompatible: {exc}[/red]")
+        return 1
+
+    label = "Dry-run" if args.dry_run else "Imported"
+    console.print(f"[green][OK][/green] {label} (mode={args.mode})")
+    console.print(f"  {result.summary_line()}")
+    if result.skipped:
+        console.print(f"[dim]  skipped sections: {', '.join(result.skipped)}[/dim]")
+    if result.errors:
+        console.print(f"[yellow]  {len(result.errors)} row error(s):[/yellow]")
+        for err in result.errors[:5]:
+            console.print(f"    - {err}")
+        if len(result.errors) > 5:
+            console.print(f"    ... ({len(result.errors) - 5} more)")
+    return 0
+
+
 def cmd_studio_export(args: argparse.Namespace) -> int:
     """Build a single-file JSON snapshot of the studio."""
     from ..studio import (
@@ -1807,6 +1869,16 @@ def main() -> int:
     p_studio_init.add_argument("--force", action="store_true", help="Overwrite starter docs if they already exist (JSON state is always preserved)")
     p_studio_doctor = sub.add_parser("studio-doctor", help="Run studio health checks (provider, Ollama, Pillow, Unity bridge, disk state, recent activity).")
     p_studio_doctor.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_import = sub.add_parser(
+        "studio-import",
+        help="Restore a studio from a snapshot JSON produced by studio-export.",
+    )
+    p_studio_import.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_studio_import.add_argument("--input", "-i", default="-", help="Snapshot file path; '-' or omit for stdin.")
+    p_studio_import.add_argument("--mode", choices=("merge", "overwrite"), default="merge", help="merge upserts by id (default); overwrite wipes the canonical files first.")
+    p_studio_import.add_argument("--dry-run", action="store_true", help="Report what would change without writing.")
+    p_studio_import.add_argument("--yes", action="store_true", help="Confirm a destructive overwrite (required when --mode overwrite).")
+
     p_studio_export = sub.add_parser(
         "studio-export",
         help="Single-file JSON snapshot of the studio (docs, tasks, decisions, milestones+progress, archive summary, thresholds).",
@@ -1992,6 +2064,7 @@ def main() -> int:
         "studio-tasks": cmd_studio_tasks,
         "studio-milestones": cmd_studio_milestones,
         "studio-export": cmd_studio_export,
+        "studio-import": cmd_studio_import,
         "studio-status": cmd_studio_status,
         "studio-run": cmd_studio_run,
         "studio-review": cmd_studio_review,

@@ -94,6 +94,7 @@ graph layer; later phases depend only on earlier ones, never sideways.
 | 17 | Producer milestone-aware prompt + `_check_stale_in_progress` | Standup cites real % per in_progress milestone; doctor warns on >7d stuck tasks |
 | 18 | `ratify_decision`, `latest_decisions`, `find_decision`, `--accept`/`--reject`/`--supersede`, id prefix matching | Critic can accept/reject/supersede decisions; ids accept unique prefixes everywhere |
 | 19 | `studio/export.py`, `studio-export` CLI | Single-file JSON snapshot for backup / PR review / migration |
+| 20 | `studio/import_snapshot.py`, `studio-import` CLI | Restore a studio from a snapshot (merge upsert / overwrite wipe, dry-run, schema gating) |
 
 ### File layout
 
@@ -262,6 +263,58 @@ reviews            {filename: markdown body} (--include-reviews N)
 
 Pure read; never mutates state. Crash-proof against missing files
 (each section degrades to a sensible empty default).
+
+### `studio-import`
+
+Inverse of `studio-export`. Restore a studio from a snapshot JSON.
+
+```sh
+unitytools studio-import -i snapshot.json                # merge (default)
+unitytools studio-import -i snapshot.json --dry-run      # preview
+unitytools studio-import -i snapshot.json --mode overwrite --yes
+cat snapshot.json | unitytools studio-import -i -        # stdin
+```
+
+Two modes:
+
+- **merge** (default): upsert by id, append decisions, write docs only
+  when the snapshot has non-empty content. Existing studio state is
+  preserved where the snapshot is silent. Safe to run against a live
+  studio.
+- **overwrite**: wipe canonical files before restoring. Destructive;
+  requires `--yes` to confirm. The snapshot becomes the new source of
+  truth.
+
+Schema gating: an import refuses when the snapshot's
+`schema_version` is newer than this code knows about. Older
+snapshots are accepted (forward-compatible because future versions
+only add fields).
+
+What round-trips cleanly:
+
+```text
+docs (gdd / art_bible / sprint_current)
+active backlog tasks (upsert by id)
+decisions (append; latest_decisions handles dedupe on read)
+milestones (upsert by id)
+thresholds (-> studio/config.json when there are overrides)
+archive_recent (when the snapshot used --include-history N)
+reviews (when --include-reviews N)
+qa_regression_tail (when --include-regression N > 0)
+```
+
+What does NOT round-trip:
+
+```text
+archive entries older than the snapshot's --include-history cap
+review files beyond --include-reviews
+regression entries beyond --include-regression
+the doctor section (it's a runtime report, not state)
+```
+
+`--dry-run` reports the same counters as a real import but writes
+nothing. Per-row errors (e.g. malformed task records) collect in
+`result.errors`; one bad row never aborts the whole import.
 
 ### `studio-tasks`
 
