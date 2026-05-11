@@ -1273,6 +1273,266 @@ def studio_scaffold_top_down_shooter_game(
     }
 
 
+@tool(description="Scaffold a complete platformer mini-game: drafts a milestone + a structured task batch using KeyboardMover (horizontal, gravity OFF) + Jumper (vertical + space-jump) + Collectible (coins on platforms) + GameSession (winScore = coin_count). Inputs: coin_count, platform_count, jump_height. One Producer call -> a full platformer backlog.")
+def studio_scaffold_platformer_game(
+    game_name: str = "Hop Quest",
+    coin_count: int = 12,
+    platform_count: int = 8,
+    jump_height: float = 2.5,
+    platform_spread_x: float = 12.0,
+    platform_spread_y: float = 6.0,
+    win_scene_name: str = "WinScene",
+) -> dict:
+    state = _require_state()
+    if coin_count < 1 or coin_count > 100:
+        return {"ok": False, "error": "coin_count must be in 1..100."}
+    if platform_count < 1 or platform_count > 50:
+        return {"ok": False, "error": "platform_count must be in 1..50."}
+    if jump_height <= 0 or jump_height > 20:
+        return {"ok": False, "error": "jump_height must be in (0, 20] units."}
+    if platform_spread_x <= 0 or platform_spread_x > 40:
+        return {"ok": False, "error": "platform_spread_x must be in (0, 40]."}
+    if platform_spread_y <= 0 or platform_spread_y > 30:
+        return {"ok": False, "error": "platform_spread_y must be in (0, 30]."}
+
+    milestone_name = f"Ship MVP: {game_name}"
+    milestone = Milestone(
+        name=milestone_name,
+        description=(
+            f"End-to-end platformer MVP. Player jumps between "
+            f"{platform_count} platforms collecting {coin_count} coins. "
+            f"KeyboardMover (gravity off) + Jumper handle motion. "
+            f"GameSession win at {coin_count} coins -> {win_scene_name!r}; "
+            f"falling off the world -> LoseLife via a kill-plane collider."
+        ),
+    )
+    state.add_milestone(milestone)
+    milestone_id = milestone.id
+
+    tasks_spec: list[tuple[str, str, str]] = [
+        (
+            "designer",
+            f"Draft GDD for {game_name}",
+            f"Platformer pitch: 'Jump between platforms, collect {coin_count} "
+            f"coins, don't fall.' Pillars: precise jump arc, 90-second runs, "
+            f"forgiving inputs (coyote time + jump buffer baked into Jumper). "
+            f"Win scene: {win_scene_name!r}."
+        ),
+        (
+            "art_director",
+            "Draft Art Bible — readable silhouettes",
+            "Platformers live or die on silhouette clarity. Player must read "
+            "against every platform from any angle. Pick a 4-colour palette "
+            "where Player is the BRIGHTEST element. Save via "
+            "studio_write_art_bible."
+        ),
+        (
+            "scene_director",
+            "Draft scene catalog (4-scene MVP)",
+            "Scenes: Title + Game + Win + GameOver. Transitions: Title->Game "
+            "via Start, Game->Win via GameSession auto-win, Game->GameOver "
+            "via lives=0 (falling off the world). Save via "
+            "studio_write_scene_catalog."
+        ),
+        (
+            "worker",
+            f"Place player + {platform_count} platforms + {coin_count} coins + GameSession",
+            f"Step-by-step:\n"
+            f"1. unity_create_scene_snapshot(label='{{task_id}}_before')\n"
+            f"2. Player (CharacterController + KeyboardMover + Jumper):\n"
+            f"   unity_create_primitive('Capsule', name='Player')\n"
+            f"   unity_set_position(name='Player', x=0, y=2, z=0)\n"
+            f"   unity_add_component('Player', 'CharacterController')\n"
+            f"   unity_attach_behaviour('Player', 'KeyboardMover',\n"
+            f"      params={{'speed': 7.0, 'applyGravity': false}})\n"
+            f"   (CRITICAL: applyGravity=false because Jumper handles vertical)\n"
+            f"   unity_attach_behaviour('Player', 'Jumper',\n"
+            f"      params={{'jumpHeight': {jump_height},\n"
+            f"               'gravity': 25.0,\n"
+            f"               'groundCheckDistance': 1.05,\n"
+            f"               'coyoteTime': 0.1, 'jumpBuffer': 0.1}})\n"
+            f"3. Place {platform_count} platforms at varying heights:\n"
+            f"   for i in 0..{platform_count - 1}:\n"
+            f"     x = (random in -{platform_spread_x/2:.1f}..{platform_spread_x/2:.1f})\n"
+            f"     y = (random in 1..{platform_spread_y:.1f})\n"
+            f"     z = (i * 2.0 starting from 5)\n"
+            f"     unity_create_primitive('Cube', name='Platform_{{i}}')\n"
+            f"     unity_set_scale(name='Platform_{{i}}', x=3, y=0.4, z=2)\n"
+            f"     unity_set_position(name='Platform_{{i}}', x=x, y=y, z=z)\n"
+            f"4. Place {coin_count} coins ABOVE platforms (1.5 units up):\n"
+            f"   for i in 0..{coin_count - 1}:\n"
+            f"     pick a platform p (random)\n"
+            f"     unity_create_primitive('Sphere', name='Coin_{{i}}')\n"
+            f"     unity_set_scale(name='Coin_{{i}}', uniform=0.4)\n"
+            f"     unity_set_position(at platform position + (0, 1.5, 0))\n"
+            f"     unity_add_component('Coin_{{i}}', 'SphereCollider')\n"
+            f"     (set isTrigger=true)\n"
+            f"     unity_attach_behaviour('Coin_{{i}}', 'Collectible',\n"
+            f"        params={{'scoreValue': 1, 'playerFilter': 'Player'}})\n"
+            f"     unity_attach_behaviour('Coin_{{i}}', 'Rotator',\n"
+            f"        params={{'speedDegPerSec': 90}})\n"
+            f"5. Kill plane (player falls -> LoseLife):\n"
+            f"   unity_create_primitive('Cube', name='KillPlane')\n"
+            f"   unity_set_position(name='KillPlane', x=0, y=-10, z=0)\n"
+            f"   unity_set_scale(name='KillPlane', x=100, y=1, z=100)\n"
+            f"   (set BoxCollider isTrigger=true)\n"
+            f"   unity_attach_behaviour('KillPlane', 'Enemy',\n"
+            f"      params={{'health': 9999, 'scoreOnDeath': 0,\n"
+            f"               'contactDamage': 99, 'playerNamePrefix': 'Player'}})\n"
+            f"   (contactDamage=99 with startingLives=3 means one fall = death)\n"
+            f"6. GameSession:\n"
+            f"   unity_create_empty(name='GameSession')\n"
+            f"   unity_attach_behaviour('GameSession', 'GameSession',\n"
+            f"      params={{'winScore': {coin_count},\n"
+            f"               'winSceneName': '{win_scene_name}',\n"
+            f"               'startingLives': 3,\n"
+            f"               'loseSceneName': 'GameOverScene'}})\n"
+            f"7. unity_save_scene(); studio_update_task_status('{{task_id}}', 'done')"
+        ),
+        (
+            "ui_builder",
+            "Build HUD + Pause Canvas",
+            f"1. unity_create_ui_canvas(name='HUDCanvas')\n"
+            f"2. unity_create_ui_text(canvas_name='HUDCanvas', name='ScoreText',\n"
+            f"   text='Coins: 0/{coin_count}', position_x=-400, position_y=400,\n"
+            f"   font_size=42)\n"
+            f"3. unity_attach_behaviour('ScoreText', 'ScoreHUD',\n"
+            f"   params={{'format': 'Coins: {{score}}/{{win}}'}})\n"
+            f"4. unity_create_ui_text(canvas_name='HUDCanvas', name='LivesText',\n"
+            f"   text='Lives: 3', position_x=400, position_y=400, font_size=42)\n"
+            f"5. unity_attach_behaviour('LivesText', 'ScoreHUD',\n"
+            f"   params={{'format': 'Lives: {{lives}}'}})\n"
+            f"6. unity_create_ui_canvas(name='PauseCanvas')\n"
+            f"7. unity_attach_behaviour('PauseCanvas', 'PauseMenu',\n"
+            f"   params={{'toggleKey': 'Escape'}})\n"
+            f"8. unity_attach_behaviour('HUDCanvas', 'SettingsStore')\n"
+            f"9. unity_save_scene()"
+        ),
+        (
+            "lighting_director",
+            "Light the platforms",
+            "Directional light from a high angle (45-60 degrees pitch) so "
+            "platforms cast clear shadows the player uses to judge their jump "
+            "landing. Add a fill light from the opposite side."
+        ),
+        (
+            "atmosphere_director",
+            "Set sky + light fog for depth cues",
+            "Light fog (mode='Linear', start=20, end=80) so far platforms "
+            "fade — that's a depth signal the player uses to read the level. "
+            "Sky tinted to palette."
+        ),
+        (
+            "camera_director",
+            "Side-on platformer camera",
+            f"Frame the playfield from the side. unity_set_camera_transform("
+            f"name='Main Camera', position_x=0, position_y={platform_spread_y * 0.6:.1f}, "
+            f"position_z=-{platform_spread_x * 0.7:.1f}, rotation_x=0). "
+            f"Then attach FollowTarget(targetName='Player', smoothing=4.0, "
+            f"offset={{'x':0,'y':2,'z':{-platform_spread_x * 0.5:.1f}}})."
+        ),
+        (
+            "material_artist",
+            "Player bright + platforms matte + coins gold",
+            "Player: smoothness=0.6, emission_enabled=1, emission_intensity=0.5 "
+            "(slight glow to read against any platform). Platforms: metallic=0, "
+            "smoothness=0.15 (matte, doesn't compete with player). Coins: "
+            "metallic=1.0, smoothness=0.85 (gold)."
+        ),
+        (
+            "audio_director",
+            "Draft Audio Brief — platformer feel",
+            "Bouncy / playful music (90-110 BPM). 4 SFX: jump (whoosh), land "
+            "(thud), coin pickup (chime), fall (descending tone). 44.1kHz."
+        ),
+        (
+            "tutorial_designer",
+            "Draft tutorial beats",
+            "3 beats: Hook=camera pans across platforms with coin glints; "
+            "First Action=A/D moves player on flat ground; First Choice=Space "
+            "jumps to a high platform with a coin. Skip path: 'Hold Space at "
+            "title'."
+        ),
+        (
+            "localization_lead",
+            "Seed en + tr string tables",
+            f"studio_write_strings('en', strings={{"
+            f"'title.main': '{game_name}', 'btn.start': 'Jump In', "
+            f"'btn.resume': 'Resume', 'hud.coins': 'Coins: ', "
+            f"'hud.lives': 'Lives: ', 'screen.win': 'All Coins!', "
+            f"'screen.lose': 'Fell Off', 'screen.pause': 'Paused'"
+            f"}}). Translate to 'tr'. Run audit until verdict=pass."
+        ),
+        (
+            "marketing_director",
+            "Finalize PlayerSettings + press kit",
+            f"unity_set_player_settings(product_name='{game_name}', "
+            f"company_name='UnityTools Studio', version='0.1.0', "
+            f"bundle_id='com.unitytools.{game_name.lower().replace(' ', '')}'). "
+            "Hero shot: capture mid-jump silhouette against a clear sky."
+        ),
+        (
+            "physics_qa",
+            "Profile platform-heavy scene",
+            f"{platform_count} platforms + {coin_count} coins + a kill plane "
+            f"= ~{platform_count + coin_count + 5} renderers. Run "
+            f"studio_perf_budget_check. If shadow caster count blows budget, "
+            f"file Worker task to disable shadow casting on small coins."
+        ),
+        (
+            "playtester",
+            "Smoke-test the jump arc",
+            "studio_playtest_smoke(expected_object_names=['Player', "
+            "'GameSession', 'KillPlane', 'HUDCanvas']). Verify Player still "
+            "exists after 3s (didn't fall + die immediately from a bad spawn)."
+        ),
+        (
+            "game_balancer",
+            "Tune jump height + platform spacing",
+            f"After playtest, run studio_balance_audit. If "
+            f"playtest_failure_rate > 0.5 (player keeps falling), file Worker "
+            f"task to either raise jump_height (currently {jump_height}) or "
+            f"shrink platform_spread_y. If failure rate < 0.1 (too easy), "
+            f"spread platforms further or add narrow platforms."
+        ),
+        (
+            "build_engineer",
+            "Ship Windows + WebGL builds",
+            f"Run studio_ship_readiness_check. If pass:\n"
+            f"  unity_build_player(target='windows', "
+            f"output_path='studio/builds/<date>/windows/{game_name.replace(' ', '')}.exe')\n"
+            f"  unity_build_player(target='webgl', "
+            f"output_path='studio/builds/<date>/webgl/index.html')\n"
+            "Platformers ship great as itch.io WebGL demos."
+        ),
+    ]
+
+    opened: list[dict] = []
+    for role, title, description in tasks_spec:
+        if role not in ROLES:
+            continue
+        task = Task(
+            title=title,
+            role=role,
+            description=description,
+            milestone=milestone_id,
+        )
+        state.add_task(task)
+        opened.append({"task_id": task.id, "role": task.role, "title": task.title})
+
+    return {
+        "ok": True,
+        "game_name": game_name,
+        "coin_count": coin_count,
+        "platform_count": platform_count,
+        "jump_height": jump_height,
+        "milestone_id": milestone_id,
+        "milestone_name": milestone_name,
+        "task_count": len(opened),
+        "tasks": opened,
+    }
+
+
 @tool(description="Scaffold a complete endless-runner mini-game: drafts a milestone + a structured task batch using AutoScroller + LanePositioner + Spawner + Collectible (so collecting coins-while-running drives the score). Inputs control pacing: scroll_speed, lane_count, obstacle_interval. One Producer call -> a full endless-runner backlog.")
 def studio_scaffold_endless_runner_game(
     game_name: str = "Lane Sprinter",
@@ -2919,6 +3179,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_scaffold_top_down_shooter_game",
     # game template scaffolder (Phase 46)
     "studio_scaffold_endless_runner_game",
+    # game template scaffolder (Phase 50)
+    "studio_scaffold_platformer_game",
     # ship readiness (Phase 45)
     "studio_ship_readiness_check",
     # internal consistency audit (Phase 49)

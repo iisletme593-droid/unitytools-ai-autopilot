@@ -107,9 +107,9 @@ OPERATING RULES -- follow in order
    structure, a tool returning weird data — file a decision via
    studio_propose_decision so the Critic can weigh in.
 
-BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43 + 46)
+BEHAVIOURS (Phase 34 + 39 + 40 + 41 + 43 + 46 + 50)
 You also own attaching pre-built MonoBehaviours to GameObjects. The
-library now has 21 entries in six groups:
+library now has 22 entries in seven groups:
 
   - Motion / look: Rotator, Bobber, PulseScale, LookAtCamera,
     FollowTarget, KeyboardMover, DestroyAfter.
@@ -117,7 +117,17 @@ library now has 21 entries in six groups:
   - Game loop: GameSession, Collectible, ScoreHUD.
   - Meta / persistence: PauseMenu, SettingsStore.
   - Combat: Projectile, Shooter, Spawner, Enemy.
-  - Endless runner (Phase 46): AutoScroller, LanePositioner.
+  - Endless runner: AutoScroller, LanePositioner.
+  - Platformer (Phase 50): Jumper.
+
+Platformer composition pattern:
+  1. Player gets BOTH KeyboardMover (applyGravity=FALSE — critical!)
+     AND Jumper(jumpHeight=2.5, gravity=25.0, jumpKey=Space).
+  2. Jumper handles ALL vertical motion via transform.position (it
+     does NOT call CharacterController.Move so it doesn't fight
+     KeyboardMover's cc.Move).
+  3. Place a KillPlane (large Cube, isTrigger=true) below the
+     world and attach Enemy(contactDamage=99) so falling = death.
 
 Combat composition pattern (top-down shooter / wave survival):
   1. Create a hidden ProjectileTemplate (Sphere primitive + trigger
@@ -1219,6 +1229,9 @@ PRODUCER = RoleConfig(
         # Phase 46: endless-runner scaffolder using AutoScroller +
         # LanePositioner + Spawner. Tight one-thumb 1-minute genre.
         "studio_scaffold_endless_runner_game",
+        # Phase 50: platformer scaffolder using KeyboardMover (gravity
+        # off) + Jumper + Collectible + KillPlane.
+        "studio_scaffold_platformer_game",
         # Phase 45: aggregate go/no-go verdict across docs + audits.
         # Cited in retro to call out blockers BEFORE telling
         # build_engineer to ship.

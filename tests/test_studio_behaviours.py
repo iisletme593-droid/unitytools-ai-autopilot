@@ -104,10 +104,12 @@ def test_behaviour_library_contains_known_behaviours() -> None:
         "Projectile", "Shooter", "Spawner", "Enemy",
         # Phase 46 endless-runner primitives
         "AutoScroller", "LanePositioner",
+        # Phase 50 platformer primitive
+        "Jumper",
     }
     assert set(_BEHAVIOUR_LIBRARY) == expected
-    assert len(_BEHAVIOUR_LIBRARY) == 21
-    print("OK Behaviour library exposes 21 known names")
+    assert len(_BEHAVIOUR_LIBRARY) == 22
+    print("OK Behaviour library exposes 22 known names")
 
 
 def test_each_behaviour_has_a_corresponding_cs_file() -> None:
@@ -374,6 +376,53 @@ def test_runner_duo_in_runtime_namespace() -> None:
     print("OK AutoScroller + LanePositioner in UnityTools.Behaviours, no UnityEditor leak")
 
 
+# ───────────────────────────────────────────── platformer (Phase 50)
+
+
+def test_jumper_jump_arc_and_ground_check() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "Jumper.cs").read_text(encoding="utf-8")
+    # Tunable fields
+    for f in ("jumpHeight", "gravity", "jumpKey", "groundCheckDistance",
+              "coyoteTime", "jumpBuffer"):
+        assert re.search(rf"public\s+\S+\s+{f}\s*[=;]", body), f"Jumper.{f} field missing"
+    # Public read-only state
+    assert re.search(r"public\s+bool\s+IsGrounded\s*{\s*get", body), "Jumper.IsGrounded getter missing"
+    # Ground-check via raycast (NOT CharacterController.isGrounded — that
+    # would couple to a specific component)
+    assert "Physics.Raycast" in body
+    assert "Vector3.down" in body
+    # Jump impulse uses sqrt(2*g*h) — physically-correct apex height
+    assert "Mathf.Sqrt" in body
+    # Coyote + buffer forgiveness (casual-platformer convention)
+    assert "lastGroundedTime" in body or "_lastGroundedTime" in body
+    assert "lastJumpPressTime" in body or "_lastJumpPressTime" in body
+    # Vertical motion applied to transform.position (NOT cc.Move so
+    # KeyboardMover's own cc.Move doesn't conflict). Comments are
+    # allowed to mention CharacterController.Move (in fact the file's
+    # header explains the design decision); we check that no actual
+    # call is made by searching for an active expression rather than
+    # the substring.
+    assert "transform.position += Vector3.up" in body
+    # The file may DOCUMENT the choice in comments, but no live call
+    # to .Move( on a CharacterController should appear outside a //
+    # comment line.
+    for line in body.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("//"):
+            continue
+        assert "CharacterController" not in line or ".Move(" not in line, (
+            f"non-comment line calls CharacterController.Move: {line!r}"
+        )
+    print("OK Jumper contract: 6 tunables + IsGrounded + sqrt(2gh) impulse + coyote/buffer + position-based motion")
+
+
+def test_jumper_in_runtime_namespace() -> None:
+    body = (_REPO_ROOT / "unity_plugin" / "Scripts" / "Behaviours" / "Jumper.cs").read_text(encoding="utf-8")
+    assert "namespace UnityTools.Behaviours" in body
+    assert "using UnityEditor;" not in body
+    print("OK Jumper in UnityTools.Behaviours, no UnityEditor leak")
+
+
 # ───────────────────────────────────────────── wrapper validation
 
 
@@ -526,6 +575,9 @@ def run_test() -> None:
     test_autoscroller_constant_velocity_with_despawn()
     test_lane_positioner_snaps_to_n_lanes_with_keys_and_axis()
     test_runner_duo_in_runtime_namespace()
+    # Phase 50 platformer
+    test_jumper_jump_arc_and_ground_check()
+    test_jumper_in_runtime_namespace()
     # Wrappers
     test_attach_behaviour_rejects_unknown_name()
     test_attach_behaviour_requires_target_name()

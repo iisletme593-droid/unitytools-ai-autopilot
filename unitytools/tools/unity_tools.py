@@ -865,6 +865,8 @@ _BEHAVIOUR_LIBRARY = (
     "Projectile", "Shooter", "Spawner", "Enemy",
     # Phase 46: endless-runner primitives
     "AutoScroller", "LanePositioner",
+    # Phase 50: platformer primitive
+    "Jumper",
 )
 
 

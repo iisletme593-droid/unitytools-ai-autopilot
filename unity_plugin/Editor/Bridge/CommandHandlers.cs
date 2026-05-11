@@ -1227,6 +1227,8 @@ namespace UnityTools.Bridge
             "Projectile", "Shooter", "Spawner", "Enemy",
             // Phase 46: endless-runner primitives
             "AutoScroller", "LanePositioner",
+            // Phase 50: platformer primitive
+            "Jumper",
         };
 
         private static Type ResolveBehaviourType(string name)
