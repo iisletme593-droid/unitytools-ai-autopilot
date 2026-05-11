@@ -882,6 +882,271 @@ def test_turkish_rapor_fires_dashboard() -> None:
     print("OK /rapor [--save] fires studio_dashboard with flags intact")
 
 
+# ─────────────────────────────────────────── Phase 66 /build
+
+
+def test_build_command_recognised() -> None:
+    """/build is a known command (handled=True even on errors)."""
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("build windows")
+        assert r.handled is True
+    finally:
+        os.chdir(prev)
+    print("OK /build is a recognised command")
+
+
+def test_build_without_target_returns_usage_with_choices() -> None:
+    r = dispatch("build")
+    assert r.handled is True
+    assert r.ok is False
+    assert "Usage" in r.message
+    # Choices list is included
+    assert "windows" in r.message or "webgl" in r.message
+    print("OK /build without target -> usage hint listing all targets")
+
+
+def test_build_with_unknown_target_lists_choices() -> None:
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("build playstation")
+        assert r.handled is True
+        assert r.ok is False
+        assert "playstation" in r.message
+        # The choices list mentions a known target
+        assert "windows" in r.message or "webgl" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK unknown target -> error lists every valid alias")
+
+
+def test_build_target_alias_table_covers_common_keywords() -> None:
+    """Operators type 'win' / 'exe' / 'html5' / 'apk' / etc.; all
+    should resolve to a canonical target."""
+    from unitytools.cli.chat_commands import _BUILD_TARGET_ALIASES
+    cases = [
+        ("win", "windows"), ("exe", "windows"), ("windows64", "windows"),
+        ("osx", "mac"), ("macos", "mac"),
+        ("html5", "webgl"), ("web", "webgl"),
+        ("apk", "android"),
+        ("iphone", "ios"), ("ipad", "ios"),
+        ("linux64", "linux"),
+    ]
+    for alias, canonical in cases:
+        assert _BUILD_TARGET_ALIASES.get(alias) == canonical, (
+            f"/build {alias} should resolve to {canonical}, got "
+            f"{_BUILD_TARGET_ALIASES.get(alias)!r}"
+        )
+    print(f"OK {len(cases)} build-target keyword aliases all resolve correctly")
+
+
+def test_build_without_bridge_context_fails_clean() -> None:
+    """/build needs ctx.unity_bridge. Without it, fails cleanly with
+    a hint pointing at the start-Unity workflow."""
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("build windows")
+        assert r.handled is True
+        assert r.ok is False
+        assert "bridge" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /build without DispatchContext -> clean 'bridge needed' error")
+
+
+def test_build_with_offline_bridge_fails_clean() -> None:
+    """If the bridge object exists but connect() returns False
+    (Unity isn't running), the build refuses cleanly."""
+    from unitytools.cli.chat_commands import DispatchContext
+
+    class OfflineBridge:
+        def connect(self, *a, **k): return False
+        def is_connected(self): return False
+        def call(self, *a, **k): raise NotImplementedError
+
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        ctx = DispatchContext(config=None, unity_bridge=OfflineBridge())
+        r = dispatch("build windows", ctx=ctx)
+        assert r.handled is True
+        assert r.ok is False
+        assert "not connected" in r.message.lower() or "bridge" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /build with offline bridge -> clean 'not connected' error")
+
+
+def test_build_preflight_blocks_when_ship_check_fails() -> None:
+    """A studio with no GDD / scenes should fail preflight. /build
+    surfaces the blocker without calling unity_build_player."""
+    from unitytools.cli.chat_commands import DispatchContext
+
+    class FakeConnectedBridge:
+        """Simulates connected bridge but with an empty studio,
+        preflight should fail before any unity_build_player call."""
+        def connect(self, *a, **k): return True
+        def is_connected(self): return True
+        def call(self, method, params=None, timeout=None):
+            if method == "list_build_scenes":
+                # No enabled scenes -> studio_build_check fails
+                return {
+                    "ok": True, "count": 0, "enabled_count": 0,
+                    "active_target": "StandaloneWindows64", "scenes": [],
+                }
+            raise AssertionError(
+                f"unity_build_player should NOT be reached on preflight fail; got {method}"
+            )
+
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        # _fresh_studio_cwd wrote a GDD; remove it so preflight fails
+        import unitytools.studio.tools as st
+        st._STATE.paths.gdd.unlink(missing_ok=True)
+        ctx = DispatchContext(config=None, unity_bridge=FakeConnectedBridge())
+        r = dispatch("build windows", ctx=ctx)
+        assert r.handled is True
+        assert r.ok is False
+        assert r.tool_name == "studio_build_check"
+        assert "preflight" in r.message.lower() or "blocker" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /build preflight blocks on no-GDD-no-scenes; unity_build_player NOT called")
+
+
+def test_build_force_skips_preflight() -> None:
+    """--force should bypass the preflight gate."""
+    from unitytools.cli.chat_commands import DispatchContext
+
+    class FakeBuildBridge:
+        def connect(self, *a, **k): return True
+        def is_connected(self): return True
+        def call(self, method, params=None, timeout=None):
+            if method == "build_player":
+                # Pretend the build succeeded
+                return {
+                    "ok": True, "result": "Succeeded",
+                    "target": "StandaloneWindows64",
+                    "output_path": params.get("output_path", ""),
+                    "total_size_bytes": 12_345_678,
+                    "total_errors": 0, "total_warnings": 1,
+                    "total_time_seconds": 7.5,
+                    "scene_count": 1, "development_build": False,
+                }
+            # Anything else is unexpected — preflight should be skipped
+            raise AssertionError(
+                f"--force should skip preflight; bridge got method={method}"
+            )
+
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        # Clear the GDD so preflight WOULD fail; --force should still build
+        import unitytools.studio.tools as st
+        st._STATE.paths.gdd.unlink(missing_ok=True)
+        ctx = DispatchContext(config=None, unity_bridge=FakeBuildBridge())
+        r = dispatch("build windows --force --out /tmp/Game.exe", ctx=ctx)
+        assert r.handled is True
+        assert r.ok is True, f"--force build should succeed; got {r.message}"
+        assert r.tool_name == "unity_build_player"
+        assert "SUCCEEDED" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /build --force skips preflight and goes straight to unity_build_player")
+
+
+def test_build_auto_generates_output_path() -> None:
+    """When --out is omitted, the path is studio/builds/<date>/<target>/<product_name>.<ext>."""
+    from unitytools.cli.chat_commands import DispatchContext
+
+    captured_path: dict = {}
+
+    class FakeBridge:
+        def connect(self, *a, **k): return True
+        def is_connected(self): return True
+        def call(self, method, params=None, timeout=None):
+            if method == "list_build_scenes":
+                return {"ok": True, "count": 1, "enabled_count": 1,
+                        "active_target": "StandaloneWindows64",
+                        "scenes": [{"index": 0, "path": "Assets/Scenes/Main.unity", "enabled": True}]}
+            if method == "get_player_settings":
+                return {"ok": True, "product_name": "Coin Hunter Pro",
+                         "company_name": "Studio", "version": "0.1.0",
+                         "bundle_id": "com.studio.coin",
+                         "default_width": 1920, "default_height": 1080,
+                         "active_build_target": "StandaloneWindows64",
+                         "unity_version": "2022.3"}
+            if method == "build_player":
+                captured_path["path"] = params.get("output_path")
+                return {"ok": True, "result": "Succeeded",
+                        "target": "StandaloneWindows64",
+                        "output_path": params.get("output_path", ""),
+                        "total_size_bytes": 1000, "total_errors": 0,
+                        "total_warnings": 0, "total_time_seconds": 1.0,
+                        "scene_count": 1, "development_build": False}
+            raise AssertionError(f"unexpected method {method}")
+
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        ctx = DispatchContext(config=None, unity_bridge=FakeBridge())
+        r = dispatch("build windows", ctx=ctx)
+        assert r.handled is True
+        assert r.ok is True, f"build should succeed; got: {r.message}"
+        # Path looks like studio/builds/<date>/windows/Coin_Hunter_Pro.exe
+        path = captured_path.get("path", "")
+        assert "builds" in path, f"path missing 'builds': {path!r}"
+        assert "windows" in path, f"path missing 'windows': {path!r}"
+        assert "Coin_Hunter_Pro" in path or "Coin Hunter Pro" in path, (
+            f"path missing product_name: {path!r}"
+        )
+        assert path.endswith(".exe"), f"windows build should end with .exe: {path!r}"
+    finally:
+        os.chdir(prev)
+    print("OK /build auto-generates path: builds/<date>/<target>/<product_name>.<ext>")
+
+
+def test_build_dev_flag_passes_development_build() -> None:
+    """`/build windows --dev` should set development_build=True
+    in the unity_build_player call."""
+    from unitytools.cli.chat_commands import DispatchContext
+
+    captured: dict = {}
+
+    class FakeBridge:
+        def connect(self, *a, **k): return True
+        def is_connected(self): return True
+        def call(self, method, params=None, timeout=None):
+            if method == "list_build_scenes":
+                return {"ok": True, "count": 1, "enabled_count": 1,
+                        "active_target": "?", "scenes": []}
+            if method == "get_player_settings":
+                return {"ok": True, "product_name": "Game"}
+            if method == "build_player":
+                captured["dev"] = params.get("development_build")
+                return {"ok": True, "result": "Succeeded",
+                        "target": "X", "output_path": "",
+                        "total_size_bytes": 0, "total_errors": 0,
+                        "total_warnings": 0, "total_time_seconds": 0}
+            raise AssertionError(method)
+
+    _, _, prev = _fresh_studio_cwd()
+    try:
+        ctx = DispatchContext(config=None, unity_bridge=FakeBridge())
+        dispatch("build webgl --dev --force", ctx=ctx)
+        assert captured.get("dev") is True
+    finally:
+        os.chdir(prev)
+    print("OK /build webgl --dev sets development_build=True on the bridge call")
+
+
+def test_build_turkish_aliases() -> None:
+    """/yapı, /derle, /inşa all resolve to /build."""
+    from unitytools.cli.chat_commands import _resolve_alias
+    for tr in ("yapı", "yapi", "derle", "inşa", "insa"):
+        assert _resolve_alias(tr) == "build", (
+            f"/{tr} should alias to /build, got /{_resolve_alias(tr)}"
+        )
+    print("OK 5 Turkish /build aliases (yapı/yapi/derle/inşa/insa) resolve correctly")
+
+
 def test_quit_aliases_carry_quit_flag() -> None:
     """Turkish exit aliases should also return quit=True."""
     for word in ("çıkış", "cikis", "çık", "cik"):
@@ -1035,7 +1300,19 @@ def run_test() -> None:
     test_turkish_sağlık_fires_diag()
     test_turkish_rapor_fires_dashboard()
     test_quit_aliases_carry_quit_flag()
-    print("All chat-command tests passed (Phase 59 + 60 + 61 + 64 + 65)")
+    # Phase 66 /build
+    test_build_command_recognised()
+    test_build_without_target_returns_usage_with_choices()
+    test_build_with_unknown_target_lists_choices()
+    test_build_target_alias_table_covers_common_keywords()
+    test_build_without_bridge_context_fails_clean()
+    test_build_with_offline_bridge_fails_clean()
+    test_build_preflight_blocks_when_ship_check_fails()
+    test_build_force_skips_preflight()
+    test_build_auto_generates_output_path()
+    test_build_dev_flag_passes_development_build()
+    test_build_turkish_aliases()
+    print("All chat-command tests passed (Phase 59 + 60 + 61 + 64 + 65 + 66)")
 
 
 if __name__ == "__main__":

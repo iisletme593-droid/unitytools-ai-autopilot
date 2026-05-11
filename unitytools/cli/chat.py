@@ -270,6 +270,7 @@ def _handle_slash(
                 "[cyan]/scaffold[/cyan] <genre> [name]   collectathon/shooter/runner/platformer\n"
                 "[cyan]/dispatch[/cyan] [N] [--dry-run]   run N pending tasks through their roles (autopilot)\n"
                 "[cyan]/role[/cyan] <role-id> [brief]    run ONE role one-shot (e.g. /role designer 'Draft GDD')\n"
+                "[cyan]/build[/cyan] <target> [--dev]      windows/mac/linux/webgl/android/ios; auto-runs ship preflight first\n"
                 "[cyan]/dashboard[/cyan] [--save] [days]  operator's morning glance\n"
                 "[cyan]/ship[/cyan]                    ship readiness check (go/no-go)\n"
                 "[cyan]/cost[/cyan] [days]             LLM token + USD spend (default 7d)\n"
@@ -290,7 +291,7 @@ def _handle_slash(
                 "[bold]Türkçe alias'ler[/bold] [dim](her komut Türkçe veya İngilizce yazılabilir)[/dim]\n"
                 "[dim]/yardım=/help  /durum=/status  /sağlık=/diag  /çıkış=/quit\n"
                 "/başlat=/init  /eşitle=/sync  /oluştur=/scaffold  /yürüt=/dispatch  /rol=/role\n"
-                "/rapor=/dashboard  /satış=/ship  /maliyet=/cost  /denetim=/audit\n"
+                "/rapor=/dashboard  /satış=/ship  /maliyet=/cost  /denetim=/audit  /yapı=/build\n"
                 "/görev=/tasks  /hedef=/milestones  /referans=/refs  /dil=/locales\n"
                 "/diyalog=/dialogs  /varlık=/assets  /davranış=/behaviours  /roller=/roles[/dim]",
                 title="Commands",

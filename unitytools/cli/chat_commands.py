@@ -122,6 +122,7 @@ _ALIASES: dict[str, str] = {
     "satış": "ship", "satis": "ship", "yayın": "ship", "yayin": "ship",
     "maliyet": "cost", "masraf": "cost",
     "denetim": "audit", "tarama": "audit",
+    "yapı": "build", "yapi": "build", "derle": "build", "inşa": "build", "insa": "build",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -252,6 +253,10 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── role <role-id> <brief>   run one specific role one-shot
     if cmd == "role":
         return _dispatch_role(args, ctx)
+
+    # ── build <target> [--dev] [--out PATH] [--force]
+    if cmd == "build":
+        return _dispatch_build(args, ctx)
 
     return CommandResult(handled=False)
 
@@ -690,6 +695,218 @@ def _dispatch_role(args: list[str], ctx: Optional[DispatchContext]) -> CommandRe
             "stop_reason": result.stop_reason,
             "text": result.text,
         },
+        message=msg,
+    )
+
+
+# Mapping of build-target keyword aliases (Turkish-friendly + short) to
+# the canonical Unity build-target string the bridge handler accepts.
+_BUILD_TARGET_ALIASES: dict[str, str] = {
+    "windows": "windows", "win": "windows", "win64": "windows",
+    "exe": "windows", "windows64": "windows",
+    "mac": "mac", "osx": "mac", "macos": "mac",
+    "linux": "linux", "linux64": "linux",
+    "webgl": "webgl", "web": "webgl", "html": "webgl", "html5": "webgl",
+    "android": "android", "apk": "android",
+    "ios": "ios", "iphone": "ios", "ipad": "ios",
+}
+
+_BUILD_EXTENSION: dict[str, str] = {
+    "windows": ".exe",
+    "mac": ".app",
+    "linux": ".x86_64",
+    "webgl": "/index.html",
+    "android": ".apk",
+    "ios": ".app",
+}
+
+
+def _dispatch_build(args: list[str], ctx: Optional[DispatchContext]) -> CommandResult:
+    """/build <target> [--dev] [--out PATH] [--force]
+
+    One-shot build pipeline: studio_build_check preflight (skipped
+    with --force), then unity_build_player. Auto-generates the
+    output path under studio/builds/<date>/<target>/ using
+    PlayerSettings.product_name when --out is omitted.
+
+    --dev = development build.
+    --force = skip the build_check preflight (use at own risk).
+    """
+    if not args:
+        choices = sorted(set(_BUILD_TARGET_ALIASES.keys()))
+        return CommandResult(
+            handled=True, ok=False,
+            message=(
+                f"Usage: /build <target> [--dev] [--out PATH] [--force]   "
+                f"Targets: {choices}"
+            ),
+        )
+
+    target_key = args[0].lower()
+    canonical = _BUILD_TARGET_ALIASES.get(target_key)
+    if canonical is None:
+        return CommandResult(
+            handled=True, ok=False,
+            message=(
+                f"Unknown build target {target_key!r}. "
+                f"Choices: {sorted(set(_BUILD_TARGET_ALIASES.keys()))}"
+            ),
+        )
+
+    dev_build = False
+    force = False
+    out_override: Optional[str] = None
+    i = 1
+    while i < len(args):
+        a = args[i]
+        if a in ("--dev", "-d", "--development"):
+            dev_build = True
+            i += 1
+        elif a in ("--force", "-f"):
+            force = True
+            i += 1
+        elif a in ("--out", "-o") and i + 1 < len(args):
+            out_override = args[i + 1]
+            i += 2
+        else:
+            i += 1
+
+    # Validate studio state
+    try:
+        from ..studio.tools import _STATE, studio_build_check
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio package not importable: {exc}",
+        )
+    if _STATE is None:
+        return CommandResult(
+            handled=True, ok=False,
+            message="No active studio. Run /init first or `cd` into a Unity project.",
+        )
+
+    # Need a Unity bridge for the actual build
+    if ctx is None or ctx.unity_bridge is None:
+        return CommandResult(
+            handled=True, ok=False,
+            message=(
+                "/build needs a connected Unity bridge. Start chat from a "
+                "directory with a Unity project open + the bridge listening "
+                "on port 7777."
+            ),
+        )
+    try:
+        if not ctx.unity_bridge.connect(timeout=2.0):
+            return CommandResult(
+                handled=True, ok=False,
+                message="Unity bridge not connected. Open Unity Editor + start the bridge.",
+            )
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"Unity bridge connect failed: {exc}",
+        )
+
+    # Wire the bridge into BOTH module globals so studio_build_check
+    # (which reads studio.tools._UNITY) AND unity_build_player
+    # (which reads unity_tools._UNITY) both see it.
+    try:
+        from ..tools import unity_tools as _ut_mod
+        from ..studio.tools import init_studio_unity
+        _ut_mod._UNITY = ctx.unity_bridge
+        init_studio_unity(ctx.unity_bridge)
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"Tool modules not importable: {exc}",
+        )
+
+    # Preflight (unless --force)
+    if not force:
+        try:
+            preflight = studio_build_check()
+        except Exception as exc:  # noqa: BLE001
+            return CommandResult(
+                handled=True, ok=False,
+                tool_name="studio_build_check",
+                message=f"preflight failed: {exc}",
+            )
+        if preflight.get("verdict") != "pass":
+            blockers = preflight.get("violations") or preflight.get("blockers") or []
+            return CommandResult(
+                handled=True, ok=False,
+                tool_name="studio_build_check",
+                tool_result=preflight,
+                message=(
+                    f"Build preflight FAILED ({len(blockers)} blocker(s)): "
+                    f"{', '.join(blockers[:5])}. "
+                    "Fix or use /build <target> --force to skip the gate."
+                ),
+            )
+
+    # Decide output path
+    if out_override:
+        output_path = out_override
+    else:
+        # product_name from PlayerSettings; falls back to project name
+        product_name = "Game"
+        try:
+            from ..tools.unity_tools import unity_get_player_settings
+            settings = unity_get_player_settings()
+            if settings.get("ok"):
+                raw_name = (settings.get("product_name") or "").strip()
+                # Sanitize for filesystem
+                safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in raw_name).strip("_")
+                if safe:
+                    product_name = safe
+        except Exception:  # noqa: BLE001
+            pass
+        import datetime as _dt
+        date_dir = _dt.datetime.now().strftime("%Y-%m-%d")
+        ext = _BUILD_EXTENSION.get(canonical, "")
+        builds_root = _STATE.paths.root / "builds" / date_dir / canonical
+        output_path = str(builds_root / f"{product_name}{ext}")
+
+    # Fire the build. Bridge is already wired (above) so
+    # unity_build_player can reach it.
+    try:
+        from ..tools.unity_tools import unity_build_player
+    except ImportError:
+        return CommandResult(
+            handled=True, ok=False,
+            message="unity_build_player tool not registered. Re-run /init.",
+        )
+
+    try:
+        result = unity_build_player(
+            output_path=output_path,
+            target=canonical,
+            development_build=dev_build,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="unity_build_player",
+            message=f"build failed: {exc}",
+        )
+
+    ok = bool(result.get("ok"))
+    if ok:
+        size_mb = result.get("total_size_bytes", 0) / (1024 * 1024)
+        warnings = result.get("total_warnings", 0)
+        time_s = result.get("total_time_seconds", 0)
+        msg = (
+            f"Build SUCCEEDED -- {canonical} -> {output_path} "
+            f"({size_mb:.1f} MB, {warnings} warning(s), {time_s:.1f}s)"
+        )
+    else:
+        errs = result.get("total_errors", 0)
+        msg = f"Build FAILED -- {canonical}, {errs} error(s): {result.get('error', '?')}"
+
+    return CommandResult(
+        handled=True, ok=ok,
+        tool_name="unity_build_player",
+        tool_result=result,
         message=msg,
     )
 
