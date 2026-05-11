@@ -682,6 +682,55 @@ def unity_create_ui_button(
         return {"ok": False, "error": str(e)}
 
 
+_BEHAVIOUR_LIBRARY = (
+    "Rotator", "Bobber", "PulseScale", "LookAtCamera",
+    "DestroyAfter", "FollowTarget", "LoadSceneOnClick",
+    "QuitOnClick", "KeyboardMover",
+)
+
+
+@tool(description="Attach (or reconfigure) a behaviour from the UnityTools library to a named GameObject. Behaviours are pre-built MonoBehaviour scripts that ship with the plugin: Rotator, Bobber, PulseScale, LookAtCamera, DestroyAfter, FollowTarget, LoadSceneOnClick, QuitOnClick, KeyboardMover. Pass per-behaviour fields as the params dict (e.g. params={'speedDegPerSec': 90, 'axis': {'x': 0, 'y': 1, 'z': 0}}); fields the behaviour doesn't have are reported in skipped_fields. Idempotent — re-attaching just updates the fields.")
+def unity_attach_behaviour(target_name: str, behaviour_name: str, params: dict | None = None) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    if not target_name:
+        return {"ok": False, "error": "target_name is required"}
+    if not behaviour_name:
+        return {"ok": False, "error": "behaviour_name is required"}
+    if behaviour_name not in _BEHAVIOUR_LIBRARY:
+        return {"ok": False, "error": f"unknown behaviour {behaviour_name!r}; available: {list(_BEHAVIOUR_LIBRARY)}"}
+    try:
+        result = _UNITY.call(
+            "attach_behaviour",
+            {"target_name": target_name, "behaviour_name": behaviour_name, "params": params or {}},
+        )
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="List every behaviour the UnityTools plugin ships, with their public fields + types. Use this to see what's attachable before calling unity_attach_behaviour. Read-only.")
+def unity_list_behaviour_library() -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("list_behaviour_library", {})
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="List UnityTools behaviours attached in the scene. Pass target_name='' to scan the whole scene, or a specific GameObject name to scope. Read-only.")
+def unity_list_attached_behaviours(target_name: str = "") -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("list_attached_behaviours", {"target_name": target_name})
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @tool(description="List the scenes currently in EditorBuildSettings — these are what unity_build_player will include unless overridden. Returns paths + enabled flags + active build target. Read-only.")
 def unity_list_build_scenes() -> dict:
     if _UNITY is None:

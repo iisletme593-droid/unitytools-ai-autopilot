@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
@@ -67,6 +68,9 @@ namespace UnityTools.Bridge
                 case "build_player": return BuildPlayer(p);
                 case "list_build_scenes": return ListBuildScenes(p);
                 case "add_scene_to_build": return AddSceneToBuild(p);
+                case "attach_behaviour": return AttachBehaviour(p);
+                case "list_behaviour_library": return ListBehaviourLibrary(p);
+                case "list_attached_behaviours": return ListAttachedBehaviours(p);
                 case "find_by_tag": return FindByTag(p);
                 case "find_assets": return FindAssets(p);
                 case "list_prefabs": return ListPrefabs(p);
@@ -1194,6 +1198,220 @@ namespace UnityTools.Bridge
                 scene_count = scenePaths.Count,
                 development_build = developmentBuild,
             };
+        }
+
+        // ─── Phase 34: Behaviour Library ────────────────────────────────
+        // The autonomous studio ships a small library of runtime
+        // MonoBehaviour scripts (Rotator, Bobber, FollowTarget, ...) in
+        // unity_plugin/Scripts/Behaviours/. They live in Assembly-CSharp;
+        // we look them up by name from the UnityTools.Behaviours namespace
+        // and AddComponent + set serialized fields via reflection.
+
+        private static readonly string[] _BehaviourLibrary = new string[]
+        {
+            "Rotator", "Bobber", "PulseScale", "LookAtCamera",
+            "DestroyAfter", "FollowTarget", "LoadSceneOnClick",
+            "QuitOnClick", "KeyboardMover",
+        };
+
+        private static Type ResolveBehaviourType(string name)
+        {
+            if (string.IsNullOrEmpty(name)) throw new ArgumentException("behaviour_name is required");
+            // Try fully-qualified first
+            var candidates = new[]
+            {
+                "UnityTools.Behaviours." + name,
+                name,
+            };
+            foreach (var qn in candidates)
+            {
+                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    var t = asm.GetType(qn, false, false);
+                    if (t != null && typeof(MonoBehaviour).IsAssignableFrom(t)) return t;
+                }
+            }
+            throw new InvalidOperationException(
+                $"Behaviour type not found: {name}. Available: {string.Join(",", _BehaviourLibrary)}");
+        }
+
+        private static bool TryConvertJTokenToFieldValue(JToken token, Type targetType, out object result)
+        {
+            result = null;
+            try
+            {
+                if (targetType == typeof(string))
+                {
+                    result = token.ToString(); return true;
+                }
+                if (targetType == typeof(int))
+                {
+                    result = token.ToObject<int>(); return true;
+                }
+                if (targetType == typeof(float))
+                {
+                    result = token.ToObject<float>(); return true;
+                }
+                if (targetType == typeof(double))
+                {
+                    result = token.ToObject<double>(); return true;
+                }
+                if (targetType == typeof(bool))
+                {
+                    result = token.ToObject<bool>(); return true;
+                }
+                if (targetType == typeof(Vector3))
+                {
+                    var jo = token as JObject;
+                    if (jo == null) return false;
+                    result = new Vector3(
+                        jo["x"]?.ToObject<float>() ?? 0f,
+                        jo["y"]?.ToObject<float>() ?? 0f,
+                        jo["z"]?.ToObject<float>() ?? 0f
+                    );
+                    return true;
+                }
+                if (targetType == typeof(Vector2))
+                {
+                    var jo = token as JObject;
+                    if (jo == null) return false;
+                    result = new Vector2(
+                        jo["x"]?.ToObject<float>() ?? 0f,
+                        jo["y"]?.ToObject<float>() ?? 0f
+                    );
+                    return true;
+                }
+                if (targetType.IsEnum)
+                {
+                    result = Enum.Parse(targetType, token.ToString(), true);
+                    return true;
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private static object AttachBehaviour(JObject p)
+        {
+            string targetName = p["target_name"]?.ToString();
+            if (string.IsNullOrEmpty(targetName)) throw new ArgumentException("target_name is required");
+            string behaviourName = p["behaviour_name"]?.ToString();
+            if (string.IsNullOrEmpty(behaviourName)) throw new ArgumentException("behaviour_name is required");
+            var go = GameObject.Find(targetName);
+            if (go == null) throw new InvalidOperationException($"Object not found: {targetName}");
+
+            Type type = ResolveBehaviourType(behaviourName);
+            // Re-use existing component if present
+            Component component = go.GetComponent(type);
+            bool created = false;
+            if (component == null)
+            {
+                component = go.AddComponent(type);
+                Undo.RegisterCreatedObjectUndo(component, $"Bridge: attach {type.Name}");
+                created = true;
+            }
+            else
+            {
+                Undo.RecordObject(component, $"Bridge: configure {type.Name}");
+            }
+
+            // Set serialized public fields from the params dict
+            var applied = new List<string>();
+            var skipped = new List<string>();
+            JObject paramObj = p["params"] as JObject;
+            if (paramObj != null)
+            {
+                foreach (var pair in paramObj)
+                {
+                    string fieldName = pair.Key;
+                    JToken value = pair.Value;
+                    FieldInfo field = type.GetField(fieldName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                    if (field == null)
+                    {
+                        skipped.Add(fieldName + ":not_found");
+                        continue;
+                    }
+                    if (TryConvertJTokenToFieldValue(value, field.FieldType, out object converted))
+                    {
+                        field.SetValue(component, converted);
+                        applied.Add(fieldName);
+                    }
+                    else
+                    {
+                        skipped.Add(fieldName + ":wrong_type");
+                    }
+                }
+            }
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                target = targetName,
+                behaviour = type.Name,
+                full_type = type.FullName,
+                created = created,
+                applied_fields = applied,
+                skipped_fields = skipped,
+            };
+        }
+
+        private static object ListBehaviourLibrary(JObject p)
+        {
+            var rows = new List<object>();
+            foreach (var name in _BehaviourLibrary)
+            {
+                Type t;
+                try { t = ResolveBehaviourType(name); }
+                catch { t = null; }
+                if (t == null)
+                {
+                    rows.Add(new { name = name, found = false, fields = new object[0] });
+                    continue;
+                }
+                var fieldRows = new List<object>();
+                foreach (var f in t.GetFields(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    fieldRows.Add(new { name = f.Name, type = f.FieldType.Name });
+                }
+                rows.Add(new { name = name, found = true, full_type = t.FullName, fields = fieldRows });
+            }
+            return new { ok = true, count = rows.Count, library = rows };
+        }
+
+        private static object ListAttachedBehaviours(JObject p)
+        {
+            string targetName = p["target_name"]?.ToString();
+            GameObject[] roots;
+            if (!string.IsNullOrEmpty(targetName))
+            {
+                var go = GameObject.Find(targetName);
+                if (go == null) throw new InvalidOperationException($"Object not found: {targetName}");
+                roots = new[] { go };
+            }
+            else
+            {
+                roots = UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            }
+            var rows = new List<object>();
+            foreach (var go in roots)
+            {
+                if (!go.scene.IsValid()) continue;
+                foreach (var c in go.GetComponents<MonoBehaviour>())
+                {
+                    if (c == null) continue;
+                    Type t = c.GetType();
+                    if (t.Namespace == "UnityTools.Behaviours")
+                    {
+                        rows.Add(new
+                        {
+                            game_object = go.name,
+                            behaviour = t.Name,
+                            full_type = t.FullName,
+                        });
+                    }
+                }
+            }
+            return new { ok = true, count = rows.Count, attached = rows };
         }
 
         private static object SetCamera(JObject p)

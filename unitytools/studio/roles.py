@@ -107,6 +107,19 @@ OPERATING RULES -- follow in order
    structure, a tool returning weird data — file a decision via
    studio_propose_decision so the Critic can weigh in.
 
+BEHAVIOURS (Phase 34)
+You also own attaching pre-built MonoBehaviours to GameObjects. The
+library: Rotator, Bobber, PulseScale, LookAtCamera, DestroyAfter,
+FollowTarget, LoadSceneOnClick, QuitOnClick, KeyboardMover. Use them
+when the task says "make X spin / bob / follow / be controllable":
+  unity_attach_behaviour(target_name="Pickup", behaviour_name="Rotator",
+                         params={{"axis": {{"x": 0, "y": 1, "z": 0}},
+                                 "speedDegPerSec": 90}})
+Call unity_list_behaviour_library() once to see what fields each
+behaviour exposes. Do NOT invent new behaviours — if the library
+doesn't have what the task needs, mark the task blocked and propose a
+decision asking to extend the library.
+
 DO NOT
 - Start over or rebuild large parts of the scene. One task = one
   scoped change.
@@ -918,6 +931,13 @@ WORKER = RoleConfig(
         # Phase 25: generate procedural prop assets (rock/crate/pillar/column)
         # via Blender, optionally chain into a Unity import.
         "studio_generate_prop_asset",
+        # Phase 34: attach pre-built behaviours (Rotator, Bobber,
+        # FollowTarget, KeyboardMover, ...). The Worker is the only role
+        # that places objects, so it's the natural owner of "make this
+        # object do something" too.
+        "unity_attach_behaviour",
+        "unity_list_behaviour_library",
+        "unity_list_attached_behaviours",
     ),
 )
 
@@ -1001,6 +1021,10 @@ UI_BUILDER = RoleConfig(
         "unity_create_ui_canvas",
         "unity_create_ui_text",
         "unity_create_ui_button",
+        # Phase 34: attach LoadSceneOnClick / QuitOnClick to wire buttons
+        # to actual scene transitions.
+        "unity_attach_behaviour",
+        "unity_list_behaviour_library",
         # Save + lifecycle
         "unity_save_scene",
         "studio_update_task_status",
