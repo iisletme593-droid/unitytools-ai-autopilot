@@ -127,6 +127,12 @@ _ALIASES: dict[str, str] = {
     "sprint": "sprint",  # English passthrough (no Turkish word commonly used)
     "sıradaki": "next", "siradaki": "next", "sıra": "next", "sira": "next",
     "sonraki": "next",
+    # Phase 70 task lifecycle
+    "al": "take", "üstlen": "take", "ustlen": "take",
+    "tamam": "done", "bitti": "done", "bitir": "done",
+    "engelle": "block", "blokla": "block",
+    "aç": "unblock", "ac": "unblock", "çöz": "unblock", "coz": "unblock",
+    "neden": "why", "niçin": "why", "nicin": "why",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -288,6 +294,26 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── next [role]   (Phase 69: surface the next ready pending task)
     if cmd == "next":
         return _dispatch_next(args)
+
+    # ── take <task-id>   (Phase 70: mark a task in_progress)
+    if cmd == "take":
+        return _dispatch_task_status(args, "in_progress", verb="take")
+
+    # ── done <task-id>   (Phase 70: mark a task done)
+    if cmd == "done":
+        return _dispatch_task_status(args, "done", verb="done")
+
+    # ── unblock <task-id>   (Phase 70: mark blocked task back to pending)
+    if cmd == "unblock":
+        return _dispatch_task_status(args, "pending", verb="unblock")
+
+    # ── block <task-id> [reason...]   (Phase 70: mark blocked + note reason)
+    if cmd == "block":
+        return _dispatch_block(args)
+
+    # ── why <task-id>   (Phase 70: diagnostic for blockers + unsatisfied deps)
+    if cmd == "why":
+        return _dispatch_why(args)
 
     return CommandResult(handled=False)
 
@@ -581,6 +607,11 @@ def _dispatch_help() -> CommandResult:
                 ("/dashboard [--save] [days]", "operator's morning glance"),
                 ("/sprint", "read studio/sprint_current.md"),
                 ("/next [role]", "next pending task ready to pick up"),
+                ("/take <id>", "mark task in_progress"),
+                ("/done <id>", "mark task done"),
+                ("/block <id> [reason]", "mark task blocked + note reason"),
+                ("/unblock <id>", "blocked → pending"),
+                ("/why <id>", "explain task status + unsatisfied deps"),
                 ("/ship", "ship readiness check"),
                 ("/cost [days]", "LLM token + USD spend"),
                 ("/audit <kind>", "lighting/atmosphere/vfx/build/balance/..."),
@@ -613,6 +644,7 @@ def _dispatch_help() -> CommandResult:
     lines.append(
         "Türkçe aliases: /yardım /durum /sağlık /başlat /eşitle /oluştur "
         "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
+        "/al /tamam /engelle /aç /neden "
         "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
@@ -1178,6 +1210,208 @@ def _default_brief_for_role(role_id: str) -> str:
         "worker": "Execute this task now per the description; snapshot first, save, status update last.",
     }
     return table.get(role_id, "Run your role on the current project state.")
+
+
+def _resolve_task_partial_id(partial: str) -> tuple[Optional[str], Optional[CommandResult]]:
+    """Phase 70 helper: turn a short id (the first 8 chars /next shows)
+    into the full task id. Returns (full_id, None) on success or
+    (None, error_result) if not found / ambiguous so the caller can
+    return the error_result directly.
+    """
+    if not partial:
+        return None, CommandResult(
+            handled=True, ok=False,
+            message=(
+                "Need a task id. Try `/next` first to get one, then "
+                "use the short id (first 8 chars) it shows."
+            ),
+        )
+    try:
+        from ..studio.tools import studio_find_task
+    except ImportError as exc:
+        return None, CommandResult(
+            handled=True, ok=False,
+            message=f"studio_find_task not importable: {exc}",
+        )
+    try:
+        result = studio_find_task(partial)
+    except Exception as exc:  # noqa: BLE001
+        return None, CommandResult(
+            handled=True, ok=False,
+            message=f"task lookup failed: {exc}",
+        )
+    if not result.get("ok"):
+        return None, CommandResult(
+            handled=True, ok=False,
+            message=result.get("error") or "task lookup failed",
+        )
+    matches = result.get("matches", [])
+    if not matches:
+        return None, CommandResult(
+            handled=True, ok=False,
+            message=(
+                f"No task id starts with {partial!r}. "
+                f"Use /tasks to see the backlog, then copy the short id."
+            ),
+        )
+    if len(matches) > 1:
+        # Show top 5 candidates so the operator can disambiguate.
+        sample = ", ".join(
+            f"{m['id'][:8]} ({m['title'][:32]})"
+            for m in matches[:5]
+        )
+        more = f", +{len(matches) - 5} more" if len(matches) > 5 else ""
+        return None, CommandResult(
+            handled=True, ok=False,
+            message=(
+                f"{len(matches)} tasks match {partial!r}: {sample}{more}. "
+                f"Add more characters to disambiguate."
+            ),
+        )
+    return matches[0]["id"], None
+
+
+def _dispatch_task_status(args: list[str], status: str, verb: str) -> CommandResult:
+    """Phase 70 shared handler for /take (→in_progress), /done (→done),
+    /unblock (→pending). Status is hard-coded by the caller; only the
+    task id comes from the user."""
+    if not args:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"Usage: /{verb} <task-id>  (run /next to find one)",
+        )
+    full_id, err = _resolve_task_partial_id(args[0])
+    if err is not None:
+        return err
+    try:
+        from ..studio.tools import studio_update_task_status
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_update_task_status not importable: {exc}",
+        )
+    try:
+        result = studio_update_task_status(full_id, status)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_update_task_status",
+            message=f"status update failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_update_task_status",
+            tool_result=result,
+            message=result.get("error") or "status update failed",
+        )
+    msg = f"Task {full_id[:8]} → {status}"
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_update_task_status",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_block(args: list[str]) -> CommandResult:
+    """Phase 70: /block <task-id> [reason words...] — flip a task to
+    blocked and (optionally) append the reason to its blockers list.
+    The reason can be multi-word; we join args[1:] back into one string.
+    """
+    if not args:
+        return CommandResult(
+            handled=True, ok=False,
+            message="Usage: /block <task-id> [reason]  (run /next to find an id)",
+        )
+    full_id, err = _resolve_task_partial_id(args[0])
+    if err is not None:
+        return err
+    reason = " ".join(args[1:]).strip()
+    try:
+        from ..studio.tools import studio_block_task
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_block_task not importable: {exc}",
+        )
+    try:
+        result = studio_block_task(full_id, reason)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_block_task",
+            message=f"block failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_block_task",
+            tool_result=result,
+            message=result.get("error") or "block failed",
+        )
+    blocker_count = len(result.get("blockers", []))
+    msg = f"Task {full_id[:8]} → blocked ({blocker_count} reason{'s' if blocker_count != 1 else ''} on record)"
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_block_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_why(args: list[str]) -> CommandResult:
+    """Phase 70: /why <task-id> — explain a task's status and any
+    blockers / unsatisfied deps. Read-only diagnostic — never mutates."""
+    if not args:
+        return CommandResult(
+            handled=True, ok=False,
+            message="Usage: /why <task-id>",
+        )
+    full_id, err = _resolve_task_partial_id(args[0])
+    if err is not None:
+        return err
+    try:
+        from ..studio.tools import studio_explain_task
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_explain_task not importable: {exc}",
+        )
+    try:
+        result = studio_explain_task(full_id)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_explain_task",
+            message=f"why lookup failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_explain_task",
+            tool_result=result,
+            message=result.get("error") or "why lookup failed",
+        )
+    # Build a one-line summary explaining the current state.
+    parts: list[str] = []
+    parts.append(f"'{result['title']}' [{result['role']}] is {result['status']}")
+    if result.get("blockers"):
+        parts.append(f"{len(result['blockers'])} blocker(s) on record")
+    if result.get("unsatisfied_dep_count", 0):
+        parts.append(
+            f"{result['unsatisfied_dep_count']}/{len(result['depends_on'])} "
+            f"deps unsatisfied"
+        )
+    if result.get("ready_to_start"):
+        parts.append("ready to start")
+    msg = " — ".join(parts)
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_explain_task",
+        tool_result=result,
+        message=msg,
+    )
 
 
 def _dispatch_sprint() -> CommandResult:

@@ -1611,6 +1611,288 @@ def test_help_lists_phase_69_commands() -> None:
     print("OK /help advertises /sprint and /next")
 
 
+# ─────────────────────────────────────────── Phase 70: task lifecycle
+
+
+def test_take_marks_task_in_progress() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task, TaskStatus
+        t = Task(title="Block out level 1", role="level_designer")
+        state.add_task(t)
+        r = dispatch(f"take {t.id[:8]}")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_update_task_status"
+        # Reload from disk to verify persistence
+        tasks = state.load_tasks()
+        updated = next(x for x in tasks if x.id == t.id)
+        assert updated.status is TaskStatus.IN_PROGRESS
+        # Short id shown in message
+        assert t.id[:8] in r.message
+        assert "in_progress" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /take <short-id> flips PENDING → IN_PROGRESS (persisted)")
+
+
+def test_done_marks_task_done() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task, TaskStatus
+        t = Task(title="Tune SFX", role="designer")
+        state.add_task(t)
+        r = dispatch(f"done {t.id[:8]}")
+        assert r.ok is True
+        tasks = state.load_tasks()
+        updated = next(x for x in tasks if x.id == t.id)
+        assert updated.status is TaskStatus.DONE
+        assert "done" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /done <id> flips status → DONE")
+
+
+def test_unblock_returns_blocked_to_pending() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task, TaskStatus
+        t = Task(title="Need EXR for HDRI", role="art_director")
+        t.status = TaskStatus.BLOCKED
+        state.add_task(t)
+        r = dispatch(f"unblock {t.id[:8]}")
+        assert r.ok is True
+        tasks = state.load_tasks()
+        updated = next(x for x in tasks if x.id == t.id)
+        assert updated.status is TaskStatus.PENDING
+    finally:
+        os.chdir(prev)
+    print("OK /unblock <id> flips BLOCKED → PENDING")
+
+
+def test_block_appends_reason_to_blockers() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task, TaskStatus
+        t = Task(title="Boss arena lighting", role="tech_artist")
+        state.add_task(t)
+        r = dispatch(f"block {t.id[:8]} waiting on art_director approval")
+        assert r.ok is True
+        assert r.tool_name == "studio_block_task"
+        tasks = state.load_tasks()
+        updated = next(x for x in tasks if x.id == t.id)
+        assert updated.status is TaskStatus.BLOCKED
+        assert "waiting on art_director approval" in updated.blockers
+        # message reports blocker count
+        assert "1 reason" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /block <id> <reason words> stores reason and flips to BLOCKED")
+
+
+def test_block_without_reason_still_blocks_task() -> None:
+    """Reason is optional — /block <id> alone is valid."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task, TaskStatus
+        t = Task(title="Some task", role="designer")
+        state.add_task(t)
+        r = dispatch(f"block {t.id[:8]}")
+        assert r.ok is True
+        tasks = state.load_tasks()
+        updated = next(x for x in tasks if x.id == t.id)
+        assert updated.status is TaskStatus.BLOCKED
+        # No reason → blockers list stays at whatever it was (empty)
+        assert updated.blockers == []
+    finally:
+        os.chdir(prev)
+    print("OK /block <id> without reason still flips status")
+
+
+def test_block_appends_to_existing_reasons() -> None:
+    """Second /block call adds another reason — doesn't overwrite."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="Multi-blocked", role="designer")
+        state.add_task(t)
+        dispatch(f"block {t.id[:8]} first reason")
+        dispatch(f"block {t.id[:8]} second reason")
+        tasks = state.load_tasks()
+        updated = next(x for x in tasks if x.id == t.id)
+        assert updated.blockers == ["first reason", "second reason"]
+    finally:
+        os.chdir(prev)
+    print("OK /block appends — preserves blocker history")
+
+
+def test_why_explains_status_and_deps() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t1 = Task(title="Block out arena", role="level_designer")
+        state.add_task(t1)
+        t2 = Task(title="Light arena (needs t1)", role="tech_artist",
+                   depends_on=[t1.id])
+        state.add_task(t2)
+        r = dispatch(f"why {t2.id[:8]}")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_explain_task"
+        # When deps unsatisfied, message says so
+        assert "deps unsatisfied" in r.message
+        # tool_result enumerates each dep
+        deps = r.tool_result["depends_on"]
+        assert len(deps) == 1
+        assert deps[0]["title"] == "Block out arena"
+        assert deps[0]["satisfied"] is False
+    finally:
+        os.chdir(prev)
+    print("OK /why explains status + unsatisfied deps with per-dep details")
+
+
+def test_why_marks_task_ready_when_no_deps() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="Independent task", role="designer")
+        state.add_task(t)
+        r = dispatch(f"why {t.id[:8]}")
+        assert r.ok is True
+        assert r.tool_result["ready_to_start"] is True
+        assert "ready to start" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /why on dep-free PENDING task → ready_to_start=True")
+
+
+def test_take_without_id_returns_usage() -> None:
+    r = dispatch("take")
+    assert r.handled is True
+    assert r.ok is False
+    assert "Usage" in r.message
+    assert "/take" in r.message
+    print("OK /take with no args → usage hint")
+
+
+def test_block_without_id_returns_usage() -> None:
+    r = dispatch("block")
+    assert r.handled is True
+    assert r.ok is False
+    assert "Usage" in r.message
+    print("OK /block with no args → usage hint")
+
+
+def test_lifecycle_with_unknown_partial_id_fails_clean() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("take aaaaaaaa")
+        assert r.handled is True
+        assert r.ok is False
+        assert "No task id starts with" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /take <missing-id> → clean error with hint")
+
+
+def test_lifecycle_ambiguous_partial_lists_candidates() -> None:
+    """If a partial id matches multiple tasks the dispatcher must show
+    the candidates so the operator can disambiguate."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+
+        # Find a hex prefix that two tasks can share. Brute-force —
+        # add tasks until we find a collision on the first character.
+        seen: dict[str, str] = {}
+        collision_prefix: str | None = None
+        for i in range(30):
+            t = Task(title=f"Task {i}", role="designer")
+            state.add_task(t)
+            prefix = t.id[:1]
+            if prefix in seen:
+                collision_prefix = prefix
+                break
+            seen[prefix] = t.id
+
+        assert collision_prefix is not None, (
+            "test setup couldn't find a 1-char collision in 30 ids — "
+            "should be statistically impossible for UUIDs"
+        )
+        r = dispatch(f"take {collision_prefix}")
+        assert r.handled is True
+        assert r.ok is False
+        # Message names how many matched and asks for more chars
+        assert "match" in r.message.lower()
+        assert "disambiguate" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /take with ambiguous prefix → lists candidates + asks for more chars")
+
+
+def test_turkish_aliases_resolve_to_lifecycle_commands() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="Türkçe test", role="designer")
+        state.add_task(t)
+        # /al → take
+        r = dispatch(f"al {t.id[:8]}")
+        assert r.handled is True
+        assert r.tool_name == "studio_update_task_status"
+        # /tamam → done
+        r = dispatch(f"tamam {t.id[:8]}")
+        assert r.handled is True
+        assert r.tool_name == "studio_update_task_status"
+        # /engelle → block (use a fresh task)
+        t2 = Task(title="Engellenecek", role="designer")
+        state.add_task(t2)
+        r = dispatch(f"engelle {t2.id[:8]} sebep")
+        assert r.handled is True
+        assert r.tool_name == "studio_block_task"
+        # /aç → unblock
+        r = dispatch(f"aç {t2.id[:8]}")
+        assert r.handled is True
+        assert r.tool_name == "studio_update_task_status"
+        # /neden → why
+        r = dispatch(f"neden {t.id[:8]}")
+        assert r.handled is True
+        assert r.tool_name == "studio_explain_task"
+    finally:
+        os.chdir(prev)
+    print("OK Türkçe lifecycle aliases (/al /tamam /engelle /aç /neden) all resolve")
+
+
+def test_help_lists_phase_70_commands() -> None:
+    """Drift check: lifecycle commands must appear in /help."""
+    r = dispatch("help")
+    for required in ("/take", "/done", "/block", "/unblock", "/why"):
+        assert required in r.message, (
+            f"/help should advertise {required} after Phase 70"
+        )
+    print("OK /help advertises every Phase 70 lifecycle command")
+
+
+def test_done_takes_short_id_from_next() -> None:
+    """End-to-end: /next surfaces a short id; pass it back to /done."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task, TaskStatus
+        t = Task(title="Loop test", role="designer")
+        state.add_task(t)
+        # /next gives us the task
+        r_next = dispatch("next")
+        short_id_from_message = r_next.tool_result["task"]["id"][:8]
+        # Use that exact short id with /done
+        r_done = dispatch(f"done {short_id_from_message}")
+        assert r_done.ok is True
+        tasks = state.load_tasks()
+        assert tasks[0].status is TaskStatus.DONE
+    finally:
+        os.chdir(prev)
+    print("OK /next → /done <short-id> closes the daily loop end-to-end")
+
+
 def run_test() -> None:
     # Plumbing
     test_empty_line_returns_not_handled()
@@ -1722,7 +2004,23 @@ def run_test() -> None:
     test_next_when_only_blocked_tasks_left_explains_why()
     test_next_turkish_aliases_resolve()
     test_help_lists_phase_69_commands()
-    print("All chat-command tests passed (Phase 59 + 60 + 61 + 64 + 65 + 66 + 68 + 69)")
+    # Phase 70 task lifecycle (/take /done /block /unblock /why)
+    test_take_marks_task_in_progress()
+    test_done_marks_task_done()
+    test_unblock_returns_blocked_to_pending()
+    test_block_appends_reason_to_blockers()
+    test_block_without_reason_still_blocks_task()
+    test_block_appends_to_existing_reasons()
+    test_why_explains_status_and_deps()
+    test_why_marks_task_ready_when_no_deps()
+    test_take_without_id_returns_usage()
+    test_block_without_id_returns_usage()
+    test_lifecycle_with_unknown_partial_id_fails_clean()
+    test_lifecycle_ambiguous_partial_lists_candidates()
+    test_turkish_aliases_resolve_to_lifecycle_commands()
+    test_help_lists_phase_70_commands()
+    test_done_takes_short_id_from_next()
+    print("All chat-command tests passed (Phase 59 + 60 + 61 + 64 + 65 + 66 + 68 + 69 + 70)")
 
 
 if __name__ == "__main__":

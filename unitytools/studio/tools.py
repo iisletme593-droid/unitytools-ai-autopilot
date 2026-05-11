@@ -260,6 +260,96 @@ def studio_update_task_status(task_id: str, status: str) -> dict:
     return {"ok": False, "error": f"Task {task_id!r} not found."}
 
 
+@tool(description="Phase 70: Explain a task's full status — current state, blockers list, and dependency readiness (which deps are done vs. still pending). Used by /why <task-id> for the 'why can't I work on this' diagnostic. Pass the full task id (use studio_list_tasks to find one).")
+def studio_explain_task(task_id: str) -> dict:
+    state = _require_state()
+    all_tasks = state.load_tasks()
+    target = next((t for t in all_tasks if t.id == task_id), None)
+    if target is None:
+        return {"ok": False, "error": f"Task {task_id!r} not found."}
+
+    # Walk deps and tell the operator which are done vs. still open.
+    by_id = {t.id: t for t in all_tasks}
+    dep_status: list[dict] = []
+    for dep_id in (target.depends_on or []):
+        dep_task = by_id.get(dep_id)
+        if dep_task is None:
+            dep_status.append({
+                "id": dep_id,
+                "title": "(unknown — task not in backlog)",
+                "status": "missing",
+                "satisfied": False,
+            })
+        else:
+            satisfied = dep_task.status is TaskStatus.DONE
+            dep_status.append({
+                "id": dep_task.id,
+                "title": dep_task.title,
+                "status": dep_task.status.value,
+                "satisfied": satisfied,
+            })
+
+    unsatisfied = [d for d in dep_status if not d["satisfied"]]
+    return {
+        "ok": True,
+        "task_id": target.id,
+        "title": target.title,
+        "role": target.role,
+        "status": target.status.value,
+        "description": target.description,
+        "milestone": target.milestone,
+        "blockers": list(target.blockers or []),
+        "depends_on": dep_status,
+        "unsatisfied_dep_count": len(unsatisfied),
+        "ready_to_start": (
+            target.status is TaskStatus.PENDING and not unsatisfied
+            and not (target.blockers or [])
+        ),
+    }
+
+
+@tool(description="Phase 70: Append a free-text blocker note to a task and flip its status to 'blocked'. The reason is stored in the task's blockers list. Idempotent: if status is already blocked the reason is just appended.")
+def studio_block_task(task_id: str, reason: str = "") -> dict:
+    state = _require_state()
+    tasks = state.load_tasks()
+    for t in tasks:
+        if t.id == task_id:
+            if reason and reason.strip():
+                t.blockers = list(t.blockers or []) + [reason.strip()]
+            t.status = TaskStatus.BLOCKED
+            state.update_task(t)
+            return {
+                "ok": True,
+                "task_id": t.id,
+                "status": t.status.value,
+                "blockers": list(t.blockers or []),
+            }
+    return {"ok": False, "error": f"Task {task_id!r} not found."}
+
+
+@tool(description="Phase 70: Find tasks whose id starts with the given prefix. Used by chat slash commands so the operator can type the short form (first 8 chars) that /next surfaces, instead of the full UUID. Returns all matches — caller decides whether ambiguity is fatal.")
+def studio_find_task(partial_id: str) -> dict:
+    state = _require_state()
+    needle = (partial_id or "").strip().lower()
+    if not needle:
+        return {"ok": False, "error": "partial_id is empty"}
+    matches = [t for t in state.load_tasks() if t.id.lower().startswith(needle)]
+    return {
+        "ok": True,
+        "needle": needle,
+        "matches": [
+            {
+                "id": t.id,
+                "title": t.title,
+                "role": t.role,
+                "status": t.status.value,
+            }
+            for t in matches
+        ],
+        "count": len(matches),
+    }
+
+
 @tool(description="Phase 69: Find the next pending task that's ready to be picked up. Skips tasks whose 'depends_on' includes anything not yet done. Optional role filter narrows to a single discipline (producer/designer/art_director/...). Returns the oldest ready task — FIFO by created_at — so the backlog moves in roughly the order it was planned.")
 def studio_next_task(role: str = "") -> dict:
     """Return the single next ready-to-pick task (PENDING, dependencies
