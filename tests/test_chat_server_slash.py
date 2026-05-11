@@ -262,17 +262,23 @@ def test_turkish_slash_alias_via_server() -> None:
 
 
 def test_turkish_slash_help_alias_via_server() -> None:
-    """/yardım isn't a dispatcher command (REPL handles it inline) — it
-    should be reported as unknown by the chat-server."""
+    """Phase 68: /yardım now resolves to /help in the dispatcher, so
+    the chat-server returns the command listing rather than 'unknown'."""
     srv = _server()
     cap = _Capture()
     srv._handle_line(_user_msg("/yardım"), _StubOrch(), cap)
-    # /yardım is REPL-level (help), not dispatcher-level → unknown over server
-    # That's the correct behaviour: chat-server users see help via /tools
-    # listing, which IS in the dispatcher.
     done = cap.first("assistant_done")
     assert done is not None
-    print("OK /yardım is REPL-only; server returns done event without crashing")
+    # After Phase 68 /yardım resolves successfully (not unknown_command)
+    assert done["stop_reason"] == "slash_command", (
+        f"after Phase 68 /yardım resolves to /help; got stop_reason={done['stop_reason']}"
+    )
+    text = cap.first("assistant_text")
+    assert text is not None
+    assert "/help" in text["content"] or "Meta" in text["content"], (
+        "/yardım should return the command listing"
+    )
+    print("OK /yardım resolves to /help over the server (Phase 68 parity)")
 
 
 # ─────────────────────────────────────── bridge wiring

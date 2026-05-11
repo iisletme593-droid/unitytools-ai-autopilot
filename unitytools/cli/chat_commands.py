@@ -174,6 +174,25 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     if cmd in ("quit", "exit", "q"):
         return CommandResult(handled=True, ok=True, message="Goodbye.", quit=True)
 
+    # ── help   (Phase 68: dispatcher-level so chat-server / Unity Editor
+    #           users get the command listing too; REPL intercepts /help
+    #           before reaching here with its own rich Panel output)
+    if cmd == "help":
+        return _dispatch_help()
+
+    # ── tools [filter]   (Phase 68: list all registered tools; optional
+    #                      substring filter)
+    if cmd == "tools":
+        return _dispatch_tools(args)
+
+    # ── status   (Phase 68: bridge connectivity for editor users)
+    if cmd == "status":
+        return _dispatch_status(ctx)
+
+    # ── studio   (Phase 68: active studio summary for editor users)
+    if cmd == "studio":
+        return _dispatch_studio_status()
+
     # ── scaffold <genre> [name] [count]
     if cmd == "scaffold":
         return _dispatch_scaffold(args)
@@ -515,6 +534,210 @@ def _dispatch_init(args: list[str]) -> CommandResult:
             f"{len(paths.all_dirs())} directories. "
             "Restart chat to pick up the new studio state."
         ),
+    )
+
+
+def _dispatch_help() -> CommandResult:
+    """Phase 68: plain-text command listing for chat-server / Unity Editor
+    users (the REPL has its own rich-rendered /help).
+
+    Returns the same set of commands the REPL panel advertises, plus the
+    Türkçe alias hint, so editor users can discover the shortcut surface
+    without leaving the chat.
+    """
+    sections: list[dict[str, Any]] = [
+        {
+            "title": "Meta",
+            "commands": [
+                ("/help", "show this list"),
+                ("/tools [filter]", "list registered tools"),
+                ("/status", "bridge connectivity"),
+                ("/studio", "active studio summary"),
+                ("/diag", "one-line diagnostics"),
+                ("/quit", "exit (REPL only)"),
+            ],
+        },
+        {
+            "title": "Studio actions",
+            "commands": [
+                ("/init [path]", "scaffold a fresh studio/"),
+                ("/sync [--check]", "bring studio up to current schema"),
+                ("/scaffold <genre> [name]", "collectathon/shooter/runner/platformer"),
+                ("/dispatch [N] [--dry-run]", "run pending tasks through their roles"),
+                ("/role <role-id> [brief]", "run one role one-shot"),
+                ("/build <target> [--dev]", "windows/mac/linux/webgl/android/ios"),
+                ("/dashboard [--save] [days]", "operator's morning glance"),
+                ("/ship", "ship readiness check"),
+                ("/cost [days]", "LLM token + USD spend"),
+                ("/audit <kind>", "lighting/atmosphere/vfx/build/balance/..."),
+            ],
+        },
+        {
+            "title": "Inventory",
+            "commands": [
+                ("/tasks [status]", "list backlog tasks"),
+                ("/milestones", "list milestones"),
+                ("/decisions", "list decisions"),
+                ("/refs", "reference images"),
+                ("/screenshots", "captured screenshots"),
+                ("/locales", "string tables"),
+                ("/dialogs", "dialog files"),
+                ("/assets", "asset manifest (all 5 buckets)"),
+                ("/behaviours [filter]", "Behaviour Library"),
+                ("/roles", "all 24 studio roles"),
+            ],
+        },
+    ]
+    # Build a compact one-string summary for the message line. Editor UIs
+    # can use tool_result["sections"] for richer rendering.
+    lines: list[str] = []
+    for sec in sections:
+        lines.append(f"[{sec['title']}]")
+        for name, desc in sec["commands"]:
+            lines.append(f"  {name:<28} {desc}")
+    lines.append("")
+    lines.append(
+        "Türkçe aliases: /yardım /durum /sağlık /başlat /eşitle /oluştur "
+        "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /görev /hedef "
+        "/referans /dil /diyalog /varlık /davranış /roller"
+    )
+    msg = "\n".join(lines)
+    return CommandResult(
+        handled=True,
+        ok=True,
+        tool_name="help",
+        tool_result={"ok": True, "sections": sections, "text": msg},
+        message=msg,
+    )
+
+
+def _dispatch_tools(args: list[str]) -> CommandResult:
+    """Phase 68: list registered tools, with optional substring filter.
+
+    Mirrors the REPL `/tools [filter]` behaviour so chat-server clients
+    can drive the same lookup without scrolling through 200 entries
+    every time."""
+    try:
+        from ..core.tool_registry import get_all_tools
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False, message=f"Import failed: {exc}",
+        )
+
+    needle = " ".join(args).strip().lower()
+    all_tools = get_all_tools()
+    if needle:
+        rows = [
+            t for t in all_tools
+            if needle in t.name.lower() or needle in t.description.lower()
+        ]
+    else:
+        rows = list(all_tools)
+
+    items = [{"name": t.name, "description": t.description} for t in rows]
+    title = f"Tools matching '{needle}'" if needle else "All registered tools"
+    summary = f"{title}: {len(items)} shown" + (
+        f" (of {len(all_tools)} total)" if needle else ""
+    )
+    # Keep message compact — the structured result holds the full payload.
+    preview_names = ", ".join(t.name for t in rows[:10])
+    if len(rows) > 10:
+        preview_names += f", ... (+{len(rows) - 10} more)"
+    msg = f"{summary}. {preview_names}" if preview_names else summary
+    return CommandResult(
+        handled=True,
+        ok=True,
+        tool_name="tools",
+        tool_result={
+            "ok": True,
+            "total": len(all_tools),
+            "shown": len(items),
+            "filter": needle or None,
+            "tools": items,
+        },
+        message=msg,
+    )
+
+
+def _dispatch_status(ctx: Optional[DispatchContext]) -> CommandResult:
+    """Phase 68: bridge + provider snapshot — what's online right now."""
+    info: dict[str, Any] = {"ok": True}
+    # Unity bridge from the dispatch context
+    unity_state = "no-bridge"
+    if ctx is not None and ctx.unity_bridge is not None:
+        try:
+            if hasattr(ctx.unity_bridge, "is_connected") and ctx.unity_bridge.is_connected():
+                unity_state = "connected"
+            else:
+                unity_state = "offline"
+        except Exception as exc:  # noqa: BLE001
+            unity_state = f"error: {exc}"
+    info["unity"] = unity_state
+
+    # Provider/model — best-effort
+    provider = "unknown"
+    model = "unknown"
+    if ctx is not None and ctx.config is not None:
+        cfg = ctx.config
+        provider = getattr(cfg, "provider", "unknown")
+        model = (
+            getattr(cfg, "ollama_model", None)
+            if provider == "ollama"
+            else getattr(cfg, "model", None)
+        ) or "unknown"
+    info["provider"] = provider
+    info["model"] = model
+
+    msg = f"Unity: {unity_state} | Provider: {provider} ({model})"
+    return CommandResult(
+        handled=True,
+        ok=True,
+        tool_name="status",
+        tool_result=info,
+        message=msg,
+    )
+
+
+def _dispatch_studio_status() -> CommandResult:
+    """Phase 68: thin wrapper around studio_get_summary for editor users.
+
+    REPL has its own rich Panel render; the chat-server / editor path
+    gets the same dict here so its UI can show it however it likes.
+    """
+    try:
+        from ..studio.tools import studio_get_summary
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False, message=f"Import failed: {exc}",
+        )
+    try:
+        summary = studio_get_summary()
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False, message=f"studio_get_summary failed: {exc}",
+        )
+    if not summary.get("ok"):
+        return CommandResult(
+            handled=True,
+            ok=False,
+            tool_name="studio_get_summary",
+            tool_result=summary,
+            message=f"Studio inactive: {summary.get('error', 'unknown reason')}",
+        )
+    root = summary.get("studio_root", "?")
+    tcount = summary.get("task_count", 0)
+    mcount = summary.get("milestone_count", 0)
+    dcount = summary.get("decision_count", 0)
+    msg = (
+        f"Studio at {root} | Tasks: {tcount} | Milestones: {mcount} | "
+        f"Decisions: {dcount}"
+    )
+    return CommandResult(
+        handled=True,
+        ok=True,
+        tool_name="studio_get_summary",
+        tool_result=summary,
+        message=msg,
     )
 
 

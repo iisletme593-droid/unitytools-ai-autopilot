@@ -1227,6 +1227,205 @@ def test_command_lower_case() -> None:
     print("OK command name is case-insensitive")
 
 
+# ─────────────────────────────────────────── Phase 68: meta commands
+
+
+def _ensure_tools_loaded() -> None:
+    """The dispatcher reads from get_all_tools(); make sure the engine
+    + studio tool modules have been imported so the registry is full."""
+    import unitytools.tools  # noqa: F401
+    import unitytools.tools.unity_tools  # noqa: F401
+    try:
+        import unitytools.studio.tools  # noqa: F401
+    except Exception:
+        pass
+
+
+def test_help_command_returns_command_listing() -> None:
+    r = dispatch("help")
+    assert r.handled is True
+    assert r.ok is True
+    assert r.tool_name == "help"
+    # Structured payload carries sections for editor UIs
+    sections = r.tool_result["sections"]
+    section_titles = [s["title"] for s in sections]
+    assert "Meta" in section_titles
+    assert "Studio actions" in section_titles
+    assert "Inventory" in section_titles
+    print("OK /help returns CommandResult with structured sections")
+
+
+def test_help_lists_every_dispatch_section() -> None:
+    """Sanity: every command we route in dispatch() should appear in
+    /help. Catches the 'added a slash command but forgot to document it'
+    drift."""
+    r = dispatch("help")
+    msg = r.message
+    # Every canonical command should be mentioned at least once.
+    required = [
+        "/scaffold", "/dispatch", "/role", "/build", "/dashboard",
+        "/ship", "/cost", "/audit", "/tasks", "/milestones",
+        "/decisions", "/refs", "/screenshots", "/locales",
+        "/dialogs", "/assets", "/behaviours", "/roles",
+        "/init", "/sync", "/diag", "/status", "/studio", "/tools",
+    ]
+    for cmd in required:
+        assert cmd in msg, f"/help message must mention {cmd}; missing"
+    print(f"OK /help advertises all {len(required)} canonical commands")
+
+
+def test_help_message_mentions_turkish_aliases() -> None:
+    r = dispatch("help")
+    assert "Türkçe aliases" in r.message or "Turkce" in r.message
+    # Spot-check a few aliases:
+    for alias in ("/yardım", "/eşitle", "/yapı", "/oluştur"):
+        assert alias in r.message, f"/help should list Türkçe alias {alias}"
+    print("OK /help mentions Türkçe aliases")
+
+
+def test_help_turkish_yardim_alias_resolves() -> None:
+    """`/yardım` is in _ALIASES; dispatcher should resolve it to help
+    and emit the same listing."""
+    r = dispatch("yardım")
+    assert r.handled is True
+    assert r.tool_name == "help"
+    print("OK /yardım → /help via alias resolution")
+
+
+def test_tools_lists_registered_tools() -> None:
+    _ensure_tools_loaded()
+    r = dispatch("tools")
+    assert r.handled is True
+    assert r.ok is True
+    assert r.tool_name == "tools"
+    total = r.tool_result["total"]
+    shown = r.tool_result["shown"]
+    assert total > 50, f"expected many tools registered; got {total}"
+    assert shown == total, "no filter → shown should equal total"
+    # Each tool dict has both name + description
+    sample = r.tool_result["tools"][0]
+    assert "name" in sample and "description" in sample
+    print(f"OK /tools lists every registered tool ({total} found)")
+
+
+def test_tools_with_substring_filter() -> None:
+    _ensure_tools_loaded()
+    r = dispatch("tools studio")
+    assert r.handled is True
+    assert r.ok is True
+    assert r.tool_result["filter"] == "studio"
+    shown = r.tool_result["shown"]
+    total = r.tool_result["total"]
+    assert 0 < shown < total, (
+        f"filter should narrow the list; got {shown} of {total}"
+    )
+    # Every returned tool actually matches the filter
+    for entry in r.tool_result["tools"]:
+        haystack = (entry["name"] + " " + entry["description"]).lower()
+        assert "studio" in haystack, f"unrelated tool leaked: {entry['name']}"
+    print(f"OK /tools studio narrows to {shown}/{total} matching tools")
+
+
+def test_tools_filter_misses_returns_empty() -> None:
+    r = dispatch("tools zzzz_no_such_tool_should_ever_exist")
+    assert r.handled is True
+    assert r.ok is True  # 0 matches is still a successful query
+    assert r.tool_result["shown"] == 0
+    print("OK /tools with no matches returns shown=0 (still ok)")
+
+
+def test_tools_turkish_alias_resolves() -> None:
+    _ensure_tools_loaded()
+    r = dispatch("araç")  # Türkçe alias for tools
+    assert r.handled is True
+    assert r.tool_name == "tools"
+    print("OK /araç → /tools via alias")
+
+
+def test_status_without_ctx_reports_no_bridge() -> None:
+    r = dispatch("status")
+    assert r.handled is True
+    assert r.ok is True
+    assert r.tool_name == "status"
+    assert r.tool_result["unity"] == "no-bridge"
+    print("OK /status with no ctx → unity='no-bridge'")
+
+
+def test_status_with_offline_bridge_reports_offline() -> None:
+    from unitytools.cli.chat_commands import DispatchContext
+
+    class OfflineBridge:
+        def is_connected(self):
+            return False
+
+    r = dispatch("status", ctx=DispatchContext(unity_bridge=OfflineBridge()))
+    assert r.tool_result["unity"] == "offline"
+    print("OK /status with offline bridge → unity='offline'")
+
+
+def test_status_with_connected_bridge_reports_connected() -> None:
+    from unitytools.cli.chat_commands import DispatchContext
+
+    class OnlineBridge:
+        def is_connected(self):
+            return True
+
+    r = dispatch("status", ctx=DispatchContext(unity_bridge=OnlineBridge()))
+    assert r.tool_result["unity"] == "connected"
+    print("OK /status with connected bridge → unity='connected'")
+
+
+def test_status_includes_provider_and_model_from_ctx() -> None:
+    from unitytools.cli.chat_commands import DispatchContext
+    from unitytools.core.config import Config
+
+    cfg = Config(api_key="test-key")
+    r = dispatch("status", ctx=DispatchContext(config=cfg))
+    assert "provider" in r.tool_result
+    assert "model" in r.tool_result
+    # The configured default is ollama / gemma4:latest (Phase 57)
+    assert r.tool_result["provider"] in ("ollama", "anthropic")
+    print(f"OK /status reports provider={r.tool_result['provider']} model={r.tool_result['model']}")
+
+
+def test_studio_status_returns_summary_on_active_studio() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("studio")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_get_summary"
+        assert "studio_root" in r.tool_result
+        # Message line should mention task / milestone / decision counts
+        for token in ("Tasks:", "Milestones:", "Decisions:"):
+            assert token in r.message, f"/studio message should include {token}"
+    finally:
+        os.chdir(prev)
+    print("OK /studio with active state returns summary dict + count line")
+
+
+def test_studio_status_reports_inactive_when_no_state() -> None:
+    """When studio_get_summary returns ok=False, the dispatcher should
+    surface that cleanly rather than crashing."""
+    # Force studio inactive: clear the global state by re-initing with
+    # nothing, or just skip the cwd setup. We test by calling from a
+    # tempdir that has no studio.
+    from unitytools.studio.tools import _STATE as _ST_MOD  # noqa: F401
+    import unitytools.studio.tools as _stm
+
+    saved_state = _stm._STATE
+    try:
+        _stm._STATE = None
+        r = dispatch("studio")
+        assert r.handled is True
+        assert r.ok is False
+        # Message describes the failure mode
+        assert "inactive" in r.message.lower() or "failed" in r.message.lower()
+    finally:
+        _stm._STATE = saved_state
+    print("OK /studio with no active state → ok=False, doesn't crash")
+
+
 def run_test() -> None:
     # Plumbing
     test_empty_line_returns_not_handled()
@@ -1312,7 +1511,22 @@ def run_test() -> None:
     test_build_auto_generates_output_path()
     test_build_dev_flag_passes_development_build()
     test_build_turkish_aliases()
-    print("All chat-command tests passed (Phase 59 + 60 + 61 + 64 + 65 + 66)")
+    # Phase 68 dispatcher meta commands
+    test_help_command_returns_command_listing()
+    test_help_lists_every_dispatch_section()
+    test_help_message_mentions_turkish_aliases()
+    test_help_turkish_yardim_alias_resolves()
+    test_tools_lists_registered_tools()
+    test_tools_with_substring_filter()
+    test_tools_filter_misses_returns_empty()
+    test_tools_turkish_alias_resolves()
+    test_status_without_ctx_reports_no_bridge()
+    test_status_with_offline_bridge_reports_offline()
+    test_status_with_connected_bridge_reports_connected()
+    test_status_includes_provider_and_model_from_ctx()
+    test_studio_status_returns_summary_on_active_studio()
+    test_studio_status_reports_inactive_when_no_state()
+    print("All chat-command tests passed (Phase 59 + 60 + 61 + 64 + 65 + 66 + 68)")
 
 
 if __name__ == "__main__":
