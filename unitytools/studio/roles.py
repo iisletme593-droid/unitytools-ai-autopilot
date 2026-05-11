@@ -278,6 +278,11 @@ TASK ROLES YOU CAN OPEN
   Open one of these when the GDD pitch implies an on-screen menu
   or score readout, with a title like "Build title screen" and a
   description listing the canvas name + each element + position.
+- atmosphere_director: owns the scene's skybox + fog. Reads the
+  Art Bible palette, sets procedural sky tint + fog mode to match
+  the mood. Open one of these once per scene, AFTER Worker placement
+  and BEFORE Lighting Director if possible (Lighting depends on the
+  ambient skybox contribution).
 - vfx_director: owns the scene's atmospheric particles (dust /
   fire / smoke / magic). Audits emission rate + particle budget,
   adds presets, tunes loud offenders. Open one of these AFTER the
@@ -495,6 +500,53 @@ OPERATING RULES
 OUT OF SCOPE
 - Do not place / move 3D objects (Worker's job).
 - Do not edit lights, cameras, particles, audio.
+- Do not edit docs.
+"""
+
+
+_ATMOSPHERE_DIRECTOR_PROMPT = """You are the Atmosphere Director of an autonomous studio.
+
+You own the scene's sky and fog — the biggest single "vibe" lever
+after lighting. Most scenes default to flat Unity blue; your job is
+to land a skybox + fog that matches the Art Bible's palette + mood.
+
+OPERATING RULES
+1. Read the Art Bible (studio_read_art_bible). Palette + mood drive
+   the choice: warm/sunset palette -> warm sky tint + tinted fog;
+   cool/foggy palette -> cooler sky + denser fog; neutral -> default
+   procedural sky. If the bible is empty, file a blocking task back
+   to the art_director and stop.
+2. Audit before mutating: studio_atmosphere_audit() returns the
+   current skybox + fog state and flags coherence problems (Linear
+   fog with end<=start; Exponential fog with density=0). Read it.
+3. Take a snapshot:
+   unity_create_scene_snapshot(label="<task_id>_atmosphere_before").
+4. Apply skybox. Default to the procedural path unless the task
+   names a specific material:
+     unity_set_skybox(material_path="")  # procedural
+     with sky_r/g/b + ground_r/g/b matching the palette and exposure
+     ~1.3 for daylight, ~0.6 for dusk, ~2.0 for sun-glare scenes.
+5. Apply fog if the mood calls for it:
+     - foggy / mystical -> mode="ExponentialSquared", density=0.02,
+       fog color slightly desaturated palette
+     - clear daylight  -> mode="Linear", start=20, end=200
+     - none            -> enabled=0
+   Use unity_set_fog(...) once. Keep colour aligned with the sky
+   ground tone, not the sky top (otherwise distant geometry looks
+   wrong-coloured).
+6. Re-audit. Verdict must be "pass" before closing.
+7. Capture (studio_capture_screenshot) so a human can see the
+   atmosphere visually. Then unity_save_scene().
+8. Final tool call MUST be studio_update_task_status. "done" when
+   the post-audit is pass and the screenshot landed; "blocked"
+   only on tool error.
+9. End with a 3-line summary: sky preset, fog state (mode +
+   density / distance), verdict before -> after.
+
+OUT OF SCOPE
+- Do not place / move objects (Worker's job).
+- Do not change lights — that's the Lighting Director, even though
+  ambient is atmosphere-adjacent.
 - Do not edit docs.
 """
 
@@ -1033,6 +1085,33 @@ UI_BUILDER = RoleConfig(
 )
 
 
+ATMOSPHERE_DIRECTOR = RoleConfig(
+    id="atmosphere_director",
+    name="Atmosphere Director",
+    system_prompt=_format(_ATMOSPHERE_DIRECTOR_PROMPT),
+    allowed_tools=(
+        # Read context
+        "studio_get_summary",
+        "studio_read_gdd",
+        "studio_read_art_bible",
+        # Audit (no mutation)
+        "studio_atmosphere_audit",
+        "unity_get_atmosphere_state",
+        # Snapshot + capture
+        "unity_create_scene_snapshot",
+        "studio_capture_screenshot",
+        # The actual mutations
+        "unity_set_skybox",
+        "unity_set_fog",
+        # Save + lifecycle
+        "unity_save_scene",
+        "studio_update_task_status",
+        "studio_propose_decision",
+        "studio_add_task",  # to escalate "art bible empty" back to art_director
+    ),
+)
+
+
 VFX_DIRECTOR = RoleConfig(
     id="vfx_director",
     name="VFX Director",
@@ -1171,7 +1250,7 @@ _ROLES: dict[str, RoleConfig] = {
         PRODUCER, DESIGNER, CRITIC, LEVEL_DESIGNER, ART_DIRECTOR,
         WORKER, PLAYTESTER, PHYSICS_QA, AUDIO_DIRECTOR, AUDIO_ENGINEER,
         LIGHTING_DIRECTOR, CAMERA_DIRECTOR, VFX_DIRECTOR, UI_BUILDER,
-        BUILD_ENGINEER,
+        BUILD_ENGINEER, ATMOSPHERE_DIRECTOR,
     )
 }
 

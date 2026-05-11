@@ -495,6 +495,62 @@ def studio_unity_attach_audio_source(
     return {"ok": True, "target": target_name, **{k: v for k, v in result.items() if k != "ok"}}
 
 
+# ─── Atmosphere audit (Phase 35) ───────────────────────────────────────
+
+@tool(description="Audit the scene's atmosphere against soft expectations: skybox present, fog state coherent with mode (Linear needs distances; Exp needs density). Returns verdict + violations + recommendations. No mutations.")
+def studio_atmosphere_audit() -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected."}
+    if hasattr(_UNITY, "is_connected") and not _UNITY.is_connected():
+        return {"ok": False, "error": "Unity Editor is not connected."}
+    try:
+        state = _UNITY.call("get_atmosphere_state", {}, timeout=15)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"get_atmosphere_state failed: {exc}", "error_type": type(exc).__name__}
+    if not isinstance(state, dict):
+        return {"ok": False, "error": "Unity returned non-dict.", "raw": state}
+
+    violations: list[str] = []
+    recommendations: list[str] = []
+    if not state.get("skybox_present"):
+        violations.append("no_skybox")
+        recommendations.append(
+            "Scene has no skybox material; call unity_set_skybox(material_path='') "
+            "for a tuned procedural sky."
+        )
+    fog_mode = (state.get("fog_mode") or "").lower()
+    fog_enabled = bool(state.get("fog_enabled", False))
+    fog_density = float(state.get("fog_density", 0.0))
+    fog_start = float(state.get("fog_start_distance", 0.0))
+    fog_end = float(state.get("fog_end_distance", 0.0))
+    if fog_enabled:
+        if fog_mode == "linear" and fog_end <= fog_start:
+            violations.append("fog_linear_distances_inverted")
+            recommendations.append(
+                f"Linear fog has end_distance ({fog_end}) <= start_distance ({fog_start}); "
+                "set start < end (typical: start=10, end=80)."
+            )
+        if fog_mode in ("exponential", "exponentialsquared") and fog_density <= 0.0:
+            violations.append("fog_exp_density_zero")
+            recommendations.append(
+                "Exponential fog is enabled but density is 0; pick a small value (0.01–0.05)."
+            )
+    verdict = "pass" if not violations else "fail"
+    return {
+        "ok": True,
+        "verdict": verdict,
+        "skybox_present": bool(state.get("skybox_present", False)),
+        "skybox_shader": state.get("skybox_shader", ""),
+        "fog_enabled": fog_enabled,
+        "fog_mode": state.get("fog_mode", ""),
+        "fog_density": fog_density,
+        "fog_start_distance": fog_start,
+        "fog_end_distance": fog_end,
+        "violations": violations,
+        "recommendations": recommendations,
+    }
+
+
 # ─── Cost observability (Phase 33) ─────────────────────────────────────
 
 @tool(description="Summarise the studio's LLM cost log (studio/qa/cost_log.jsonl). days=1 by default (last 24h); days=0 means 'all time'. Returns total tokens + cost USD plus breakdowns by role, model, and day. Free for local Ollama models; priced for Anthropic Claude.")
@@ -1507,6 +1563,8 @@ ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (
     "studio_build_check",
     # cost observability (Phase 33)
     "studio_cost_summary",
+    # atmosphere (Phase 35)
+    "studio_atmosphere_audit",
     # recent activity
     "studio_recent_regressions",
     "studio_recent_commits",

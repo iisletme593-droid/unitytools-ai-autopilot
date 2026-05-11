@@ -682,6 +682,86 @@ def unity_create_ui_button(
         return {"ok": False, "error": str(e)}
 
 
+@tool(description="Configure the scene's skybox. material_path='Assets/.../sky.mat' loads a project asset; leave empty to use the procedural sky shader, which we then tune with sun_size (0..1, default 0.04), atmosphere_thickness (0..5, default 1.0), exposure (0..8, default 1.3), sky_tint and ground_color RGB. RGB 0-1.")
+def unity_set_skybox(
+    material_path: str = "",
+    sun_size: float = 0.04,
+    atmosphere_thickness: float = 1.0,
+    exposure: float = 1.3,
+    sky_r: float = 0.5,
+    sky_g: float = 0.5,
+    sky_b: float = 0.5,
+    ground_r: float = 0.37,
+    ground_g: float = 0.34,
+    ground_b: float = 0.31,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    params: dict = {}
+    if material_path:
+        params["material_path"] = material_path
+    else:
+        params["sun_size"] = sun_size
+        params["atmosphere_thickness"] = atmosphere_thickness
+        params["exposure"] = exposure
+        params["sky_tint"] = {"r": sky_r, "g": sky_g, "b": sky_b, "a": 1.0}
+        params["ground_color"] = {"r": ground_r, "g": ground_g, "b": ground_b, "a": 1.0}
+    try:
+        result = _UNITY.call("set_skybox", params)
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Configure RenderSettings fog. mode is 'Linear' / 'Exponential' / 'ExponentialSquared'. density is for Exp modes (0..1). start_distance + end_distance are for Linear mode. RGB 0-1.")
+def unity_set_fog(
+    enabled: int = 1,  # -1 = no change, 0 = off, 1 = on
+    mode: str = "",
+    density: float = -1.0,
+    start_distance: float = -1.0,
+    end_distance: float = -1.0,
+    r: float = -1.0,
+    g: float = -1.0,
+    b: float = -1.0,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    params: dict = {}
+    if enabled in (0, 1):
+        params["enabled"] = bool(enabled)
+    if mode:
+        params["mode"] = mode
+    if density >= 0.0:
+        params["density"] = density
+    if start_distance >= 0.0:
+        params["start_distance"] = start_distance
+    if end_distance >= 0.0:
+        params["end_distance"] = end_distance
+    if r >= 0.0 or g >= 0.0 or b >= 0.0:
+        params["color"] = {
+            "r": max(0.0, r if r >= 0.0 else 0.5),
+            "g": max(0.0, g if g >= 0.0 else 0.5),
+            "b": max(0.0, b if b >= 0.0 else 0.5),
+            "a": 1.0,
+        }
+    try:
+        result = _UNITY.call("set_fog", params)
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Snapshot the scene's atmosphere: current skybox shader + procedural params, fog enabled / mode / density / colour, ambient intensity + mode. Read-only.")
+def unity_get_atmosphere_state() -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("get_atmosphere_state", {})
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 _BEHAVIOUR_LIBRARY = (
     "Rotator", "Bobber", "PulseScale", "LookAtCamera",
     "DestroyAfter", "FollowTarget", "LoadSceneOnClick",

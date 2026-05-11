@@ -71,6 +71,9 @@ namespace UnityTools.Bridge
                 case "attach_behaviour": return AttachBehaviour(p);
                 case "list_behaviour_library": return ListBehaviourLibrary(p);
                 case "list_attached_behaviours": return ListAttachedBehaviours(p);
+                case "set_skybox": return SetSkybox(p);
+                case "set_fog": return SetFog(p);
+                case "get_atmosphere_state": return GetAtmosphereState(p);
                 case "find_by_tag": return FindByTag(p);
                 case "find_assets": return FindAssets(p);
                 case "list_prefabs": return ListPrefabs(p);
@@ -1412,6 +1415,128 @@ namespace UnityTools.Bridge
                 }
             }
             return new { ok = true, count = rows.Count, attached = rows };
+        }
+
+        // ─── Phase 35: Atmosphere (skybox + fog) ────────────────────────
+
+        private static object SetSkybox(JObject p)
+        {
+            string materialPath = p["material_path"]?.ToString();
+            if (!string.IsNullOrEmpty(materialPath))
+            {
+                var mat = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+                if (mat == null) throw new InvalidOperationException($"Skybox material not found: {materialPath}");
+                RenderSettings.skybox = mat;
+                DynamicGI.UpdateEnvironment();
+                EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+                return new
+                {
+                    ok = true,
+                    mode = "asset",
+                    material = materialPath,
+                };
+            }
+
+            // Procedural path: tune the existing skybox if it's the Procedural shader,
+            // or build a fresh procedural material in memory if not.
+            float sunSize = p["sun_size"]?.ToObject<float>() ?? 0.04f;
+            float atmosphereThickness = p["atmosphere_thickness"]?.ToObject<float>() ?? 1.0f;
+            float exposure = p["exposure"]?.ToObject<float>() ?? 1.3f;
+            Color skyTint = ColorFromJson(p["sky_tint"] as JObject, new Color(0.5f, 0.5f, 0.5f, 1f));
+            Color groundColor = ColorFromJson(p["ground_color"] as JObject, new Color(0.37f, 0.34f, 0.31f, 1f));
+
+            var sky = RenderSettings.skybox;
+            if (sky == null || sky.shader == null || sky.shader.name != "Skybox/Procedural")
+            {
+                var shader = Shader.Find("Skybox/Procedural");
+                if (shader == null) throw new InvalidOperationException("Skybox/Procedural shader not available on this URP/HDRP project. Provide material_path explicitly.");
+                sky = new Material(shader) { name = "Procedural Skybox (UnityTools)" };
+            }
+            else
+            {
+                Undo.RecordObject(sky, "Bridge: tune procedural skybox");
+            }
+            if (sky.HasProperty("_SunSize"))             sky.SetFloat("_SunSize", Mathf.Clamp(sunSize, 0f, 1f));
+            if (sky.HasProperty("_AtmosphereThickness")) sky.SetFloat("_AtmosphereThickness", Mathf.Clamp(atmosphereThickness, 0f, 5f));
+            if (sky.HasProperty("_Exposure"))            sky.SetFloat("_Exposure", Mathf.Clamp(exposure, 0f, 8f));
+            if (sky.HasProperty("_SkyTint"))             sky.SetColor("_SkyTint", skyTint);
+            if (sky.HasProperty("_GroundColor"))         sky.SetColor("_GroundColor", groundColor);
+            RenderSettings.skybox = sky;
+            DynamicGI.UpdateEnvironment();
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                mode = "procedural",
+                shader = sky.shader.name,
+                sun_size = sunSize,
+                atmosphere_thickness = atmosphereThickness,
+                exposure = exposure,
+                sky_tint_r = skyTint.r,
+                sky_tint_g = skyTint.g,
+                sky_tint_b = skyTint.b,
+                ground_color_r = groundColor.r,
+                ground_color_g = groundColor.g,
+                ground_color_b = groundColor.b,
+            };
+        }
+
+        private static object SetFog(JObject p)
+        {
+            if (p["enabled"] != null) RenderSettings.fog = p["enabled"].ToObject<bool>();
+            JObject col = p["color"] as JObject;
+            if (col != null)
+                RenderSettings.fogColor = new Color(
+                    col["r"]?.ToObject<float>() ?? RenderSettings.fogColor.r,
+                    col["g"]?.ToObject<float>() ?? RenderSettings.fogColor.g,
+                    col["b"]?.ToObject<float>() ?? RenderSettings.fogColor.b,
+                    col["a"]?.ToObject<float>() ?? RenderSettings.fogColor.a
+                );
+            string modeStr = p["mode"]?.ToString();
+            if (!string.IsNullOrEmpty(modeStr) && Enum.TryParse<FogMode>(modeStr, true, out var mode))
+                RenderSettings.fogMode = mode;
+            if (p["density"] != null) RenderSettings.fogDensity = Mathf.Max(0f, p["density"].ToObject<float>());
+            if (p["start_distance"] != null) RenderSettings.fogStartDistance = Mathf.Max(0f, p["start_distance"].ToObject<float>());
+            if (p["end_distance"] != null) RenderSettings.fogEndDistance = Mathf.Max(0.001f, p["end_distance"].ToObject<float>());
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                enabled = RenderSettings.fog,
+                mode = RenderSettings.fogMode.ToString(),
+                density = RenderSettings.fogDensity,
+                start_distance = RenderSettings.fogStartDistance,
+                end_distance = RenderSettings.fogEndDistance,
+                color_r = RenderSettings.fogColor.r,
+                color_g = RenderSettings.fogColor.g,
+                color_b = RenderSettings.fogColor.b,
+            };
+        }
+
+        private static object GetAtmosphereState(JObject p)
+        {
+            var sky = RenderSettings.skybox;
+            string shaderName = (sky != null && sky.shader != null) ? sky.shader.name : "";
+            bool procedural = shaderName == "Skybox/Procedural";
+            return new
+            {
+                ok = true,
+                skybox_present = sky != null,
+                skybox_shader = shaderName,
+                skybox_procedural = procedural,
+                skybox_sun_size = (procedural && sky.HasProperty("_SunSize")) ? sky.GetFloat("_SunSize") : 0f,
+                skybox_exposure = (procedural && sky.HasProperty("_Exposure")) ? sky.GetFloat("_Exposure") : 0f,
+                fog_enabled = RenderSettings.fog,
+                fog_mode = RenderSettings.fogMode.ToString(),
+                fog_density = RenderSettings.fogDensity,
+                fog_start_distance = RenderSettings.fogStartDistance,
+                fog_end_distance = RenderSettings.fogEndDistance,
+                fog_color_r = RenderSettings.fogColor.r,
+                fog_color_g = RenderSettings.fogColor.g,
+                fog_color_b = RenderSettings.fogColor.b,
+                ambient_intensity = RenderSettings.ambientIntensity,
+                ambient_mode = RenderSettings.ambientMode.ToString(),
+            };
         }
 
         private static object SetCamera(JObject p)
