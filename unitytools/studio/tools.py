@@ -327,6 +327,66 @@ def studio_block_task(task_id: str, reason: str = "") -> dict:
     return {"ok": False, "error": f"Task {task_id!r} not found."}
 
 
+@tool(description="Phase 71: Morning standup digest. Aggregates: tasks closed within the window, tasks currently in_progress, blocked tasks, pending backlog count, and a per-role breakdown of activity. window_hours defaults to 24 (since yesterday). The shape is consistent regardless of activity level so chat panels can render it without conditional logic.")
+def studio_standup(window_hours: float = 24.0) -> dict:
+    import time
+    state = _require_state()
+    now = time.time()
+    cutoff = now - (window_hours * 3600)
+
+    all_tasks = state.load_tasks()
+
+    closed_recent = [
+        t for t in all_tasks
+        if t.status is TaskStatus.DONE
+        and (getattr(t, "updated_at", 0) or 0) >= cutoff
+    ]
+    in_flight = [t for t in all_tasks if t.status is TaskStatus.IN_PROGRESS]
+    blocked = [t for t in all_tasks if t.status is TaskStatus.BLOCKED]
+    pending = [t for t in all_tasks if t.status is TaskStatus.PENDING]
+    review = [t for t in all_tasks if t.status is TaskStatus.REVIEW]
+
+    # Per-role activity in the window: closed counts by discipline so
+    # the producer can see whether one role is starved.
+    from collections import Counter
+    by_role_closed = Counter(t.role for t in closed_recent)
+    by_role_inflight = Counter(t.role for t in in_flight)
+    by_role_blocked = Counter(t.role for t in blocked)
+
+    def _summarise(tasks: list[Task], limit: int = 5) -> list[dict]:
+        return [
+            {
+                "id": t.id,
+                "title": t.title,
+                "role": t.role,
+                "milestone": t.milestone,
+                "blockers": list(t.blockers or [])[:3],
+            }
+            for t in tasks[:limit]
+        ]
+
+    return {
+        "ok": True,
+        "window_hours": window_hours,
+        "now": now,
+        "cutoff": cutoff,
+        # Highlights
+        "closed_recent": _summarise(closed_recent),
+        "closed_recent_count": len(closed_recent),
+        "in_flight": _summarise(in_flight),
+        "in_flight_count": len(in_flight),
+        "blocked": _summarise(blocked, limit=10),
+        "blocked_count": len(blocked),
+        "review_count": len(review),
+        "pending_count": len(pending),
+        "total_tasks": len(all_tasks),
+        # Per-role rollups
+        "closed_by_role": dict(by_role_closed),
+        "in_flight_by_role": dict(by_role_inflight),
+        "blocked_by_role": dict(by_role_blocked),
+    }
+
+
 @tool(description="Phase 70: Find tasks whose id starts with the given prefix. Used by chat slash commands so the operator can type the short form (first 8 chars) that /next surfaces, instead of the full UUID. Returns all matches — caller decides whether ambiguity is fatal.")
 def studio_find_task(partial_id: str) -> dict:
     state = _require_state()

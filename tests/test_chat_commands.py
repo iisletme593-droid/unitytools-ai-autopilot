@@ -1893,6 +1893,189 @@ def test_done_takes_short_id_from_next() -> None:
     print("OK /next → /done <short-id> closes the daily loop end-to-end")
 
 
+# ─────────────────────────────────────────── Phase 71: /standup digest
+
+
+def _seed_mixed_backlog() -> tuple:
+    """Build a backlog with tasks across every status, with recent and
+    old `updated_at` timestamps so window-based filtering can be tested.
+    Returns (state, tmp, prev_cwd) plus the planted timestamps for
+    deterministic assertions."""
+    import time
+    from unitytools.studio.models import Task, TaskStatus
+
+    state, tmp, prev = _fresh_studio_cwd()
+    now = time.time()
+    # Recent done (within 24h)
+    t = Task(title="Recent done", role="designer", status=TaskStatus.DONE)
+    t.updated_at = now - 3600  # 1h ago
+    state.add_task(t)
+    # Old done (older than 24h)
+    t = Task(title="Old done", role="designer", status=TaskStatus.DONE)
+    t.updated_at = now - 7 * 86400  # 7d ago
+    state.add_task(t)
+    # In-flight
+    state.add_task(Task(title="In-flight A", role="level_designer",
+                         status=TaskStatus.IN_PROGRESS))
+    state.add_task(Task(title="In-flight B", role="tech_artist",
+                         status=TaskStatus.IN_PROGRESS))
+    # Blocked
+    state.add_task(Task(title="Blocked task", role="tech_artist",
+                         status=TaskStatus.BLOCKED,
+                         blockers=["waiting on art_director"]))
+    # Review
+    state.add_task(Task(title="In review", role="qa", status=TaskStatus.REVIEW))
+    # Pending (most recent — backlog depth)
+    state.add_task(Task(title="Pending 1", role="designer"))
+    state.add_task(Task(title="Pending 2", role="qa"))
+    state.add_task(Task(title="Pending 3", role="designer"))
+    return state, tmp, prev, now
+
+
+def test_standup_returns_correct_status_counts() -> None:
+    state, _, prev, now = _seed_mixed_backlog()
+    try:
+        r = dispatch("standup")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_standup"
+        # Counts match the seeded backlog (1 recent done, 2 in_progress,
+        # 1 blocked, 1 review, 3 pending; old done excluded from window)
+        assert r.tool_result["closed_recent_count"] == 1
+        assert r.tool_result["in_flight_count"] == 2
+        assert r.tool_result["blocked_count"] == 1
+        assert r.tool_result["review_count"] == 1
+        assert r.tool_result["pending_count"] == 3
+        # Total includes everything in the backlog (9 seeded)
+        assert r.tool_result["total_tasks"] == 9
+    finally:
+        os.chdir(prev)
+    print("OK /standup counts each status correctly in the 24h window")
+
+
+def test_standup_message_carries_one_line_summary() -> None:
+    state, _, prev, _ = _seed_mixed_backlog()
+    try:
+        r = dispatch("standup")
+        # The message line is the chat-panel summary
+        for token in ("closed", "in-flight", "blocked", "pending"):
+            assert token in r.message, f"/standup message missing {token!r}"
+        # 24h window mentioned
+        assert "24" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /standup message line includes every status count + window")
+
+
+def test_standup_window_argument_expands_closed_set() -> None:
+    """A 30-day window should pick up the old-done task that 24h ignored."""
+    state, _, prev, _ = _seed_mixed_backlog()
+    try:
+        r_24h = dispatch("standup")
+        r_30d = dispatch("standup 720")  # 720h = 30 days
+        assert r_24h.tool_result["closed_recent_count"] == 1
+        assert r_30d.tool_result["closed_recent_count"] == 2, (
+            "30-day window should pick up the 7-day-old done task too"
+        )
+    finally:
+        os.chdir(prev)
+    print("OK /standup <hours> widens the 'closed_recent' window")
+
+
+def test_standup_bad_window_returns_usage() -> None:
+    state, _, prev, _ = _seed_mixed_backlog()
+    try:
+        r = dispatch("standup notanumber")
+        assert r.handled is True
+        assert r.ok is False
+        assert "number" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /standup with non-numeric arg → clean error")
+
+
+def test_standup_zero_or_negative_window_rejected() -> None:
+    state, _, prev, _ = _seed_mixed_backlog()
+    try:
+        r = dispatch("standup -1")
+        assert r.ok is False
+        assert "positive" in r.message.lower()
+        r2 = dispatch("standup 0")
+        assert r2.ok is False
+    finally:
+        os.chdir(prev)
+    print("OK /standup rejects non-positive window hours")
+
+
+def test_standup_role_rollups_match_seeded_tasks() -> None:
+    state, _, prev, _ = _seed_mixed_backlog()
+    try:
+        r = dispatch("standup")
+        # designer closed 1 (recent), tech_artist blocked 1, etc.
+        assert r.tool_result["closed_by_role"].get("designer") == 1
+        # in_flight has 1 level_designer + 1 tech_artist
+        in_flight_roles = r.tool_result["in_flight_by_role"]
+        assert in_flight_roles.get("level_designer") == 1
+        assert in_flight_roles.get("tech_artist") == 1
+        # blocked is all tech_artist
+        assert r.tool_result["blocked_by_role"].get("tech_artist") == 1
+    finally:
+        os.chdir(prev)
+    print("OK /standup per-role rollups (closed/in_flight/blocked) match seed")
+
+
+def test_standup_blocked_list_includes_blocker_notes() -> None:
+    state, _, prev, _ = _seed_mixed_backlog()
+    try:
+        r = dispatch("standup")
+        blocked = r.tool_result["blocked"]
+        assert len(blocked) == 1
+        b = blocked[0]
+        assert b["title"] == "Blocked task"
+        assert b["blockers"] == ["waiting on art_director"]
+    finally:
+        os.chdir(prev)
+    print("OK /standup surfaces blockers list for each blocked task")
+
+
+def test_standup_empty_backlog_returns_zero_counts_cleanly() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("standup")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_result["closed_recent_count"] == 0
+        assert r.tool_result["in_flight_count"] == 0
+        assert r.tool_result["blocked_count"] == 0
+        assert r.tool_result["pending_count"] == 0
+        assert r.tool_result["total_tasks"] == 0
+        # Message still renders (no crashes on empty)
+        assert "closed 0" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /standup on empty backlog → all-zero counts, no crash")
+
+
+def test_standup_turkish_aliases() -> None:
+    state, _, prev, _ = _seed_mixed_backlog()
+    try:
+        for alias in ("toplantı", "toplanti", "özet", "ozet"):
+            r = dispatch(alias)
+            assert r.handled is True, f"/{alias} should resolve to /standup"
+            assert r.tool_name == "studio_standup", (
+                f"/{alias} should fire studio_standup; got {r.tool_name}"
+            )
+    finally:
+        os.chdir(prev)
+    print("OK /toplantı /toplanti /özet /ozet all → /standup")
+
+
+def test_help_lists_standup() -> None:
+    r = dispatch("help")
+    assert "/standup" in r.message, "/help should advertise /standup"
+    print("OK /help advertises /standup")
+
+
 def run_test() -> None:
     # Plumbing
     test_empty_line_returns_not_handled()
@@ -2020,7 +2203,18 @@ def run_test() -> None:
     test_turkish_aliases_resolve_to_lifecycle_commands()
     test_help_lists_phase_70_commands()
     test_done_takes_short_id_from_next()
-    print("All chat-command tests passed (Phase 59 + 60 + 61 + 64 + 65 + 66 + 68 + 69 + 70)")
+    # Phase 71 /standup daily digest
+    test_standup_returns_correct_status_counts()
+    test_standup_message_carries_one_line_summary()
+    test_standup_window_argument_expands_closed_set()
+    test_standup_bad_window_returns_usage()
+    test_standup_zero_or_negative_window_rejected()
+    test_standup_role_rollups_match_seeded_tasks()
+    test_standup_blocked_list_includes_blocker_notes()
+    test_standup_empty_backlog_returns_zero_counts_cleanly()
+    test_standup_turkish_aliases()
+    test_help_lists_standup()
+    print("All chat-command tests passed (Phase 59 + 60 + 61 + 64 + 65 + 66 + 68 + 69 + 70 + 71)")
 
 
 if __name__ == "__main__":

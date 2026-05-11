@@ -133,6 +133,10 @@ _ALIASES: dict[str, str] = {
     "engelle": "block", "blokla": "block",
     "aç": "unblock", "ac": "unblock", "çöz": "unblock", "coz": "unblock",
     "neden": "why", "niçin": "why", "nicin": "why",
+    # Phase 71 standup digest
+    "toplantı": "standup", "toplanti": "standup",
+    "özet": "standup", "ozet": "standup",
+    "günbaşı": "standup", "gunbasi": "standup",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -314,6 +318,10 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── why <task-id>   (Phase 70: diagnostic for blockers + unsatisfied deps)
     if cmd == "why":
         return _dispatch_why(args)
+
+    # ── standup [hours]   (Phase 71: morning digest — closed/in-flight/blocked)
+    if cmd == "standup":
+        return _dispatch_standup(args)
 
     return CommandResult(handled=False)
 
@@ -605,6 +613,7 @@ def _dispatch_help() -> CommandResult:
                 ("/role <role-id> [brief]", "run one role one-shot"),
                 ("/build <target> [--dev]", "windows/mac/linux/webgl/android/ios"),
                 ("/dashboard [--save] [days]", "operator's morning glance"),
+                ("/standup [hours]", "daily digest: closed/in-flight/blocked/pending"),
                 ("/sprint", "read studio/sprint_current.md"),
                 ("/next [role]", "next pending task ready to pick up"),
                 ("/take <id>", "mark task in_progress"),
@@ -644,7 +653,7 @@ def _dispatch_help() -> CommandResult:
     lines.append(
         "Türkçe aliases: /yardım /durum /sağlık /başlat /eşitle /oluştur "
         "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
-        "/al /tamam /engelle /aç /neden "
+        "/al /tamam /engelle /aç /neden /toplantı "
         "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
@@ -1409,6 +1418,66 @@ def _dispatch_why(args: list[str]) -> CommandResult:
     return CommandResult(
         handled=True, ok=True,
         tool_name="studio_explain_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_standup(args: list[str]) -> CommandResult:
+    """Phase 71: /standup [hours] — morning digest of what changed and
+    what's open. Default window: 24h. Returns a one-line message
+    summarising the four key numbers (closed / in-flight / blocked /
+    pending) plus structured detail in tool_result for richer rendering.
+    """
+    window_hours = 24.0
+    if args:
+        try:
+            window_hours = float(args[0])
+        except ValueError:
+            return CommandResult(
+                handled=True, ok=False,
+                message=f"window must be a number of hours; got {args[0]!r}",
+            )
+        if window_hours <= 0:
+            return CommandResult(
+                handled=True, ok=False,
+                message="window hours must be positive",
+            )
+
+    try:
+        from ..studio.tools import studio_standup
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_standup not importable: {exc}",
+        )
+    try:
+        result = studio_standup(window_hours=window_hours)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_standup",
+            message=f"standup failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_standup",
+            tool_result=result,
+            message=result.get("error") or "standup failed",
+        )
+
+    msg = (
+        f"Last {window_hours:g}h: "
+        f"closed {result['closed_recent_count']}, "
+        f"in-flight {result['in_flight_count']}, "
+        f"blocked {result['blocked_count']}, "
+        f"pending {result['pending_count']}"
+        + (f", review {result['review_count']}" if result.get("review_count") else "")
+    )
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_standup",
         tool_result=result,
         message=msg,
     )
