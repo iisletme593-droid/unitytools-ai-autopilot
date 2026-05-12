@@ -384,7 +384,19 @@ def _handle_slash(
         console.print(f"  {marker} {cmd_result.message}")
         return None
 
-    console.print(f"[red]Unknown command: /{cmd}[/red]")
+    # Phase 78: surface typo suggestions so /buldown → 'did you mean /burndown?'
+    suggestions = chat_commands.suggest_command(cmd)
+    if suggestions:
+        suggest_str = ", ".join(f"/{s}" for s in suggestions)
+        console.print(
+            f"[red]Unknown command:[/red] /{cmd}  "
+            f"[dim]Did you mean: {suggest_str}?[/dim]"
+        )
+    else:
+        console.print(
+            f"[red]Unknown command:[/red] /{cmd}  "
+            f"[dim](type /help for the full list)[/dim]"
+        )
     return None
 
 

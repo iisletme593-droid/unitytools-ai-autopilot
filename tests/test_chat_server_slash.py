@@ -172,6 +172,27 @@ def test_unknown_slash_returns_error_event_no_llm() -> None:
     print("OK unknown slash → error event + assistant_done(unknown_command)")
 
 
+def test_unknown_slash_carries_typo_suggestions() -> None:
+    """Phase 78: error event must include a `suggestions` field with
+    the closest canonical commands so editor panels can render a
+    'did you mean?' hint."""
+    srv = _server()
+    cap = _Capture()
+    # /buldown is a typo of /burndown — strong fuzzy match
+    srv._handle_line(_user_msg("/buldown"), _StubOrch(), cap)
+    err = cap.first("error")
+    assert err is not None
+    assert "suggestions" in err, "error event must carry a suggestions array"
+    assert isinstance(err["suggestions"], list)
+    assert "burndown" in err["suggestions"], (
+        f"expected 'burndown' in suggestions; got {err['suggestions']}"
+    )
+    # The user-facing message should also mention the suggestion
+    assert "Did you mean" in err["message"]
+    assert "/burndown" in err["message"]
+    print("OK chat-server unknown slash error carries `suggestions` + 'Did you mean?' hint")
+
+
 def test_empty_slash_returns_error_event() -> None:
     srv = _server()
     cap = _Capture()
@@ -358,6 +379,7 @@ def run_test() -> None:
     test_slash_command_tool_call_event_tagged_via_slash()
     test_slash_command_assistant_done_uses_slash_stop_reason()
     test_unknown_slash_returns_error_event_no_llm()
+    test_unknown_slash_carries_typo_suggestions()
     test_empty_slash_returns_error_event()
     test_non_slash_message_goes_through_orchestrator()
     test_slash_tool_result_contains_ship_payload()

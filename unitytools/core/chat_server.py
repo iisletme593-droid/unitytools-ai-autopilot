@@ -330,10 +330,21 @@ class ChatServer:
 
         if not result.handled:
             cmd = line.split(None, 1)[0] if line else ""
+            # Phase 78: surface typo suggestions so Editor users aren't
+            # stuck guessing the right spelling. The dispatcher exposes
+            # a stdlib-only fuzzy matcher.
+            suggestions = chat_commands.suggest_command(cmd) if cmd else []
+            if suggestions:
+                hint = " Did you mean: " + ", ".join(
+                    f"/{s}" for s in suggestions
+                ) + "?"
+            else:
+                hint = " Type /help to see available commands."
             send(
                 {
                     "type": "error",
-                    "message": f"Unknown command: /{cmd}. Type /help in the REPL or /tools to see available commands.",
+                    "message": f"Unknown command: /{cmd}.{hint}",
+                    "suggestions": suggestions,
                 }
             )
             send({"type": "assistant_done", "stop_reason": "unknown_command"})

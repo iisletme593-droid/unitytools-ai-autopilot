@@ -169,6 +169,58 @@ def _resolve_alias(cmd: str) -> str:
     return _ALIASES.get(cmd.lower(), cmd.lower())
 
 
+# Phase 78: canonical command vocabulary used for typo suggestions.
+# Keep in sync with the switch in dispatch() — drift_test below verifies
+# every dispatch arm appears in this list.
+_CANONICAL_COMMANDS: tuple[str, ...] = (
+    "quit", "exit", "q",
+    "help", "tools", "status", "studio", "diag",
+    "init", "sync", "scaffold", "dispatch", "role", "build",
+    "dashboard", "standup", "log", "journal", "decide", "find", "burndown",
+    "sprint", "next", "take", "done", "block", "unblock", "why",
+    "ship", "cost", "audit",
+    "tasks", "milestones", "ms", "decisions",
+    "refs", "screenshots", "shots", "locales", "dialogs", "assets",
+    "behaviours", "behaviors", "roles",
+)
+
+
+def suggest_command(unknown: str, max_results: int = 3) -> list[str]:
+    """Phase 78: when /<unknown> doesn't dispatch, return the closest
+    known commands so chat panels can render 'did you mean...?'.
+
+    Searches the union of canonical English commands AND every Türkçe
+    alias — so /buldown gets 'burndown' suggested AND /bld gets 'bul'
+    suggested. Case-insensitive via difflib's SequenceMatcher.
+    Returns deduplicated canonical command names (resolving aliases),
+    most-similar first. Empty list when no candidate clears the
+    similarity threshold.
+    """
+    if not unknown:
+        return []
+    import difflib
+
+    needle = unknown.lower()
+    # Union of canonical + alias keys; cap the candidate pool.
+    vocab = list(set(_CANONICAL_COMMANDS) | set(_ALIASES.keys()))
+    raw_matches = difflib.get_close_matches(
+        needle, vocab, n=max(max_results * 3, 6), cutoff=0.55,
+    )
+
+    # Resolve each match through _ALIASES so /yardım → 'help'. Dedupe
+    # while preserving similarity order.
+    seen: set[str] = set()
+    suggestions: list[str] = []
+    for m in raw_matches:
+        canonical = _ALIASES.get(m, m)
+        if canonical not in seen:
+            seen.add(canonical)
+            suggestions.append(canonical)
+            if len(suggestions) >= max_results:
+                break
+    return suggestions
+
+
 def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResult:
     """Parse one slash-command line and dispatch.
 

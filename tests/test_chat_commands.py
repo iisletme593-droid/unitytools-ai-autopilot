@@ -2715,6 +2715,104 @@ def test_help_lists_burndown() -> None:
     print("OK /help advertises /burndown")
 
 
+# ─────────────────────────────────────────── Phase 78: typo suggestions
+
+
+def test_suggest_command_handles_common_typos() -> None:
+    from unitytools.cli.chat_commands import suggest_command
+    # Each common typo should put the correct canonical command first.
+    cases = [
+        ("buldown", "burndown"),
+        ("fnid", "find"),
+        ("standp", "standup"),
+        ("tsks", "tasks"),
+        ("sprnt", "sprint"),
+        ("helo", "help"),
+        ("dashbord", "dashboard"),
+    ]
+    for typo, expected in cases:
+        suggestions = suggest_command(typo)
+        assert expected in suggestions, (
+            f"/{typo} should suggest /{expected}; got {suggestions}"
+        )
+        # And it should be among the top 3
+        assert expected in suggestions[:3]
+    print("OK suggest_command resolves 7 common typos to the right canonical")
+
+
+def test_suggest_command_resolves_through_turkish_aliases() -> None:
+    """A typo of a Türkçe alias should suggest the CANONICAL command,
+    not the alias itself — chat-server users see English commands."""
+    from unitytools.cli.chat_commands import suggest_command
+    # 'olustr' is a typo of 'oluştur' which is alias for 'scaffold'
+    suggestions = suggest_command("olustr")
+    assert "scaffold" in suggestions, (
+        f"/olustr should suggest /scaffold (alias resolved); got {suggestions}"
+    )
+    # 'gunluk' typo of 'gunluk' → journal alias → suggest 'journal'
+    suggestions = suggest_command("gunluk")
+    assert "journal" in suggestions, (
+        f"/gunluk should suggest /journal; got {suggestions}"
+    )
+    print("OK Türkçe-alias typos resolve to canonical English suggestions")
+
+
+def test_suggest_command_returns_empty_for_total_miss() -> None:
+    from unitytools.cli.chat_commands import suggest_command
+    assert suggest_command("zzzzzzzz") == []
+    assert suggest_command("") == []
+    # Very short queries: too ambiguous, return [] (cutoff filters them)
+    assert suggest_command("b") == []
+    print("OK suggest_command returns [] for empty / off-target / too-short input")
+
+
+def test_suggest_command_dedupe_via_alias_resolution() -> None:
+    """If 'tasks' and 'görev' (alias for 'tasks') both match a typo,
+    we should see /tasks only once."""
+    from unitytools.cli.chat_commands import suggest_command
+    suggestions = suggest_command("tasks")
+    # /tasks itself is the obvious answer
+    assert suggestions[0] == "tasks"
+    # And no duplicate
+    assert len(suggestions) == len(set(suggestions))
+    print("OK suggest_command dedupes after alias-resolution")
+
+
+def test_suggest_command_respects_max_results() -> None:
+    from unitytools.cli.chat_commands import suggest_command
+    suggestions = suggest_command("status", max_results=1)
+    assert len(suggestions) <= 1
+    suggestions = suggest_command("status", max_results=5)
+    assert len(suggestions) <= 5
+    print("OK suggest_command respects max_results cap")
+
+
+def test_canonical_commands_match_dispatcher() -> None:
+    """Drift catch: every command branch in dispatch() must appear in
+    _CANONICAL_COMMANDS (used by suggest_command), otherwise typos for
+    new phases won't be suggested."""
+    from unitytools.cli.chat_commands import _CANONICAL_COMMANDS
+    # Every command that the dispatcher routes — pulled from the /help
+    # listing AND a few REPL-handled ones we explicitly include.
+    r = dispatch("help")
+    needed: set[str] = set()
+    for section in r.tool_result["sections"]:
+        for name, _desc in section["commands"]:
+            cmd = name.split()[0].lstrip("/")
+            needed.add(cmd)
+    # /quit / /exit / /q are dispatcher-handled
+    needed.update({"quit", "exit", "q"})
+    # /clear is REPL-only — exclude
+    needed.discard("clear")
+
+    missing = needed - set(_CANONICAL_COMMANDS)
+    assert not missing, (
+        f"_CANONICAL_COMMANDS missing entries: {sorted(missing)} — "
+        f"typos for these commands won't be suggested. Add them."
+    )
+    print(f"OK every /help-advertised command ({len(needed)}) is in _CANONICAL_COMMANDS")
+
+
 def run_test() -> None:
     # Plumbing
     test_empty_line_returns_not_handled()
@@ -2892,7 +2990,14 @@ def run_test() -> None:
     test_burndown_empty_studio_handles_gracefully()
     test_burndown_turkish_aliases()
     test_help_lists_burndown()
-    print("All chat-command tests passed (Phase 59-76)")
+    # Phase 78 typo suggestions
+    test_suggest_command_handles_common_typos()
+    test_suggest_command_resolves_through_turkish_aliases()
+    test_suggest_command_returns_empty_for_total_miss()
+    test_suggest_command_dedupe_via_alias_resolution()
+    test_suggest_command_respects_max_results()
+    test_canonical_commands_match_dispatcher()
+    print("All chat-command tests passed (Phase 59-78)")
 
 
 if __name__ == "__main__":
