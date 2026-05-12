@@ -327,6 +327,75 @@ def studio_block_task(task_id: str, reason: str = "") -> dict:
     return {"ok": False, "error": f"Task {task_id!r} not found."}
 
 
+@tool(description="Phase 79: Stage every change and create a git commit at the studio root. Runs `git add -A` then `git commit -m <message>`. Returns the new commit's short sha + summary, or ok=False with the git error output. The studio must be inside a git repo; not-a-repo and nothing-to-commit cases return clean errors. Refuses empty messages.")
+def studio_commit(message: str) -> dict:
+    import subprocess
+    state = _require_state()
+    msg = (message or "").strip()
+    if not msg:
+        return {"ok": False, "error": "commit message is empty"}
+
+    cwd = state.paths.root.parent  # studio sits at <project>/studio
+    # Sanity: is this a git repo?
+    check = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        cwd=str(cwd), capture_output=True, text=True, encoding="utf-8",
+    )
+    if check.returncode != 0:
+        return {
+            "ok": False,
+            "error": (
+                "not inside a git repo. Run `git init` at the project root "
+                "before /commit."
+            ),
+        }
+
+    # Stage everything (matches our README/CONTRIBUTING pattern: studios
+    # are small enough that -A is the right default).
+    add = subprocess.run(
+        ["git", "add", "-A"],
+        cwd=str(cwd), capture_output=True, text=True, encoding="utf-8",
+    )
+    if add.returncode != 0:
+        return {
+            "ok": False,
+            "error": f"git add failed: {add.stderr.strip() or add.stdout.strip()}",
+        }
+
+    # Commit. Will fail with returncode=1 if nothing's staged.
+    commit = subprocess.run(
+        ["git", "commit", "-m", msg],
+        cwd=str(cwd), capture_output=True, text=True, encoding="utf-8",
+    )
+    if commit.returncode != 0:
+        # Distinguish "nothing to commit" from real failures
+        combined = (commit.stdout + commit.stderr).lower()
+        if "nothing to commit" in combined or "no changes added" in combined:
+            return {
+                "ok": False,
+                "error": "nothing to commit — working tree clean",
+                "git_output": commit.stdout.strip(),
+            }
+        return {
+            "ok": False,
+            "error": f"git commit failed: {commit.stderr.strip() or commit.stdout.strip()}",
+        }
+
+    # Grab the new commit's short sha
+    sha = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=str(cwd), capture_output=True, text=True, encoding="utf-8",
+    )
+    short_sha = sha.stdout.strip() if sha.returncode == 0 else "?"
+
+    return {
+        "ok": True,
+        "sha": short_sha,
+        "message": msg,
+        "git_output": commit.stdout.strip(),
+    }
+
+
 @tool(description="Phase 76: Per-milestone burndown — % complete and a 20-char ASCII bar chart for each milestone. Optional milestone_id narrows to one. Always also returns a project-wide rollup (all tasks across the backlog, including those not linked to any milestone) so the operator can sanity-check the milestone numbers against total backlog state.")
 def studio_burndown(milestone_id: str = "") -> dict:
     state = _require_state()

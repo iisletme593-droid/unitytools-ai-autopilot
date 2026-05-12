@@ -148,6 +148,9 @@ _ALIASES: dict[str, str] = {
     # Phase 76 burndown
     "ilerleme": "burndown", "yakım": "burndown", "yakim": "burndown",
     "grafik": "burndown",
+    # Phase 79 commit
+    "kaydet": "commit", "işle": "commit", "isle": "commit",
+    "gönder": "commit", "gonder": "commit",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -177,6 +180,7 @@ _CANONICAL_COMMANDS: tuple[str, ...] = (
     "help", "tools", "status", "studio", "diag",
     "init", "sync", "scaffold", "dispatch", "role", "build",
     "dashboard", "standup", "log", "journal", "decide", "find", "burndown",
+    "commit",  # Phase 79
     "sprint", "next", "take", "done", "block", "unblock", "why",
     "ship", "cost", "audit",
     "tasks", "milestones", "ms", "decisions",
@@ -405,6 +409,10 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── burndown [milestone-id]   (Phase 76: ASCII bar chart per milestone)
     if cmd == "burndown":
         return _dispatch_burndown(args)
+
+    # ── commit <message>   (Phase 79: git add+commit + journal entry)
+    if cmd == "commit":
+        return _dispatch_commit(args)
 
     return CommandResult(handled=False)
 
@@ -702,6 +710,7 @@ def _dispatch_help() -> CommandResult:
                 ("/decide <title> | <summary>", "record a design decision (proposed)"),
                 ("/find <substring>", "search tasks/decisions/docs/journal at once"),
                 ("/burndown [milestone-id]", "ASCII bar chart per milestone"),
+                ("/commit <message>", "git add+commit + journal entry"),
                 ("/sprint", "read studio/sprint_current.md"),
                 ("/next [role]", "next pending task ready to pick up"),
                 ("/take <id>", "mark task in_progress"),
@@ -742,6 +751,7 @@ def _dispatch_help() -> CommandResult:
         "Türkçe aliases: /yardım /durum /sağlık /başlat /eşitle /oluştur "
         "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
         "/al /tamam /engelle /aç /neden /toplantı /not /günlük /karar /bul /ilerleme "
+        "/kaydet /işle "
         "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
@@ -1506,6 +1516,67 @@ def _dispatch_why(args: list[str]) -> CommandResult:
     return CommandResult(
         handled=True, ok=True,
         tool_name="studio_explain_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_commit(args: list[str]) -> CommandResult:
+    """Phase 79: /commit <message words...> — stage and commit at the
+    studio's git root, then append a journal entry recording the sha.
+
+    Multi-word: every arg word is joined with a space; no quoting
+    required. Cleanly distinguishes 'not a git repo', 'nothing to
+    commit', and real git failures.
+
+    On success the journal entry reads:
+      `commit <sha>: <message>`
+    so the daily /journal naturally reflects code-time activity too.
+    """
+    message = " ".join(args).strip()
+    if not message:
+        return CommandResult(
+            handled=True, ok=False,
+            message=(
+                "Usage: /commit <message>   "
+                "(e.g. /commit fix boss arena lighting bake)"
+            ),
+        )
+    try:
+        from ..studio.tools import studio_commit, studio_journal_append
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_commit not importable: {exc}",
+        )
+    try:
+        result = studio_commit(message)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_commit",
+            message=f"commit failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_commit",
+            tool_result=result,
+            message=result.get("error") or "commit failed",
+        )
+
+    # On success, write a journal entry so /journal shows code-time.
+    # Don't fail the whole command if journaling itself trips up.
+    sha = result.get("sha", "?")
+    try:
+        studio_journal_append(f"commit {sha}: {message}")
+    except Exception:  # noqa: BLE001
+        pass  # commit already landed; journaling is best-effort
+
+    msg = f"Committed {sha}: {message[:60]}" + ("..." if len(message) > 60 else "")
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_commit",
         tool_result=result,
         message=msg,
     )

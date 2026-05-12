@@ -2787,6 +2787,19 @@ def test_suggest_command_respects_max_results() -> None:
     print("OK suggest_command respects max_results cap")
 
 
+def test_canonical_commands_includes_commit() -> None:
+    """Phase 79 added /commit — must be in _CANONICAL_COMMANDS so typos
+    like /commti suggest /commit."""
+    from unitytools.cli.chat_commands import _CANONICAL_COMMANDS, suggest_command
+    assert "commit" in _CANONICAL_COMMANDS
+    # And the suggester picks it up on common typo
+    suggestions = suggest_command("commti")
+    assert "commit" in suggestions, (
+        f"/commti should suggest /commit; got {suggestions}"
+    )
+    print("OK /commit registered in suggester vocab + typo /commti → /commit")
+
+
 def test_canonical_commands_match_dispatcher() -> None:
     """Drift catch: every command branch in dispatch() must appear in
     _CANONICAL_COMMANDS (used by suggest_command), otherwise typos for
@@ -2996,8 +3009,9 @@ def run_test() -> None:
     test_suggest_command_returns_empty_for_total_miss()
     test_suggest_command_dedupe_via_alias_resolution()
     test_suggest_command_respects_max_results()
+    test_canonical_commands_includes_commit()
     test_canonical_commands_match_dispatcher()
-    print("All chat-command tests passed (Phase 59-78)")
+    print("All chat-command tests passed (Phase 59-79)")
 
 
 if __name__ == "__main__":
