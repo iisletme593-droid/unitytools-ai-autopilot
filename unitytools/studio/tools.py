@@ -727,6 +727,60 @@ def studio_standup(window_hours: float = 24.0) -> dict:
     }
 
 
+@tool(description="Phase 80: Append a free-text note to a task's description. The new note is separated from existing content by a blank line and timestamped (YYYY-MM-DD HH:MM) so the description grows into a chronological record of the task's evolution. Never overwrites — pure append.")
+def studio_append_task_note(task_id: str, note: str) -> dict:
+    import time
+    state = _require_state()
+    note = (note or "").strip()
+    if not note:
+        return {"ok": False, "error": "note is empty"}
+    tasks = state.load_tasks()
+    for t in tasks:
+        if t.id == task_id:
+            stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime())
+            entry = f"[{stamp}] {note}"
+            existing = (t.description or "").strip()
+            t.description = f"{existing}\n\n{entry}" if existing else entry
+            state.update_task(t)
+            return {
+                "ok": True,
+                "task_id": t.id,
+                "appended": entry,
+                "description": t.description,
+            }
+    return {"ok": False, "error": f"Task {task_id!r} not found."}
+
+
+@tool(description="Phase 80: Wire a dependency between two tasks — `task_id` is the task that needs `dep_id` to be DONE before it's pickable. Both must already exist in the backlog. Self-references and duplicate deps are rejected. The /next slash command honours these dependencies and will skip tasks whose deps aren't satisfied.")
+def studio_add_task_dependency(task_id: str, dep_id: str) -> dict:
+    state = _require_state()
+    if task_id == dep_id:
+        return {"ok": False, "error": "task cannot depend on itself"}
+    tasks = state.load_tasks()
+    by_id = {t.id: t for t in tasks}
+    if task_id not in by_id:
+        return {"ok": False, "error": f"Task {task_id!r} not found."}
+    if dep_id not in by_id:
+        return {"ok": False, "error": f"Dependency {dep_id!r} not found in backlog."}
+
+    t = by_id[task_id]
+    current_deps = list(t.depends_on or [])
+    if dep_id in current_deps:
+        return {
+            "ok": False,
+            "error": f"{task_id[:8]} already depends on {dep_id[:8]}",
+            "depends_on": current_deps,
+        }
+    t.depends_on = current_deps + [dep_id]
+    state.update_task(t)
+    return {
+        "ok": True,
+        "task_id": t.id,
+        "depends_on": list(t.depends_on),
+        "dep_added": dep_id,
+    }
+
+
 @tool(description="Phase 70: Find tasks whose id starts with the given prefix. Used by chat slash commands so the operator can type the short form (first 8 chars) that /next surfaces, instead of the full UUID. Returns all matches — caller decides whether ambiguity is fatal.")
 def studio_find_task(partial_id: str) -> dict:
     state = _require_state()

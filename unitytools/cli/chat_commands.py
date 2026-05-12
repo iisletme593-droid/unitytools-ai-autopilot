@@ -151,6 +151,10 @@ _ALIASES: dict[str, str] = {
     # Phase 79 commit
     "kaydet": "commit", "işle": "commit", "isle": "commit",
     "gönder": "commit", "gonder": "commit",
+    # Phase 80 task editing
+    "açıklama": "note", "aciklama": "note", "ekle": "note",
+    "bağımlı": "dep", "bagimli": "dep", "bağ": "dep", "bag": "dep",
+    "bekler": "dep",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -181,6 +185,7 @@ _CANONICAL_COMMANDS: tuple[str, ...] = (
     "init", "sync", "scaffold", "dispatch", "role", "build",
     "dashboard", "standup", "log", "journal", "decide", "find", "burndown",
     "commit",  # Phase 79
+    "note", "dep",  # Phase 80
     "sprint", "next", "take", "done", "block", "unblock", "why",
     "ship", "cost", "audit",
     "tasks", "milestones", "ms", "decisions",
@@ -413,6 +418,14 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── commit <message>   (Phase 79: git add+commit + journal entry)
     if cmd == "commit":
         return _dispatch_commit(args)
+
+    # ── note <task-id> <text>   (Phase 80: append note to task description)
+    if cmd == "note":
+        return _dispatch_note(args)
+
+    # ── dep <task-id> <dep-id>   (Phase 80: wire a dependency)
+    if cmd == "dep":
+        return _dispatch_dep(args)
 
     return CommandResult(handled=False)
 
@@ -718,6 +731,8 @@ def _dispatch_help() -> CommandResult:
                 ("/block <id> [reason]", "mark task blocked + note reason"),
                 ("/unblock <id>", "blocked → pending"),
                 ("/why <id>", "explain task status + unsatisfied deps"),
+                ("/note <id> <text>", "append timestamped note to task description"),
+                ("/dep <id> <dep-id>", "wire dependency (first needs second done first)"),
                 ("/ship", "ship readiness check"),
                 ("/cost [days]", "LLM token + USD spend"),
                 ("/audit <kind>", "lighting/atmosphere/vfx/build/balance/..."),
@@ -751,7 +766,7 @@ def _dispatch_help() -> CommandResult:
         "Türkçe aliases: /yardım /durum /sağlık /başlat /eşitle /oluştur "
         "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
         "/al /tamam /engelle /aç /neden /toplantı /not /günlük /karar /bul /ilerleme "
-        "/kaydet /işle "
+        "/kaydet /işle /açıklama /bağımlı "
         "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
@@ -1516,6 +1531,122 @@ def _dispatch_why(args: list[str]) -> CommandResult:
     return CommandResult(
         handled=True, ok=True,
         tool_name="studio_explain_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_note(args: list[str]) -> CommandResult:
+    """Phase 80: /note <task-id> <text words...> — append a timestamped
+    note to a task's description. Existing description is preserved;
+    the new note is separated by a blank line.
+
+    Uses the Phase 70 partial-id resolver so the operator can pass the
+    8-char short id /next prints.
+    """
+    if len(args) < 2:
+        return CommandResult(
+            handled=True, ok=False,
+            message=(
+                "Usage: /note <task-id> <text>   "
+                "(e.g. /note 2ba0e65c wait until URP migration lands)"
+            ),
+        )
+    full_id, err = _resolve_task_partial_id(args[0])
+    if err is not None:
+        return err
+    note = " ".join(args[1:]).strip()
+    if not note:
+        return CommandResult(
+            handled=True, ok=False,
+            message="Note text is empty — say what to append.",
+        )
+    try:
+        from ..studio.tools import studio_append_task_note
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_append_task_note not importable: {exc}",
+        )
+    try:
+        result = studio_append_task_note(full_id, note)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_append_task_note",
+            message=f"note failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_append_task_note",
+            tool_result=result,
+            message=result.get("error") or "note failed",
+        )
+    msg = (
+        f"Note appended to {full_id[:8]}: {note[:60]}"
+        + ("..." if len(note) > 60 else "")
+    )
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_append_task_note",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_dep(args: list[str]) -> CommandResult:
+    """Phase 80: /dep <task-id> <dep-id> — declare that the first task
+    depends on the second being DONE first. Both ids are partial-id
+    resolved against the backlog.
+
+    The Phase 69 /next command honours this dependency — it will skip
+    the dependent task until the dep is done.
+    """
+    if len(args) < 2:
+        return CommandResult(
+            handled=True, ok=False,
+            message=(
+                "Usage: /dep <task-id> <dep-id>   "
+                "(first depends on second being done first)"
+            ),
+        )
+    task_full, err = _resolve_task_partial_id(args[0])
+    if err is not None:
+        return err
+    dep_full, err = _resolve_task_partial_id(args[1])
+    if err is not None:
+        return err
+    try:
+        from ..studio.tools import studio_add_task_dependency
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_add_task_dependency not importable: {exc}",
+        )
+    try:
+        result = studio_add_task_dependency(task_full, dep_full)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_add_task_dependency",
+            message=f"dep failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_add_task_dependency",
+            tool_result=result,
+            message=result.get("error") or "dep failed",
+        )
+    dep_count = len(result.get("depends_on", []))
+    msg = (
+        f"{task_full[:8]} now depends on {dep_full[:8]} "
+        f"({dep_count} dep{'s' if dep_count != 1 else ''} total)"
+    )
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_add_task_dependency",
         tool_result=result,
         message=msg,
     )

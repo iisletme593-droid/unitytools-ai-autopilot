@@ -2800,6 +2800,277 @@ def test_canonical_commands_includes_commit() -> None:
     print("OK /commit registered in suggester vocab + typo /commti → /commit")
 
 
+# ─────────────────────────────────────────── Phase 80: /note + /dep
+
+
+def test_note_appends_timestamped_entry_to_task_description() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="Boss arena", role="designer",
+                  description="Initial blockout sketch")
+        state.add_task(t)
+        r = dispatch(f"note {t.id[:8]} need URP feedback before lighting")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_append_task_note"
+        # Reload from disk — note should be persisted
+        tasks = state.load_tasks()
+        updated = next(x for x in tasks if x.id == t.id)
+        # Existing description preserved
+        assert "Initial blockout sketch" in updated.description
+        # New note appended with timestamp marker
+        assert "need URP feedback before lighting" in updated.description
+        # Timestamp pattern: [YYYY-MM-DD HH:MM]
+        import re
+        assert re.search(r"\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\]", updated.description), (
+            "note should carry a [YYYY-MM-DD HH:MM] timestamp"
+        )
+    finally:
+        os.chdir(prev)
+    print("OK /note appends timestamped entry, preserves existing description")
+
+
+def test_note_creates_description_when_task_had_none() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="No desc task", role="designer")  # description=""
+        state.add_task(t)
+        r = dispatch(f"note {t.id[:8]} first note")
+        assert r.ok is True
+        tasks = state.load_tasks()
+        updated = next(x for x in tasks if x.id == t.id)
+        # Should not start with newlines — clean entry
+        assert updated.description.startswith("[")
+        assert "first note" in updated.description
+    finally:
+        os.chdir(prev)
+    print("OK /note on description-less task starts fresh (no leading blank line)")
+
+
+def test_note_multiple_appends_separated_by_blank_line() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="Multi-note", role="designer")
+        state.add_task(t)
+        dispatch(f"note {t.id[:8]} first note")
+        dispatch(f"note {t.id[:8]} second note")
+        dispatch(f"note {t.id[:8]} third note")
+        tasks = state.load_tasks()
+        d = next(x for x in tasks if x.id == t.id).description
+        # All three present, separated by blank lines (\n\n)
+        assert d.count("\n\n") == 2, (
+            f"three notes should be joined by 2 blank-line separators; got {d!r}"
+        )
+        assert "first note" in d
+        assert "second note" in d
+        assert "third note" in d
+        # Order preserved
+        assert d.index("first") < d.index("second") < d.index("third")
+    finally:
+        os.chdir(prev)
+    print("OK /note appends chronologically with blank-line separators")
+
+
+def test_note_without_args_returns_usage() -> None:
+    r = dispatch("note")
+    assert r.handled is True
+    assert r.ok is False
+    assert "Usage" in r.message
+    print("OK /note with no args → usage hint")
+
+
+def test_note_with_id_but_no_text_returns_usage() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="X", role="designer")
+        state.add_task(t)
+        r = dispatch(f"note {t.id[:8]}")
+        assert r.ok is False
+        assert "Usage" in r.message or "empty" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /note <id> without text → usage hint")
+
+
+def test_note_with_unknown_id_fails_clean() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("note zzzzzzzz some note")
+        assert r.ok is False
+        assert "No task id starts with" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /note <missing-id> → clean partial-id-not-found error")
+
+
+def test_dep_wires_dependency_between_tasks() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t1 = Task(title="Base", role="designer")
+        t2 = Task(title="Lights", role="tech_artist")
+        state.add_task(t1)
+        state.add_task(t2)
+        r = dispatch(f"dep {t2.id[:8]} {t1.id[:8]}")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_add_task_dependency"
+        # Verify persistence
+        tasks = state.load_tasks()
+        t2_reloaded = next(x for x in tasks if x.id == t2.id)
+        assert t1.id in t2_reloaded.depends_on
+    finally:
+        os.chdir(prev)
+    print("OK /dep <a> <b> persists `a depends_on b`")
+
+
+def test_dep_integrates_with_next_skipping_blocked_task() -> None:
+    """The full integration check: /dep + /next interact correctly.
+    Adding a dep should make /next skip the dependent until done."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t1 = Task(title="Must do first", role="designer")
+        t2 = Task(title="Must do second", role="designer")
+        state.add_task(t1)
+        state.add_task(t2)
+        # Before dep: t1 (oldest pending) wins
+        r = dispatch("next")
+        assert r.tool_result["task"]["title"] == "Must do first"
+        # Wire dep t2 needs t1
+        dispatch(f"dep {t2.id[:8]} {t1.id[:8]}")
+        # Mark t1 done first
+        dispatch(f"done {t1.id[:8]}")
+        # Now /next returns t2 (only remaining pending, dep satisfied)
+        r = dispatch("next")
+        assert r.tool_result["task"]["title"] == "Must do second"
+        assert r.tool_result["ready_count"] == 1
+    finally:
+        os.chdir(prev)
+    print("OK /dep + /next end-to-end: deps gate task readiness")
+
+
+def test_dep_rejects_self_reference() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="Self-dep test", role="designer")
+        state.add_task(t)
+        r = dispatch(f"dep {t.id[:8]} {t.id[:8]}")
+        assert r.handled is True
+        assert r.ok is False
+        assert "itself" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /dep <a> <a> rejected — task can't depend on itself")
+
+
+def test_dep_rejects_duplicate_dependency() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t1 = Task(title="Base", role="designer")
+        t2 = Task(title="Other", role="qa")
+        state.add_task(t1)
+        state.add_task(t2)
+        r = dispatch(f"dep {t2.id[:8]} {t1.id[:8]}")
+        assert r.ok is True
+        # Second call should fail
+        r = dispatch(f"dep {t2.id[:8]} {t1.id[:8]}")
+        assert r.ok is False
+        assert "already depends" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /dep rejects duplicate dependency — idempotency guard")
+
+
+def test_dep_without_args_returns_usage() -> None:
+    r = dispatch("dep")
+    assert r.handled is True
+    assert r.ok is False
+    assert "Usage" in r.message
+    print("OK /dep with no args → usage hint")
+
+
+def test_dep_with_one_arg_returns_usage() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="Solo", role="designer")
+        state.add_task(t)
+        r = dispatch(f"dep {t.id[:8]}")
+        assert r.ok is False
+        assert "Usage" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /dep with one arg → usage hint")
+
+
+def test_dep_unknown_dep_id_fails_clean() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="Solo", role="designer")
+        state.add_task(t)
+        # Second arg is a partial that doesn't match anything
+        r = dispatch(f"dep {t.id[:8]} zzzzzzzz")
+        assert r.ok is False
+        # Either "No task id starts with" or "not found"
+        msg_lc = r.message.lower()
+        assert "no task" in msg_lc or "not found" in msg_lc
+    finally:
+        os.chdir(prev)
+    print("OK /dep with unknown dep id → clean error")
+
+
+def test_note_dep_turkish_aliases() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t1 = Task(title="A", role="designer")
+        t2 = Task(title="B", role="designer")
+        state.add_task(t1)
+        state.add_task(t2)
+        # /açıklama → note
+        r = dispatch(f"açıklama {t1.id[:8]} bir not")
+        assert r.handled is True
+        assert r.tool_name == "studio_append_task_note"
+        # /ekle → note
+        r = dispatch(f"ekle {t1.id[:8]} ikinci not")
+        assert r.tool_name == "studio_append_task_note"
+        # /bağımlı → dep
+        r = dispatch(f"bağımlı {t2.id[:8]} {t1.id[:8]}")
+        assert r.tool_name == "studio_add_task_dependency"
+        # /bağ → dep
+        r = dispatch(f"bağ {t1.id[:8]} {t2.id[:8]}")
+        assert r.tool_name == "studio_add_task_dependency"
+    finally:
+        os.chdir(prev)
+    print("OK Türkçe /açıklama /ekle /bağımlı /bağ aliases all resolve")
+
+
+def test_help_lists_note_and_dep() -> None:
+    r = dispatch("help")
+    assert "/note" in r.message
+    assert "/dep" in r.message
+    print("OK /help advertises /note + /dep")
+
+
+def test_canonical_commands_includes_note_and_dep() -> None:
+    """Drift catch: Phase 80's new commands in suggester vocab."""
+    from unitytools.cli.chat_commands import _CANONICAL_COMMANDS, suggest_command
+    assert "note" in _CANONICAL_COMMANDS
+    assert "dep" in _CANONICAL_COMMANDS
+    # Typo /nte should suggest /note
+    s = suggest_command("nte")
+    assert "note" in s, f"/nte should suggest /note; got {s}"
+    print("OK Phase 80 commands in suggester vocab")
+
+
 def test_canonical_commands_match_dispatcher() -> None:
     """Drift catch: every command branch in dispatch() must appear in
     _CANONICAL_COMMANDS (used by suggest_command), otherwise typos for
@@ -3010,8 +3281,25 @@ def run_test() -> None:
     test_suggest_command_dedupe_via_alias_resolution()
     test_suggest_command_respects_max_results()
     test_canonical_commands_includes_commit()
+    # Phase 80 /note + /dep
+    test_note_appends_timestamped_entry_to_task_description()
+    test_note_creates_description_when_task_had_none()
+    test_note_multiple_appends_separated_by_blank_line()
+    test_note_without_args_returns_usage()
+    test_note_with_id_but_no_text_returns_usage()
+    test_note_with_unknown_id_fails_clean()
+    test_dep_wires_dependency_between_tasks()
+    test_dep_integrates_with_next_skipping_blocked_task()
+    test_dep_rejects_self_reference()
+    test_dep_rejects_duplicate_dependency()
+    test_dep_without_args_returns_usage()
+    test_dep_with_one_arg_returns_usage()
+    test_dep_unknown_dep_id_fails_clean()
+    test_note_dep_turkish_aliases()
+    test_help_lists_note_and_dep()
+    test_canonical_commands_includes_note_and_dep()
     test_canonical_commands_match_dispatcher()
-    print("All chat-command tests passed (Phase 59-79)")
+    print("All chat-command tests passed (Phase 59-80)")
 
 
 if __name__ == "__main__":
