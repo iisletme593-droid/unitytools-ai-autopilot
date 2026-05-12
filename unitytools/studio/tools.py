@@ -727,6 +727,69 @@ def studio_standup(window_hours: float = 24.0) -> dict:
     }
 
 
+@tool(description="Phase 82: Full status drill-down for one role — every task that role owns, grouped by status (in_progress, pending, blocked, review, done_recent), with per-bucket counts. The done_recent bucket is capped to tasks closed within the last 7 days so the response stays scannable on long-running studios. Use this when /standup's per-role counts say a role has 12 tasks and you want to actually see them.")
+def studio_role_status(role: str, recent_days: float = 7.0) -> dict:
+    import time
+    state = _require_state()
+    if role not in ROLES:
+        return {
+            "ok": False,
+            "error": f"Unknown role {role!r}. Allowed: {sorted(ROLES)}",
+        }
+    if recent_days <= 0:
+        return {"ok": False, "error": "recent_days must be positive"}
+
+    now = time.time()
+    cutoff = now - (recent_days * 86400)
+    role_tasks = [t for t in state.load_tasks() if t.role == role]
+
+    def _shape(tasks: list[Task]) -> list[dict]:
+        return [
+            {
+                "id": t.id,
+                "title": t.title,
+                "milestone": t.milestone,
+                "blockers": list(t.blockers or [])[:3],
+                "updated_at": getattr(t, "updated_at", 0),
+            }
+            for t in tasks
+        ]
+
+    in_progress = [t for t in role_tasks if t.status is TaskStatus.IN_PROGRESS]
+    pending = [t for t in role_tasks if t.status is TaskStatus.PENDING]
+    blocked = [t for t in role_tasks if t.status is TaskStatus.BLOCKED]
+    review = [t for t in role_tasks if t.status is TaskStatus.REVIEW]
+    done_all = [t for t in role_tasks if t.status is TaskStatus.DONE]
+    done_recent = [
+        t for t in done_all
+        if (getattr(t, "updated_at", 0) or 0) >= cutoff
+    ]
+    # Sort pending by created_at so the next-up task surfaces at the top
+    pending.sort(key=lambda t: getattr(t, "created_at", 0) or 0)
+    # Sort recent-done newest-first
+    done_recent.sort(
+        key=lambda t: getattr(t, "updated_at", 0) or 0, reverse=True,
+    )
+
+    return {
+        "ok": True,
+        "role": role,
+        "recent_days": recent_days,
+        "total": len(role_tasks),
+        "in_progress": _shape(in_progress),
+        "in_progress_count": len(in_progress),
+        "pending": _shape(pending),
+        "pending_count": len(pending),
+        "blocked": _shape(blocked),
+        "blocked_count": len(blocked),
+        "review": _shape(review),
+        "review_count": len(review),
+        "done_recent": _shape(done_recent),
+        "done_recent_count": len(done_recent),
+        "done_total": len(done_all),
+    }
+
+
 @tool(description="Phase 81: Combined activity timeline across the studio — recent git commits, tasks closed, decisions made, and journal entries — in one DESC-by-timestamp stream. days defaults to 7. Each event carries: timestamp (unix), source ('commit'/'task'/'decision'/'journal'), title, and source-specific extras. Useful for the 'what happened recently' daily catch-up.")
 def studio_recent_activity(days: float = 7.0) -> dict:
     import time

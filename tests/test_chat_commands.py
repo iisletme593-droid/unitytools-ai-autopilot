@@ -3224,6 +3224,203 @@ def test_canonical_commands_includes_recent() -> None:
     print("OK Phase 81 /recent in suggester vocab; /recnt typo → /recent")
 
 
+# ─────────────────────────────────────────── Phase 82: /who role drill-down
+
+
+def _seed_role_status_studio() -> tuple:
+    """Plant a 'designer' role with tasks across every status, including
+    a recent done and an old done, so done_recent_count math is verifiable."""
+    import time as _t
+    state, tmp, prev = _fresh_studio_cwd()
+    from unitytools.studio.models import Task, TaskStatus
+
+    now = _t.time()
+    # designer: 1 in_progress + 2 pending + 1 blocked + 1 done-recent
+    #           + 1 done-old + 1 review = 6 tasks
+    state.add_task(Task(title="Tune jump", role="designer",
+                         status=TaskStatus.IN_PROGRESS))
+    state.add_task(Task(title="Pending A", role="designer"))
+    state.add_task(Task(title="Pending B", role="designer"))
+    state.add_task(Task(title="Blocked", role="designer",
+                         status=TaskStatus.BLOCKED,
+                         blockers=["external dep"]))
+    t = Task(title="Done recent", role="designer", status=TaskStatus.DONE)
+    t.updated_at = now - 3600
+    state.add_task(t)
+    t = Task(title="Done old", role="designer", status=TaskStatus.DONE)
+    t.updated_at = now - 30 * 86400
+    state.add_task(t)
+    state.add_task(Task(title="In review", role="designer",
+                         status=TaskStatus.REVIEW))
+
+    # Other-role tasks should be excluded from /who designer
+    state.add_task(Task(title="QA work", role="qa"))
+    state.add_task(Task(title="LD work", role="level_designer"))
+    return state, tmp, prev
+
+
+def test_who_returns_per_bucket_counts() -> None:
+    state, _, prev = _seed_role_status_studio()
+    try:
+        r = dispatch("who designer")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_role_status"
+        # designer has 7 tasks total (in_progress + 2 pending + blocked +
+        # done-recent + done-old + review)
+        assert r.tool_result["total"] == 7
+        assert r.tool_result["in_progress_count"] == 1
+        assert r.tool_result["pending_count"] == 2
+        assert r.tool_result["blocked_count"] == 1
+        assert r.tool_result["review_count"] == 1
+        assert r.tool_result["done_recent_count"] == 1
+        assert r.tool_result["done_total"] == 2  # both done tasks
+    finally:
+        os.chdir(prev)
+    print("OK /who counts every status bucket correctly + done_recent vs done_total")
+
+
+def test_who_filters_out_other_roles() -> None:
+    state, _, prev = _seed_role_status_studio()
+    try:
+        r = dispatch("who designer")
+        # Confirm none of the QA / LD tasks are in the response
+        all_returned_titles = []
+        for bucket in ("in_progress", "pending", "blocked", "review", "done_recent"):
+            all_returned_titles.extend(t["title"] for t in r.tool_result[bucket])
+        assert "QA work" not in all_returned_titles
+        assert "LD work" not in all_returned_titles
+    finally:
+        os.chdir(prev)
+    print("OK /who designer excludes tasks owned by other roles")
+
+
+def test_who_message_renders_inflight_and_blocked_titles() -> None:
+    """The message line should call out in-flight + blocked tasks
+    because those are what a producer scanning role status cares
+    about most."""
+    state, _, prev = _seed_role_status_studio()
+    try:
+        r = dispatch("who designer")
+        # in-flight title surfaced
+        assert "Tune jump" in r.message
+        # blocked title surfaced with its reason
+        assert "Blocked" in r.message
+        assert "external dep" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /who message highlights in-flight + blocked (with reasons)")
+
+
+def test_who_pending_sorted_by_created_at() -> None:
+    """pending list should be oldest-first so 'next up' is at the top."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        import time as _t
+        first = Task(title="First pending", role="designer")
+        first.created_at = _t.time() - 7200
+        state.add_task(first)
+        second = Task(title="Second pending", role="designer")
+        second.created_at = _t.time() - 3600
+        state.add_task(second)
+        third = Task(title="Third pending", role="designer")
+        state.add_task(third)
+        r = dispatch("who designer")
+        titles = [t["title"] for t in r.tool_result["pending"]]
+        assert titles == ["First pending", "Second pending", "Third pending"], (
+            f"pending should be oldest-first; got {titles}"
+        )
+    finally:
+        os.chdir(prev)
+    print("OK /who sorts pending oldest-first so 'next up' is at the top")
+
+
+def test_who_done_recent_sorted_newest_first() -> None:
+    """done_recent should be newest-first so the latest closure is at the top."""
+    import time as _t
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task, TaskStatus
+        now = _t.time()
+        for offset, title in [(1*3600, "Newest"), (3*3600, "Middle"), (6*3600, "Oldest")]:
+            t = Task(title=title, role="designer", status=TaskStatus.DONE)
+            t.updated_at = now - offset
+            state.add_task(t)
+        r = dispatch("who designer")
+        titles = [t["title"] for t in r.tool_result["done_recent"]]
+        assert titles == ["Newest", "Middle", "Oldest"], (
+            f"done_recent should be newest-first; got {titles}"
+        )
+    finally:
+        os.chdir(prev)
+    print("OK /who done_recent sorted newest-first")
+
+
+def test_who_without_role_returns_usage_with_choices() -> None:
+    r = dispatch("who")
+    assert r.handled is True
+    assert r.ok is False
+    assert "Usage" in r.message
+    # Some valid roles listed
+    assert "designer" in r.message
+    assert "producer" in r.message
+    print("OK /who with no role → usage hint listing valid roles")
+
+
+def test_who_unknown_role_fails_clean() -> None:
+    r = dispatch("who not_a_real_role")
+    assert r.handled is True
+    assert r.ok is False
+    assert "Unknown role" in r.message
+    # Hints at the valid set
+    assert "designer" in r.message.lower() or "producer" in r.message.lower()
+    print("OK /who <bad-role> → clean error + valid-roles list")
+
+
+def test_who_empty_role_returns_zeros() -> None:
+    """A role with no tasks should still return ok=True with all-zero counts."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("who producer")
+        assert r.ok is True
+        assert r.tool_result["total"] == 0
+        for key in ("in_progress_count", "pending_count", "blocked_count",
+                     "review_count", "done_recent_count", "done_total"):
+            assert r.tool_result[key] == 0
+    finally:
+        os.chdir(prev)
+    print("OK /who on empty role → all-zero counts, no crash")
+
+
+def test_who_turkish_aliases() -> None:
+    state, _, prev = _seed_role_status_studio()
+    try:
+        for alias in ("kim", "rolün", "rolun"):
+            r = dispatch(f"{alias} designer")
+            assert r.handled is True, f"/{alias} should resolve to /who"
+            assert r.tool_name == "studio_role_status", (
+                f"/{alias} should fire studio_role_status; got {r.tool_name}"
+            )
+    finally:
+        os.chdir(prev)
+    print("OK Türkçe /kim /rolün /rolun all → /who")
+
+
+def test_help_lists_who() -> None:
+    r = dispatch("help")
+    assert "/who" in r.message, "/help should advertise /who"
+    print("OK /help advertises /who")
+
+
+def test_canonical_commands_includes_who() -> None:
+    from unitytools.cli.chat_commands import _CANONICAL_COMMANDS, suggest_command
+    assert "who" in _CANONICAL_COMMANDS
+    s = suggest_command("wh0")
+    assert "who" in s, f"/wh0 should suggest /who; got {s}"
+    print("OK /who in suggester vocab; /wh0 → /who")
+
+
 def test_canonical_commands_includes_note_and_dep() -> None:
     """Drift catch: Phase 80's new commands in suggester vocab."""
     from unitytools.cli.chat_commands import _CANONICAL_COMMANDS, suggest_command
@@ -3473,8 +3670,20 @@ def run_test() -> None:
     test_recent_turkish_aliases()
     test_help_lists_recent()
     test_canonical_commands_includes_recent()
+    # Phase 82 /who
+    test_who_returns_per_bucket_counts()
+    test_who_filters_out_other_roles()
+    test_who_message_renders_inflight_and_blocked_titles()
+    test_who_pending_sorted_by_created_at()
+    test_who_done_recent_sorted_newest_first()
+    test_who_without_role_returns_usage_with_choices()
+    test_who_unknown_role_fails_clean()
+    test_who_empty_role_returns_zeros()
+    test_who_turkish_aliases()
+    test_help_lists_who()
+    test_canonical_commands_includes_who()
     test_canonical_commands_match_dispatcher()
-    print("All chat-command tests passed (Phase 59-81)")
+    print("All chat-command tests passed (Phase 59-82)")
 
 
 if __name__ == "__main__":

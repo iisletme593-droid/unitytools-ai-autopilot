@@ -158,6 +158,8 @@ _ALIASES: dict[str, str] = {
     # Phase 81 recent activity timeline
     "son": "recent", "sondurum": "recent", "geçenler": "recent",
     "gecenler": "recent", "akış": "recent", "akis": "recent",
+    # Phase 82 per-role drill-down
+    "kim": "who", "rolün": "who", "rolun": "who",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -190,6 +192,7 @@ _CANONICAL_COMMANDS: tuple[str, ...] = (
     "commit",  # Phase 79
     "note", "dep",  # Phase 80
     "recent",  # Phase 81
+    "who",  # Phase 82
     "sprint", "next", "take", "done", "block", "unblock", "why",
     "ship", "cost", "audit",
     "tasks", "milestones", "ms", "decisions",
@@ -434,6 +437,10 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── recent [days]   (Phase 81: combined activity timeline)
     if cmd == "recent":
         return _dispatch_recent(args)
+
+    # ── who <role>   (Phase 82: per-role full status drill-down)
+    if cmd == "who":
+        return _dispatch_who(args)
 
     return CommandResult(handled=False)
 
@@ -727,6 +734,7 @@ def _dispatch_help() -> CommandResult:
                 ("/dashboard [--save] [days]", "operator's morning glance"),
                 ("/standup [hours]", "daily digest: closed/in-flight/blocked/pending"),
                 ("/recent [days]", "combined activity timeline (commits+tasks+decisions+journal)"),
+                ("/who <role>", "per-role drill-down (in-flight/pending/blocked/done)"),
                 ("/log <message>", "append timestamped entry to today's journal"),
                 ("/journal [days]", "read last N days of journal entries"),
                 ("/decide <title> | <summary>", "record a design decision (proposed)"),
@@ -775,7 +783,7 @@ def _dispatch_help() -> CommandResult:
         "Türkçe aliases: /yardım /durum /sağlık /başlat /eşitle /oluştur "
         "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
         "/al /tamam /engelle /aç /neden /toplantı /not /günlük /karar /bul /ilerleme "
-        "/kaydet /işle /açıklama /bağımlı /son /akış "
+        "/kaydet /işle /açıklama /bağımlı /son /akış /kim "
         "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
@@ -1540,6 +1548,85 @@ def _dispatch_why(args: list[str]) -> CommandResult:
     return CommandResult(
         handled=True, ok=True,
         tool_name="studio_explain_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_who(args: list[str]) -> CommandResult:
+    """Phase 82: /who <role> — full status drill-down for one role.
+    Surfaces every task that role owns, grouped by status, with
+    recent done capped to last 7 days so the response stays scannable.
+    """
+    if not args:
+        # No role given → list valid roles so the operator can re-issue.
+        try:
+            from ..studio.models import ROLES
+            roles_list = ", ".join(sorted(ROLES))
+        except Exception:
+            roles_list = "(unable to load roles)"
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"Usage: /who <role>   Allowed: {roles_list}",
+        )
+    role = args[0]
+    try:
+        from ..studio.tools import studio_role_status
+        from ..studio.models import ROLES
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_role_status not importable: {exc}",
+        )
+    if role not in ROLES:
+        return CommandResult(
+            handled=True, ok=False,
+            message=(
+                f"Unknown role {role!r}. Try one of: {', '.join(sorted(ROLES))}"
+            ),
+        )
+    try:
+        result = studio_role_status(role=role)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_role_status",
+            message=f"role status failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_role_status",
+            tool_result=result,
+            message=result.get("error") or "role status failed",
+        )
+
+    # Multi-line summary so the chat panel shows the per-bucket counts
+    # plus the actual in_progress + blocked titles (the ones the producer
+    # cares about most).
+    lines: list[str] = []
+    lines.append(
+        f"{role}: {result['total']} task(s) total — "
+        f"{result['in_progress_count']} in-flight, "
+        f"{result['pending_count']} pending, "
+        f"{result['blocked_count']} blocked, "
+        f"{result['review_count']} review, "
+        f"{result['done_recent_count']} done in last 7d "
+        f"({result['done_total']} done total)"
+    )
+    if result["in_progress"]:
+        lines.append("  in-flight:")
+        for t in result["in_progress"][:5]:
+            lines.append(f"    {t['id'][:8]}  {t['title']}")
+    if result["blocked"]:
+        lines.append("  blocked:")
+        for t in result["blocked"][:5]:
+            blockers = "; ".join(t["blockers"]) if t["blockers"] else "(no reason)"
+            lines.append(f"    {t['id'][:8]}  {t['title']}  — {blockers}")
+    msg = "\n".join(lines)
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_role_status",
         tool_result=result,
         message=msg,
     )

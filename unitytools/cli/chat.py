@@ -282,6 +282,7 @@ def _handle_slash(
                 "[cyan]/dep[/cyan] <id> <dep-id>        wire a dependency (first needs second done first)\n"
                 "[cyan]/standup[/cyan] [hours]           daily digest: closed/in-flight/blocked/pending\n"
                 "[cyan]/recent[/cyan] [days]             combined activity timeline (commits+tasks+decisions+journal)\n"
+                "[cyan]/who[/cyan] <role>                per-role drill-down (in-flight/pending/blocked/done)\n"
                 "[cyan]/log[/cyan] <message>             append a timestamped note to today's journal\n"
                 "[cyan]/journal[/cyan] [days]            read last N days of journal entries\n"
                 "[cyan]/decide[/cyan] <title> | <summary>  record a design decision (proposed)\n"
