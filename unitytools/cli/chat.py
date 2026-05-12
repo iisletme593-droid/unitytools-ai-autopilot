@@ -283,6 +283,7 @@ def _handle_slash(
                 "[cyan]/discard[/cyan] <id> [reason]    close task as REJECTED (won't do)\n"
                 "[cyan]/milestone[/cyan] <name> | <desc>  create a milestone\n"
                 "[cyan]/standup[/cyan] [hours]           daily digest: closed/in-flight/blocked/pending\n"
+                "[cyan]/wrap-up[/cyan]                   end-of-day digest (closures + carry-over + tomorrow's next)\n"
                 "[cyan]/recent[/cyan] [days]             combined activity timeline (commits+tasks+decisions+journal)\n"
                 "[cyan]/who[/cyan] <role>                per-role drill-down (in-flight/pending/blocked/done)\n"
                 "[cyan]/blocked[/cyan]                  every blocked task across the studio + reasons\n"

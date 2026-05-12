@@ -170,6 +170,10 @@ _ALIASES: dict[str, str] = {
     "reddet": "discard",
     "kilometre": "milestone", "kilometretaşı": "milestone",
     "hedefkur": "milestone", "yenihedef": "milestone",
+    # Phase 85 end-of-day wrap-up
+    "günsonu": "wrap-up", "gunsonu": "wrap-up",
+    "kapanış": "wrap-up", "kapanis": "wrap-up",
+    "kapat": "wrap-up",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -205,6 +209,7 @@ _CANONICAL_COMMANDS: tuple[str, ...] = (
     "who",  # Phase 82
     "blocked", "inflight", "wip",  # Phase 83
     "discard", "reject", "milestone",  # Phase 84
+    "wrap-up", "wrapup", "wrap",  # Phase 85
     "sprint", "next", "take", "done", "block", "unblock", "why",
     "ship", "cost", "audit",
     "tasks", "milestones", "ms", "decisions",
@@ -469,6 +474,10 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── milestone <name> | <description>   (Phase 84: create milestone)
     if cmd == "milestone":
         return _dispatch_milestone(args)
+
+    # ── wrap-up   (Phase 85: end-of-day digest paired with /standup)
+    if cmd in ("wrap-up", "wrapup", "wrap"):
+        return _dispatch_wrap_up()
 
     return CommandResult(handled=False)
 
@@ -761,6 +770,7 @@ def _dispatch_help() -> CommandResult:
                 ("/build <target> [--dev]", "windows/mac/linux/webgl/android/ios"),
                 ("/dashboard [--save] [days]", "operator's morning glance"),
                 ("/standup [hours]", "daily digest: closed/in-flight/blocked/pending"),
+                ("/wrap-up", "end-of-day digest (today's closures + carry-over + tomorrow's next)"),
                 ("/recent [days]", "combined activity timeline (commits+tasks+decisions+journal)"),
                 ("/who <role>", "per-role drill-down (in-flight/pending/blocked/done)"),
                 ("/blocked", "every blocked task across the studio + reasons"),
@@ -816,7 +826,7 @@ def _dispatch_help() -> CommandResult:
         "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
         "/al /tamam /engelle /aç /neden /toplantı /not /günlük /karar /bul /ilerleme "
         "/kaydet /işle /açıklama /bağımlı /son /akış /kim /engelli /süren "
-        "/iptal /vazgeç /kilometre "
+        "/iptal /vazgeç /kilometre /günsonu /kapanış "
         "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
@@ -1581,6 +1591,84 @@ def _dispatch_why(args: list[str]) -> CommandResult:
     return CommandResult(
         handled=True, ok=True,
         tool_name="studio_explain_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_wrap_up() -> CommandResult:
+    """Phase 85: /wrap-up — end-of-day digest pairing with morning
+    /standup. Surfaces today's closures + carry-over (in-flight) +
+    still-blocked + commit count + journal entry count + next-pending
+    suggestion for tomorrow.
+
+    Calendar-day scoped (local midnight cutoff), not 24h sliding —
+    so 'today' means today, regardless of when in the day you run it.
+    """
+    try:
+        from ..studio.tools import studio_wrap_up
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_wrap_up not importable: {exc}",
+        )
+    try:
+        result = studio_wrap_up()
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_wrap_up",
+            message=f"wrap-up failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_wrap_up",
+            tool_result=result,
+            message=result.get("error") or "wrap-up failed",
+        )
+
+    # Multi-line summary for chat panel rendering
+    lines: list[str] = [f"Wrap-up for {result['date']}:"]
+    lines.append(
+        f"  Closed today: {result['closed_today_count']} task(s)"
+    )
+    for t in result["closed_today"][:5]:
+        lines.append(f"    {t['id'][:8]}  [{t['role']}]  {t['title']}")
+
+    lines.append(
+        f"  Carrying over: {result['in_flight_count']} in-flight"
+    )
+    for t in result["in_flight"][:5]:
+        lines.append(f"    {t['id'][:8]}  [{t['role']}]  {t['title']}")
+
+    if result["blocked_count"]:
+        lines.append(f"  Still blocked: {result['blocked_count']}")
+        for t in result["blocked"][:3]:
+            reasons = "; ".join(t["blockers"]) if t["blockers"] else "(no reason)"
+            lines.append(
+                f"    {t['id'][:8]}  [{t['role']}]  {t['title']}  — {reasons}"
+            )
+
+    lines.append(
+        f"  Today: {result['commits_today_count']} commit(s), "
+        f"{result['journal_entries_today']} journal entr"
+        f"{'y' if result['journal_entries_today'] == 1 else 'ies'}"
+    )
+
+    nxt = result.get("next_pick")
+    if nxt:
+        lines.append(
+            f"  Tomorrow's next: '{nxt['title']}' "
+            f"[{nxt['role']}, id={nxt['id'][:8]}]"
+        )
+    else:
+        lines.append("  Tomorrow's next: nothing pending — backlog is dry.")
+
+    msg = "\n".join(lines)
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_wrap_up",
         tool_result=result,
         message=msg,
     )

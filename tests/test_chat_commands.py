@@ -3859,6 +3859,230 @@ def test_canonical_commands_includes_discard_milestone() -> None:
     print("OK Phase 84 commands in suggester vocab")
 
 
+# ─────────────────────────────────────────── Phase 85: /wrap-up
+
+
+def _seed_wrap_up_studio() -> tuple:
+    """Today: 2 closures, 2 in-flight, 1 blocked, 1 pending — full mix
+    for the end-of-day digest."""
+    import time as _t
+    state, tmp, prev = _fresh_studio_cwd()
+    from unitytools.studio.models import Task, TaskStatus
+
+    now = _t.time()
+    # Today's closures
+    for title in ("Done today A", "Done today B"):
+        t = Task(title=title, role="designer", status=TaskStatus.DONE)
+        t.updated_at = now - 3600
+        state.add_task(t)
+    # In-flight (carry-over)
+    state.add_task(Task(title="In flight A", role="level_designer",
+                         status=TaskStatus.IN_PROGRESS))
+    state.add_task(Task(title="In flight B", role="qa",
+                         status=TaskStatus.IN_PROGRESS))
+    # Blocked
+    state.add_task(Task(title="Stuck", role="tech_artist",
+                         status=TaskStatus.BLOCKED,
+                         blockers=["waiting on art_director"]))
+    # Pending (next pick)
+    state.add_task(Task(title="Next up", role="designer"))
+    # Yesterday's done — should NOT count in today's closures
+    t = Task(title="Yesterday closure", role="qa", status=TaskStatus.DONE)
+    t.updated_at = now - 30 * 3600  # ~yesterday-ish
+    state.add_task(t)
+    return state, tmp, prev
+
+
+def test_wrap_up_counts_match_seeded_studio() -> None:
+    state, _, prev = _seed_wrap_up_studio()
+    try:
+        r = dispatch("wrap-up")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_wrap_up"
+        # Today's closures: only the two with updated_at=now-3600
+        assert r.tool_result["closed_today_count"] == 2
+        assert r.tool_result["in_flight_count"] == 2
+        assert r.tool_result["blocked_count"] == 1
+    finally:
+        os.chdir(prev)
+    print("OK /wrap-up counts closures + in-flight + blocked correctly")
+
+
+def test_wrap_up_excludes_yesterday_closures() -> None:
+    """The 30-hour-old DONE task should NOT appear in 'closed_today'.
+    Wrap-up is calendar-day scoped, not 24h sliding."""
+    state, _, prev = _seed_wrap_up_studio()
+    try:
+        r = dispatch("wrap-up")
+        titles = [t["title"] for t in r.tool_result["closed_today"]]
+        assert "Yesterday closure" not in titles
+        assert "Done today A" in titles
+        assert "Done today B" in titles
+    finally:
+        os.chdir(prev)
+    print("OK /wrap-up calendar-day cutoff (yesterday's done excluded)")
+
+
+def test_wrap_up_carry_over_lists_in_flight_titles() -> None:
+    state, _, prev = _seed_wrap_up_studio()
+    try:
+        r = dispatch("wrap-up")
+        titles = [t["title"] for t in r.tool_result["in_flight"]]
+        assert "In flight A" in titles
+        assert "In flight B" in titles
+    finally:
+        os.chdir(prev)
+    print("OK /wrap-up carry-over lists every in-flight task")
+
+
+def test_wrap_up_message_renders_full_digest() -> None:
+    state, _, prev = _seed_wrap_up_studio()
+    try:
+        r = dispatch("wrap-up")
+        # Multi-line digest
+        assert r.message.count("\n") >= 5
+        # Headline date
+        import re
+        assert re.search(r"Wrap-up for \d{4}-\d{2}-\d{2}", r.message)
+        # Each section heading present
+        assert "Closed today:" in r.message
+        assert "Carrying over:" in r.message
+        assert "Still blocked:" in r.message
+        assert "Tomorrow's next:" in r.message
+        # Blocker reason inlined
+        assert "waiting on art_director" in r.message
+        # Tomorrow's next surfaces the pending task title
+        assert "Next up" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /wrap-up message carries full multi-line digest with every section")
+
+
+def test_wrap_up_next_pick_is_oldest_pending() -> None:
+    """The 'tomorrow's next' suggestion should match what /next would
+    return — oldest-ready pending task."""
+    state, _, prev = _seed_wrap_up_studio()
+    try:
+        r_wrap = dispatch("wrap-up")
+        r_next = dispatch("next")
+        # Both should converge on the same task
+        assert r_wrap.tool_result["next_pick"]["id"] == r_next.tool_result["task"]["id"]
+    finally:
+        os.chdir(prev)
+    print("OK /wrap-up 'tomorrow's next' matches /next's pick (consistent)")
+
+
+def test_wrap_up_empty_studio_renders_dry_backlog_hint() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("wrap-up")
+        assert r.handled is True
+        assert r.ok is True
+        # Every count is zero
+        for key in ("closed_today_count", "in_flight_count",
+                     "blocked_count", "commits_today_count",
+                     "journal_entries_today"):
+            assert r.tool_result[key] == 0
+        # next_pick is None
+        assert r.tool_result["next_pick"] is None
+        # Message says backlog is dry
+        assert "dry" in r.message.lower() or "nothing pending" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /wrap-up on empty studio renders 'dry backlog' hint cleanly")
+
+
+def test_wrap_up_no_blocked_section_when_zero() -> None:
+    """If nothing is blocked, the 'Still blocked' section should be
+    omitted to keep the digest scannable."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        # Only pending + in_flight, no blocked
+        from unitytools.studio.models import Task, TaskStatus
+        state.add_task(Task(title="A", role="designer"))
+        state.add_task(Task(title="B", role="qa",
+                             status=TaskStatus.IN_PROGRESS))
+        r = dispatch("wrap-up")
+        assert r.tool_result["blocked_count"] == 0
+        assert "Still blocked:" not in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /wrap-up omits 'Still blocked' section when count is 0")
+
+
+def test_wrap_up_journal_entries_count_matches_today_log_calls() -> None:
+    """Each /log call today should add 1 to journal_entries_today."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        dispatch("log first note")
+        dispatch("log second note")
+        dispatch("log third note")
+        r = dispatch("wrap-up")
+        assert r.tool_result["journal_entries_today"] == 3
+        # Singular vs plural in the message
+        assert "3 journal entries" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /wrap-up counts today's journal entries exactly (3 logs → 3 entries)")
+
+
+def test_wrap_up_aliases() -> None:
+    state, _, prev = _seed_wrap_up_studio()
+    try:
+        for alias in ("wrapup", "wrap"):
+            r = dispatch(alias)
+            assert r.handled is True, f"/{alias} should resolve to /wrap-up"
+            assert r.tool_name == "studio_wrap_up", (
+                f"/{alias} should fire studio_wrap_up; got {r.tool_name}"
+            )
+    finally:
+        os.chdir(prev)
+    print("OK /wrapup + /wrap aliases → /wrap-up")
+
+
+def test_wrap_up_turkish_aliases() -> None:
+    state, _, prev = _seed_wrap_up_studio()
+    try:
+        for alias in ("günsonu", "gunsonu", "kapanış", "kapanis", "kapat"):
+            r = dispatch(alias)
+            assert r.handled is True, f"/{alias} should resolve to /wrap-up"
+            assert r.tool_name == "studio_wrap_up", (
+                f"/{alias} should fire studio_wrap_up; got {r.tool_name}"
+            )
+    finally:
+        os.chdir(prev)
+    print("OK Türkçe /günsonu /kapanış /kapat aliases → /wrap-up")
+
+
+def test_phase_70_bitir_alias_still_points_to_done() -> None:
+    """Drift guard: Phase 85 chose NOT to use /bitir as wrap-up alias
+    because Phase 70 already maps /bitir → done. Verify still true."""
+    from unitytools.cli.chat_commands import _resolve_alias
+    assert _resolve_alias("bitir") == "done", (
+        "/bitir must still resolve to done — Phase 85 must not overwrite it"
+    )
+    print("OK Phase 70's /bitir → done alias survives Phase 85 additions")
+
+
+def test_help_lists_wrap_up() -> None:
+    r = dispatch("help")
+    assert "/wrap-up" in r.message, "/help should advertise /wrap-up"
+    print("OK /help advertises /wrap-up")
+
+
+def test_canonical_commands_includes_wrap_up() -> None:
+    from unitytools.cli.chat_commands import _CANONICAL_COMMANDS, suggest_command
+    assert "wrap-up" in _CANONICAL_COMMANDS
+    assert "wrapup" in _CANONICAL_COMMANDS
+    # Typo /wrap-ip → /wrap-up
+    s = suggest_command("wrap-ip")
+    assert any("wrap" in candidate for candidate in s), (
+        f"/wrap-ip should suggest a /wrap- variant; got {s}"
+    )
+    print("OK Phase 85 /wrap-up in suggester vocab")
+
+
 def test_canonical_commands_includes_note_and_dep() -> None:
     """Drift catch: Phase 80's new commands in suggester vocab."""
     from unitytools.cli.chat_commands import _CANONICAL_COMMANDS, suggest_command
@@ -4148,8 +4372,22 @@ def run_test() -> None:
     test_discard_milestone_turkish_aliases()
     test_help_lists_discard_and_milestone()
     test_canonical_commands_includes_discard_milestone()
+    # Phase 85 /wrap-up
+    test_wrap_up_counts_match_seeded_studio()
+    test_wrap_up_excludes_yesterday_closures()
+    test_wrap_up_carry_over_lists_in_flight_titles()
+    test_wrap_up_message_renders_full_digest()
+    test_wrap_up_next_pick_is_oldest_pending()
+    test_wrap_up_empty_studio_renders_dry_backlog_hint()
+    test_wrap_up_no_blocked_section_when_zero()
+    test_wrap_up_journal_entries_count_matches_today_log_calls()
+    test_wrap_up_aliases()
+    test_wrap_up_turkish_aliases()
+    test_phase_70_bitir_alias_still_points_to_done()
+    test_help_lists_wrap_up()
+    test_canonical_commands_includes_wrap_up()
     test_canonical_commands_match_dispatcher()
-    print("All chat-command tests passed (Phase 59-84)")
+    print("All chat-command tests passed (Phase 59-85)")
 
 
 if __name__ == "__main__":

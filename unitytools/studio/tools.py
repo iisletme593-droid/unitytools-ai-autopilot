@@ -727,6 +727,104 @@ def studio_standup(window_hours: float = 24.0) -> dict:
     }
 
 
+@tool(description="Phase 85: End-of-day wrap-up — what landed today, what's carrying over to tomorrow, what's still blocked, plus today's commits + journal entries + the next-pending task suggestion. Pairs with the morning /standup: standup is forward-looking ('what's open'), wrap-up is close-out + handoff ('what landed, what to pick up tomorrow'). The window is bounded by local-day midnight, not a 24-hour sliding scope.")
+def studio_wrap_up() -> dict:
+    import time
+    state = _require_state()
+
+    now = time.time()
+    # Local midnight today — wrap-up scopes to the calendar day
+    local_today = time.localtime(now)
+    midnight_struct = time.struct_time((
+        local_today.tm_year, local_today.tm_mon, local_today.tm_mday,
+        0, 0, 0, local_today.tm_wday, local_today.tm_yday, local_today.tm_isdst,
+    ))
+    cutoff = time.mktime(midnight_struct)
+    today_iso = time.strftime("%Y-%m-%d", local_today)
+
+    all_tasks = state.load_tasks()
+
+    closed_today = [
+        t for t in all_tasks
+        if t.status is TaskStatus.DONE
+        and (getattr(t, "updated_at", 0) or 0) >= cutoff
+    ]
+    in_flight = [t for t in all_tasks if t.status is TaskStatus.IN_PROGRESS]
+    blocked = [t for t in all_tasks if t.status is TaskStatus.BLOCKED]
+
+    def _shape(tasks: list[Task]) -> list[dict]:
+        return [
+            {
+                "id": t.id,
+                "title": t.title,
+                "role": t.role,
+                "milestone": t.milestone,
+                "blockers": list(t.blockers or [])[:3],
+            }
+            for t in tasks
+        ]
+
+    # Journal entries written today (line-count, parsed from the daily file)
+    journal_entries_today = 0
+    journal_path = state.paths.journal_for_date(today_iso)
+    if journal_path.is_file():
+        try:
+            content = journal_path.read_text(encoding="utf-8")
+            import re
+            journal_entries_today = len(re.findall(
+                r"^\s*-\s+\*\*\d{2}:\d{2}:\d{2}\*\*", content, re.MULTILINE,
+            ))
+        except Exception:
+            journal_entries_today = 0
+
+    # Commits today via studio_recent_commits (resolved at call time)
+    commits_today: list[dict] = []
+    try:
+        commits_result = studio_recent_commits(limit=50)
+        if commits_result.get("ok"):
+            for c in commits_result.get("commits", []):
+                ts = c.get("timestamp", 0) or 0
+                if ts >= cutoff:
+                    commits_today.append({
+                        "sha": c.get("sha"),
+                        "subject": c.get("subject"),
+                        "author": c.get("author"),
+                    })
+    except Exception:  # noqa: BLE001
+        commits_today = []
+
+    # Tomorrow's pick — first ready pending task
+    next_pick = None
+    try:
+        nxt_result = studio_next_task()
+        if nxt_result.get("ok") and nxt_result.get("task"):
+            t = nxt_result["task"]
+            next_pick = {
+                "id": t["id"],
+                "title": t["title"],
+                "role": t["role"],
+                "milestone": t.get("milestone"),
+            }
+    except Exception:  # noqa: BLE001
+        next_pick = None
+
+    return {
+        "ok": True,
+        "date": today_iso,
+        "cutoff": cutoff,
+        "closed_today": _shape(closed_today),
+        "closed_today_count": len(closed_today),
+        "in_flight": _shape(in_flight),
+        "in_flight_count": len(in_flight),
+        "blocked": _shape(blocked),
+        "blocked_count": len(blocked),
+        "commits_today": commits_today,
+        "commits_today_count": len(commits_today),
+        "journal_entries_today": journal_entries_today,
+        "next_pick": next_pick,
+    }
+
+
 @tool(description="Phase 84: Mark a task as REJECTED — the 'won't do' close-out for stale or no-longer-relevant pending work. Optional reason is appended to the blockers list so the rejection rationale stays with the task. Use this for backlog hygiene; for blockers that are still worth tracking use studio_block_task instead.")
 def studio_reject_task(task_id: str, reason: str = "") -> dict:
     state = _require_state()
