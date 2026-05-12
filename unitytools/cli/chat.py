@@ -280,6 +280,8 @@ def _handle_slash(
                 "[cyan]/why[/cyan] <id>                 explain a task's status + unsatisfied deps\n"
                 "[cyan]/note[/cyan] <id> <text>         append a timestamped note to a task's description\n"
                 "[cyan]/dep[/cyan] <id> <dep-id>        wire a dependency (first needs second done first)\n"
+                "[cyan]/discard[/cyan] <id> [reason]    close task as REJECTED (won't do)\n"
+                "[cyan]/milestone[/cyan] <name> | <desc>  create a milestone\n"
                 "[cyan]/standup[/cyan] [hours]           daily digest: closed/in-flight/blocked/pending\n"
                 "[cyan]/recent[/cyan] [days]             combined activity timeline (commits+tasks+decisions+journal)\n"
                 "[cyan]/who[/cyan] <role>                per-role drill-down (in-flight/pending/blocked/done)\n"

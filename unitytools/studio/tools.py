@@ -727,6 +727,25 @@ def studio_standup(window_hours: float = 24.0) -> dict:
     }
 
 
+@tool(description="Phase 84: Mark a task as REJECTED — the 'won't do' close-out for stale or no-longer-relevant pending work. Optional reason is appended to the blockers list so the rejection rationale stays with the task. Use this for backlog hygiene; for blockers that are still worth tracking use studio_block_task instead.")
+def studio_reject_task(task_id: str, reason: str = "") -> dict:
+    state = _require_state()
+    tasks = state.load_tasks()
+    for t in tasks:
+        if t.id == task_id:
+            if reason and reason.strip():
+                t.blockers = list(t.blockers or []) + [f"rejected: {reason.strip()}"]
+            t.status = TaskStatus.REJECTED
+            state.update_task(t)
+            return {
+                "ok": True,
+                "task_id": t.id,
+                "status": t.status.value,
+                "blockers": list(t.blockers or []),
+            }
+    return {"ok": False, "error": f"Task {task_id!r} not found."}
+
+
 @tool(description="Phase 83: Every blocked task across the studio, with full blocker reasons. The 'why am I blocked' producer scan — complements /standup's blocked count by surfacing each task's actual blocker text. Grouped by role so the producer sees concentration.")
 def studio_blocked_tasks() -> dict:
     state = _require_state()

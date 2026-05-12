@@ -165,6 +165,11 @@ _ALIASES: dict[str, str] = {
     "tıkalı": "blocked", "tikali": "blocked",
     "süren": "inflight", "suren": "inflight",
     "yapılan": "inflight", "yapilan": "inflight",
+    # Phase 84 backlog hygiene + planning
+    "iptal": "discard", "vazgeç": "discard", "vazgec": "discard",
+    "reddet": "discard",
+    "kilometre": "milestone", "kilometretaşı": "milestone",
+    "hedefkur": "milestone", "yenihedef": "milestone",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -199,6 +204,7 @@ _CANONICAL_COMMANDS: tuple[str, ...] = (
     "recent",  # Phase 81
     "who",  # Phase 82
     "blocked", "inflight", "wip",  # Phase 83
+    "discard", "reject", "milestone",  # Phase 84
     "sprint", "next", "take", "done", "block", "unblock", "why",
     "ship", "cost", "audit",
     "tasks", "milestones", "ms", "decisions",
@@ -455,6 +461,14 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── inflight   (Phase 83: every in_progress task with owner)
     if cmd in ("inflight", "wip"):
         return _dispatch_inflight()
+
+    # ── discard <task-id> [reason]   (Phase 84: mark task rejected)
+    if cmd in ("discard", "reject"):
+        return _dispatch_discard(args)
+
+    # ── milestone <name> | <description>   (Phase 84: create milestone)
+    if cmd == "milestone":
+        return _dispatch_milestone(args)
 
     return CommandResult(handled=False)
 
@@ -766,6 +780,8 @@ def _dispatch_help() -> CommandResult:
                 ("/why <id>", "explain task status + unsatisfied deps"),
                 ("/note <id> <text>", "append timestamped note to task description"),
                 ("/dep <id> <dep-id>", "wire dependency (first needs second done first)"),
+                ("/discard <id> [reason]", "close task as REJECTED (won't do)"),
+                ("/milestone <name> | <desc>", "create a milestone"),
                 ("/ship", "ship readiness check"),
                 ("/cost [days]", "LLM token + USD spend"),
                 ("/audit <kind>", "lighting/atmosphere/vfx/build/balance/..."),
@@ -800,6 +816,7 @@ def _dispatch_help() -> CommandResult:
         "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
         "/al /tamam /engelle /aç /neden /toplantı /not /günlük /karar /bul /ilerleme "
         "/kaydet /işle /açıklama /bağımlı /son /akış /kim /engelli /süren "
+        "/iptal /vazgeç /kilometre "
         "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
@@ -1564,6 +1581,125 @@ def _dispatch_why(args: list[str]) -> CommandResult:
     return CommandResult(
         handled=True, ok=True,
         tool_name="studio_explain_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_discard(args: list[str]) -> CommandResult:
+    """Phase 84: /discard <task-id> [reason words...] — set status to
+    REJECTED. The 'won't do' close-out for stale pending work.
+    Optional reason is appended to the blockers list with a 'rejected:'
+    prefix so the rationale stays with the task.
+
+    Use this instead of /block when the task is dead, not stuck.
+    /block keeps a task in scope; /discard removes it from scope.
+    """
+    if not args:
+        return CommandResult(
+            handled=True, ok=False,
+            message=(
+                "Usage: /discard <task-id> [reason]   "
+                "(closes a task as REJECTED — use /block if it's still in scope)"
+            ),
+        )
+    full_id, err = _resolve_task_partial_id(args[0])
+    if err is not None:
+        return err
+    reason = " ".join(args[1:]).strip()
+    try:
+        from ..studio.tools import studio_reject_task
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_reject_task not importable: {exc}",
+        )
+    try:
+        result = studio_reject_task(full_id, reason)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_reject_task",
+            message=f"discard failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_reject_task",
+            tool_result=result,
+            message=result.get("error") or "discard failed",
+        )
+    msg = (
+        f"Task {full_id[:8]} → rejected"
+        + (f" — '{reason}'" if reason else " (no reason recorded)")
+    )
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_reject_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_milestone(args: list[str]) -> CommandResult:
+    """Phase 84: /milestone <name> | <description> — create a milestone.
+
+    Parallel to /decide: pipe-separator splits the multi-word name
+    from a multi-word description. Without a pipe, the whole line is
+    the name (description empty). Empty name rejected.
+    """
+    if not args:
+        return CommandResult(
+            handled=True, ok=False,
+            message=(
+                "Usage: /milestone <name> | <description>   "
+                "(e.g. /milestone Vertical slice | demo-ready by Q3)"
+            ),
+        )
+    line = " ".join(args)
+    if "|" in line:
+        name_part, _, desc_part = line.partition("|")
+        name = name_part.strip()
+        description = desc_part.strip()
+    else:
+        name = line.strip()
+        description = ""
+
+    if not name:
+        return CommandResult(
+            handled=True, ok=False,
+            message="milestone name cannot be empty; put text BEFORE the | character",
+        )
+
+    try:
+        from ..studio.tools import studio_add_milestone
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_add_milestone not importable: {exc}",
+        )
+    try:
+        result = studio_add_milestone(name=name, description=description)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_add_milestone",
+            message=f"milestone create failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_add_milestone",
+            tool_result=result,
+            message=result.get("error") or "milestone create failed",
+        )
+    msg = (
+        f"Created milestone {result['milestone_id'][:8]}: '{name}'"
+        + ("" if description else " — no description; consider adding one")
+    )
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_add_milestone",
         tool_result=result,
         message=msg,
     )

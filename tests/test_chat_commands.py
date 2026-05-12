@@ -3634,6 +3634,231 @@ def test_canonical_commands_includes_blocked_inflight() -> None:
     print("OK Phase 83 commands in suggester vocab")
 
 
+# ─────────────────────────────────────────── Phase 84: /discard + /milestone
+
+
+def test_discard_flips_task_to_rejected() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task, TaskStatus
+        t = Task(title="Stale idea", role="designer")
+        state.add_task(t)
+        r = dispatch(f"discard {t.id[:8]}")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_reject_task"
+        # Persistence — reload from disk
+        tasks = state.load_tasks()
+        updated = next(x for x in tasks if x.id == t.id)
+        assert updated.status is TaskStatus.REJECTED
+    finally:
+        os.chdir(prev)
+    print("OK /discard <id> flips status to REJECTED (persisted)")
+
+
+def test_discard_with_reason_appends_to_blockers() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task, TaskStatus
+        t = Task(title="No longer relevant", role="qa")
+        state.add_task(t)
+        r = dispatch(f"discard {t.id[:8]} URP supersedes this")
+        assert r.ok is True
+        tasks = state.load_tasks()
+        updated = next(x for x in tasks if x.id == t.id)
+        assert updated.status is TaskStatus.REJECTED
+        # The reason is prefixed with 'rejected:' so it can be told apart
+        # from regular /block reasons in the blockers list
+        assert any("rejected: URP supersedes this" in b for b in updated.blockers)
+        # Reason echoed in the message
+        assert "URP supersedes this" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /discard with reason appends 'rejected: <reason>' to blockers")
+
+
+def test_discard_without_reason_still_flips_status() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task, TaskStatus
+        t = Task(title="Quick discard", role="designer")
+        state.add_task(t)
+        r = dispatch(f"discard {t.id[:8]}")
+        assert r.ok is True
+        tasks = state.load_tasks()
+        updated = next(x for x in tasks if x.id == t.id)
+        assert updated.status is TaskStatus.REJECTED
+        # No blockers added when no reason
+        assert updated.blockers == []
+        # Message notes the missing rationale
+        assert "no reason recorded" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /discard without reason still flips REJECTED, notes missing rationale")
+
+
+def test_discard_without_args_returns_usage() -> None:
+    r = dispatch("discard")
+    assert r.handled is True
+    assert r.ok is False
+    assert "Usage" in r.message
+    # Hints the difference vs /block
+    assert "/block" in r.message
+    print("OK /discard with no args → usage + hint about /block distinction")
+
+
+def test_discard_with_unknown_partial_fails_clean() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("discard zzzzzzzz")
+        assert r.ok is False
+        assert "No task id starts with" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /discard <missing-id> → partial-id-not-found error")
+
+
+def test_reject_alias_routes_to_discard() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task, TaskStatus
+        t = Task(title="Via /reject", role="designer")
+        state.add_task(t)
+        r = dispatch(f"reject {t.id[:8]}")
+        assert r.handled is True
+        assert r.tool_name == "studio_reject_task"
+        assert state.load_tasks()[0].status is TaskStatus.REJECTED
+    finally:
+        os.chdir(prev)
+    print("OK /reject alias → /discard")
+
+
+def test_milestone_creates_with_name_and_description() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("milestone Vertical Slice | demo-ready by Q3")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_add_milestone"
+        # Persistence
+        milestones = state.load_milestones()
+        assert len(milestones) == 1
+        m = milestones[0]
+        assert m.name == "Vertical Slice"
+        assert m.description == "demo-ready by Q3"
+        # Short id surfaced in the message
+        assert r.tool_result["milestone_id"][:8] in r.message
+        assert "Vertical Slice" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /milestone <name> | <desc> persists with both fields")
+
+
+def test_milestone_name_only_with_hint() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("milestone Beta")
+        assert r.ok is True
+        milestones = state.load_milestones()
+        assert len(milestones) == 1
+        assert milestones[0].name == "Beta"
+        assert milestones[0].description == ""
+        # Helpful hint to add description next time
+        assert "no description" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /milestone <name-only> persists with empty description + hint")
+
+
+def test_milestone_without_args_returns_usage() -> None:
+    r = dispatch("milestone")
+    assert r.handled is True
+    assert r.ok is False
+    assert "Usage" in r.message
+    print("OK /milestone with no args → usage hint")
+
+
+def test_milestone_empty_name_before_pipe_rejected() -> None:
+    """A pipe with nothing before it → no name → reject (don't silently
+    create a no-name milestone)."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("milestone | just a description")
+        assert r.handled is True
+        assert r.ok is False
+        assert "name" in r.message.lower()
+        # Nothing got persisted
+        assert state.load_milestones() == []
+    finally:
+        os.chdir(prev)
+    print("OK /milestone with empty name → rejected, nothing persisted")
+
+
+def test_milestone_multiple_creates_persist_in_order() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        dispatch("milestone First | desc")
+        dispatch("milestone Second | desc")
+        dispatch("milestone Third | desc")
+        milestones = state.load_milestones()
+        assert len(milestones) == 3
+        names = [m.name for m in milestones]
+        assert "First" in names and "Second" in names and "Third" in names
+    finally:
+        os.chdir(prev)
+    print("OK /milestone called 3 times persists 3 milestones")
+
+
+def test_discard_milestone_turkish_aliases() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="Türkçe discard", role="designer")
+        state.add_task(t)
+        # /iptal → discard
+        r = dispatch(f"iptal {t.id[:8]} sebep")
+        assert r.handled is True
+        assert r.tool_name == "studio_reject_task"
+        # /vazgeç → discard
+        t2 = Task(title="İkinci", role="designer")
+        state.add_task(t2)
+        r = dispatch(f"vazgeç {t2.id[:8]}")
+        assert r.tool_name == "studio_reject_task"
+        # /reddet → discard
+        t3 = Task(title="Üçüncü", role="designer")
+        state.add_task(t3)
+        r = dispatch(f"reddet {t3.id[:8]}")
+        assert r.tool_name == "studio_reject_task"
+        # /kilometre → milestone
+        r = dispatch("kilometre Türkçe milestone | açıklama")
+        assert r.tool_name == "studio_add_milestone"
+        # /hedefkur → milestone
+        r = dispatch("hedefkur İkinci")
+        assert r.tool_name == "studio_add_milestone"
+    finally:
+        os.chdir(prev)
+    print("OK Türkçe /iptal /vazgeç /reddet /kilometre /hedefkur aliases all resolve")
+
+
+def test_help_lists_discard_and_milestone() -> None:
+    r = dispatch("help")
+    assert "/discard" in r.message
+    assert "/milestone" in r.message
+    print("OK /help advertises /discard + /milestone")
+
+
+def test_canonical_commands_includes_discard_milestone() -> None:
+    from unitytools.cli.chat_commands import _CANONICAL_COMMANDS, suggest_command
+    assert "discard" in _CANONICAL_COMMANDS
+    assert "reject" in _CANONICAL_COMMANDS
+    assert "milestone" in _CANONICAL_COMMANDS
+    # Typo: /discrd → /discard
+    assert "discard" in suggest_command("discrd")
+    # Typo: /mlestone → /milestone
+    assert "milestone" in suggest_command("mlestone")
+    print("OK Phase 84 commands in suggester vocab")
+
+
 def test_canonical_commands_includes_note_and_dep() -> None:
     """Drift catch: Phase 80's new commands in suggester vocab."""
     from unitytools.cli.chat_commands import _CANONICAL_COMMANDS, suggest_command
@@ -3908,8 +4133,23 @@ def run_test() -> None:
     test_blocked_inflight_turkish_aliases()
     test_help_lists_blocked_and_inflight()
     test_canonical_commands_includes_blocked_inflight()
+    # Phase 84 /discard + /milestone
+    test_discard_flips_task_to_rejected()
+    test_discard_with_reason_appends_to_blockers()
+    test_discard_without_reason_still_flips_status()
+    test_discard_without_args_returns_usage()
+    test_discard_with_unknown_partial_fails_clean()
+    test_reject_alias_routes_to_discard()
+    test_milestone_creates_with_name_and_description()
+    test_milestone_name_only_with_hint()
+    test_milestone_without_args_returns_usage()
+    test_milestone_empty_name_before_pipe_rejected()
+    test_milestone_multiple_creates_persist_in_order()
+    test_discard_milestone_turkish_aliases()
+    test_help_lists_discard_and_milestone()
+    test_canonical_commands_includes_discard_milestone()
     test_canonical_commands_match_dispatcher()
-    print("All chat-command tests passed (Phase 59-83)")
+    print("All chat-command tests passed (Phase 59-84)")
 
 
 if __name__ == "__main__":
