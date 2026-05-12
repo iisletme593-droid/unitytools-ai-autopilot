@@ -4083,6 +4083,197 @@ def test_canonical_commands_includes_wrap_up() -> None:
     print("OK Phase 85 /wrap-up in suggester vocab")
 
 
+# ─────────────────────────────────────────── Phase 86: /show
+
+
+def test_show_renders_title_role_status_in_message() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task, TaskStatus
+        t = Task(title="Boss arena lighting", role="tech_artist",
+                  description="30fps target.")
+        state.add_task(t)
+        r = dispatch(f"show {t.id[:8]}")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_explain_task"
+        # Headline carries title, role, status
+        first_line = r.message.split("\n", 1)[0]
+        assert "Boss arena lighting" in first_line
+        assert "tech_artist" in first_line
+        assert "pending" in first_line
+    finally:
+        os.chdir(prev)
+    print("OK /show first line carries 'title [role] (status)' headline")
+
+
+def test_show_renders_description_with_notes_inline() -> None:
+    """Description body + every /note entry must appear in the rendered
+    message — that's the point of /show vs /why."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="Lighthouse", role="designer",
+                  description="Original blockout sketch.")
+        state.add_task(t)
+        dispatch(f"note {t.id[:8]} reviewed with art director")
+        dispatch(f"note {t.id[:8]} waiting on new HDRI")
+        r = dispatch(f"show {t.id[:8]}")
+        assert "Original blockout sketch." in r.message
+        assert "reviewed with art director" in r.message
+        assert "waiting on new HDRI" in r.message
+        # Description preamble is present
+        assert "description:" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /show renders description + every /note inline")
+
+
+def test_show_lists_blockers_with_reasons() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="Blocked work", role="qa")
+        state.add_task(t)
+        dispatch(f"block {t.id[:8]} flaky test environment")
+        dispatch(f"block {t.id[:8]} CI runner offline")
+        r = dispatch(f"show {t.id[:8]}")
+        assert "blockers (2):" in r.message
+        assert "flaky test environment" in r.message
+        assert "CI runner offline" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /show lists every blocker with full reason text")
+
+
+def test_show_renders_deps_with_satisfied_marker() -> None:
+    """Each dep shows ✓ (done) or ✗ (still pending/etc) so the operator
+    sees immediately which deps are blocking readiness."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task, TaskStatus
+        done = Task(title="Done dep", role="designer", status=TaskStatus.DONE)
+        state.add_task(done)
+        pending_dep = Task(title="Pending dep", role="designer")
+        state.add_task(pending_dep)
+        target = Task(title="Has deps", role="designer")
+        state.add_task(target)
+        dispatch(f"dep {target.id[:8]} {done.id[:8]}")
+        dispatch(f"dep {target.id[:8]} {pending_dep.id[:8]}")
+        r = dispatch(f"show {target.id[:8]}")
+        # Both ✓ and ✗ marker present
+        assert "✓" in r.message and "✗" in r.message
+        # Both dep titles surfaced
+        assert "Done dep" in r.message
+        assert "Pending dep" in r.message
+        # Status of each shown
+        assert "[done]" in r.message
+        assert "[pending]" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /show renders deps with ✓/✗ + title + status")
+
+
+def test_show_flags_ready_to_start_for_clean_task() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="Clean task", role="designer")
+        state.add_task(t)
+        r = dispatch(f"show {t.id[:8]}")
+        assert "ready to start" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /show flags 'ready to start' for clean pending task")
+
+
+def test_show_hints_note_for_empty_description() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="No description", role="designer")
+        state.add_task(t)
+        r = dispatch(f"show {t.id[:8]}")
+        assert "use /note" in r.message.lower() or "none" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /show hints /note when description is empty")
+
+
+def test_show_without_id_returns_usage_with_why_distinction() -> None:
+    """Usage hint should distinguish /show from /why so the operator
+    knows which to use."""
+    r = dispatch("show")
+    assert r.handled is True
+    assert r.ok is False
+    assert "Usage" in r.message
+    assert "/why" in r.message  # distinction hint
+    print("OK /show with no args → usage + /why distinction hint")
+
+
+def test_show_with_unknown_id_fails_clean() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("show zzzzzzzz")
+        assert r.ok is False
+        assert "No task id starts with" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /show <missing-id> → partial-id-not-found error")
+
+
+def test_show_reuses_studio_explain_task_payload() -> None:
+    """/show and /why share the same underlying tool; the payload
+    should be identical."""
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="Shared payload", role="designer")
+        state.add_task(t)
+        r_show = dispatch(f"show {t.id[:8]}")
+        r_why = dispatch(f"why {t.id[:8]}")
+        assert r_show.tool_name == "studio_explain_task"
+        assert r_why.tool_name == "studio_explain_task"
+        # Same tool_result dict — same task, same time, same payload
+        assert r_show.tool_result["task_id"] == r_why.tool_result["task_id"]
+        assert r_show.tool_result["status"] == r_why.tool_result["status"]
+        # But the messages differ in length: /show is multi-line, /why is one
+        assert r_show.message.count("\n") > r_why.message.count("\n")
+    finally:
+        os.chdir(prev)
+    print("OK /show and /why share tool but render messages differently")
+
+
+def test_show_turkish_aliases() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task
+        t = Task(title="Türkçe show test", role="designer")
+        state.add_task(t)
+        for alias in ("göster", "goster", "bak", "detay"):
+            r = dispatch(f"{alias} {t.id[:8]}")
+            assert r.handled is True, f"/{alias} should resolve to /show"
+            assert r.tool_name == "studio_explain_task", (
+                f"/{alias} should fire studio_explain_task; got {r.tool_name}"
+            )
+    finally:
+        os.chdir(prev)
+    print("OK Türkçe /göster /goster /bak /detay → /show")
+
+
+def test_help_lists_show() -> None:
+    r = dispatch("help")
+    assert "/show" in r.message, "/help should advertise /show"
+    print("OK /help advertises /show")
+
+
+def test_canonical_commands_includes_show() -> None:
+    from unitytools.cli.chat_commands import _CANONICAL_COMMANDS, suggest_command
+    assert "show" in _CANONICAL_COMMANDS
+    assert "show" in suggest_command("shwo")
+    print("OK /show in suggester vocab; /shwo → /show")
+
+
 def test_canonical_commands_includes_note_and_dep() -> None:
     """Drift catch: Phase 80's new commands in suggester vocab."""
     from unitytools.cli.chat_commands import _CANONICAL_COMMANDS, suggest_command
@@ -4386,8 +4577,21 @@ def run_test() -> None:
     test_phase_70_bitir_alias_still_points_to_done()
     test_help_lists_wrap_up()
     test_canonical_commands_includes_wrap_up()
+    # Phase 86 /show
+    test_show_renders_title_role_status_in_message()
+    test_show_renders_description_with_notes_inline()
+    test_show_lists_blockers_with_reasons()
+    test_show_renders_deps_with_satisfied_marker()
+    test_show_flags_ready_to_start_for_clean_task()
+    test_show_hints_note_for_empty_description()
+    test_show_without_id_returns_usage_with_why_distinction()
+    test_show_with_unknown_id_fails_clean()
+    test_show_reuses_studio_explain_task_payload()
+    test_show_turkish_aliases()
+    test_help_lists_show()
+    test_canonical_commands_includes_show()
     test_canonical_commands_match_dispatcher()
-    print("All chat-command tests passed (Phase 59-85)")
+    print("All chat-command tests passed (Phase 59-86)")
 
 
 if __name__ == "__main__":

@@ -174,6 +174,8 @@ _ALIASES: dict[str, str] = {
     "günsonu": "wrap-up", "gunsonu": "wrap-up",
     "kapanış": "wrap-up", "kapanis": "wrap-up",
     "kapat": "wrap-up",
+    # Phase 86 full task viewer
+    "göster": "show", "goster": "show", "bak": "show", "detay": "show",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -210,6 +212,7 @@ _CANONICAL_COMMANDS: tuple[str, ...] = (
     "blocked", "inflight", "wip",  # Phase 83
     "discard", "reject", "milestone",  # Phase 84
     "wrap-up", "wrapup", "wrap",  # Phase 85
+    "show",  # Phase 86
     "sprint", "next", "take", "done", "block", "unblock", "why",
     "ship", "cost", "audit",
     "tasks", "milestones", "ms", "decisions",
@@ -478,6 +481,10 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── wrap-up   (Phase 85: end-of-day digest paired with /standup)
     if cmd in ("wrap-up", "wrapup", "wrap"):
         return _dispatch_wrap_up()
+
+    # ── show <task-id>   (Phase 86: full task viewer)
+    if cmd == "show":
+        return _dispatch_show(args)
 
     return CommandResult(handled=False)
 
@@ -788,6 +795,7 @@ def _dispatch_help() -> CommandResult:
                 ("/block <id> [reason]", "mark task blocked + note reason"),
                 ("/unblock <id>", "blocked → pending"),
                 ("/why <id>", "explain task status + unsatisfied deps"),
+                ("/show <id>", "full task content (title + description + notes + deps)"),
                 ("/note <id> <text>", "append timestamped note to task description"),
                 ("/dep <id> <dep-id>", "wire dependency (first needs second done first)"),
                 ("/discard <id> [reason]", "close task as REJECTED (won't do)"),
@@ -826,7 +834,7 @@ def _dispatch_help() -> CommandResult:
         "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
         "/al /tamam /engelle /aç /neden /toplantı /not /günlük /karar /bul /ilerleme "
         "/kaydet /işle /açıklama /bağımlı /son /akış /kim /engelli /süren "
-        "/iptal /vazgeç /kilometre /günsonu /kapanış "
+        "/iptal /vazgeç /kilometre /günsonu /kapanış /göster /bak "
         "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
@@ -1588,6 +1596,90 @@ def _dispatch_why(args: list[str]) -> CommandResult:
     if result.get("ready_to_start"):
         parts.append("ready to start")
     msg = " — ".join(parts)
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_explain_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_show(args: list[str]) -> CommandResult:
+    """Phase 86: /show <task-id> — full task content viewer.
+
+    Companion to /why (status diagnostic). Same underlying
+    studio_explain_task tool, but the message renders the full
+    multi-line body — title + role + status + milestone + every
+    blocker + every dep with its status + the description (with
+    any /note entries inline). The 'tell me everything about
+    this task' command.
+    """
+    if not args:
+        return CommandResult(
+            handled=True, ok=False,
+            message=(
+                "Usage: /show <task-id>   "
+                "(run /next or /tasks to find an id; /why for status diagnostic)"
+            ),
+        )
+    full_id, err = _resolve_task_partial_id(args[0])
+    if err is not None:
+        return err
+    try:
+        from ..studio.tools import studio_explain_task
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_explain_task not importable: {exc}",
+        )
+    try:
+        result = studio_explain_task(full_id)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_explain_task",
+            message=f"show failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_explain_task",
+            tool_result=result,
+            message=result.get("error") or "show failed",
+        )
+
+    # Multi-line full-content rendering — different from /why's
+    # one-line diagnostic. Chat panels can render the tool_result
+    # however they like; the message is the readable transcript form.
+    lines: list[str] = []
+    lines.append(f"{result['title']}  [{result['role']}]  ({result['status']})")
+    lines.append(f"  id: {result['task_id']}")
+    if result.get("milestone"):
+        lines.append(f"  milestone: {result['milestone']}")
+    description = (result.get("description") or "").strip()
+    if description:
+        lines.append("  description:")
+        for descr_line in description.splitlines():
+            lines.append(f"    {descr_line}")
+    else:
+        lines.append("  description: (none — use /note <id> <text> to add one)")
+    blockers = result.get("blockers") or []
+    if blockers:
+        lines.append(f"  blockers ({len(blockers)}):")
+        for b in blockers:
+            lines.append(f"    - {b}")
+    deps = result.get("depends_on") or []
+    if deps:
+        lines.append(f"  depends_on ({len(deps)}):")
+        for d in deps:
+            mark = "✓" if d.get("satisfied") else "✗"
+            lines.append(
+                f"    {mark} {d.get('id', '?')[:8]}  {d.get('title', '')}  "
+                f"[{d.get('status', '?')}]"
+            )
+    if result.get("ready_to_start"):
+        lines.append("  ready to start (status=pending, no blockers, deps satisfied)")
+    msg = "\n".join(lines)
     return CommandResult(
         handled=True, ok=True,
         tool_name="studio_explain_task",

@@ -278,6 +278,7 @@ def _handle_slash(
                 "[cyan]/block[/cyan] <id> [reason]      mark task blocked + record reason\n"
                 "[cyan]/unblock[/cyan] <id>             blocked -> pending\n"
                 "[cyan]/why[/cyan] <id>                 explain a task's status + unsatisfied deps\n"
+                "[cyan]/show[/cyan] <id>                full task viewer (title + description + notes + deps)\n"
                 "[cyan]/note[/cyan] <id> <text>         append a timestamped note to a task's description\n"
                 "[cyan]/dep[/cyan] <id> <dep-id>        wire a dependency (first needs second done first)\n"
                 "[cyan]/discard[/cyan] <id> [reason]    close task as REJECTED (won't do)\n"
