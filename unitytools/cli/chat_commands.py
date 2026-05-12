@@ -155,6 +155,9 @@ _ALIASES: dict[str, str] = {
     "açıklama": "note", "aciklama": "note", "ekle": "note",
     "bağımlı": "dep", "bagimli": "dep", "bağ": "dep", "bag": "dep",
     "bekler": "dep",
+    # Phase 81 recent activity timeline
+    "son": "recent", "sondurum": "recent", "geçenler": "recent",
+    "gecenler": "recent", "akış": "recent", "akis": "recent",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -186,6 +189,7 @@ _CANONICAL_COMMANDS: tuple[str, ...] = (
     "dashboard", "standup", "log", "journal", "decide", "find", "burndown",
     "commit",  # Phase 79
     "note", "dep",  # Phase 80
+    "recent",  # Phase 81
     "sprint", "next", "take", "done", "block", "unblock", "why",
     "ship", "cost", "audit",
     "tasks", "milestones", "ms", "decisions",
@@ -426,6 +430,10 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── dep <task-id> <dep-id>   (Phase 80: wire a dependency)
     if cmd == "dep":
         return _dispatch_dep(args)
+
+    # ── recent [days]   (Phase 81: combined activity timeline)
+    if cmd == "recent":
+        return _dispatch_recent(args)
 
     return CommandResult(handled=False)
 
@@ -718,6 +726,7 @@ def _dispatch_help() -> CommandResult:
                 ("/build <target> [--dev]", "windows/mac/linux/webgl/android/ios"),
                 ("/dashboard [--save] [days]", "operator's morning glance"),
                 ("/standup [hours]", "daily digest: closed/in-flight/blocked/pending"),
+                ("/recent [days]", "combined activity timeline (commits+tasks+decisions+journal)"),
                 ("/log <message>", "append timestamped entry to today's journal"),
                 ("/journal [days]", "read last N days of journal entries"),
                 ("/decide <title> | <summary>", "record a design decision (proposed)"),
@@ -766,7 +775,7 @@ def _dispatch_help() -> CommandResult:
         "Türkçe aliases: /yardım /durum /sağlık /başlat /eşitle /oluştur "
         "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
         "/al /tamam /engelle /aç /neden /toplantı /not /günlük /karar /bul /ilerleme "
-        "/kaydet /işle /açıklama /bağımlı "
+        "/kaydet /işle /açıklama /bağımlı /son /akış "
         "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
@@ -1531,6 +1540,72 @@ def _dispatch_why(args: list[str]) -> CommandResult:
     return CommandResult(
         handled=True, ok=True,
         tool_name="studio_explain_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_recent(args: list[str]) -> CommandResult:
+    """Phase 81: /recent [days] — combined activity timeline. Surfaces
+    commits + closed tasks + decisions + journal entries from the last
+    N days (default 7), DESC by timestamp.
+
+    A producer's 'what happened recently' catch-up. Complements
+    /standup (which is forward-looking — what's open today) by being
+    backward-looking — what we already shipped + decided + recorded.
+    """
+    days = 7.0
+    if args:
+        try:
+            days = float(args[0])
+        except ValueError:
+            return CommandResult(
+                handled=True, ok=False,
+                message=f"days must be a number; got {args[0]!r}",
+            )
+        if days <= 0:
+            return CommandResult(
+                handled=True, ok=False,
+                message="days must be positive",
+            )
+    try:
+        from ..studio.tools import studio_recent_activity
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_recent_activity not importable: {exc}",
+        )
+    try:
+        result = studio_recent_activity(days=days)
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_recent_activity",
+            message=f"recent activity failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_recent_activity",
+            tool_result=result,
+            message=result.get("error") or "recent activity failed",
+        )
+
+    by_src = result.get("by_source", {})
+    total = result.get("event_count", 0)
+    if total == 0:
+        msg = f"Nothing landed in the last {days:g} day(s) — quiet stretch."
+    else:
+        parts: list[str] = []
+        for label in ("commit", "task", "decision", "journal"):
+            count = by_src.get(label, 0)
+            if count:
+                parts.append(f"{count} {label}{'s' if count != 1 else ''}")
+        breakdown = ", ".join(parts) if parts else "0 events"
+        msg = f"Last {days:g}d: {total} events ({breakdown})"
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_recent_activity",
         tool_result=result,
         message=msg,
     )

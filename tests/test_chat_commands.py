@@ -3060,6 +3060,170 @@ def test_help_lists_note_and_dep() -> None:
     print("OK /help advertises /note + /dep")
 
 
+# ─────────────────────────────────────────── Phase 81: /recent timeline
+
+
+def _seed_activity_studio() -> tuple:
+    """Plant a mix of closed tasks, decisions, and journal entries
+    across a 30-day window so /recent's day filter is exercised."""
+    import time as _t
+    state, tmp, prev = _fresh_studio_cwd()
+    from unitytools.studio.models import Task, TaskStatus, Decision
+
+    now = _t.time()
+    # Within 7d
+    t = Task(title="Recent done", role="designer", status=TaskStatus.DONE)
+    t.updated_at = now - 3600  # 1h ago
+    state.add_task(t)
+    # Outside 7d
+    t = Task(title="Old done", role="designer", status=TaskStatus.DONE)
+    t.updated_at = now - 14 * 86400  # 14 days ago
+    state.add_task(t)
+    # In-flight (must NOT appear in /recent — that's only closed)
+    state.add_task(Task(title="In flight", role="qa",
+                         status=TaskStatus.IN_PROGRESS))
+    # Decision (timestamp defaults to now)
+    state.append_decision(Decision(title="URP migration", summary="accepted"))
+    # Journal entry (today)
+    dispatch("log smoke note for /recent")
+    return state, tmp, prev
+
+
+def test_recent_combines_every_source() -> None:
+    state, _, prev = _seed_activity_studio()
+    try:
+        r = dispatch("recent")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_recent_activity"
+        by_src = r.tool_result["by_source"]
+        # Recent done task + decision + journal entry should all be there.
+        # (No git commits because not a real git repo here.)
+        assert by_src.get("task", 0) >= 1, "closed task should appear"
+        assert by_src.get("decision", 0) >= 1, "decision should appear"
+        assert by_src.get("journal", 0) >= 1, "journal should appear"
+    finally:
+        os.chdir(prev)
+    print("OK /recent combines closed tasks + decisions + journal entries")
+
+
+def test_recent_excludes_events_older_than_window() -> None:
+    state, _, prev = _seed_activity_studio()
+    try:
+        r = dispatch("recent 7")
+        # The 14-day-old done task should NOT be in the events list
+        old_hit = next(
+            (e for e in r.tool_result["events"]
+              if e["source"] == "task" and e["title"] == "Old done"),
+            None,
+        )
+        assert old_hit is None, "14-day-old task must not appear in 7d window"
+    finally:
+        os.chdir(prev)
+    print("OK /recent excludes events outside the window")
+
+
+def test_recent_excludes_in_flight_tasks() -> None:
+    """Only DONE tasks land in the activity timeline."""
+    state, _, prev = _seed_activity_studio()
+    try:
+        r = dispatch("recent")
+        inflight = next(
+            (e for e in r.tool_result["events"]
+              if e["source"] == "task" and e["title"] == "In flight"),
+            None,
+        )
+        assert inflight is None, "in_progress tasks must not appear in /recent"
+    finally:
+        os.chdir(prev)
+    print("OK /recent only includes DONE tasks (not in_progress)")
+
+
+def test_recent_sorted_desc_by_timestamp() -> None:
+    state, _, prev = _seed_activity_studio()
+    try:
+        r = dispatch("recent")
+        events = r.tool_result["events"]
+        timestamps = [e["timestamp"] for e in events]
+        # Sorted DESC — each next entry's ts ≤ previous
+        for prev_ts, cur_ts in zip(timestamps, timestamps[1:]):
+            assert prev_ts >= cur_ts, (
+                f"events must be DESC by timestamp; saw {prev_ts} before {cur_ts}"
+            )
+    finally:
+        os.chdir(prev)
+    print("OK /recent events DESC by timestamp")
+
+
+def test_recent_widens_window() -> None:
+    state, _, prev = _seed_activity_studio()
+    try:
+        r_7 = dispatch("recent 7")
+        r_30 = dispatch("recent 30")
+        # 30-day window picks up the 14-day-old task too
+        assert r_30.tool_result["event_count"] > r_7.tool_result["event_count"]
+    finally:
+        os.chdir(prev)
+    print("OK /recent <days> widens the window correctly")
+
+
+def test_recent_empty_studio_returns_zero_cleanly() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("recent")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_result["event_count"] == 0
+        assert "quiet" in r.message.lower() or "nothing" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /recent on empty studio → 0 events, friendly message")
+
+
+def test_recent_bad_arg_rejected() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("recent notanumber")
+        assert r.ok is False
+        assert "number" in r.message.lower()
+        r2 = dispatch("recent -3")
+        assert r2.ok is False
+        r3 = dispatch("recent 0")
+        assert r3.ok is False
+    finally:
+        os.chdir(prev)
+    print("OK /recent rejects non-numeric / zero / negative days")
+
+
+def test_recent_turkish_aliases() -> None:
+    state, _, prev = _seed_activity_studio()
+    try:
+        for alias in ("son", "geçenler", "gecenler", "akış", "akis"):
+            r = dispatch(alias)
+            assert r.handled is True, f"/{alias} should resolve to /recent"
+            assert r.tool_name == "studio_recent_activity", (
+                f"/{alias} should fire studio_recent_activity; got {r.tool_name}"
+            )
+    finally:
+        os.chdir(prev)
+    print("OK Türkçe /son /geçenler /gecenler /akış /akis all → /recent")
+
+
+def test_help_lists_recent() -> None:
+    r = dispatch("help")
+    assert "/recent" in r.message, "/help should advertise /recent"
+    print("OK /help advertises /recent")
+
+
+def test_canonical_commands_includes_recent() -> None:
+    from unitytools.cli.chat_commands import _CANONICAL_COMMANDS, suggest_command
+    assert "recent" in _CANONICAL_COMMANDS
+    # Typo /rcnt should suggest /recent
+    s = suggest_command("recnt")
+    assert "recent" in s, f"/recnt should suggest /recent; got {s}"
+    print("OK Phase 81 /recent in suggester vocab; /recnt typo → /recent")
+
+
 def test_canonical_commands_includes_note_and_dep() -> None:
     """Drift catch: Phase 80's new commands in suggester vocab."""
     from unitytools.cli.chat_commands import _CANONICAL_COMMANDS, suggest_command
@@ -3298,8 +3462,19 @@ def run_test() -> None:
     test_note_dep_turkish_aliases()
     test_help_lists_note_and_dep()
     test_canonical_commands_includes_note_and_dep()
+    # Phase 81 /recent
+    test_recent_combines_every_source()
+    test_recent_excludes_events_older_than_window()
+    test_recent_excludes_in_flight_tasks()
+    test_recent_sorted_desc_by_timestamp()
+    test_recent_widens_window()
+    test_recent_empty_studio_returns_zero_cleanly()
+    test_recent_bad_arg_rejected()
+    test_recent_turkish_aliases()
+    test_help_lists_recent()
+    test_canonical_commands_includes_recent()
     test_canonical_commands_match_dispatcher()
-    print("All chat-command tests passed (Phase 59-80)")
+    print("All chat-command tests passed (Phase 59-81)")
 
 
 if __name__ == "__main__":

@@ -727,6 +727,112 @@ def studio_standup(window_hours: float = 24.0) -> dict:
     }
 
 
+@tool(description="Phase 81: Combined activity timeline across the studio — recent git commits, tasks closed, decisions made, and journal entries — in one DESC-by-timestamp stream. days defaults to 7. Each event carries: timestamp (unix), source ('commit'/'task'/'decision'/'journal'), title, and source-specific extras. Useful for the 'what happened recently' daily catch-up.")
+def studio_recent_activity(days: float = 7.0) -> dict:
+    import time
+    state = _require_state()
+    if days <= 0:
+        return {"ok": False, "error": "days must be positive"}
+
+    now = time.time()
+    cutoff = now - (days * 86400)
+    events: list[dict] = []
+
+    # ── Closed tasks within window
+    for t in state.load_tasks():
+        if t.status is not TaskStatus.DONE:
+            continue
+        ts = getattr(t, "updated_at", 0) or 0
+        if ts >= cutoff:
+            events.append({
+                "timestamp": ts,
+                "source": "task",
+                "title": t.title,
+                "role": t.role,
+                "id": t.id,
+                "milestone": t.milestone,
+            })
+
+    # ── Decisions in window
+    for d in state.load_decisions():
+        ts = getattr(d, "timestamp", 0) or 0
+        if ts >= cutoff:
+            events.append({
+                "timestamp": ts,
+                "source": "decision",
+                "title": d.title,
+                "status": d.status.value,
+                "id": d.id,
+                "summary": d.summary,
+            })
+
+    # ── Journal entries — each individual entry line in last N days
+    if state.paths.journal.is_dir():
+        for offset in range(int(days) + 1):
+            day_ts = now - offset * 86400
+            date_iso = time.strftime("%Y-%m-%d", time.localtime(day_ts))
+            jpath = state.paths.journal_for_date(date_iso)
+            if not jpath.is_file():
+                continue
+            try:
+                content = jpath.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            # Parse each `- **HH:MM:SS**  <text>` line into an event
+            import re
+            for m in re.finditer(
+                r"-\s+\*\*(\d{2}):(\d{2}):(\d{2})\*\*\s+(.+?)$",
+                content, re.MULTILINE,
+            ):
+                hh, mm, ss, text = m.group(1), m.group(2), m.group(3), m.group(4)
+                try:
+                    entry_ts = time.mktime(time.strptime(
+                        f"{date_iso} {hh}:{mm}:{ss}", "%Y-%m-%d %H:%M:%S",
+                    ))
+                except Exception:
+                    entry_ts = day_ts
+                if entry_ts < cutoff:
+                    continue
+                events.append({
+                    "timestamp": entry_ts,
+                    "source": "journal",
+                    "title": text.strip()[:120],
+                    "date": date_iso,
+                })
+
+    # ── Git commits via the existing studio_recent_commits tool
+    # (defined later in this module — resolved at call time).
+    commits_result = studio_recent_commits(limit=50)
+    if commits_result.get("ok"):
+        for c in commits_result.get("commits", []):
+            ts = c.get("timestamp", 0) or 0
+            if ts >= cutoff:
+                events.append({
+                    "timestamp": ts,
+                    "source": "commit",
+                    "title": c.get("subject", ""),
+                    "sha": c.get("sha"),
+                    "author": c.get("author"),
+                })
+
+    # Sort newest-first
+    events.sort(key=lambda e: e.get("timestamp", 0), reverse=True)
+
+    # Per-source counters
+    from collections import Counter
+    by_source = Counter(e["source"] for e in events)
+
+    return {
+        "ok": True,
+        "days": days,
+        "now": now,
+        "cutoff": cutoff,
+        "events": events,
+        "event_count": len(events),
+        "by_source": dict(by_source),
+    }
+
+
 @tool(description="Phase 80: Append a free-text note to a task's description. The new note is separated from existing content by a blank line and timestamped (YYYY-MM-DD HH:MM) so the description grows into a chronological record of the task's evolution. Never overwrites — pure append.")
 def studio_append_task_note(task_id: str, note: str) -> dict:
     import time
