@@ -283,6 +283,8 @@ def _handle_slash(
                 "[cyan]/standup[/cyan] [hours]           daily digest: closed/in-flight/blocked/pending\n"
                 "[cyan]/recent[/cyan] [days]             combined activity timeline (commits+tasks+decisions+journal)\n"
                 "[cyan]/who[/cyan] <role>                per-role drill-down (in-flight/pending/blocked/done)\n"
+                "[cyan]/blocked[/cyan]                  every blocked task across the studio + reasons\n"
+                "[cyan]/inflight[/cyan]                 every in_progress task with owner (oldest-first)\n"
                 "[cyan]/log[/cyan] <message>             append a timestamped note to today's journal\n"
                 "[cyan]/journal[/cyan] [days]            read last N days of journal entries\n"
                 "[cyan]/decide[/cyan] <title> | <summary>  record a design decision (proposed)\n"

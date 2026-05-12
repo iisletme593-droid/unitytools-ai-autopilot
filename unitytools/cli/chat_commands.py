@@ -160,6 +160,11 @@ _ALIASES: dict[str, str] = {
     "gecenler": "recent", "akış": "recent", "akis": "recent",
     # Phase 82 per-role drill-down
     "kim": "who", "rolün": "who", "rolun": "who",
+    # Phase 83 blocked + inflight drill-downs
+    "engelli": "blocked", "engellenmiş": "blocked", "engellenmis": "blocked",
+    "tıkalı": "blocked", "tikali": "blocked",
+    "süren": "inflight", "suren": "inflight",
+    "yapılan": "inflight", "yapilan": "inflight",
     # Inventory
     "görev": "tasks", "gorev": "tasks", "görevler": "tasks", "gorevler": "tasks",
     "hedef": "milestones", "hedefler": "milestones",
@@ -193,6 +198,7 @@ _CANONICAL_COMMANDS: tuple[str, ...] = (
     "note", "dep",  # Phase 80
     "recent",  # Phase 81
     "who",  # Phase 82
+    "blocked", "inflight", "wip",  # Phase 83
     "sprint", "next", "take", "done", "block", "unblock", "why",
     "ship", "cost", "audit",
     "tasks", "milestones", "ms", "decisions",
@@ -441,6 +447,14 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── who <role>   (Phase 82: per-role full status drill-down)
     if cmd == "who":
         return _dispatch_who(args)
+
+    # ── blocked   (Phase 83: every blocked task with full reasons)
+    if cmd == "blocked":
+        return _dispatch_blocked()
+
+    # ── inflight   (Phase 83: every in_progress task with owner)
+    if cmd in ("inflight", "wip"):
+        return _dispatch_inflight()
 
     return CommandResult(handled=False)
 
@@ -735,6 +749,8 @@ def _dispatch_help() -> CommandResult:
                 ("/standup [hours]", "daily digest: closed/in-flight/blocked/pending"),
                 ("/recent [days]", "combined activity timeline (commits+tasks+decisions+journal)"),
                 ("/who <role>", "per-role drill-down (in-flight/pending/blocked/done)"),
+                ("/blocked", "every blocked task across the studio + reasons"),
+                ("/inflight", "every in_progress task with owner (oldest-first)"),
                 ("/log <message>", "append timestamped entry to today's journal"),
                 ("/journal [days]", "read last N days of journal entries"),
                 ("/decide <title> | <summary>", "record a design decision (proposed)"),
@@ -783,7 +799,7 @@ def _dispatch_help() -> CommandResult:
         "Türkçe aliases: /yardım /durum /sağlık /başlat /eşitle /oluştur "
         "/yürüt /rol /rapor /satış /maliyet /denetim /yapı /sıradaki "
         "/al /tamam /engelle /aç /neden /toplantı /not /günlük /karar /bul /ilerleme "
-        "/kaydet /işle /açıklama /bağımlı /son /akış /kim "
+        "/kaydet /işle /açıklama /bağımlı /son /akış /kim /engelli /süren "
         "/görev /hedef /referans /dil /diyalog /varlık /davranış /roller"
     )
     msg = "\n".join(lines)
@@ -1548,6 +1564,105 @@ def _dispatch_why(args: list[str]) -> CommandResult:
     return CommandResult(
         handled=True, ok=True,
         tool_name="studio_explain_task",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_blocked() -> CommandResult:
+    """Phase 83: /blocked — every blocked task across the studio with
+    its full blocker reasons. Producer's 'what do I unblock now?' scan.
+    """
+    try:
+        from ..studio.tools import studio_blocked_tasks
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_blocked_tasks not importable: {exc}",
+        )
+    try:
+        result = studio_blocked_tasks()
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_blocked_tasks",
+            message=f"blocked lookup failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_blocked_tasks",
+            tool_result=result,
+            message=result.get("error") or "blocked lookup failed",
+        )
+
+    count = result["count"]
+    if count == 0:
+        msg = "Nothing blocked — clear runway."
+    else:
+        lines = [f"{count} blocked task(s):"]
+        for t in result["tasks"][:10]:
+            reasons = "; ".join(t["blockers"]) if t["blockers"] else "(no reason recorded)"
+            lines.append(
+                f"  {t['id'][:8]}  [{t['role']}]  {t['title']}  — {reasons}"
+            )
+        if count > 10:
+            lines.append(f"  ... +{count - 10} more")
+        msg = "\n".join(lines)
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_blocked_tasks",
+        tool_result=result,
+        message=msg,
+    )
+
+
+def _dispatch_inflight() -> CommandResult:
+    """Phase 83: /inflight — every in_progress task with its owner.
+    Sorted oldest-first so long-running work bubbles up (those are
+    the triage candidates — /why <id> or /block <id> them).
+    """
+    try:
+        from ..studio.tools import studio_inflight_tasks
+    except ImportError as exc:
+        return CommandResult(
+            handled=True, ok=False,
+            message=f"studio_inflight_tasks not importable: {exc}",
+        )
+    try:
+        result = studio_inflight_tasks()
+    except Exception as exc:  # noqa: BLE001
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_inflight_tasks",
+            message=f"inflight lookup failed: {exc}",
+        )
+    if not result.get("ok"):
+        return CommandResult(
+            handled=True, ok=False,
+            tool_name="studio_inflight_tasks",
+            tool_result=result,
+            message=result.get("error") or "inflight lookup failed",
+        )
+
+    count = result["count"]
+    if count == 0:
+        msg = "Nothing in flight — run /next to pick something up."
+    else:
+        by_role_str = ", ".join(
+            f"{n} {r}" for r, n in sorted(result["by_role"].items())
+        )
+        lines = [f"{count} in flight ({by_role_str}):"]
+        for t in result["tasks"][:10]:
+            lines.append(
+                f"  {t['id'][:8]}  [{t['role']}]  {t['title']}"
+            )
+        if count > 10:
+            lines.append(f"  ... +{count - 10} more")
+        msg = "\n".join(lines)
+    return CommandResult(
+        handled=True, ok=True,
+        tool_name="studio_inflight_tasks",
         tool_result=result,
         message=msg,
     )

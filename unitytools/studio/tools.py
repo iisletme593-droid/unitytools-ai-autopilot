@@ -727,6 +727,59 @@ def studio_standup(window_hours: float = 24.0) -> dict:
     }
 
 
+@tool(description="Phase 83: Every blocked task across the studio, with full blocker reasons. The 'why am I blocked' producer scan — complements /standup's blocked count by surfacing each task's actual blocker text. Grouped by role so the producer sees concentration.")
+def studio_blocked_tasks() -> dict:
+    state = _require_state()
+    blocked = [t for t in state.load_tasks() if t.status is TaskStatus.BLOCKED]
+
+    from collections import Counter
+    by_role = Counter(t.role for t in blocked)
+
+    return {
+        "ok": True,
+        "count": len(blocked),
+        "by_role": dict(by_role),
+        "tasks": [
+            {
+                "id": t.id,
+                "title": t.title,
+                "role": t.role,
+                "milestone": t.milestone,
+                "blockers": list(t.blockers or []),
+                "updated_at": getattr(t, "updated_at", 0),
+            }
+            for t in blocked
+        ],
+    }
+
+
+@tool(description="Phase 83: Every in_progress task across the studio with its owner. The 'what's everyone working on right now' producer scan. Sorted oldest-first by updated_at so anything that's been in flight for a long time bubbles up — those are the candidates for /why or /block triage.")
+def studio_inflight_tasks() -> dict:
+    state = _require_state()
+    inflight = [t for t in state.load_tasks() if t.status is TaskStatus.IN_PROGRESS]
+    # Oldest-updated first: long-running in-flight tasks are stickiness signals
+    inflight.sort(key=lambda t: getattr(t, "updated_at", 0) or 0)
+
+    from collections import Counter
+    by_role = Counter(t.role for t in inflight)
+
+    return {
+        "ok": True,
+        "count": len(inflight),
+        "by_role": dict(by_role),
+        "tasks": [
+            {
+                "id": t.id,
+                "title": t.title,
+                "role": t.role,
+                "milestone": t.milestone,
+                "updated_at": getattr(t, "updated_at", 0),
+            }
+            for t in inflight
+        ],
+    }
+
+
 @tool(description="Phase 82: Full status drill-down for one role — every task that role owns, grouped by status (in_progress, pending, blocked, review, done_recent), with per-bucket counts. The done_recent bucket is capped to tasks closed within the last 7 days so the response stays scannable on long-running studios. Use this when /standup's per-role counts say a role has 12 tasks and you want to actually see them.")
 def studio_role_status(role: str, recent_days: float = 7.0) -> dict:
     import time

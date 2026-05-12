@@ -3421,6 +3421,219 @@ def test_canonical_commands_includes_who() -> None:
     print("OK /who in suggester vocab; /wh0 → /who")
 
 
+# ─────────────────────────────────────────── Phase 83: /blocked + /inflight
+
+
+def _seed_blocked_inflight_studio() -> tuple:
+    """3 blocked across 2 roles (one with multi-reason), 2 in-flight
+    across 2 roles, plus a couple of unrelated tasks (pending/done) to
+    prove filtering works."""
+    state, tmp, prev = _fresh_studio_cwd()
+    from unitytools.studio.models import Task, TaskStatus
+
+    state.add_task(Task(title="In-flight designer", role="designer",
+                         status=TaskStatus.IN_PROGRESS))
+    state.add_task(Task(title="In-flight tech_artist", role="tech_artist",
+                         status=TaskStatus.IN_PROGRESS))
+    state.add_task(Task(title="Blocked TA single reason", role="tech_artist",
+                         status=TaskStatus.BLOCKED,
+                         blockers=["waiting on EXR"]))
+    state.add_task(Task(title="Blocked TA multi reason", role="tech_artist",
+                         status=TaskStatus.BLOCKED,
+                         blockers=["external review", "missing decision"]))
+    state.add_task(Task(title="Blocked QA", role="qa",
+                         status=TaskStatus.BLOCKED,
+                         blockers=["flaky test"]))
+    # Unrelated — should NOT appear in either result
+    state.add_task(Task(title="Pending task", role="designer"))
+    state.add_task(Task(title="Done task", role="qa",
+                         status=TaskStatus.DONE))
+    return state, tmp, prev
+
+
+def test_blocked_lists_every_blocked_task_with_reasons() -> None:
+    state, _, prev = _seed_blocked_inflight_studio()
+    try:
+        r = dispatch("blocked")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_blocked_tasks"
+        assert r.tool_result["count"] == 3
+        # Each blocker's full reasons list is preserved
+        multi = next(
+            t for t in r.tool_result["tasks"]
+            if t["title"] == "Blocked TA multi reason"
+        )
+        assert multi["blockers"] == ["external review", "missing decision"]
+        # by_role rollup is correct
+        assert r.tool_result["by_role"].get("tech_artist") == 2
+        assert r.tool_result["by_role"].get("qa") == 1
+    finally:
+        os.chdir(prev)
+    print("OK /blocked counts + by_role rollup + multi-reason blockers preserved")
+
+
+def test_blocked_message_includes_blocker_reasons_inline() -> None:
+    """The message line is what chat panels render — must include the
+    blocker text, not just task titles."""
+    state, _, prev = _seed_blocked_inflight_studio()
+    try:
+        r = dispatch("blocked")
+        assert "waiting on EXR" in r.message
+        assert "flaky test" in r.message
+        # Multi-reason joined with semicolons
+        assert "external review" in r.message
+        assert "missing decision" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /blocked message inlines every blocker reason")
+
+
+def test_blocked_excludes_non_blocked_tasks() -> None:
+    state, _, prev = _seed_blocked_inflight_studio()
+    try:
+        r = dispatch("blocked")
+        titles = [t["title"] for t in r.tool_result["tasks"]]
+        # Pending / in-flight / done tasks should NOT appear
+        assert "Pending task" not in titles
+        assert "Done task" not in titles
+        assert "In-flight designer" not in titles
+    finally:
+        os.chdir(prev)
+    print("OK /blocked filters to BLOCKED status only")
+
+
+def test_blocked_empty_studio_returns_clear_runway() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("blocked")
+        assert r.ok is True
+        assert r.tool_result["count"] == 0
+        assert "clear runway" in r.message.lower() or "nothing blocked" in r.message.lower()
+    finally:
+        os.chdir(prev)
+    print("OK /blocked on empty studio → 'clear runway' message")
+
+
+def test_inflight_lists_every_in_progress_task_with_owner() -> None:
+    state, _, prev = _seed_blocked_inflight_studio()
+    try:
+        r = dispatch("inflight")
+        assert r.handled is True
+        assert r.ok is True
+        assert r.tool_name == "studio_inflight_tasks"
+        assert r.tool_result["count"] == 2
+        roles = {t["role"] for t in r.tool_result["tasks"]}
+        assert roles == {"designer", "tech_artist"}
+    finally:
+        os.chdir(prev)
+    print("OK /inflight returns every IN_PROGRESS task with role")
+
+
+def test_inflight_excludes_other_statuses() -> None:
+    state, _, prev = _seed_blocked_inflight_studio()
+    try:
+        r = dispatch("inflight")
+        titles = [t["title"] for t in r.tool_result["tasks"]]
+        # Blocked + pending + done all excluded
+        assert "Blocked TA single reason" not in titles
+        assert "Pending task" not in titles
+        assert "Done task" not in titles
+    finally:
+        os.chdir(prev)
+    print("OK /inflight only includes IN_PROGRESS — every other status filtered")
+
+
+def test_inflight_sorted_oldest_first() -> None:
+    """Long-running in-flight tasks bubble up first — those need triage."""
+    import time as _t
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        from unitytools.studio.models import Task, TaskStatus
+        now = _t.time()
+        # Plant in this order: newest first (typical add order),
+        # but expect oldest-updated first in the result
+        for offset, title in [(1*3600, "Newest in flight"),
+                                (5*3600, "Mid in flight"),
+                                (24*3600, "Oldest in flight")]:
+            t = Task(title=title, role="designer",
+                      status=TaskStatus.IN_PROGRESS)
+            t.updated_at = now - offset
+            state.add_task(t)
+        r = dispatch("inflight")
+        titles = [t["title"] for t in r.tool_result["tasks"]]
+        assert titles == ["Oldest in flight", "Mid in flight", "Newest in flight"], (
+            f"inflight should be oldest-first; got {titles}"
+        )
+    finally:
+        os.chdir(prev)
+    print("OK /inflight sorts oldest-updated first (long-running triage)")
+
+
+def test_inflight_empty_studio_hints_next() -> None:
+    state, _, prev = _fresh_studio_cwd()
+    try:
+        r = dispatch("inflight")
+        assert r.ok is True
+        assert r.tool_result["count"] == 0
+        # Hints to run /next
+        assert "/next" in r.message
+    finally:
+        os.chdir(prev)
+    print("OK /inflight on empty studio → hints '/next to pick something up'")
+
+
+def test_wip_alias_routes_to_inflight() -> None:
+    """`wip` is a developer-jargon alias for 'in-flight work'."""
+    state, _, prev = _seed_blocked_inflight_studio()
+    try:
+        r = dispatch("wip")
+        assert r.handled is True
+        assert r.tool_name == "studio_inflight_tasks"
+        assert r.tool_result["count"] == 2
+    finally:
+        os.chdir(prev)
+    print("OK /wip alias → /inflight")
+
+
+def test_blocked_inflight_turkish_aliases() -> None:
+    state, _, prev = _seed_blocked_inflight_studio()
+    try:
+        for alias in ("engelli", "engellenmiş", "tıkalı", "tikali"):
+            r = dispatch(alias)
+            assert r.handled is True
+            assert r.tool_name == "studio_blocked_tasks", (
+                f"/{alias} should fire studio_blocked_tasks; got {r.tool_name}"
+            )
+        for alias in ("süren", "suren", "yapılan", "yapilan"):
+            r = dispatch(alias)
+            assert r.handled is True
+            assert r.tool_name == "studio_inflight_tasks", (
+                f"/{alias} should fire studio_inflight_tasks; got {r.tool_name}"
+            )
+    finally:
+        os.chdir(prev)
+    print("OK Türkçe blocked + inflight aliases all resolve")
+
+
+def test_help_lists_blocked_and_inflight() -> None:
+    r = dispatch("help")
+    assert "/blocked" in r.message
+    assert "/inflight" in r.message
+    print("OK /help advertises /blocked + /inflight")
+
+
+def test_canonical_commands_includes_blocked_inflight() -> None:
+    from unitytools.cli.chat_commands import _CANONICAL_COMMANDS, suggest_command
+    assert "blocked" in _CANONICAL_COMMANDS
+    assert "inflight" in _CANONICAL_COMMANDS
+    assert "wip" in _CANONICAL_COMMANDS
+    # Typo suggestions
+    assert "blocked" in suggest_command("blokked")
+    assert "inflight" in suggest_command("inflght")
+    print("OK Phase 83 commands in suggester vocab")
+
+
 def test_canonical_commands_includes_note_and_dep() -> None:
     """Drift catch: Phase 80's new commands in suggester vocab."""
     from unitytools.cli.chat_commands import _CANONICAL_COMMANDS, suggest_command
@@ -3682,8 +3895,21 @@ def run_test() -> None:
     test_who_turkish_aliases()
     test_help_lists_who()
     test_canonical_commands_includes_who()
+    # Phase 83 /blocked + /inflight
+    test_blocked_lists_every_blocked_task_with_reasons()
+    test_blocked_message_includes_blocker_reasons_inline()
+    test_blocked_excludes_non_blocked_tasks()
+    test_blocked_empty_studio_returns_clear_runway()
+    test_inflight_lists_every_in_progress_task_with_owner()
+    test_inflight_excludes_other_statuses()
+    test_inflight_sorted_oldest_first()
+    test_inflight_empty_studio_hints_next()
+    test_wip_alias_routes_to_inflight()
+    test_blocked_inflight_turkish_aliases()
+    test_help_lists_blocked_and_inflight()
+    test_canonical_commands_includes_blocked_inflight()
     test_canonical_commands_match_dispatcher()
-    print("All chat-command tests passed (Phase 59-82)")
+    print("All chat-command tests passed (Phase 59-83)")
 
 
 if __name__ == "__main__":
