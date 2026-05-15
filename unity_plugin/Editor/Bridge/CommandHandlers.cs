@@ -97,8 +97,124 @@ namespace UnityTools.Bridge
                 case "apply_lod_decimation_plan": return ApplyLodDecimationPlan(p);
                 case "create_scene_snapshot": return CreateSceneSnapshot(p);
                 case "restore_scene_snapshot": return RestoreSceneSnapshot(p);
+                case "setup_hdrp_volume": return SetupHdrpVolume(p);
                 default: throw new InvalidOperationException($"Unknown method: {method}");
             }
+        }
+
+        // ── Phase 89: HDRP Global Volume (Exposure+Tonemapping+Fog).
+        // Reflection-only so the bridge asmdef needs NO HDRP reference
+        // and degrades gracefully when HDRP is absent. Fixes the
+        // HDRP white-out (physical auto-exposure with no Exposure
+        // override blows every frame to white).
+        private static Type FindType(string fullName)
+        {
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var t = asm.GetType(fullName, false);
+                if (t != null) return t;
+            }
+            return null;
+        }
+
+        private static void VpOverride(object param, object val)
+        {
+            if (param == null) return;
+            var osF = param.GetType().GetField("overrideState");
+            if (osF != null) osF.SetValue(param, true);
+            var vProp = param.GetType().GetProperty("value");
+            if (vProp == null) return;
+            var pt = vProp.PropertyType;
+            object conv;
+            if (pt.IsEnum)
+                conv = (val is string es) ? Enum.Parse(pt, es, true)
+                                          : Enum.ToObject(pt, Convert.ToInt32(val));
+            else if (pt == typeof(Color)) conv = val;
+            else conv = Convert.ChangeType(val, pt);
+            vProp.SetValue(param, conv);
+        }
+
+        private static bool SetVc(object vc, string field, object val, List<string> applied)
+        {
+            if (vc == null) return false;
+            var f = vc.GetType().GetField(field);
+            if (f == null) return false;
+            var param = f.GetValue(vc);
+            if (param == null) return false;
+            VpOverride(param, val);
+            applied.Add(field + "=" + val);
+            return true;
+        }
+
+        private static object SetupHdrpVolume(JObject p)
+        {
+            float exposure = p["fixed_exposure"]?.ToObject<float>() ?? 12.5f;
+            bool fog = p["fog"]?.ToObject<bool>() ?? true;
+            float meanFreePath = p["fog_distance"]?.ToObject<float>() ?? 260f;
+
+            var profType = FindType("UnityEngine.Rendering.VolumeProfile");
+            var volType = FindType("UnityEngine.Rendering.Volume");
+            if (profType == null || volType == null)
+                return new { ok = false, error = "Volume/VolumeProfile types not found (SRP core missing)" };
+
+            var expType  = FindType("UnityEngine.Rendering.HighDefinition.Exposure");
+            var toneType = FindType("UnityEngine.Rendering.HighDefinition.Tonemapping");
+            var fogType  = FindType("UnityEngine.Rendering.HighDefinition.Fog");
+            if (expType == null && toneType == null)
+                return new { ok = false, error = "HDRP volume types not found — project is not HDRP?" };
+
+            var go = GameObject.Find("UnityTools_HDRPVolume")
+                     ?? new GameObject("UnityTools_HDRPVolume");
+            Undo.RegisterCreatedObjectUndo(go, "UnityTools: HDRP volume");
+            var vol = go.GetComponent(volType) ?? go.AddComponent(volType);
+            volType.GetProperty("isGlobal")?.SetValue(vol, true);
+            volType.GetProperty("priority")?.SetValue(vol, 10f);
+
+            var profile = ScriptableObject.CreateInstance(profType);
+            profile.name = "UnityTools_HDRP_Profile";
+            var sharedProp = volType.GetProperty("sharedProfile") ?? volType.GetProperty("profile");
+            sharedProp?.SetValue(vol, profile);
+
+            var addM = profType.GetMethod("Add", new[] { typeof(Type), typeof(bool) });
+            object AddComp(Type t) => (t != null && addM != null)
+                ? addM.Invoke(profile, new object[] { t, true }) : null;
+
+            var applied = new List<string>();
+
+            if (expType != null)
+            {
+                var exp = AddComp(expType);
+                SetVc(exp, "mode", "Fixed", applied);
+                SetVc(exp, "fixedExposure", exposure, applied);
+            }
+            if (toneType != null)
+            {
+                var tone = AddComp(toneType);
+                SetVc(tone, "mode", "ACES", applied);
+            }
+            if (fog && fogType != null)
+            {
+                var fg = AddComp(fogType);
+                SetVc(fg, "enabled", true, applied);
+                SetVc(fg, "meanFreePath", meanFreePath, applied);
+                SetVc(fg, "baseHeight", 0f, applied);
+                SetVc(fg, "maximumHeight", 60f, applied);
+                SetVc(fg, "enableVolumetricFog", true, applied);
+            }
+
+            EditorUtility.SetDirty(go);
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                volume_object = go.name,
+                pipeline = "HDRP",
+                fixed_exposure = exposure,
+                fog,
+                applied = applied.ToArray(),
+                note = "HDRP Global Volume: Exposure(Fixed)+Tonemapping(ACES)"
+                       + (fog ? "+Fog" : "")
+            };
         }
 
         private static object Ping()
