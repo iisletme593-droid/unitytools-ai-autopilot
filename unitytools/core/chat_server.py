@@ -225,6 +225,19 @@ class ChatServer:
                     return
                 # else: fall through to LLM (shouldn't happen — dispatcher
                 # also handles "unknown command" itself, but be defensive)
+            else:
+                # Phase 87: talk-without-slash. If the plain sentence
+                # clearly maps to a READ/REPORT command, dispatch it
+                # deterministically instead of an LLM round-trip. The
+                # Unity Editor panel gets the same behaviour as the REPL.
+                try:
+                    from ..cli.chat_commands import infer_command
+                    inferred = infer_command(content)
+                except Exception:
+                    inferred = None
+                if inferred:
+                    self._dispatch_slash_command("/" + inferred, send)
+                    return
             content = self._apply_engine_context(content)
             self._process_user_message(content, orch, send)
             return

@@ -234,6 +234,19 @@ def run_chat(
                 return 0
             continue
 
+        # Phase 87: talk-without-slash. If the plain sentence clearly
+        # maps to a READ/REPORT command, dispatch it deterministically
+        # (free, instant) instead of paying an LLM round-trip. Anything
+        # creative / ambiguous falls through to the model untouched.
+        inferred = chat_commands.infer_command(user_in)
+        if inferred:
+            console.print(
+                f"[dim]→ /{inferred}  (doğal dilden algılandı; "
+                f"'/{inferred.split()[0]}' yazsan da aynı)[/dim]"
+            )
+            _handle_slash("/" + inferred, orch, blender, unity, dispatch_ctx)
+            continue
+
         _send_to_llm(orch, user_in)
 
 

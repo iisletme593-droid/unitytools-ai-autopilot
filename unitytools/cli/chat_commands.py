@@ -257,6 +257,110 @@ def suggest_command(unknown: str, max_results: int = 3) -> list[str]:
     return suggestions
 
 
+# ─────────────────────────────────────────── Phase 87: natural language
+
+# Map plain conversational phrasing -> a slash dispatch line, so the
+# operator can talk WITHOUT typing '/'. Deliberately scoped to
+# READ / REPORT commands (+ help/diag, + find/show/why with an explicit
+# argument). Mutations (take/done/block/scaffold/build/commit/...) are
+# intentionally NOT inferred from fuzzy language — those stay explicit
+# (/slash or a clear LLM tool call) so a vague sentence can never
+# silently mutate the backlog or trigger a build.
+#
+# Each entry: (regex, dispatch_line_or_template). A template may use
+# \1 to inject a captured argument (the search query / id).
+import re as _re
+
+_NL_PATTERNS: list[tuple["_re.Pattern[str]", str]] = [
+    # ── help / diag / status
+    (_re.compile(r"(komutlar|ne yapabilirsin|yardım et|hangi komut|list commands|what can you do|show help)", _re.I), "help"),
+    (_re.compile(r"(sistem durumu|teşhis|diagnostics|araç sayısı|kaç tool|how many tools)", _re.I), "diag"),
+    (_re.compile(r"(bağlantı durumu|bridge durumu|unity bağlı|connection status|are we connected)", _re.I), "status"),
+    (_re.compile(r"(stüdyo özeti|studio durumu|studio summary|proje durumu)", _re.I), "studio"),
+    # ── daily flow (report)
+    (_re.compile(r"(standup|stand up|bugün ne oldu|durum raporu|günaydın özet|daily digest|\bdaily\b|ne yapıldı bugün)", _re.I), "standup"),
+    (_re.compile(r"(gün ?sonu|günü bitir|wrap[\s-]?up|kapanış özet|end of day|gün özeti)", _re.I), "wrap-up"),
+    (_re.compile(r"(sıradaki|ne yapayım|bana (bir )?iş ver|next task|what.?s next|sıradaki görev)", _re.I), "next"),
+    (_re.compile(r"(sprint planı|sprint ne|bu sprint|current sprint|\bsprint\b)", _re.I), "sprint"),
+    # ── triage drill-downs
+    (_re.compile(r"(neler bloke|engelli (iş|görev)|bloke (olan|iş)|what.?s blocked|blocked task)", _re.I), "blocked"),
+    (_re.compile(r"(üstünde çalış|devam eden (iş|görev)|şu an ne yapıl|in[\s-]?flight|work in progress|\bwip\b)", _re.I), "inflight"),
+    # ── inventory
+    (_re.compile(r"(görev listesi|görevler ne|task listesi|backlog|bütün görevler|list tasks)", _re.I), "tasks"),
+    (_re.compile(r"(kilometre ?taş|milestone|hedefler ne)", _re.I), "milestones"),
+    (_re.compile(r"(kararlar|alınan karar|decisions log|\bdecisions\b)", _re.I), "decisions"),
+    (_re.compile(r"(varlık (listesi|manifest)|asset manifest|asset listesi)", _re.I), "assets"),
+    (_re.compile(r"(roller ne|list roles|bütün roller|\broller\b)", _re.I), "roles"),
+    # ── aggregate / review
+    (_re.compile(r"(genel durum|dashboard|operatör görünüm|sabah bakış|\bpanel\b)", _re.I), "dashboard"),
+    (_re.compile(r"(yayına hazır|ship ready|ship readiness|göndermeye hazır|çıkışa hazır)", _re.I), "ship"),
+    (_re.compile(r"(maliyet|ne kadar (harcadık|para|token)|cost summary|cost report|llm gideri)", _re.I), "cost"),
+    (_re.compile(r"(son (aktivite|olanlar|hareket)|neler oldu (son|geçen)|recent activity|son durum)", _re.I), "recent"),
+    (_re.compile(r"(burndown|ilerleme grafiği|milestone ilerleme|ne kadar (kaldı|tamamland))", _re.I), "burndown"),
+    # ── argumented: find / show / why  (need an explicit object)
+    (_re.compile(r"(?:^|\s)(?:ara|bul|search(?:\s+for)?|find)[:\s]+(?P<q>.+)$", _re.I), "find \\g<q>"),
+    (_re.compile(r"^(?P<q>.+?)\s+(?:ara|bul|nerede geçiyor)\s*$", _re.I), "find \\g<q>"),
+    (_re.compile(r"(?:neden|niçin).*?(?P<id>[0-9a-f]{6,})", _re.I), "why \\g<id>"),
+    (_re.compile(r"(?P<id>[0-9a-f]{6,}).*?(?:detay|tüm bilgi|göster|\bshow\b)", _re.I), "show \\g<id>"),
+]
+
+# If the message smells like a creative / engine / mutation instruction,
+# never infer a slash command — let it go to the LLM tool loop.
+_NL_GUARD = _re.compile(
+    r"\b(yarat|oluştur|ekle\b|sahne(ye| kur)|küp|sphere|cube|prefab|"
+    r"material|ışık ekle|light|build the|make a|attach|import|spawn|"
+    r"terrain|texture|shader|script yaz|kod yaz|implement|refactor|"
+    r"commit|push|merge|delete|sil\b|kaldır)\b",
+    _re.I,
+)
+
+
+def infer_command(text: str) -> Optional[str]:
+    """Phase 87: map a plain natural-language line to a slash dispatch
+    line, so the operator can drive the studio by talking instead of
+    typing '/'. Returns the dispatch line (no leading slash) or None.
+
+    None means 'not confidently a command' → caller should fall through
+    to the LLM tool loop (preserving full free-text power for scene
+    building, code, creative work).
+
+    Conservative by construction:
+      * only READ/REPORT commands (+ help/diag/status/studio) and
+        find/show/why-with-an-explicit-arg are inferred.
+      * a creative/mutation guard short-circuits to None so e.g.
+        'bir küp yarat' or 'forest sahnesini kur' never get hijacked.
+    """
+    if not text:
+        return None
+    t = text.strip()
+    if not t or t.startswith("/"):
+        return None
+    # Long prose is almost always a creative/LLM instruction, not a
+    # one-word-ish command intent. Keep the inferer for terse asks.
+    if len(t) > 90:
+        return None
+    if _NL_GUARD.search(t):
+        return None
+    for rx, template in _NL_PATTERNS:
+        m = rx.search(t)
+        if not m:
+            continue
+        if "\\g<" in template or "\\1" in template:
+            try:
+                line = m.expand(template).strip()
+            except (re.error, IndexError):
+                continue
+            # Strip trailing punctuation/filler from the captured arg
+            line = _re.sub(r"[\s?.!,;:]+$", "", line)
+            # Reject empty / too-short captured argument
+            head, _, rest = line.partition(" ")
+            if head in {"find", "why", "show"} and len(rest.strip()) < 2:
+                continue
+            return line
+        return template
+    return None
+
+
 def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResult:
     """Parse one slash-command line and dispatch.
 

@@ -1,0 +1,13 @@
+{
+  "milestones": [
+    {
+      "name": "Vertical Slice - Forgotten Valley",
+      "description": "One realistic valley biome with the full explore->gather->upgrade->night->mini-boss loop, 60fps on weak GPU.",
+      "status": "planning",
+      "id": "f54e01a96f16",
+      "target_date": null,
+      "success_criteria": [],
+      "created_at": 1778879650.7407157
+    }
+  ]
+}

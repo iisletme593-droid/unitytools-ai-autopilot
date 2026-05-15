@@ -3870,10 +3870,13 @@ def _seed_wrap_up_studio() -> tuple:
     from unitytools.studio.models import Task, TaskStatus
 
     now = _t.time()
-    # Today's closures
+    # Today's closures — use `now` itself (always within the local
+    # calendar day) instead of now-3600, which lands in 'yesterday'
+    # when the suite runs in the first hour after local midnight and
+    # studio_wrap_up's midnight cutoff (correctly) excludes it.
     for title in ("Done today A", "Done today B"):
         t = Task(title=title, role="designer", status=TaskStatus.DONE)
-        t.updated_at = now - 3600
+        t.updated_at = now
         state.add_task(t)
     # In-flight (carry-over)
     state.add_task(Task(title="In flight A", role="level_designer",
@@ -3886,9 +3889,11 @@ def _seed_wrap_up_studio() -> tuple:
                          blockers=["waiting on art_director"]))
     # Pending (next pick)
     state.add_task(Task(title="Next up", role="designer"))
-    # Yesterday's done — should NOT count in today's closures
+    # Older done — must NOT count in today's closures. 48h back is
+    # unambiguously before today's local-midnight cutoff regardless of
+    # what time of day the suite runs.
     t = Task(title="Yesterday closure", role="qa", status=TaskStatus.DONE)
-    t.updated_at = now - 30 * 3600  # ~yesterday-ish
+    t.updated_at = now - 48 * 3600
     state.add_task(t)
     return state, tmp, prev
 
