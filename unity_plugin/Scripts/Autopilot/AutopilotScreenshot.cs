@@ -69,7 +69,41 @@ namespace Autopilot
             var rt = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32);
             Camera prevCam = cam;
             prevCam.targetTexture = rt;
-            prevCam.Render();
+
+            // Phase 88: URP/SRP-correct capture. Camera.Render() bypasses
+            // the Scriptable Render Pipeline — under URP it skips fog,
+            // tonemapping, bloom and every Volume effect, so screenshots
+            // never matched what the player actually sees (the whole
+            // visual-feedback loop was rendering a lie). When an SRP is
+            // active and the Unity version supports render requests, go
+            // through the pipeline; otherwise fall back to the legacy
+            // path (built-in pipeline / older Unity) unchanged.
+            bool rendered = false;
+#if UNITY_2022_2_OR_NEWER
+            if (UnityEngine.Rendering.RenderPipelineManager.currentPipeline != null)
+            {
+                try
+                {
+                    var req = new UnityEngine.Rendering.RenderPipeline.StandardRequest
+                    {
+                        destination = rt
+                    };
+                    if (UnityEngine.Rendering.RenderPipeline.SupportsRenderRequest(prevCam, req))
+                    {
+                        UnityEngine.Rendering.RenderPipeline.SubmitRenderRequest(prevCam, req);
+                        rendered = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AutopilotLogger.Log(
+                        "[screenshot] SRP render request failed, falling back: "
+                        + ex.Message, "WARN");
+                }
+            }
+#endif
+            if (!rendered)
+                prevCam.Render();
 
             RenderTexture.active = rt;
             var tex = new Texture2D(Width, Height, TextureFormat.RGB24, false);
