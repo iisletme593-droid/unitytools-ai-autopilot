@@ -149,6 +149,19 @@ class UnityBridge:
                 self._sock.settimeout(timeout)
                 line = self._read_line()
             except socket.timeout as e:
+                # CRITICAL: a timed-out request's response may still
+                # arrive later and sit in the socket buffer. If we keep
+                # the socket, the NEXT call reads that stale line as its
+                # own response -> every subsequent RPC is desynced by one
+                # (the cause of "scatter" returning an import_asset dict
+                # and screenshots returning a set_scene_view dict). Drop
+                # the socket so the next call reconnects fresh & clean.
+                try:
+                    if self._sock is not None:
+                        self._sock.close()
+                except Exception:
+                    pass
+                self._sock = None
                 raise TimeoutError(
                     f"Unity RPC zaman aşımı ({timeout:.1f}s). Unity Editor muhtemelen meşgul (compile/import/playmode)."
                 ) from e

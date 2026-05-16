@@ -4293,38 +4293,11 @@ namespace UnityTools.Bridge
             }
         }
 
-        private static string CaptureSceneViewScreenshot(string relativeFolder)
+        private static byte[] RenderCameraToPng(Camera cam, int width, int height)
         {
-            // Source viewpoint: the SceneView camera (or Main) — but we do
-            // NOT render through it. The SceneView camera has no
-            // HDAdditionalCameraData, so a bare cam.Render() in HDRP
-            // produces a degraded image (terrain splat missing -> the
-            // session-long "pale ground"). Instead clone the pose onto a
-            // throwaway camera WITH HDRP camera data and render that.
-            Camera src = null;
-            var sceneView = SceneView.lastActiveSceneView;
-            if (sceneView != null) { sceneView.Repaint(); src = sceneView.camera; }
-            if (src == null) src = Camera.main;
-            if (src == null) throw new InvalidOperationException("No SceneView or MainCamera available for screenshot capture.");
-
-            int width = 1280, height = 720;
             var rt = new RenderTexture(width, height, 24);
-            var previousActive = RenderTexture.active;
-
-            var capGo = new GameObject("__UT_CaptureCam");
-            capGo.hideFlags = HideFlags.HideAndDontSave;
-            var cam = capGo.AddComponent<Camera>();
-            cam.CopyFrom(src);
-            cam.transform.position = src.transform.position;
-            cam.transform.rotation = src.transform.rotation;
-            cam.clearFlags = CameraClearFlags.Skybox;
-            cam.enabled = false;
-            // HDRP camera data via reflection (no asmdef dep) — this is
-            // what makes the HDRP render path actually draw the scene.
-            var hdCamType = FindType("UnityEngine.Rendering.HighDefinition.HDAdditionalCameraData");
-            if (hdCamType != null && capGo.GetComponent(hdCamType) == null)
-                capGo.AddComponent(hdCamType);
-
+            var prevActive = RenderTexture.active;
+            var prevTarget = cam.targetTexture;
             try
             {
                 cam.targetTexture = rt;
@@ -4335,21 +4308,70 @@ namespace UnityTools.Bridge
                 tex.Apply();
                 byte[] bytes = tex.EncodeToPNG();
                 UnityEngine.Object.DestroyImmediate(tex);
-
-                string folder = Path.Combine(ProjectRootPath(), relativeFolder.Replace("/", Path.DirectorySeparatorChar.ToString()));
-                Directory.CreateDirectory(folder);
-                string path = Path.Combine(folder, $"visual_qa_{DateTime.Now:yyyyMMdd_HHmmss}.png");
-                File.WriteAllBytes(path, bytes);
-                AssetDatabase.Refresh();
-                return path;
+                return bytes;
             }
             finally
             {
-                RenderTexture.active = previousActive;
+                cam.targetTexture = prevTarget;
+                RenderTexture.active = prevActive;
                 rt.Release();
                 UnityEngine.Object.DestroyImmediate(rt);
-                UnityEngine.Object.DestroyImmediate(capGo);
             }
+        }
+
+        private static string CaptureSceneViewScreenshot(string relativeFolder)
+        {
+            // Source viewpoint: the SceneView camera (or Main). The
+            // SceneView camera has no HDAdditionalCameraData, so a bare
+            // cam.Render() in HDRP can produce a degraded image. Try a
+            // throwaway camera WITH HDRP camera data first; if anything
+            // throws, FALL BACK to rendering the source directly so we
+            // ALWAYS return an image (never "no screenshot path").
+            Camera src = null;
+            var sceneView = SceneView.lastActiveSceneView;
+            if (sceneView != null) { sceneView.Repaint(); src = sceneView.camera; }
+            if (src == null) src = Camera.main;
+            if (src == null) throw new InvalidOperationException("No SceneView or MainCamera available for screenshot capture.");
+
+            int width = 1280, height = 720;
+            byte[] bytes = null;
+            GameObject capGo = null;
+            try
+            {
+                capGo = new GameObject("__UT_CaptureCam");
+                capGo.hideFlags = HideFlags.HideAndDontSave;
+                var cam = capGo.AddComponent<Camera>();
+                cam.CopyFrom(src);
+                cam.transform.position = src.transform.position;
+                cam.transform.rotation = src.transform.rotation;
+                cam.clearFlags = CameraClearFlags.Skybox;
+                cam.enabled = false;
+                var hdCamType = FindType("UnityEngine.Rendering.HighDefinition.HDAdditionalCameraData");
+                if (hdCamType != null && capGo.GetComponent(hdCamType) == null)
+                    capGo.AddComponent(hdCamType);
+                bytes = RenderCameraToPng(cam, width, height);
+            }
+            catch (Exception)
+            {
+                bytes = null; // fall through to direct render
+            }
+            finally
+            {
+                if (capGo != null) UnityEngine.Object.DestroyImmediate(capGo);
+            }
+
+            if (bytes == null || bytes.Length < 256)
+            {
+                // robust fallback: render the source camera directly
+                bytes = RenderCameraToPng(src, width, height);
+            }
+
+            string folder = Path.Combine(ProjectRootPath(), relativeFolder.Replace("/", Path.DirectorySeparatorChar.ToString()));
+            Directory.CreateDirectory(folder);
+            string path = Path.Combine(folder, $"visual_qa_{DateTime.Now:yyyyMMdd_HHmmss}.png");
+            File.WriteAllBytes(path, bytes);
+            AssetDatabase.Refresh();
+            return path;
         }
 
         private static string ProjectRootPath()
