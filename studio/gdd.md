@@ -1,41 +1,27 @@
-# Forgotten Valley - Game Design Document
+# Briar Hollow — Vertical Slice (DOCS-driven)
 
-## One-line
-A 2-hour, immersive single-player survival-explore loop: wander a moody
-realistic valley, gather, raise a small home base, survive the night,
-beat a mini-boss, glimpse the next biome. Relaxing spine, real teeth.
+Source of truth: C:/.../windsurf-project/DOCS (design + backlog +
+implementation). This studio backlog mirrors DOCS/backlog/
+vertical-slice-backlog.md. The framework (tasks/next/standup/
+dispatch/roles, phases 65-86) now drives the REAL project.
 
-## The 4-pillar mix (best parts only)
-- **Valheim**  -> the SPINE: chill open exploration, gathering, light
-  base building, biome curiosity, stamina-paced physical combat,
-  cosy-but-dangerous tone.
-- **V Rising**  -> the RHYTHM: a day/night threat cycle. Day = explore,
-  gather, build, relax. Night = the valley turns hostile; a power
-  progression (relic shards) gates how deep you can push.
-- **Remnant 2** -> the COMBAT: responsive third-person ranged+melee
-  with a dodge-roll, readable enemy tells, one hand-crafted mini-boss.
-  Tuned FORGIVING (this is a kafa-dagitma game, not a soulslike grind).
-- **Knight Online** -> the HOOKS: satisfying loot drops + a couple of
-  visible session goals (fill the relic meter, upgrade the hearth) so
-  2 hours has a clear arc and a payoff.
+## Genre mix
+Valheim (chill explore + survival + camp) + V-Rising (progression
+rhythm) + Knight Online (party/grind hooks, KO-Valheim realignment)
++ Remnant 2 (responsive forgiving souls-lite combat).
 
-## Core loop (a single 2h session)
-explore valley -> gather wood/stone/herb/relic-shard -> upgrade hearth
-(unlocks: torch radius, stamina, a weapon tier) -> survive night wave
-at the hearth -> track + beat the Grove Warden mini-boss -> open the
-sealed pass (teaser of biome 2) -> session ends on a high.
+## Core pillars (DOCS/design/core-pillars.md)
+1. Combat tok — her vuruşta ağırlık; anim+kamera+ses+hitreact aynı yön
+2. Atmosfer premium — az ama hatırlanır mekan, güçlü sanat yönü
+3. Dünya güzel VE tehlikeli — hayranlık + tedirginlik aynı anda
+4. İlerleme açık + bağımlılık — her 15-20 dk anlamlı kazanç
+5. Token sonra — önce oyun hissi
 
-## Vertical slice scope (what we build FIRST)
-ONE valley biome, realistic URP forest, third-person controller with
-dodge, 3 gather resources, a 3-tier hearth, ONE night wave, ONE
-mini-boss (Grove Warden), the sealed-pass teaser. Everything else
-(extra biomes, castle building, co-op, nations/PvP) is POST-slice.
+## Vertical slice spine
+spawn → camp → path → landmark read → mini-boss arena, on the
+real-world Briar Hollow terrain (Open-Meteo heightmap, biome
+bands, sparse forest — already built via studio_realize_world).
 
-## Non-goals for the slice
-No multiplayer. No procedural generation yet (hand-built valley first).
-No inventory Tetris. No skill tree screen (progression = hearth tiers).
-
-## Session feel target
-First 20 min: calm, curious, "nereye gitsem". Mid: light tension as
-relic meter rises. Night: a real but beatable spike. End: mini-boss
-catharsis + a door cracking open to "next time".
+## Scope discipline (DOCS "Kesinlikle Ertele")
+NO: 100-player, full MMO economy, token, website/account,
+marketplace, siege, faction war. Vertical slice only.
