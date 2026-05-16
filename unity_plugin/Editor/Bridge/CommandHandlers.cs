@@ -839,6 +839,17 @@ namespace UnityTools.Bridge
             string trunkMatPath = p["trunk_material_path"]?.ToString();
             var trunkMat = string.IsNullOrEmpty(trunkMatPath) ? null
                 : AssetDatabase.LoadAssetAtPath<Material>(trunkMatPath);
+            // GUARANTEE colour: if the HDRP material assets are missing
+            // or broken, build cheap HDRP-correct coloured materials so
+            // trees are NEVER white/grey/uncoloured (user feedback).
+            if (foliageMat == null || IsBrokenMaterial(foliageMat)
+                || !IsPipelineCompatible(foliageMat.shader))
+                foliageMat = MakeMaterial("LP_Needle_HDRP",
+                    new Color(0.12f, 0.24f, 0.13f), 0.10f); // sickly pine green
+            if (trunkMat == null || IsBrokenMaterial(trunkMat)
+                || !IsPipelineCompatible(trunkMat.shader))
+                trunkMat = MakeMaterial("LP_Bark_HDRP",
+                    new Color(0.17f, 0.11f, 0.07f), 0.10f);  // dark bark brown
             bool gpuInstance = p["gpu_instancing"]?.ToObject<bool>() ?? true;
             if (gpuInstance)
             {
@@ -950,6 +961,21 @@ namespace UnityTools.Bridge
                         renderersFixed++;
                     }
                     else renderersKept++;
+                }
+
+                // GROUND SNAP (pivot-agnostic): the imported FBX pivot is
+                // NOT at the mesh base, so setting position.y = surface
+                // sank trees under the terrain (user feedback). Recompute
+                // combined world renderer bounds and lift the tree so its
+                // lowest rendered point sits exactly on the surface (wy),
+                // sunk slightly (0.15 m) so the trunk isn't floating.
+                if (rends != null && rends.Length > 0)
+                {
+                    Bounds bb = rends[0].bounds;
+                    for (int rb = 1; rb < rends.Length; rb++)
+                        bb.Encapsulate(rends[rb].bounds);
+                    float delta = wy - bb.min.y - 0.15f;
+                    go.transform.position += new Vector3(0f, delta, 0f);
                 }
 
                 placed++;
