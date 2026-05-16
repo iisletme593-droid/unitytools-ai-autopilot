@@ -1202,6 +1202,13 @@ namespace UnityTools.Bridge
             stream.transform.SetParent(root.transform, true);
             Ensure(stream, "Gameplay.RegionStreamer");
 
+            // Night-peril director (core-pillars.md #3 "Dunya guzel VE
+            // tehlikeli"): reads DayCycleManager, flags enemies harder +
+            // wider-aggro after dark, fully reverts at dawn.
+            var night = GameObject.Find("TI_NightDanger") ?? new GameObject("TI_NightDanger");
+            night.transform.SetParent(root.transform, true);
+            Ensure(night, "Gameplay.NightDanger");
+
             // Camp loadout + offering near the hero/spawn.
             var rack = FindOrCube("WeaponRack_BarbarCamp", hp + new Vector3(3f, 0f, 2f), PrimitiveType.Cube, root.transform);
             Ensure(rack, "Gameplay.WeaponRack");
