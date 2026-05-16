@@ -1271,8 +1271,18 @@ namespace UnityTools.Bridge
                 Ensure(e, "Gameplay.CombatComponent");
                 Ensure(e, "Gameplay.StatusEffectComponent");
                 Ensure(e, "Gameplay.EnemyAIController");
+                Ensure(e, "Gameplay.EliteAffix");   // may roll an elite
                 enemies.Add(e.name);
             }
+            // One GUARANTEED elite for the slice (name contains "Elite"
+            // -> EliteAffix forces promotion + rolls an affix).
+            var champ = FindOrCube("EliteBriarbound_Champion",
+                hp + new Vector3(14f, 0f, 16f), PrimitiveType.Capsule, root.transform);
+            Ensure(champ, "Gameplay.CombatComponent");
+            Ensure(champ, "Gameplay.StatusEffectComponent");
+            Ensure(champ, "Gameplay.EnemyAIController");
+            Ensure(champ, "Gameplay.EliteAffix");
+            enemies.Add(champ.name);
 
             var scene = SceneManager.GetActiveScene();
             EditorSceneManager.MarkSceneDirty(scene);
