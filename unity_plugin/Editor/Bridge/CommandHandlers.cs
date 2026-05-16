@@ -246,6 +246,10 @@ namespace UnityTools.Bridge
             string before = terrain.materialTemplate != null && terrain.materialTemplate.shader != null
                 ? terrain.materialTemplate.shader.name : "(none)";
             string resolved = ApplyTerrainPipelineMaterial(terrain);
+            terrain.basemapDistance = 20000f;
+            terrain.heightmapPixelError = 2f;
+            try { if (terrain.terrainData != null) terrain.terrainData.SetBaseMapDirty(); } catch { }
+            terrain.Flush();
             string after = terrain.materialTemplate != null && terrain.materialTemplate.shader != null
                 ? terrain.materialTemplate.shader.name : "(none)";
             int layerCount = terrain.terrainData != null ? terrain.terrainData.terrainLayers.Length : 0;
@@ -632,13 +636,21 @@ namespace UnityTools.Bridge
                 }
             }
             td.SetAlphamaps(0, 0, a);
-            ApplyTerrainPipelineMaterial(terrain);
+            string matResolved = ApplyTerrainPipelineMaterial(terrain);
+            // Push the splat through: regenerate the basemap and Flush,
+            // and render the detailed splat at any distance (the pale
+            // far-view was the stale/blank low-res basemap showing).
+            terrain.basemapDistance = 20000f;
+            terrain.heightmapPixelError = 2f;
+            try { td.SetBaseMapDirty(); } catch { }
+            terrain.Flush();
             AssetDatabase.SaveAssets();
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             return new
             {
                 ok = true,
                 terrain = terrain.name,
+                terrain_material = matResolved,
                 layers = built,
                 cutoffs = edges.Skip(1).Take(n - 1).ToArray(),
                 height_range = new[] { hMin, hMax },

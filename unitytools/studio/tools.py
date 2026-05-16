@@ -3955,11 +3955,24 @@ def studio_generate_world_assets(dry_run: bool = False,
         ui = gen.get("unity_import")
         row["imported"] = bool(isinstance(ui, dict) and ui.get("ok", True)) and bool(asset_path)
         if asset_path:
+            # FBX-from-Blender materials render wrong in HDRP -> force a
+            # known-good art-bible HDRP material by prop category so the
+            # AI props never import white.
+            _GM = "Assets/FantasyRPG/Generated/Materials/"
+            _stone = {"shrine", "gate", "totem", "boulder"}
+            _wood = {"bench", "banner", "rack"}
+            if ptype in _stone:
+                mat = _GM + "HDRP_M_WetRock.mat"
+            elif ptype in _wood:
+                mat = _GM + "HDRP_M_WetAgedWood.mat"
+            else:  # stump / deadtrunk -> bark
+                mat = _GM + "HDRP_M_WetAgedWood.mat"
             placed = call("place_asset_on_terrain", {
                 "asset_path": asset_path, "name": slot,
                 "x": bx + dx, "z": bz + dz,
                 "rot_y": (seed * 37) % 360, "scale": 1.0,
                 "parent": "WorldGeneratedProps",
+                "material_path": mat,
             })
             row["placed"] = bool(isinstance(placed, dict) and placed.get("ok"))
             row["place"] = placed if isinstance(placed, dict) else {}
