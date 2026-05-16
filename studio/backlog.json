@@ -48,11 +48,11 @@
     {
       "title": "Third-person controller: move, sprint(stamina), dodge-roll, interact",
       "role": "designer",
-      "description": "Remnant-feel but forgiving dodge window.\n\n[2026-05-16 11:18] STAGE 2. Space. DodgeCost=24 stamina; DodgeInvulnerabilityWindow=0.32; DodgeCounterWindow=0.42; DodgeRecoveryTime=0.28. Dodge moves camera-relative; short recovery prevents spam; disabled if stamina<24. Combo: Space->LMB = Sidestep Reaver (within DodgeCounterWindow). Ref: combat-state-spec.md, combat-data-defaults.md.",
+      "description": "Remnant-feel but forgiving dodge window.\n\n[2026-05-16 11:18] STAGE 2. Space. DodgeCost=24 stamina; DodgeInvulnerabilityWindow=0.32; DodgeCounterWindow=0.42; DodgeRecoveryTime=0.28. Dodge moves camera-relative; short recovery prevents spam; disabled if stamina<24. Combo: Space->LMB = Sidestep Reaver (within DodgeCounterWindow). Ref: combat-state-spec.md, combat-data-defaults.md.\n\n[2026-05-16 15:35] Phase 123: StaminaComponent.cs aligned to combat-data-defaults.md exact values (regen18/sprint14/exhaust1.15 + canonical costs+gates). Stage-2 stamina foundation spec-correct in UnityProject code.",
       "status": "rejected",
       "id": "ee4a791cf0b3",
       "created_at": 1778879650.743221,
-      "updated_at": 1778919506.603857,
+      "updated_at": 1778934946.644493,
       "milestone": "f54e01a96f16",
       "depends_on": [
         "65a038cbc347"
