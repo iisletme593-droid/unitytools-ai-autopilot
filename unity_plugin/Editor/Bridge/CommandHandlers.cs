@@ -1191,6 +1191,7 @@ namespace UnityTools.Bridge
             Ensure(hero, "Gameplay.InventoryComponent");
             Ensure(hero, "Gameplay.ExperienceComponent");
             Ensure(hero, "Gameplay.CombatComponent");
+            Ensure(hero, "Gameplay.StatusEffectComponent");
             Ensure(hero, "Gameplay.PlayerController");
 
             var cam = GameObject.Find("Main Camera") ?? (Camera.main ? Camera.main.gameObject : null);
@@ -1268,6 +1269,7 @@ namespace UnityTools.Bridge
                     hp + new Vector3(8f + i * 3f, 0f, 10f + i * 4f),
                     PrimitiveType.Capsule, root.transform);
                 Ensure(e, "Gameplay.CombatComponent");
+                Ensure(e, "Gameplay.StatusEffectComponent");
                 Ensure(e, "Gameplay.EnemyAIController");
                 enemies.Add(e.name);
             }
