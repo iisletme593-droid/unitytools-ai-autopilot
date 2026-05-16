@@ -875,14 +875,28 @@ namespace UnityTools.Bridge
 
             var rng = new System.Random(seed);
             int placed = 0, deadPlaced = 0, renderersFixed = 0, renderersKept = 0;
+            int bandFail = 0, slopeFail = 0;
+            string placementNote = "requested band/slope";
+            // Two-pass: if the requested band/slope rejects everything
+            // (real-world heightmaps are often steep per-sample), retry
+            // wide-open so a forest still appears (then report why).
+            for (int pass = 0; pass < 2; pass++)
+            {
+                if (pass == 1)
+                {
+                    if (placed > 0) break;
+                    bandMin = 0f; bandMax = 1.01f; maxSlope = 89f;
+                    rng = new System.Random(seed);
+                    placementNote = "fallback: band/slope too strict for this terrain, used full range";
+                }
             for (int i = 0; i < attempts; i++)
             {
                 float u = (float)rng.NextDouble();
                 float v = (float)rng.NextDouble();
                 float hn = td.GetInterpolatedHeight(u, v) / Mathf.Max(0.001f, sizeY);
-                if (hn < bandMin || hn > bandMax) continue;
+                if (hn < bandMin || hn > bandMax) { bandFail++; continue; }
                 float steep = td.GetSteepness(u, v);
-                if (steep > maxSlope) continue;
+                if (steep > maxSlope) { slopeFail++; continue; }
 
                 bool useDead = dead.Count > 0 && rng.NextDouble() < deadRatio;
                 var pool = useDead ? dead : (live.Count > 0 ? live : dead);
@@ -940,6 +954,7 @@ namespace UnityTools.Bridge
                 placed++;
                 if (useDead) deadPlaced++;
             }
+            }  // end pass loop
 
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             return new
@@ -948,13 +963,17 @@ namespace UnityTools.Bridge
                 placed,
                 dead_placed = deadPlaced,
                 attempts,
+                band_fail = bandFail,
+                slope_fail = slopeFail,
+                terrain = terrain.name,
+                terrain_relief_m = TerrainRelief(terrain),
                 live_models = live.Select(g => g.name).ToArray(),
                 dead_models = dead.Select(g => g.name).ToArray(),
                 renderers_fixed = renderersFixed,
                 renderers_kept = renderersKept,
                 foliage_material = foliageMat != null ? foliageMat.name : "(missing)",
                 forest_band = new[] { bandMin, bandMax },
-                note = "real GLB trees on terrain surface; broken/white materials auto-repaired to HDRP foliage",
+                note = placementNote,
             };
         }
 

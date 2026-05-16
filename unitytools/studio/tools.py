@@ -3925,8 +3925,8 @@ def studio_build_lowpoly_forest(tree_count: int = 150,
     _GM = "Assets/FantasyRPG/Generated/Materials/"
     # 2) Scatter them cheap (GPU-instanced, per-slot HDRP materials).
     res = call("scatter_terrain_glb_trees", {
-        "tree_count": tree_count, "forest_min": 0.12, "forest_max": 0.58,
-        "max_slope_deg": 34, "scale_min": 1.4, "scale_max": 3.0,
+        "tree_count": tree_count, "forest_min": 0.05, "forest_max": 0.92,
+        "max_slope_deg": 55, "scale_min": 1.4, "scale_max": 3.0,
         "dead_ratio": 0.14, "seed": seed, "clear_primitive_forest": True,
         "models": [paths["pine"], paths["fir"]],
         "dead_models": [paths["deadpine"]],
@@ -4712,8 +4712,8 @@ def studio_realize_world(
     # PolyHaven path is intentionally retired from the main pipeline.
     _GM = "Assets/FantasyRPG/Generated/Materials/"
     lp = call("scatter_terrain_glb_trees", {
-        "tree_count": forest_count, "forest_min": 0.12, "forest_max": 0.58,
-        "max_slope_deg": 34, "scale_min": 1.4, "scale_max": 3.0,
+        "tree_count": forest_count, "forest_min": 0.05, "forest_max": 0.92,
+        "max_slope_deg": 55, "scale_min": 1.4, "scale_max": 3.0,
         "dead_ratio": 0.14, "seed": 11, "clear_primitive_forest": True,
         "models": ["Assets/Studio/Generated/LP_Pine.fbx",
                    "Assets/Studio/Generated/LP_Fir.fbx"],
