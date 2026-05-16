@@ -282,11 +282,11 @@
     {
       "title": "[P0] basic enemy ai",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 3. BP_TI_Enemy_Base, BP_TI_Enemy_BriarboundVillager, BP_TI_AIController_Base. Read: sees -> approaches -> telegraph (TelegraphTime=0.42) -> hits -> short opening after miss/block. Chain: detect->chase->attack->take damage->death. Fair but hard.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 3. BP_TI_Enemy_Base, BP_TI_Enemy_BriarboundVillager, BP_TI_AIController_Base. Read: sees -> approaches -> telegraph (TelegraphTime=0.42) -> hits -> short opening after miss/block. Chain: detect->chase->attack->take damage->death. Fair but hard.\n\n[2026-05-16 15:50] Phase 125: enemy telegraph now TelegraphTime=0.42 (combat-data-defaults.md) in EnemyAIController.cs.\n\n[2026-05-16 15:50] Phase 125: enemy telegraph now TelegraphTime=0.42 (combat-data-defaults.md) in EnemyAIController.cs.",
       "status": "pending",
       "id": "77abd5c7a25e",
       "created_at": 1778918888.4524913,
-      "updated_at": 1778919506.6125169,
+      "updated_at": 1778935828.8354445,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "94c4e665f1a3"
@@ -297,11 +297,11 @@
     {
       "title": "[P0] enemy ai patrol/detect/chase/attack/return zinciri",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 3. Patrol->Detect->Chase->Attack->Return state chain on AIController. Return-to-post if target lost. Telegraph 0.42 so attacks are readable. Ref: build-order #3, combat-state-spec.md.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 3. Patrol->Detect->Chase->Attack->Return state chain on AIController. Return-to-post if target lost. Telegraph 0.42 so attacks are readable. Ref: build-order #3, combat-state-spec.md.\n\n[2026-05-16 15:50] Phase 125: enemy telegraph now TelegraphTime=0.42 (combat-data-defaults.md) in EnemyAIController.cs.",
       "status": "pending",
       "id": "663bba057dcd",
       "created_at": 1778918888.45401,
-      "updated_at": 1778919506.613519,
+      "updated_at": 1778935828.8325183,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
