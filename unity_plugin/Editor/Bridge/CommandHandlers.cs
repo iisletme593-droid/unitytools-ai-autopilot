@@ -1209,6 +1209,20 @@ namespace UnityTools.Bridge
             night.transform.SetParent(root.transform, true);
             Ensure(night, "Gameplay.NightDanger");
 
+            // Adaptive music: AudioManager is the two-layer ENGINE
+            // (exploration bed + auto-ducking tension overlay); it lives
+            // alone on its own object because its singleton guard
+            // Destroy()s a duplicate gameObject. MusicDirector is the
+            // brain that feeds it (core-pillars #2/#3) and sits on its
+            // own object so a pre-existing scene AudioManager never
+            // takes it down with it.
+            var audioEng = GameObject.Find("TI_Audio") ?? new GameObject("TI_Audio");
+            audioEng.transform.SetParent(root.transform, true);
+            Ensure(audioEng, "Gameplay.AudioManager");
+            var music = GameObject.Find("TI_MusicDirector") ?? new GameObject("TI_MusicDirector");
+            music.transform.SetParent(root.transform, true);
+            Ensure(music, "Gameplay.MusicDirector");
+
             // Camp loadout + offering near the hero/spawn.
             var rack = FindOrCube("WeaponRack_BarbarCamp", hp + new Vector3(3f, 0f, 2f), PrimitiveType.Cube, root.transform);
             Ensure(rack, "Gameplay.WeaponRack");
