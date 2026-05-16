@@ -27,6 +27,9 @@ namespace UnityTools.Bridge
                 case "find_scene_objects": return FindSceneObjects(p);
                 case "create_primitive": return CreatePrimitive(p);
                 case "set_transform": return SetTransform(p);
+                case "set_scale": return SetScale(p);
+                case "set_position": return SetPosition(p);
+                case "set_rotation": return SetRotation(p);
                 case "set_material_color": return SetMaterialColor(p);
                 case "import_asset": return ImportAsset(p);
                 case "save_scene": return SaveScene();
@@ -161,7 +164,7 @@ namespace UnityTools.Bridge
             string charName = p["character"]?.ToString() ?? "SK_Hero";
             float charScale = p["character_scale"]?.ToObject<float>() ?? 1.0f;
 
-            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None)
+            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude)
                 .FirstOrDefault();
             if (terrain == null)
                 return new { ok = false, error = "No Terrain in scene" };
@@ -273,7 +276,7 @@ namespace UnityTools.Bridge
             // Bounds of the target (terrain or any renderered object).
             Bounds b = new Bounds(Vector3.zero, new Vector3(200, 50, 200));
             var tgt = GameObject.Find(targetName);
-            var terr = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None)
+            var terr = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude)
                 .FirstOrDefault();
             if (tgt != null && tgt.GetComponent<Terrain>() != null) terr = tgt.GetComponent<Terrain>();
             if (terr != null)
@@ -345,7 +348,7 @@ namespace UnityTools.Bridge
             Color cRock   = ReadColor(p["rock_color"],   new Color(0.40f, 0.39f, 0.37f));
             Color cSnow   = ReadColor(p["snow_color"],   new Color(0.90f, 0.92f, 0.95f));
 
-            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None)
+            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude)
                 .FirstOrDefault();
             if (terrain == null)
                 return new { ok = false, error = "No Terrain in scene" };
@@ -434,7 +437,7 @@ namespace UnityTools.Bridge
             float sMax = p["scale_max"]?.ToObject<float>() ?? 16f;
             int seed = p["seed"]?.ToObject<int>() ?? 9090;
 
-            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None)
+            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude)
                 .FirstOrDefault();
             if (terrain == null)
                 return new { ok = false, error = "No Terrain in scene (build it first)" };
@@ -486,7 +489,7 @@ namespace UnityTools.Bridge
         private static object FixTerrainMaterial(JObject p)
         {
             bool clearClutter = p["clear_clutter"]?.ToObject<bool>() ?? true;
-            var terrains = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None);
+            var terrains = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude);
             var fixedList = new List<string>();
             foreach (var t in terrains)
                 fixedList.Add(t.name + ":" + ApplyTerrainPipelineMaterial(t));
@@ -524,7 +527,7 @@ namespace UnityTools.Bridge
                 return new { ok = false, error = $"heights needs {res*res} floats, got {arr?.Count ?? 0}" };
 
             // clear previous terrain(s)
-            foreach (var t in UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None))
+            foreach (var t in UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude))
                 Undo.DestroyObjectImmediate(t.gameObject);
 
             var td = new TerrainData
@@ -928,6 +931,64 @@ namespace UnityTools.Bridge
             return new { name = go.name, instance_id = go.GetHashCode() };
         }
 
+        // Phase 104: flat {name,x,y,z} convenience aliases. Raw bridge
+        // callers (scripts, studio_realize_world) used set_scale/
+        // set_position/set_rotation with a flat shape — these were
+        // never dispatch cases (only set_transform with nested
+        // position/rotation/scale), so every raw transform call
+        // silently failed. These 3 handlers make the intuitive flat
+        // form work and retroactively fix the orchestrator + blockouts.
+        private static GameObject ReqGo(JObject p)
+        {
+            string name = p["name"]?.ToString();
+            if (string.IsNullOrEmpty(name)) throw new ArgumentException("name is required");
+            var go = GameObject.Find(name);
+            if (go == null) throw new InvalidOperationException($"Object not found: {name}");
+            return go;
+        }
+
+        private static object SetScale(JObject p)
+        {
+            var go = ReqGo(p);
+            Undo.RecordObject(go.transform, "Bridge: set scale");
+            var s = go.transform.localScale;
+            go.transform.localScale = new Vector3(
+                p["x"]?.ToObject<float>() ?? s.x,
+                p["y"]?.ToObject<float>() ?? s.y,
+                p["z"]?.ToObject<float>() ?? s.z);
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new { ok = true, scale = new[] { go.transform.localScale.x,
+                go.transform.localScale.y, go.transform.localScale.z } };
+        }
+
+        private static object SetPosition(JObject p)
+        {
+            var go = ReqGo(p);
+            Undo.RecordObject(go.transform, "Bridge: set position");
+            var v = go.transform.position;
+            go.transform.position = new Vector3(
+                p["x"]?.ToObject<float>() ?? v.x,
+                p["y"]?.ToObject<float>() ?? v.y,
+                p["z"]?.ToObject<float>() ?? v.z);
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new { ok = true, position = new[] { go.transform.position.x,
+                go.transform.position.y, go.transform.position.z } };
+        }
+
+        private static object SetRotation(JObject p)
+        {
+            var go = ReqGo(p);
+            Undo.RecordObject(go.transform, "Bridge: set rotation");
+            var e = go.transform.eulerAngles;
+            go.transform.eulerAngles = new Vector3(
+                p["x"]?.ToObject<float>() ?? e.x,
+                p["y"]?.ToObject<float>() ?? e.y,
+                p["z"]?.ToObject<float>() ?? e.z);
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new { ok = true, euler = new[] { go.transform.eulerAngles.x,
+                go.transform.eulerAngles.y, go.transform.eulerAngles.z } };
+        }
+
         private static object SetTransform(JObject p)
         {
             string name = p["name"]?.ToString();
@@ -978,8 +1039,18 @@ namespace UnityTools.Bridge
             var rend = go.GetComponent<Renderer>();
             if (rend == null) throw new InvalidOperationException($"Renderer not found: {name}");
             Undo.RecordObject(rend, "Bridge: material color");
-            var mat = rend.material;
-            SetMaterialBaseColor(mat, new Color(r, g, b, a));
+            // Phase 104: edit-mode must use sharedMaterial — rend.material
+            // instantiates a leaked per-renderer copy every call (the
+            // 'Instantiating material...will leak' console spam). Give
+            // each object its OWN material once (so recolour is isolated)
+            // then mutate sharedMaterial in place — no leak.
+            if (rend.sharedMaterial != null && !rend.sharedMaterial.name.StartsWith("UT_"))
+            {
+                var owned = new Material(rend.sharedMaterial)
+                { name = "UT_" + go.name };
+                rend.sharedMaterial = owned;
+            }
+            SetMaterialBaseColor(rend.sharedMaterial, new Color(r, g, b, a));
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             return new { ok = true };
         }
@@ -1376,7 +1447,7 @@ namespace UnityTools.Bridge
 
         private static object ListCameras(JObject p)
         {
-            var all = UnityEngine.Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var all = UnityEngine.Object.FindObjectsByType<Camera>(FindObjectsInactive.Include);
             var rows = new List<object>();
             foreach (var cam in all)
             {
@@ -1507,7 +1578,7 @@ namespace UnityTools.Bridge
 
         private static object ListParticleSystems(JObject p)
         {
-            var all = UnityEngine.Object.FindObjectsByType<ParticleSystem>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var all = UnityEngine.Object.FindObjectsByType<ParticleSystem>(FindObjectsInactive.Include);
             var rows = new List<object>();
             float totalEmission = 0f;
             int totalMax = 0;
@@ -1557,7 +1628,7 @@ namespace UnityTools.Bridge
 
         private static void EnsureEventSystem()
         {
-            if (UnityEngine.Object.FindFirstObjectByType<EventSystem>() != null) return;
+            if (UnityEngine.Object.FindAnyObjectByType<EventSystem>() != null) return;
             var es = new GameObject("EventSystem");
             es.AddComponent<EventSystem>();
             es.AddComponent<StandaloneInputModule>();
@@ -1592,7 +1663,7 @@ namespace UnityTools.Bridge
         {
             if (string.IsNullOrEmpty(canvasName))
             {
-                var canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
+                var canvas = UnityEngine.Object.FindAnyObjectByType<Canvas>();
                 if (canvas == null) throw new InvalidOperationException("No Canvas in scene. Call create_ui_canvas first.");
                 return canvas.transform;
             }
@@ -1700,7 +1771,7 @@ namespace UnityTools.Bridge
 
         private static object ListUIElements(JObject p)
         {
-            var canvases = UnityEngine.Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var canvases = UnityEngine.Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include);
             var canvasRows = new List<object>();
             int totalTexts = 0;
             int totalButtons = 0;
@@ -1744,7 +1815,7 @@ namespace UnityTools.Bridge
                     buttons = buttonRows,
                 });
             }
-            bool hasEventSystem = UnityEngine.Object.FindFirstObjectByType<EventSystem>() != null;
+            bool hasEventSystem = UnityEngine.Object.FindAnyObjectByType<EventSystem>() != null;
             return new
             {
                 ok = true,
@@ -2120,7 +2191,7 @@ namespace UnityTools.Bridge
             }
             else
             {
-                roots = UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                roots = UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include);
             }
             var rows = new List<object>();
             foreach (var go in roots)
@@ -2760,7 +2831,7 @@ namespace UnityTools.Bridge
 
         private static object ListLights(JObject p)
         {
-            var all = UnityEngine.Object.FindObjectsByType<Light>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var all = UnityEngine.Object.FindObjectsByType<Light>(FindObjectsInactive.Include);
             var rows = new List<object>();
             float totalIntensity = 0f;
             int shadowCount = 0;
