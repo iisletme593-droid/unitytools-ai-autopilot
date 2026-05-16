@@ -226,11 +226,11 @@
     {
       "title": "[P0] stamina sistemi",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2. BPC_TI_StaminaComponent (combat-data-defaults.md): Max=100, Regen=18/s, SprintDrain=14/s, DodgeCost=24, HeavyCost=32, BlockDrainPerHit=18, ExhaustedRecoveryDelay=1.15. Rule: stamina<cost disables dodge & heavy. Acceptance: bar drains/regens per values; exhausted state gates actions.",
-      "status": "pending",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2. BPC_TI_StaminaComponent (combat-data-defaults.md): Max=100, Regen=18/s, SprintDrain=14/s, DodgeCost=24, HeavyCost=32, BlockDrainPerHit=18, ExhaustedRecoveryDelay=1.15. Rule: stamina<cost disables dodge & heavy. Acceptance: bar drains/regens per values; exhausted state gates actions.\n\n[2026-05-16 16:02] Phase 127 VERIFY: StaminaComponent.cs aligned to combat-data-defaults.md exact values in Phase 123 (Max100/Regen18/Sprint14/recovery1.15 + canonical dodge24/heavy32/light12 + CanDodge/CanHeavy/CanLight gates per \"stamina<cost disables dodge&heavy\"). Implemented & spec-correct.",
+      "status": "done",
       "id": "65a038cbc347",
       "created_at": 1778918888.4479825,
-      "updated_at": 1778919506.6018562,
+      "updated_at": 1778936546.2734354,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "c2723246e052"
