@@ -44,8 +44,11 @@ def robust_call(cmd, p, t=120, retries=3):
 
 
 def wait_main(tries=70, gap=7, tag="main"):
+    from unitytools.bridges.unity import focus_unity_window
     ok = 0
     for i in range(tries):
+        if i % 3 == 0:
+            focus_unity_window()
         fresh_connect()
         t0 = time.time()
         try:

@@ -47,8 +47,11 @@ def robust_call(cmd, p, t=120, retries=3):
 
 def wait_main_thread(tries=70, gap=7):
     """Real main-thread op must return quickly (not just ping)."""
+    from unitytools.bridges.unity import focus_unity_window
     ok = 0
     for i in range(tries):
+        if i % 3 == 0:
+            focus_unity_window()
         fresh_connect()
         t0 = time.time()
         try:
@@ -69,9 +72,9 @@ def wait_main_thread(tries=70, gap=7):
     return False
 
 
-print("waiting for Unity main thread to be free...")
-if not wait_main_thread():
-    print("MAIN THREAD STILL STALLED — Unity likely unfocused/blocked; aborting cleanly")
+print("waiting for Unity main thread to be free (cold boot can take a while)...")
+if not wait_main_thread(tries=130, gap=7):  # ~15 min: covers a cold Unity boot
+    print("MAIN THREAD STILL STALLED after ~15min; aborting cleanly")
     raise SystemExit(0)
 
 print("open:", json.dumps(robust_call("open_scene",
