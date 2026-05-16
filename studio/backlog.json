@@ -366,11 +366,11 @@
     {
       "title": "[P0] inventory iskeleti",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 4. WBP_TI_Inventory + ST_TI_ItemDefinition. Minimal: add item, single weapon slot, Tab opens panel. Not full grid yet. Acceptance: picked loot shows in list; weapon slot equips. Ref: build-order #4.",
-      "status": "pending",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 4. WBP_TI_Inventory + ST_TI_ItemDefinition. Minimal: add item, single weapon slot, Tab opens panel. Not full grid yet. Acceptance: picked loot shows in list; weapon slot equips. Ref: build-order #4.\n\n[2026-05-16 16:19] Phase 130: InventoryComponent.cs = items list + AddItem/AddGold + single weapon slot (EquipWeapon/UnequipWeapon, owned-check). Acceptance core met (list+weapon-equip). Tab panel UI tracked under UI-shell task.",
+      "status": "done",
       "id": "a2f7f653b33f",
       "created_at": 1778918888.4605389,
-      "updated_at": 1778922344.847054,
+      "updated_at": 1778937550.8789873,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "22ad4a341283"
@@ -394,11 +394,11 @@
     {
       "title": "[P0] skill bar + quest tracker + mini map shell",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 4. Skill bar (Q/R/F/C) + quest tracker shell + mini-map shell. Just shells/placeholders for the slice. Q primary, R secondary, F battlecry, C finisher (FinisherConfirmWindow=1.1). Ref: input-combo-layout.md.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 4. Skill bar (Q/R/F/C) + quest tracker shell + mini-map shell. Just shells/placeholders for the slice. Q primary, R secondary, F battlecry, C finisher (FinisherConfirmWindow=1.1). Ref: input-combo-layout.md.\n\n[2026-05-16 16:19] Note (P130): Inventory Tab-panel UI belongs here too — InventoryComponent backend ready (items list + equippedWeapon + OnInventoryChanged/OnWeaponEquipped events to bind a panel).",
       "status": "pending",
       "id": "3dc4d01d0bc0",
       "created_at": 1778918888.4635491,
-      "updated_at": 1778922344.8530529,
+      "updated_at": 1778937550.8814995,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
