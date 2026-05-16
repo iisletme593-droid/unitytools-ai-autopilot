@@ -1236,6 +1236,14 @@ namespace UnityTools.Bridge
             amb.transform.SetParent(root.transform, true);
             Ensure(amb, "Gameplay.EncounterAmbience");
 
+            // Camp progression backbone (core-pillars #4): ties the camp
+            // stations into one escalating loop (craft -> camp tier up ->
+            // better loadout/aura/recipes). Wired after the camp objects
+            // below exist on re-runs; it finds them itself at runtime.
+            var camp = GameObject.Find("TI_CampProgression") ?? new GameObject("TI_CampProgression");
+            camp.transform.SetParent(root.transform, true);
+            Ensure(camp, "Gameplay.CampProgression");
+
             // Camp loadout + offering near the hero/spawn.
             var rack = FindOrCube("WeaponRack_BarbarCamp", hp + new Vector3(3f, 0f, 2f), PrimitiveType.Cube, root.transform);
             Ensure(rack, "Gameplay.WeaponRack");
