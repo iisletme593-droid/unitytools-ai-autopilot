@@ -761,8 +761,14 @@ namespace UnityTools.Bridge
             var forestRoot = new GameObject("WorldForest");
             Undo.RegisterCreatedObjectUndo(forestRoot, "UnityTools: world forest");
 
-            var trunkMat = MakeMaterial("Pine_Trunk_HDRP", new Color(0.24f, 0.15f, 0.08f), 0.10f);
-            var foliageMat = MakeMaterial("Pine_Foliage_HDRP", new Color(0.09f, 0.22f, 0.11f), 0.12f);
+            // Colours sampled from the user's real Tree1 download
+            // (free3d): mean of the opaque conifer-needle pixels and of
+            // the bark photo. Real-derived palette on the proven solid
+            // geometry (reliable; runtime alpha-card path failed in HDRP).
+            var trunkMat = MakeMaterial("Pine_Trunk_RealColor_HDRP",
+                new Color(0.363f, 0.326f, 0.244f), 0.10f);
+            var foliageMat = MakeMaterial("Pine_Foliage_RealColor_HDRP",
+                new Color(0.330f, 0.366f, 0.162f), 0.12f);
 
             var rng = new System.Random(seed);
             int placed = 0, bandFail = 0, slopeFail = 0;
@@ -4195,8 +4201,9 @@ namespace UnityTools.Bridge
             Undo.RegisterCreatedObjectUndo(rootGo, "UnityTools: forest scene root");
 
             var groundMat = MakeMaterial("ForestGround_DarkGrassDirt", new Color(0.16f, 0.20f, 0.10f), 0.05f);
-            var pineMat = MakeMaterial("PineNeedles_DeepGreen", new Color(0.05f, 0.27f, 0.09f), 0.12f);
-            var trunkMat = MakeMaterial("TreeTrunk_WarmBrown", new Color(0.28f, 0.16f, 0.08f), 0.10f);
+            // Real Tree1-sampled conifer + bark palette (see scatter).
+            var pineMat = MakeMaterial("PineNeedles_RealColor", new Color(0.330f, 0.366f, 0.162f), 0.12f);
+            var trunkMat = MakeMaterial("TreeTrunk_RealColor", new Color(0.363f, 0.326f, 0.244f), 0.10f);
             var deadMat = MakeMaterial("DeadTree_DryGreyBrown", new Color(0.20f, 0.17f, 0.14f), 0.08f);
             var rockMat = MakeMaterial("Rock_CoolGrey", new Color(0.28f, 0.29f, 0.27f), 0.18f);
 
@@ -5091,6 +5098,113 @@ namespace UnityTools.Bridge
             return mat;
         }
 
+        // Real conifer foliage + bark harvested from the user's Tree1
+        // download (free3d "Tree1ByTyroSmith"). Cards use the alpha
+        // needle-sprig PNG, trunk uses the bark JPG. If Unity hasn't
+        // imported the texture yet we keep the proven solid colour ->
+        // never white, never a hard dependency (same fallback discipline
+        // as the rest of the procedural forest).
+        private const string ConiferFoliageTex =
+            "Assets/FantasyRPG/Textures/Foliage/Leaves0142_4_S.png";
+        private const string ConiferBarkTex =
+            "Assets/FantasyRPG/Textures/Foliage/BarkDecidious0143_5_S.jpg";
+
+        private static Material MakeTexturedMaterial(
+            string name, string assetPath, Color fallback,
+            float smoothness, bool foliageAlpha)
+        {
+            var mat = MakeMaterial(name, fallback, smoothness);
+            Texture2D tex = null;
+            try { tex = AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath); }
+            catch { tex = null; }
+            if (tex != null)
+            {
+                foreach (var p in new[] { "_BaseColorMap", "_BaseMap", "_MainTex" })
+                    if (mat.HasProperty(p)) mat.SetTexture(p, tex);
+                // Textured -> let the photo show at (near) full colour
+                // instead of multiplying it down with the fallback tint.
+                SetMaterialBaseColor(mat, foliageAlpha
+                    ? Color.white : new Color(0.82f, 0.82f, 0.82f));
+            }
+            if (foliageAlpha)
+            {
+                // HDRP/Lit alpha-clipped + double-sided foliage card.
+                foreach (var kv in new System.Collections.Generic.KeyValuePair<string, float>[]{
+                    new System.Collections.Generic.KeyValuePair<string,float>("_AlphaCutoffEnable", 1f),
+                    new System.Collections.Generic.KeyValuePair<string,float>("_AlphaCutoff", 0.42f),
+                    new System.Collections.Generic.KeyValuePair<string,float>("_AlphaClip", 1f),
+                    new System.Collections.Generic.KeyValuePair<string,float>("_Cutoff", 0.42f),
+                    new System.Collections.Generic.KeyValuePair<string,float>("_DoubleSidedEnable", 1f),
+                    new System.Collections.Generic.KeyValuePair<string,float>("_CullMode", 0f),
+                    new System.Collections.Generic.KeyValuePair<string,float>("_CullModeForward", 0f),
+                    new System.Collections.Generic.KeyValuePair<string,float>("_Cull", 0f) })
+                    if (mat.HasProperty(kv.Key)) mat.SetFloat(kv.Key, kv.Value);
+                mat.EnableKeyword("_ALPHATEST_ON");
+                mat.EnableKeyword("_DOUBLESIDED_ON");
+                mat.renderQueue = 2450; // AlphaTest
+            }
+            return mat;
+        }
+
+        // Cached, lazily built so all trees in a scatter share ONE
+        // instanced card material. ScatterTerrainTrees nulls this at the
+        // start of each run so a freshly imported texture is picked up.
+        private static Material _coniferCardMat;
+        private static Material ConiferCardMat()
+        {
+            if (_coniferCardMat == null)
+                _coniferCardMat = MakeTexturedMaterial(
+                    "Pine_FoliageCard_Real_HDRP", ConiferFoliageTex,
+                    new Color(0.09f, 0.22f, 0.11f), 0.12f, true);
+            return _coniferCardMat;
+        }
+
+        // 3 vertical quads crossed at 60deg, full 0..1 UVs so the whole
+        // needle sprig shows on each card; double-sided tris as a safety
+        // even if the material's cull-off doesn't take. ~12 tris, shared.
+        private static Mesh _foliageCard;
+        private static Mesh FoliageCardMesh()
+        {
+            if (_foliageCard != null) return _foliageCard;
+            var v = new System.Collections.Generic.List<Vector3>();
+            var uv = new System.Collections.Generic.List<Vector2>();
+            var t = new System.Collections.Generic.List<int>();
+            for (int q = 0; q < 3; q++)
+            {
+                float ang = q * (Mathf.PI / 3f);
+                Vector3 d = new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * 0.5f;
+                int b = v.Count;
+                v.Add(-d);             uv.Add(new Vector2(0f, 0f));
+                v.Add(d);              uv.Add(new Vector2(1f, 0f));
+                v.Add(d + Vector3.up); uv.Add(new Vector2(1f, 1f));
+                v.Add(-d + Vector3.up);uv.Add(new Vector2(0f, 1f));
+                t.Add(b); t.Add(b + 2); t.Add(b + 1);
+                t.Add(b); t.Add(b + 3); t.Add(b + 2);
+                t.Add(b); t.Add(b + 1); t.Add(b + 2);
+                t.Add(b); t.Add(b + 2); t.Add(b + 3);
+            }
+            _foliageCard = new Mesh { name = "UT_FoliageCard" };
+            _foliageCard.SetVertices(v);
+            _foliageCard.SetUVs(0, uv);
+            _foliageCard.SetTriangles(t, 0);
+            _foliageCard.RecalculateNormals();
+            _foliageCard.RecalculateBounds();
+            return _foliageCard;
+        }
+
+        private static GameObject CardPart(string n, Transform parent,
+            Vector3 lpos, float w, float h, float yaw, Material mat)
+        {
+            var go = new GameObject(n, typeof(MeshFilter), typeof(MeshRenderer));
+            go.transform.SetParent(parent);
+            go.transform.localPosition = lpos;
+            go.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+            go.transform.localScale = new Vector3(w, h, w);
+            go.GetComponent<MeshFilter>().sharedMesh = FoliageCardMesh();
+            go.GetComponent<MeshRenderer>().sharedMaterial = mat;
+            return go;
+        }
+
         private static Material CreatePaletteMaterial(Material source, string name, Color color, float smoothness)
         {
             Material mat;
@@ -5360,12 +5474,17 @@ namespace UnityTools.Bridge
                 RandomRange(rng, -2f, 2f));
 
             float h = RandomRange(rng, 0.9f, 1.15f);   // per-tree height jitter
-            // trunk: thin cone (acts as tapered trunk), brown
+            // trunk: thin tapered cone, coloured with the REAL bark
+            // colour sampled from the user's Tree1 download.
             ConePart("Trunk", root.transform, Vector3.zero,
                 0.10f * scale, 1.25f * scale * h, trunkMat);
 
-            // 3 foliage tiers, decreasing radius/height going up,
-            // overlapping so it reads as one continuous conifer.
+            // 3 solid foliage tiers (wide low -> narrow top), the proven
+            // Phase-146/147 conifer silhouette — now tinted with the REAL
+            // conifer-needle colour sampled from the downloaded asset.
+            // Solid = no alpha/UV => bulletproof in HDRP (the runtime
+            // alpha-card path failed = the whole tree-saga failure mode;
+            // this keeps the reliable geometry, real-derived colour).
             float baseY = 0.55f * scale * h;
             for (int t = 0; t < 3; t++)
             {
