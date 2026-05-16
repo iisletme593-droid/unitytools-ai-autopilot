@@ -41,18 +41,34 @@ def main() -> int:
     a = parse()
     if a is None:
         return 2
-    bpy.ops.object.select_all(action="SELECT")
-    bpy.ops.object.delete(use_global=False)
-
+    src = a["glb"]
+    ext = Path(src).suffix.lower()
     try:
-        bpy.ops.import_scene.gltf(filepath=a["glb"])
+        if ext == ".blend":
+            # open the .blend directly (keeps its meshes/materials)
+            bpy.ops.wm.open_mainfile(filepath=src)
+        else:
+            bpy.ops.object.select_all(action="SELECT")
+            bpy.ops.object.delete(use_global=False)
+            if ext in (".glb", ".gltf"):
+                bpy.ops.import_scene.gltf(filepath=src)
+            elif ext == ".obj":
+                try:
+                    bpy.ops.wm.obj_import(filepath=src)        # Blender 4+
+                except Exception:
+                    bpy.ops.import_scene.obj(filepath=src)     # legacy
+            elif ext == ".fbx":
+                bpy.ops.import_scene.fbx(filepath=src)
+            else:
+                print(f"ERROR: unsupported input ext {ext}")
+                return 3
     except Exception as exc:
-        print(f"ERROR: gltf import failed: {exc}")
+        print(f"ERROR: import failed ({ext}): {exc}")
         return 3
 
     meshes = [o for o in bpy.data.objects if o.type == "MESH"]
     if not meshes:
-        print("ERROR: no meshes in GLB")
+        print("ERROR: no meshes in input")
         return 3
 
     bpy.ops.object.select_all(action="DESELECT")

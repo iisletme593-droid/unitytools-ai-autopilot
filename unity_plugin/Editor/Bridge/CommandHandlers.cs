@@ -107,6 +107,7 @@ namespace UnityTools.Bridge
                 case "build_terrain_from_heightmap": return BuildTerrainFromHeightmap(p);
                 case "fix_terrain_material": return FixTerrainMaterial(p);
                 case "scatter_terrain_trees": return ScatterTerrainTrees(p);
+                case "scatter_terrain_grass": return ScatterTerrainGrass(p);
                 case "scatter_terrain_glb_trees": return ScatterTerrainGlbTrees(p);
                 case "place_asset_on_terrain": return PlaceAssetOnTerrain(p);
                 case "repaint_terrain_biomes": return RepaintTerrainBiomes(p);
@@ -812,6 +813,97 @@ namespace UnityTools.Bridge
                 max_slope_deg = maxSlope,
                 note = "procedural pines (cylinder trunk + green crown, HDRP-coloured, "
                        + "pivot-at-base so never sunk); " + placeNote,
+            };
+        }
+
+        // Cached ultra-cheap grass-clump mesh: 3 crossed vertical quads
+        // (the classic billboard-grass trick) -> 12 tris, shared by
+        // every clump + GPU-instanced. Reliable in-engine (the proven
+        // strategy) instead of the 1.5M-tri free3d grass import.
+        private static Mesh _grassMesh;
+        private static Mesh GrassMesh()
+        {
+            if (_grassMesh != null) return _grassMesh;
+            var verts = new System.Collections.Generic.List<Vector3>();
+            var tris = new System.Collections.Generic.List<int>();
+            for (int q = 0; q < 3; q++)
+            {
+                float ang = q * (Mathf.PI / 3f);
+                Vector3 d = new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * 0.5f;
+                int b = verts.Count;
+                verts.Add(-d); verts.Add(d);
+                verts.Add(d + Vector3.up); verts.Add(-d + Vector3.up);
+                tris.Add(b); tris.Add(b + 2); tris.Add(b + 1);
+                tris.Add(b); tris.Add(b + 3); tris.Add(b + 2);
+                tris.Add(b); tris.Add(b + 1); tris.Add(b + 2);   // back
+                tris.Add(b); tris.Add(b + 2); tris.Add(b + 3);
+            }
+            _grassMesh = new Mesh { name = "UT_GrassMesh" };
+            _grassMesh.SetVertices(verts);
+            _grassMesh.SetTriangles(tris, 0);
+            _grassMesh.RecalculateNormals();
+            _grassMesh.RecalculateBounds();
+            return _grassMesh;
+        }
+
+        // Cheap procedural ground-cover grass: dense small clumps in the
+        // low/valley band, ground-snapped, HDRP-green, shared mesh +
+        // instancing + expensive features off. ~12 tris/clump.
+        private static object ScatterTerrainGrass(JObject p)
+        {
+            int count = Mathf.Clamp(p["clump_count"]?.ToObject<int>() ?? 900, 1, 8000);
+            float bandMin = p["band_min"]?.ToObject<float>() ?? 0.0f;
+            float bandMax = p["band_max"]?.ToObject<float>() ?? 0.55f;
+            float maxSlope = p["max_slope_deg"]?.ToObject<float>() ?? 38f;
+            float sMin = p["scale_min"]?.ToObject<float>() ?? 1.4f;
+            float sMax = p["scale_max"]?.ToObject<float>() ?? 3.2f;
+            int seed = p["seed"]?.ToObject<int>() ?? 4242;
+
+            var terrain = ResolveSceneTerrain(p);
+            if (terrain == null)
+                return new { ok = false, error = "No Terrain in scene" };
+            var td = terrain.terrainData;
+            Vector3 tp = terrain.transform.position;
+            float sx = td.size.x, sz = td.size.z, sy = td.size.y;
+
+            var old = GameObject.Find("WorldGrass");
+            if (old != null) Undo.DestroyObjectImmediate(old);
+            var root = new GameObject("WorldGrass");
+            Undo.RegisterCreatedObjectUndo(root, "UnityTools: grass");
+            var grassMat = MakeMaterial("Grass_HDRP",
+                new Color(0.17f, 0.30f, 0.13f), 0.18f);
+            grassMat.enableInstancing = true;
+
+            var rng = new System.Random(seed);
+            int placed = 0;
+            for (int i = 0; i < count; i++)
+            {
+                float u = (float)rng.NextDouble(), v = (float)rng.NextDouble();
+                float hn = td.GetInterpolatedHeight(u, v) / Mathf.Max(0.001f, sy);
+                if (hn < bandMin || hn > bandMax) continue;
+                if (td.GetSteepness(u, v) > maxSlope) continue;
+                float wy = tp.y + td.GetInterpolatedHeight(u, v);
+                var go = new GameObject($"Grass_{placed:0000}",
+                    typeof(MeshFilter), typeof(MeshRenderer));
+                go.transform.SetParent(root.transform);
+                go.transform.position = new Vector3(tp.x + u * sx, wy, tp.z + v * sz);
+                go.transform.rotation = Quaternion.Euler(0f,
+                    (float)(rng.NextDouble() * 360.0), 0f);
+                float s = (float)(sMin + rng.NextDouble() * (sMax - sMin));
+                go.transform.localScale = new Vector3(s, s * 1.3f, s);
+                go.GetComponent<MeshFilter>().sharedMesh = GrassMesh();
+                go.GetComponent<MeshRenderer>().sharedMaterial = grassMat;
+                placed++;
+            }
+            foreach (Transform t in root.transform)
+                DisableExpensiveRendererFeatures(t.gameObject);
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true, placed, count,
+                terrain = terrain.name,
+                note = "cheap procedural ground-cover grass (12 tris/clump, "
+                       + "shared mesh, instanced, ground-snapped, HDRP-green)",
             };
         }
 

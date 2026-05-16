@@ -5007,6 +5007,17 @@ def studio_realize_world(
     })
     layers.append({"forest": fr, "forest_kind": "procedural_pine"})
 
+    # 3b) Cheap procedural ground-cover grass in the valley/low band
+    # (12 tris/clump, shared mesh, GPU-instanced, ground-snapped). The
+    # reliable in-engine answer instead of the 1.5M-tri free3d grass
+    # import — same proven strategy as the procedural conifers.
+    gr = call("scatter_terrain_grass", {
+        "clump_count": 900, "band_min": 0.0, "band_max": 0.5,
+        "max_slope_deg": 36, "scale_min": 1.4, "scale_max": 3.2,
+        "seed": 4242,
+    })
+    layers.append({"grass": gr, "grass_kind": "procedural_clumps"})
+
     # 4) Fixed exposure 16 — ROOT CAUSE of the long "pale ground"
     # saga: EV 13 with the 22000-lux sun blows out real 2K PBR albedo
     # to flat pale (solid-colour biomes never blew out, which is why
