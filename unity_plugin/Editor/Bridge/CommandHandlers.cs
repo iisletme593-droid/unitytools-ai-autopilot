@@ -100,8 +100,150 @@ namespace UnityTools.Bridge
                 case "setup_hdrp_volume": return SetupHdrpVolume(p);
                 case "list_root_objects": return ListRootObjects(p);
                 case "assign_material_asset": return AssignMaterialAsset(p);
+                case "build_terrain_from_heightmap": return BuildTerrainFromHeightmap(p);
+                case "fix_terrain_material": return FixTerrainMaterial(p);
                 default: throw new InvalidOperationException($"Unknown method: {method}");
             }
+        }
+
+        // ── Phase 91: real-world terrain. Python fetches a heightmap
+        // from a free elevation API (Open-Meteo) and posts it here as
+        // a flat float list (res*res, row-major, normalized 0..1).
+        // We sculpt a Unity Terrain + paint biome ground by elevation
+        // band (plains / forest-floor / rock) using procedural
+        // TerrainLayers — bypasses the broken GLB-material pipeline
+        // entirely (terrain layers are independent of mesh materials).
+        private static Texture2D SolidTex(Color c, string name)
+        {
+            var t = new Texture2D(8, 8) { name = name };
+            var px = new Color[64];
+            for (int i = 0; i < 64; i++) px[i] = c;
+            t.SetPixels(px); t.Apply();
+            return t;
+        }
+
+        // HDRP terrains render invisible/grey without an HDRP terrain
+        // material. Try the pipeline-correct shader; degrade silently
+        // on built-in/URP (default terrain material is fine there).
+        private static string ApplyTerrainPipelineMaterial(Terrain terrain)
+        {
+            if (terrain == null) return "no-terrain";
+            string[] candidates = { "HDRP/TerrainLit", "Universal Render Pipeline/Terrain/Lit" };
+            foreach (var sn in candidates)
+            {
+                var sh = Shader.Find(sn);
+                if (sh != null)
+                {
+                    var m = new Material(sh) { name = "UnityTools_TerrainMat" };
+                    terrain.materialTemplate = m;
+                    return sn;
+                }
+            }
+            return "builtin-default";
+        }
+
+        private static object FixTerrainMaterial(JObject p)
+        {
+            bool clearClutter = p["clear_clutter"]?.ToObject<bool>() ?? true;
+            var terrains = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None);
+            var fixedList = new List<string>();
+            foreach (var t in terrains)
+                fixedList.Add(t.name + ":" + ApplyTerrainPipelineMaterial(t));
+
+            int removed = 0;
+            if (clearClutter)
+            {
+                foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
+                {
+                    string n = root.name;
+                    if (n.StartsWith("Nature_Trees") || n.StartsWith("Nature_Rocks")
+                        || n == "UnityTools_ForestScene")
+                    {
+                        Undo.DestroyObjectImmediate(root);
+                        removed++;
+                    }
+                }
+            }
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                terrains_fixed = fixedList.ToArray(),
+                clutter_removed = removed,
+            };
+        }
+
+        private static object BuildTerrainFromHeightmap(JObject p)
+        {
+            int res = p["resolution"]?.ToObject<int>() ?? 65;       // 2^k+1
+            float sizeXZ = p["size_xz"]?.ToObject<float>() ?? 1000f; // metres
+            float sizeY = p["size_y"]?.ToObject<float>() ?? 280f;    // relief
+            var arr = p["heights"] as JArray;
+            if (arr == null || arr.Count < res * res)
+                return new { ok = false, error = $"heights needs {res*res} floats, got {arr?.Count ?? 0}" };
+
+            // clear previous terrain(s)
+            foreach (var t in UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None))
+                Undo.DestroyObjectImmediate(t.gameObject);
+
+            var td = new TerrainData
+            {
+                heightmapResolution = res,
+                size = new Vector3(sizeXZ, sizeY, sizeXZ),
+                alphamapResolution = res,
+                baseMapResolution = Mathf.Min(1024, res * 4),
+            };
+
+            var h = new float[res, res];
+            for (int y = 0; y < res; y++)
+                for (int x = 0; x < res; x++)
+                    h[y, x] = Mathf.Clamp01(arr[y * res + x].ToObject<float>());
+            td.SetHeights(0, 0, h);
+
+            // Biome ground layers — solid procedural colours by band.
+            var plains = new TerrainLayer { diffuseTexture = SolidTex(new Color(0.30f, 0.42f, 0.20f), "Plains"), tileSize = new Vector2(15, 15) };
+            var forest = new TerrainLayer { diffuseTexture = SolidTex(new Color(0.18f, 0.27f, 0.14f), "ForestFloor"), tileSize = new Vector2(15, 15) };
+            var rock   = new TerrainLayer { diffuseTexture = SolidTex(new Color(0.42f, 0.40f, 0.38f), "Rock"),  tileSize = new Vector2(15, 15) };
+            var snow   = new TerrainLayer { diffuseTexture = SolidTex(new Color(0.86f, 0.88f, 0.92f), "Snow"),  tileSize = new Vector2(15, 15) };
+            td.terrainLayers = new[] { plains, forest, rock, snow };
+
+            int aw = td.alphamapWidth, ah = td.alphamapHeight;
+            var alpha = new float[ah, aw, 4];
+            for (int y = 0; y < ah; y++)
+            {
+                for (int x = 0; x < aw; x++)
+                {
+                    float hn = h[
+                        Mathf.Clamp(Mathf.RoundToInt((float)y / ah * (res - 1)), 0, res - 1),
+                        Mathf.Clamp(Mathf.RoundToInt((float)x / aw * (res - 1)), 0, res - 1)];
+                    float wPlain = Mathf.Clamp01(1f - Mathf.Abs(hn - 0.10f) / 0.22f);
+                    float wForest = Mathf.Clamp01(1f - Mathf.Abs(hn - 0.42f) / 0.26f);
+                    float wRock = Mathf.Clamp01(1f - Mathf.Abs(hn - 0.74f) / 0.26f);
+                    float wSnow = Mathf.Clamp01((hn - 0.85f) / 0.15f);
+                    float s = wPlain + wForest + wRock + wSnow + 1e-4f;
+                    alpha[y, x, 0] = wPlain / s;
+                    alpha[y, x, 1] = wForest / s;
+                    alpha[y, x, 2] = wRock / s;
+                    alpha[y, x, 3] = wSnow / s;
+                }
+            }
+            td.SetAlphamaps(0, 0, alpha);
+
+            var go = Terrain.CreateTerrainGameObject(td);
+            go.name = "WorldTerrain";
+            go.transform.position = new Vector3(-sizeXZ / 2f, 0f, -sizeXZ / 2f);
+            ApplyTerrainPipelineMaterial(go.GetComponent<Terrain>());
+            Undo.RegisterCreatedObjectUndo(go, "UnityTools: world terrain");
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                terrain = go.name,
+                resolution = res,
+                size_xz = sizeXZ,
+                size_y = sizeY,
+                layers = new[] { "plains", "forest", "rock", "snow" },
+            };
         }
 
         // ── Phase 90: whole-scene read (no 200 cap; roots are few even
