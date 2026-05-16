@@ -1223,6 +1223,13 @@ namespace UnityTools.Bridge
             music.transform.SetParent(root.transform, true);
             Ensure(music, "Gameplay.MusicDirector");
 
+            // Diegetic positional encounter SFX (snarls/rustles at the
+            // enemies) — the audible counterpart to MusicDirector; uses
+            // the TI_Audio AudioManager engine.
+            var amb = GameObject.Find("TI_EncounterAmbience") ?? new GameObject("TI_EncounterAmbience");
+            amb.transform.SetParent(root.transform, true);
+            Ensure(amb, "Gameplay.EncounterAmbience");
+
             // Camp loadout + offering near the hero/spawn.
             var rack = FindOrCube("WeaponRack_BarbarCamp", hp + new Vector3(3f, 0f, 2f), PrimitiveType.Cube, root.transform);
             Ensure(rack, "Gameplay.WeaponRack");
