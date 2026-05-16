@@ -3767,7 +3767,7 @@ def studio_lighting_audit(
 
 # ─── Asset generation via Blender (Phase 25) ───────────────────────────
 
-@tool(description="Generate a procedural prop (rock / crate / pillar / column) via Blender and save the FBX under studio/assets/generated/. Deterministic per seed: same prop_type+seed produces the same mesh, so re-runs converge. Optionally imports into Unity if import_into_unity=True and a Unity bridge is wired. Returns the FBX path so the Worker can chain unity_import_asset afterwards.")
+@tool(description="Generate a procedural prop via Blender (AI asset layer) and write a DOCS-contract slot package (final.fbx + preview.png + notes.md) under studio/assets/generated/<name>/. Primitive set: rock/crate/pillar/column. Briar Hollow environment set (art-bible aligned): boulder/stump/deadtrunk/totem/shrine/gate/bench/banner/rack. Deterministic per seed. If import_into_unity=True, imports the FBX into Unity (fixed: uses the correct bridge param contract). Returns slot paths so the Worker can chain placement.")
 def studio_generate_prop_asset(
     prop_type: str,
     name: str = "",
@@ -3781,22 +3781,29 @@ def studio_generate_prop_asset(
         return {"ok": False, "error": "Blender bridge not injected. Run init_studio_blender(bridge) first."}
     if not _BLENDER.is_available():
         return {"ok": False, "error": "Blender executable not found; set BLENDER_EXECUTABLE in .env."}
-    if not prop_type or prop_type not in ("rock", "crate", "pillar", "column"):
-        return {"ok": False, "error": f"prop_type must be one of rock / crate / pillar / column; got {prop_type!r}."}
+    supported = getattr(_BLENDER, "SUPPORTED_PROP_TYPES",
+                        ("rock", "crate", "pillar", "column"))
+    if not prop_type or prop_type not in supported:
+        return {"ok": False,
+                "error": f"prop_type must be one of {', '.join(supported)}; got {prop_type!r}."}
 
-    # Name + output path
+    # Slot package per blender-realism-pipeline DOCS contract:
+    #   <name>/final.fbx + preview.png + notes.md
     safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in (name or f"{prop_type}_{seed}")).strip("_")
     if not safe_name:
         safe_name = f"{prop_type}_{seed}"
-    assets_dir = state.paths.root / "assets" / "generated"
-    assets_dir.mkdir(parents=True, exist_ok=True)
-    output_path = assets_dir / f"{safe_name}.fbx"
+    slot_dir = state.paths.root / "assets" / "generated" / safe_name
+    slot_dir.mkdir(parents=True, exist_ok=True)
+    output_path = slot_dir / "final.fbx"
+    preview_path = slot_dir / "preview.png"
+    notes_path = slot_dir / "notes.md"
 
     result = _BLENDER.generate_prop(
         prop_type=prop_type,
         output_path=str(output_path),
         seed=seed,
         scale=scale,
+        preview_path=str(preview_path),
     )
     if not result.success:
         return {
@@ -3810,6 +3817,24 @@ def studio_generate_prop_asset(
             "error": f"Blender reported success but FBX not at {output_path}",
             "stdout_tail": result.stdout.strip().splitlines()[-5:] if result.stdout else [],
         }
+
+    # Slot package: notes.md (DOCS contract) so the slot is auditable.
+    has_preview = preview_path.exists()
+    try:
+        notes_path.write_text(
+            f"# {safe_name}\n\n"
+            f"- prop_type: `{prop_type}`\n"
+            f"- seed: `{int(seed)}`\n"
+            f"- scale: `{scale}`\n"
+            f"- generator: `scripts/blender/generate_prop.py` (Blender, AI layer)\n"
+            f"- final: `final.fbx` ({output_path.stat().st_size} bytes)\n"
+            f"- preview: `{'preview.png' if has_preview else '(none)'}`\n"
+            f"- source line: AI environment/blockout (DOCS blender-realism-pipeline AI usage line)\n"
+            f"- palette: Briar Hollow art bible (wet earth / moss / ash)\n",
+            encoding="utf-8",
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
     # Log to regression so the time series shows asset generation
     state.append_regression_entry(
@@ -3829,31 +3854,125 @@ def studio_generate_prop_asset(
         "prop_type": prop_type,
         "name": safe_name,
         "seed": int(seed),
+        "slot_dir": str(slot_dir),
         "fbx_path": str(output_path),
+        "preview_path": str(preview_path) if has_preview else None,
+        "notes_path": str(notes_path),
         "size_bytes": output_path.stat().st_size,
     }
 
-    # Optional Unity import as a convenience chain
+    # Optional Unity import. NOTE: the bridge ImportAsset handler wants
+    # `src_path` + `dst_relative` (relative to Assets/, including the
+    # filename) — the old source_path/destination params silently failed.
     if import_into_unity:
         if _UNITY is None:
             payload["unity_import"] = {"ok": False, "error": "Unity bridge not injected."}
         elif hasattr(_UNITY, "is_connected") and not _UNITY.is_connected():
             payload["unity_import"] = {"ok": False, "error": "Unity Editor is not connected."}
         else:
+            dst_rel = unity_destination.replace("\\", "/").strip("/")
+            if dst_rel.lower().startswith("assets/"):
+                dst_rel = dst_rel[len("assets/"):]
+            dst_rel = f"{dst_rel}/{safe_name}.fbx"
             try:
                 imp = _UNITY.call(
                     "import_asset",
-                    {
-                        "source_path": str(output_path),
-                        "destination": unity_destination.rstrip("/"),
-                        "replace_existing": True,
-                    },
+                    {"src_path": str(output_path), "dst_relative": dst_rel},
                     timeout=120,
                 )
                 payload["unity_import"] = imp if isinstance(imp, dict) else {"ok": True, "result": imp}
+                payload["unity_asset_path"] = f"Assets/{dst_rel}"
             except Exception as exc:  # noqa: BLE001
                 payload["unity_import"] = {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
     return payload
+
+
+# ─── DOCS-driven AI world-asset layer (Phase 108) ──────────────────────
+
+@tool(description="AI learning layer: read the Briar Hollow slice's required environment props (level-instance-links.md anchors + art bible) and MANUFACTURE them in 3D via Blender, import each into Unity, and place each on the terrain surface at its level anchor. This is the intelligence layer that lets the AI generate its own DOCS-driven 3D assets instead of using only pre-bought packs. dry_run=True only reports the manifest. Stays within the DOCS AI-usage line (environment/blockout, not final hero/boss meshes).")
+def studio_generate_world_assets(dry_run: bool = False,
+                                 scene: str = "Assets/Scenes/ForgottenValley_VS.unity",
+                                 base_object: str = "SK_Hero") -> dict:
+    state = _require_state()
+    if _BLENDER is None or not _BLENDER.is_available():
+        return {"ok": False, "error": "Blender bridge unavailable; set BLENDER_EXECUTABLE."}
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected."}
+
+    # Briar Hollow vertical-slice prop manifest, derived from
+    # level-instance-links.md (Camp -> 3 Offerings -> SoulShrine ->
+    # BossGate -> BossArena loop) + art-bible atmosphere layers.
+    # (slot, prop_type, scale, dx, dz, seed)  — dx/dz are metres from base.
+    MANIFEST = [
+        ("SoulShrine_OldRoots", "shrine",    2.2,   56,  44, 401),
+        ("BossGate_RootVeil",   "gate",      2.6,   84,  66, 402),
+        ("RestTotem_Bridge",    "totem",     1.6,   28,  20, 403),
+        ("RestTotem_Shrine",    "totem",     1.6,   52,  40, 404),
+        ("CraftingBench_Camp",  "bench",     1.3,   14,   8, 405),
+        ("WarBanner_Camp",      "banner",    1.5,   18,  12, 406),
+        ("WeaponRack_Camp",     "rack",      1.2,   12,  14, 407),
+        ("Atmo_DeadTrunk_A",    "deadtrunk", 2.0,   38,  30, 408),
+        ("Atmo_DeadTrunk_B",    "deadtrunk", 2.4,   70,  54, 409),
+        ("Atmo_Boulder_A",      "boulder",   2.2,   24,  34, 410),
+        ("Atmo_Boulder_B",      "boulder",   3.0,   64,  48, 411),
+        ("Atmo_Stump_A",        "stump",     1.6,   20,  26, 412),
+    ]
+    if dry_run:
+        return {"ok": True, "dry_run": True, "count": len(MANIFEST),
+                "manifest": [
+                    {"slot": s, "type": t, "scale": sc, "dx": dx, "dz": dz}
+                    for (s, t, sc, dx, dz, _sd) in MANIFEST]}
+
+    def call(cmd, params, timeout=120):
+        try:
+            return _UNITY.call(cmd, params, timeout=timeout)
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "error": str(exc)[:160]}
+
+    call("open_scene", {"path": scene})
+
+    # Base anchor = the hero spawn (fallback to a sensible valley point).
+    bx, bz = 225.0, 75.0
+    info = call("get_object_details", {"name": base_object})
+    if isinstance(info, dict):
+        pos = info.get("position") or {}
+        if isinstance(pos, dict) and "x" in pos:
+            bx, bz = float(pos["x"]), float(pos["z"])
+
+    results = []
+    for (slot, ptype, pscale, dx, dz, seed) in MANIFEST:
+        gen = studio_generate_prop_asset(
+            prop_type=ptype, name=slot, seed=seed, scale=pscale,
+            import_into_unity=True,
+            unity_destination="Assets/Studio/Generated",
+        )
+        row = {"slot": slot, "type": ptype, "generated": bool(gen.get("ok"))}
+        if not gen.get("ok"):
+            row["error"] = gen.get("error", "")[:160]
+            results.append(row)
+            continue
+        asset_path = gen.get("unity_asset_path")
+        ui = gen.get("unity_import")
+        row["imported"] = bool(isinstance(ui, dict) and ui.get("ok", True)) and bool(asset_path)
+        if asset_path:
+            placed = call("place_asset_on_terrain", {
+                "asset_path": asset_path, "name": slot,
+                "x": bx + dx, "z": bz + dz,
+                "rot_y": (seed * 37) % 360, "scale": 1.0,
+                "parent": "WorldGeneratedProps",
+            })
+            row["placed"] = bool(isinstance(placed, dict) and placed.get("ok"))
+            row["place"] = placed if isinstance(placed, dict) else {}
+        results.append(row)
+
+    call("save_scene", {})
+    ok_n = sum(1 for r in results if r.get("placed"))
+    state.append_regression_entry({"ts": time.time(),
+                                   "kind": "world_assets_generated",
+                                   "placed": ok_n, "total": len(MANIFEST)})
+    return {"ok": True, "placed": ok_n, "total": len(MANIFEST),
+            "results": results,
+            "note": "AI-manufactured Briar Hollow env props (Blender -> Unity -> terrain)"}
 
 
 # ─── Physics QA / perf budget (Phase 24) ───────────────────────────────
@@ -4471,14 +4590,40 @@ def studio_realize_world(
     foot = abs(tx) * 2.0 if tx < 0 else 16000.0    # corner-origin convention
     cx, cz = tx + foot / 2.0, tz + foot / 2.0
 
-    # 1) Naturalistic biome repaint (richer, less flat)
-    layers.append({"biomes": call("repaint_terrain_biomes", {
-        "plains_to": 0.34, "forest_to": 0.66, "rock_to": 0.90,
-        "plains_color": [0.33, 0.44, 0.22],
-        "forest_color": [0.16, 0.30, 0.15],
-        "rock_color": [0.42, 0.40, 0.37],
-        "snow_color": [0.92, 0.94, 0.97],
-    })})
+    # 1) Ground. Intelligence layer: prefer REAL 2K PBR ground/rock
+    # layers (diffuse+normal) chosen to match the Briar Hollow art
+    # bible palette (moss green -> wet dark earth -> mossy rock ->
+    # burnt grey rock). Fall back to solid-colour biome splat if the
+    # PBR handler isn't compiled yet or a texture is missing.
+    _tx = "Assets/FantasyRPG/Textures"
+    pbr = call("apply_terrain_pbr_layers", {
+        "cutoffs": [0.34, 0.62, 0.88],
+        "layers": [
+            {"name": "Moss",     "tile": 10,
+             "diffuse": f"{_tx}/Ground/Ground037/Ground037_2K-JPG_Color.jpg",
+             "normal":  f"{_tx}/Ground/Ground037/Ground037_2K-JPG_NormalGL.jpg"},
+            {"name": "WetEarth", "tile": 11,
+             "diffuse": f"{_tx}/Ground/Ground103/Ground103_2K-JPG_Color.jpg",
+             "normal":  f"{_tx}/Ground/Ground103/Ground103_2K-JPG_NormalGL.jpg"},
+            {"name": "MossRock", "tile": 13,
+             "diffuse": f"{_tx}/Rock/Rock063/Rock063_2K-JPG_Color.jpg",
+             "normal":  f"{_tx}/Rock/Rock063/Rock063_2K-JPG_NormalGL.jpg"},
+            {"name": "DarkRock", "tile": 15,
+             "diffuse": f"{_tx}/Rock/Rock058/Rock058_2K-JPG_Color.jpg",
+             "normal":  f"{_tx}/Rock/Rock058/Rock058_2K-JPG_NormalGL.jpg"},
+        ],
+    }, timeout=180)
+    if isinstance(pbr, dict) and pbr.get("ok"):
+        layers.append({"biomes": pbr, "biome_kind": "real_pbr"})
+    else:
+        layers.append({"biomes_pbr_skipped": pbr})
+        layers.append({"biomes": call("repaint_terrain_biomes", {
+            "plains_to": 0.34, "forest_to": 0.66, "rock_to": 0.90,
+            "plains_color": [0.33, 0.44, 0.22],
+            "forest_color": [0.16, 0.30, 0.15],
+            "rock_color": [0.42, 0.40, 0.37],
+            "snow_color": [0.92, 0.94, 0.97],
+        }), "biome_kind": "solid_fallback"})
 
     # 2) Water plane filling the low valleys (the big realism jump)
     wy = ty + water_level * relief_m
@@ -4490,11 +4635,26 @@ def studio_realize_world(
                                 "b": 0.27, "a": 1.0})
     layers.append({"water": {"y": wy, "footprint": foot}})
 
-    # 3) Sparse valley forest (mid-low band only)
-    layers.append({"forest": call("scatter_terrain_trees", {
+    # 3) Sparse valley forest (mid-low band only). Intelligence layer:
+    # prefer REAL GLB tree models (PolyHaven pine/fir/island + dead
+    # trunks), auto-repairing any white/magenta glTF material to a
+    # known-good HDRP foliage material. Gracefully fall back to the
+    # procedural pines if the GLB handler isn't compiled into the
+    # bridge yet (Unknown method) or no models resolve.
+    glb = call("scatter_terrain_glb_trees", {
         "tree_count": forest_count, "forest_min": 0.14, "forest_max": 0.52,
-        "max_slope_deg": 33, "scale_min": 8, "scale_max": 16, "seed": 11,
-    })})
+        "max_slope_deg": 33, "scale_min": 0.55, "scale_max": 1.5,
+        "dead_ratio": 0.12, "seed": 11,
+    })
+    used_real = isinstance(glb, dict) and glb.get("ok") and glb.get("placed", 0) > 0
+    if used_real:
+        layers.append({"forest": glb, "forest_kind": "real_glb"})
+    else:
+        layers.append({"forest_glb_skipped": glb})
+        layers.append({"forest": call("scatter_terrain_trees", {
+            "tree_count": forest_count, "forest_min": 0.14, "forest_max": 0.52,
+            "max_slope_deg": 33, "scale_min": 8, "scale_max": 16, "seed": 11,
+        }), "forest_kind": "procedural_fallback"})
 
     # 4) Fixed exposure 13 — paired with the 22000-lux sun this is the
     # locked-in recipe that reads as balanced natural daylight (the

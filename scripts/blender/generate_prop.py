@@ -1,19 +1,34 @@
-"""Procedural prop generator for the studio asset pipeline.
+"""Procedural prop generator for the studio AI asset pipeline.
+
+The "AI learning layer": Claude reads the Briar Hollow DOCS
+(level-instance-links.md, art-bible-briar-hollow.md) and manufactures
+the environment props the vertical slice needs, in 3D, via Blender —
+within the DOCS' AI usage line (environment / concept / blockout, NOT
+final hero or boss meshes).
 
 Usage:
     blender --background --python scripts/blender/generate_prop.py -- \
-        --type rock --output /path/to/output.fbx \
-        [--seed 42] [--scale 1.0]
+        --type shrine --output /path/final.fbx \
+        [--seed 42] [--scale 1.0] [--preview /path/preview.png]
 
-Supported types (parametric, deterministic per seed):
-    rock     - randomly-deformed icosphere, low poly
-    crate    - beveled cube
-    pillar   - tall cylinder with end caps
-    column   - cylinder with a wider capital + base
+Primitive set (kept for back-compat):
+    rock crate pillar column
 
-The script clears the default scene, builds one prop at the origin,
-exports to FBX, and exits. Designed for the studio's
-studio_generate_prop_asset tool.
+Briar Hollow environment set (DOCS-driven, art-bible aligned —
+"natural beauty corrupted by patient violence"):
+    boulder    - large mossy boulder, flat base
+    stump      - broken tree stump with root flares          (M_Bark)
+    deadtrunk  - tall snapped leaning trunk                   (M_Bark)
+    totem      - RestTotem: stacked carved stone discs        (M_Stone)
+    shrine     - SoulShrine_OldRoots: altar + root arch ring  (M_Stone/M_Bark)
+    gate       - BossGate_RootVeil: leaning posts + root lintel
+    bench      - CraftingBench (Camp tier1)                   (M_Wood)
+    banner     - WarBanner: pole + hanging cloth              (M_Wood/M_Cloth)
+    rack       - WeaponRack A-frame                           (M_Wood)
+
+Every build is deterministic per seed, low-poly, base at z=0 (sits on
+terrain), single joined mesh with the DOCS material-slot contract so it
+imports clean (never white) into Unity.
 """
 from __future__ import annotations
 
@@ -24,35 +39,47 @@ from pathlib import Path
 
 import bpy
 import bmesh
+from mathutils import Vector
 
+PRIMITIVE_TYPES = ("rock", "crate", "pillar", "column")
+WORLD_TYPES = ("boulder", "stump", "deadtrunk", "totem", "shrine",
+               "gate", "bench", "banner", "rack")
+SUPPORTED_TYPES = PRIMITIVE_TYPES + WORLD_TYPES
 
-SUPPORTED_TYPES = ("rock", "crate", "pillar", "column")
+# Art-bible palette (linear-ish sRGB): wet dark earth brown, sickly
+# moss green, burnt ash grey, dry-blood red, cold stone.
+_MATS = {
+    "M_Stone": ((0.30, 0.30, 0.31, 1.0), 0.82),
+    "M_Bark":  ((0.16, 0.11, 0.07, 1.0), 0.78),
+    "M_Wood":  ((0.27, 0.18, 0.10, 1.0), 0.66),
+    "M_Cloth": ((0.34, 0.07, 0.07, 1.0), 0.85),
+    "M_Ash":   ((0.13, 0.13, 0.14, 1.0), 0.74),
+    "M_Moss":  ((0.20, 0.27, 0.13, 1.0), 0.80),
+}
 
 
 def parse_args() -> dict | None:
     try:
         sep = sys.argv.index("--")
-        argv = sys.argv[sep + 1 :]
+        argv = sys.argv[sep + 1:]
     except ValueError:
         print("ERROR: pass arguments after '--' separator")
         return None
-
-    out: dict = {"type": None, "output": None, "seed": 0, "scale": 1.0}
+    out: dict = {"type": None, "output": None, "seed": 0, "scale": 1.0,
+                 "preview": None}
     i = 0
     while i < len(argv):
         a = argv[i]
         if a == "--type" and i + 1 < len(argv):
-            out["type"] = argv[i + 1]
-            i += 2
+            out["type"] = argv[i + 1]; i += 2
         elif a == "--output" and i + 1 < len(argv):
-            out["output"] = argv[i + 1]
-            i += 2
+            out["output"] = argv[i + 1]; i += 2
         elif a == "--seed" and i + 1 < len(argv):
-            out["seed"] = int(argv[i + 1])
-            i += 2
+            out["seed"] = int(argv[i + 1]); i += 2
         elif a == "--scale" and i + 1 < len(argv):
-            out["scale"] = float(argv[i + 1])
-            i += 2
+            out["scale"] = float(argv[i + 1]); i += 2
+        elif a == "--preview" and i + 1 < len(argv):
+            out["preview"] = argv[i + 1]; i += 2
         else:
             i += 1
     if not out["type"] or not out["output"]:
@@ -67,95 +94,313 @@ def parse_args() -> dict | None:
 def _clear_scene() -> None:
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
+    for block in (bpy.data.meshes, bpy.data.materials):
+        for b in list(block):
+            if b.users == 0:
+                block.remove(b)
 
 
-def _build_rock(seed: int, scale: float) -> bpy.types.Object:
-    rng = random.Random(seed)
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.5 * scale)
-    obj = bpy.context.active_object
-    obj.name = "Rock"
-    mesh = obj.data
+def _mat(name: str) -> bpy.types.Material:
+    if name in bpy.data.materials:
+        return bpy.data.materials[name]
+    color, rough = _MATS.get(name, ((0.5, 0.5, 0.5, 1.0), 0.7))
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    bsdf = m.node_tree.nodes.get("Principled BSDF")
+    if bsdf:
+        bsdf.inputs["Base Color"].default_value = color
+        if "Roughness" in bsdf.inputs:
+            bsdf.inputs["Roughness"].default_value = rough
+    m.diffuse_color = color
+    return m
+
+
+def _assign(obj: bpy.types.Object, mat_name: str) -> bpy.types.Object:
+    obj.data.materials.clear()
+    obj.data.materials.append(_mat(mat_name))
+    return obj
+
+
+def _jitter_verts(obj, rng, amp, axis_bias=(1.0, 1.0, 1.0)) -> None:
+    me = obj.data
     bm = bmesh.new()
-    bm.from_mesh(mesh)
-    # Per-vertex random displacement -- low-poly weathered look
+    bm.from_mesh(me)
     for v in bm.verts:
-        jitter = (rng.random() - 0.5) * 0.25 * scale
-        v.co.x += jitter
-        v.co.y += jitter * 0.7
-        v.co.z += jitter * 1.1
-    bm.to_mesh(mesh)
+        v.co.x += (rng.random() - 0.5) * amp * axis_bias[0]
+        v.co.y += (rng.random() - 0.5) * amp * axis_bias[1]
+        v.co.z += (rng.random() - 0.5) * amp * axis_bias[2]
+    bm.to_mesh(me)
     bm.free()
-    return obj
 
 
-def _build_crate(seed: int, scale: float) -> bpy.types.Object:
-    bpy.ops.mesh.primitive_cube_add(size=1.0 * scale)
-    obj = bpy.context.active_object
-    obj.name = "Crate"
-    # Bevel the edges for a slightly weathered crate look
-    bpy.ops.object.mode_set(mode="EDIT")
-    bpy.ops.mesh.select_all(action="SELECT")
-    bpy.ops.mesh.bevel(offset=0.03 * scale, segments=2)
-    bpy.ops.object.mode_set(mode="OBJECT")
-    return obj
-
-
-def _build_pillar(seed: int, scale: float) -> bpy.types.Object:
-    bpy.ops.mesh.primitive_cylinder_add(
-        vertices=12,
-        radius=0.3 * scale,
-        depth=2.0 * scale,
-    )
-    obj = bpy.context.active_object
-    obj.name = "Pillar"
-    return obj
-
-
-def _build_column(seed: int, scale: float) -> bpy.types.Object:
-    """Pillar shaft + wider capital + base, all under a single mesh."""
-    bpy.ops.mesh.primitive_cylinder_add(
-        vertices=16, radius=0.3 * scale, depth=2.0 * scale, location=(0, 0, 0)
-    )
-    shaft = bpy.context.active_object
-    shaft.name = "Column"
-
-    # Base
-    bpy.ops.mesh.primitive_cylinder_add(
-        vertices=16, radius=0.45 * scale, depth=0.15 * scale,
-        location=(0, 0, -1.0 * scale - 0.075 * scale),
-    )
-    base = bpy.context.active_object
-
-    # Capital
-    bpy.ops.mesh.primitive_cylinder_add(
-        vertices=16, radius=0.45 * scale, depth=0.15 * scale,
-        location=(0, 0, 1.0 * scale + 0.075 * scale),
-    )
-    capital = bpy.context.active_object
-
-    # Join shaft + base + capital
+def _join(objs: list, name: str) -> bpy.types.Object:
+    objs = [o for o in objs if o is not None]
     bpy.ops.object.select_all(action="DESELECT")
-    shaft.select_set(True)
-    base.select_set(True)
-    capital.select_set(True)
-    bpy.context.view_layer.objects.active = shaft
-    bpy.ops.object.join()
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    if len(objs) > 1:
+        bpy.ops.object.join()
+    j = bpy.context.active_object
+    j.name = name
+    # Drop pivot to the base so it sits on the terrain surface.
+    me = j.data
+    min_z = min((j.matrix_world @ v.co).z for v in me.vertices)
+    for v in me.vertices:
+        v.co.z -= min_z
+    j.location = (0.0, 0.0, 0.0)
+    return j
+
+
+def _cyl(r, d, loc, verts=12, rot=(0, 0, 0)):
+    bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=r, depth=d,
+                                        location=loc)
+    o = bpy.context.active_object
+    o.rotation_euler = rot
+    return o
+
+
+def _cube(size, loc, scale=(1, 1, 1)):
+    bpy.ops.mesh.primitive_cube_add(size=size, location=loc)
+    o = bpy.context.active_object
+    o.scale = scale
+    return o
+
+
+def _ico(r, loc, subd=2):
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=subd, radius=r,
+                                          location=loc)
     return bpy.context.active_object
 
 
+# ─── primitive set (back-compat) ──────────────────────────────────────
+def _build_rock(seed, s):
+    o = _ico(0.5 * s, (0, 0, 0))
+    _jitter_verts(o, random.Random(seed), 0.25 * s, (1.0, 0.7, 1.1))
+    return _assign(_join([o], "Rock"), "M_Stone")
+
+
+def _build_crate(seed, s):
+    o = _cube(1.0 * s, (0, 0, 0))
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.mesh.bevel(offset=0.03 * s, segments=2)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    return _assign(_join([o], "Crate"), "M_Wood")
+
+
+def _build_pillar(seed, s):
+    return _assign(_join([_cyl(0.3 * s, 2.0 * s, (0, 0, 0))], "Pillar"),
+                   "M_Stone")
+
+
+def _build_column(seed, s):
+    shaft = _cyl(0.3 * s, 2.0 * s, (0, 0, 0), 16)
+    base = _cyl(0.45 * s, 0.15 * s, (0, 0, -1.0 * s - 0.075 * s), 16)
+    cap = _cyl(0.45 * s, 0.15 * s, (0, 0, 1.0 * s + 0.075 * s), 16)
+    return _assign(_join([shaft, base, cap], "Column"), "M_Stone")
+
+
+# ─── Briar Hollow environment set ─────────────────────────────────────
+def _build_boulder(seed, s):
+    rng = random.Random(seed)
+    o = _ico(0.9 * s, (0, 0, 0), subd=2)
+    _jitter_verts(o, rng, 0.42 * s, (1.0, 1.0, 0.65))
+    # flatten the bottom so it reads as resting, not floating
+    for v in o.data.vertices:
+        if v.co.z < -0.35 * s:
+            v.co.z = -0.35 * s
+    return _assign(_join([o], "Boulder"), "M_Stone")
+
+
+def _build_stump(seed, s):
+    rng = random.Random(seed)
+    trunk = _cyl(0.34 * s, 0.85 * s, (0, 0, 0), 14)
+    # jagged snapped top
+    bm = bmesh.new(); bm.from_mesh(trunk.data)
+    for v in bm.verts:
+        if v.co.z > 0.30 * s:
+            v.co.z += (rng.random()) * 0.32 * s
+    bm.to_mesh(trunk.data); bm.free()
+    roots = []
+    for k in range(4):
+        ang = k * (math.pi / 2) + rng.random() * 0.5
+        rt = _cyl(0.12 * s, 0.6 * s,
+                  (math.cos(ang) * 0.34 * s, math.sin(ang) * 0.34 * s,
+                   -0.32 * s),
+                  8, (rng.random() * 0.4 + 1.0, 0, ang))
+        roots.append(_assign(rt, "M_Bark"))
+    return _assign(_join([trunk] + roots, "Stump"), "M_Bark")
+
+
+def _build_deadtrunk(seed, s):
+    rng = random.Random(seed)
+    segs = []
+    z = 0.0
+    lean = rng.random() * 0.18
+    for k in range(4):
+        r = (0.30 - k * 0.05) * s
+        d = (1.1 - k * 0.12) * s
+        seg = _cyl(max(0.06 * s, r), d, (lean * k * s, 0, z + d / 2), 12,
+                   (0, lean, 0))
+        segs.append(seg)
+        z += d * 0.92
+    # snapped jagged top on the last segment
+    bm = bmesh.new(); bm.from_mesh(segs[-1].data)
+    for v in bm.verts:
+        if v.co.z > 0:
+            v.co.z += rng.random() * 0.45 * s
+    bm.to_mesh(segs[-1].data); bm.free()
+    return _assign(_join(segs, "DeadTrunk"), "M_Bark")
+
+
+def _build_totem(seed, s):
+    rng = random.Random(seed)
+    parts = []
+    z = 0.0
+    for k in range(4):
+        r = (0.42 - k * 0.06) * s + rng.random() * 0.03 * s
+        d = (0.34 + rng.random() * 0.1) * s
+        disc = _cyl(r, d, (0, 0, z + d / 2), 10)
+        _jitter_verts(disc, rng, 0.05 * s, (1, 1, 0.2))
+        parts.append(disc)
+        z += d
+    # carved notch cap
+    cap = _cube(0.5 * s, (0, 0, z + 0.18 * s), (0.5, 0.5, 0.35))
+    parts.append(cap)
+    return _assign(_join(parts, "RestTotem"), "M_Stone")
+
+
+def _build_shrine(seed, s):
+    rng = random.Random(seed)
+    altar = _cube(1.0 * s, (0, 0, 0.32 * s), (0.95, 0.95, 0.62))
+    parts = [_assign(altar, "M_Stone")]
+    n = 5
+    for k in range(n):
+        ang = (k / n) * math.tau
+        # leaning root arch around the altar
+        arc = _cyl(0.10 * s, 1.7 * s,
+                   (math.cos(ang) * 1.25 * s, math.sin(ang) * 1.25 * s,
+                    0.75 * s),
+                   8, (math.cos(ang) * 0.5, math.sin(ang) * 0.5, ang))
+        parts.append(_assign(arc, "M_Bark"))
+    return _assign(_join(parts, "SoulShrine"), "M_Stone")
+
+
+def _build_gate(seed, s):
+    rng = random.Random(seed)
+    lp = _cyl(0.30 * s, 3.4 * s, (-1.5 * s, 0, 1.7 * s), 8, (0, 0.10, 0))
+    rp = _cyl(0.30 * s, 3.4 * s, (1.5 * s, 0, 1.7 * s), 8, (0, -0.10, 0))
+    _jitter_verts(lp, rng, 0.06 * s); _jitter_verts(rp, rng, 0.06 * s)
+    # sagging root lintel across the top
+    lintel = _cyl(0.16 * s, 3.6 * s, (0, 0, 3.3 * s), 8,
+                  (0, math.pi / 2, 0))
+    bm = bmesh.new(); bm.from_mesh(lintel.data)
+    for v in bm.verts:
+        v.co.z -= 0.18 * s * (1.0 - (abs(v.co.x) / (1.8 * s)))
+    bm.to_mesh(lintel.data); bm.free()
+    return _assign(_join([_assign(lp, "M_Stone"), _assign(rp, "M_Stone"),
+                          _assign(lintel, "M_Bark")], "BossGate"),
+                   "M_Stone")
+
+
+def _build_bench(seed, s):
+    top = _cube(1.0 * s, (0, 0, 0.62 * s), (1.3, 0.6, 0.1))
+    legs = []
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            legs.append(_cube(1.0 * s,
+                              (sx * 0.55 * s, sy * 0.22 * s, 0.31 * s),
+                              (0.1, 0.1, 0.62)))
+    back = _cube(1.0 * s, (0, -0.28 * s, 0.95 * s), (1.3, 0.08, 0.35))
+    return _assign(_join([top] + legs + [back], "CraftingBench"), "M_Wood")
+
+
+def _build_banner(seed, s):
+    pole = _cyl(0.07 * s, 3.2 * s, (0, 0, 1.6 * s), 8)
+    cross = _cyl(0.05 * s, 1.2 * s, (0, 0, 2.9 * s), 6, (math.pi / 2, 0, 0))
+    cloth = _cube(1.0 * s, (0, 0.02 * s, 2.1 * s), (0.55, 0.02, 0.85))
+    rng = random.Random(seed)
+    bm = bmesh.new(); bm.from_mesh(cloth.data)
+    for v in bm.verts:
+        v.co.x += math.sin(v.co.z * 6.0 + rng.random()) * 0.05 * s
+    bm.to_mesh(cloth.data); bm.free()
+    return _assign(_join([_assign(pole, "M_Wood"), _assign(cross, "M_Wood"),
+                          _assign(cloth, "M_Cloth")], "WarBanner"),
+                   "M_Wood")
+
+
+def _build_rack(seed, s):
+    parts = []
+    for side in (-1, 1):
+        a = _cyl(0.06 * s, 1.7 * s, (side * 0.5 * s, -0.3 * s, 0.8 * s),
+                 6, (0.32, 0, 0))
+        b = _cyl(0.06 * s, 1.7 * s, (side * 0.5 * s, 0.3 * s, 0.8 * s),
+                 6, (-0.32, 0, 0))
+        parts += [a, b]
+    topbar = _cyl(0.05 * s, 1.3 * s, (0, 0, 1.45 * s), 6,
+                  (0, math.pi / 2, 0))
+    rail = _cyl(0.05 * s, 1.3 * s, (0, 0, 0.55 * s), 6,
+                (0, math.pi / 2, 0))
+    parts += [topbar, rail]
+    return _assign(_join(parts, "WeaponRack"), "M_Wood")
+
+
+_BUILDERS = {
+    "rock": _build_rock, "crate": _build_crate, "pillar": _build_pillar,
+    "column": _build_column, "boulder": _build_boulder,
+    "stump": _build_stump, "deadtrunk": _build_deadtrunk,
+    "totem": _build_totem, "shrine": _build_shrine, "gate": _build_gate,
+    "bench": _build_bench, "banner": _build_banner, "rack": _build_rack,
+}
+
+
 def build(prop_type: str, seed: int, scale: float) -> bpy.types.Object:
-    if prop_type == "rock":
-        return _build_rock(seed, scale)
-    if prop_type == "crate":
-        return _build_crate(seed, scale)
-    if prop_type == "pillar":
-        return _build_pillar(seed, scale)
-    if prop_type == "column":
-        return _build_column(seed, scale)
-    raise ValueError(f"Unknown prop type: {prop_type}")
+    fn = _BUILDERS.get(prop_type)
+    if fn is None:
+        raise ValueError(f"Unknown prop type: {prop_type}")
+    obj = fn(seed, scale)
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.transform_apply(location=False, rotation=True,
+                                   scale=True)
+    return obj
 
 
-def export_fbx(obj: bpy.types.Object, output_path: str) -> None:
+def render_preview(obj, preview_path: str) -> None:
+    try:
+        scn = bpy.context.scene
+        scn.render.engine = "BLENDER_EEVEE_NEXT"
+    except Exception:
+        try:
+            bpy.context.scene.render.engine = "BLENDER_EEVEE"
+        except Exception:
+            pass
+    scn = bpy.context.scene
+    scn.render.resolution_x = 512
+    scn.render.resolution_y = 512
+    scn.render.filepath = preview_path
+    # frame the prop
+    bbox = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
+    cz = sum(v.z for v in bbox) / 8.0
+    rad = max((v - Vector((0, 0, cz))).length for v in bbox) or 1.0
+    bpy.ops.object.camera_add(location=(rad * 2.4, -rad * 2.4,
+                                        cz + rad * 1.4))
+    cam = bpy.context.active_object
+    cam.rotation_euler = (math.radians(62), 0, math.radians(45))
+    scn.camera = cam
+    bpy.ops.object.light_add(type="SUN",
+                             location=(rad * 2, -rad * 2, rad * 4))
+    bpy.context.active_object.data.energy = 4.0
+    try:
+        bpy.ops.render.render(write_still=True)
+        print(f"PREVIEW_RENDERED: {preview_path}")
+    except Exception as exc:
+        print(f"WARN: preview render failed: {exc}")
+
+
+def export_fbx(obj, output_path: str) -> None:
     out_path = Path(output_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.object.select_all(action="DESELECT")
@@ -168,8 +413,12 @@ def export_fbx(obj: bpy.types.Object, output_path: str) -> None:
         apply_scale_options="FBX_SCALE_NONE",
         bake_space_transform=False,
         object_types={"MESH"},
+        mesh_smooth_type="FACE",
+        use_tspace=True,
         bake_anim=False,
         use_mesh_modifiers=True,
+        axis_forward="-Z",
+        axis_up="Y",
     )
     print(f"PROP_GENERATED: {out_path}")
 
@@ -184,6 +433,15 @@ def main() -> int:
     except Exception as exc:
         print(f"ERROR: build failed: {exc}")
         return 3
+    if args.get("preview"):
+        try:
+            render_preview(obj, args["preview"])
+        except Exception as exc:
+            print(f"WARN: preview failed: {exc}")
+        # re-select the prop for export
+        bpy.ops.object.select_all(action="DESELECT")
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
     try:
         export_fbx(obj, args["output"])
     except Exception as exc:

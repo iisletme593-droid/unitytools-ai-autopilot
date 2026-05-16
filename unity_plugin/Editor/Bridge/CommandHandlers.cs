@@ -60,6 +60,7 @@ namespace UnityTools.Bridge
                 case "list_lights": return ListLights(p);
                 case "set_camera_transform": return SetCameraTransform(p);
                 case "frame_object": return FrameObject(p);
+                case "set_scene_view": return SetSceneView(p);
                 case "list_cameras": return ListCameras(p);
                 case "add_particle_system": return AddParticleSystem(p);
                 case "set_particle_properties": return SetParticleProperties(p);
@@ -106,7 +107,10 @@ namespace UnityTools.Bridge
                 case "build_terrain_from_heightmap": return BuildTerrainFromHeightmap(p);
                 case "fix_terrain_material": return FixTerrainMaterial(p);
                 case "scatter_terrain_trees": return ScatterTerrainTrees(p);
+                case "scatter_terrain_glb_trees": return ScatterTerrainGlbTrees(p);
+                case "place_asset_on_terrain": return PlaceAssetOnTerrain(p);
                 case "repaint_terrain_biomes": return RepaintTerrainBiomes(p);
+                case "apply_terrain_pbr_layers": return ApplyTerrainPbrLayers(p);
                 case "setup_smart_camera": return SetupSmartCamera(p);
                 case "make_terrain_playable": return MakeTerrainPlayable(p);
                 default: throw new InvalidOperationException($"Unknown method: {method}");
@@ -406,6 +410,132 @@ namespace UnityTools.Bridge
             };
         }
 
+        // Phase 107: paint the terrain with REAL PBR ground/rock textures
+        // (diffuse + normal) instead of flat solid-colour splats. Same
+        // relief-percentile band logic as RepaintTerrainBiomes, but each
+        // band is a proper TerrainLayer asset built from the project's
+        // 2K AmbientCG-style sets. layers = ordered low->high array of
+        // { name, diffuse, normal, tile }. cutoffs = (len-1) norm splits.
+        private static object ApplyTerrainPbrLayers(JObject p)
+        {
+            var layersIn = p["layers"] as JArray;
+            if (layersIn == null || layersIn.Count < 2)
+                return new { ok = false, error = "layers[] (>=2) required: {name,diffuse,normal,tile}" };
+            int n = Mathf.Clamp(layersIn.Count, 2, 8);
+
+            var cutoffsIn = p["cutoffs"] as JArray;
+            var cutoffs = new List<float>();
+            if (cutoffsIn != null)
+                foreach (var c in cutoffsIn) cutoffs.Add(c.ToObject<float>());
+            // default = even percentile splits
+            while (cutoffs.Count < n - 1)
+                cutoffs.Add((cutoffs.Count + 1) / (float)n);
+
+            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude)
+                .FirstOrDefault();
+            if (terrain == null)
+                return new { ok = false, error = "No Terrain in scene" };
+            var td = terrain.terrainData;
+
+            const string layerDir = "Assets/FantasyRPG/Generated/TerrainLayers";
+            Directory.CreateDirectory(Path.Combine(ProjectRootPath(), layerDir.Replace("/", Path.DirectorySeparatorChar.ToString())));
+
+            // Force normal-map textures to be imported as NormalMap so the
+            // terrain shader reads them correctly (not as colour data).
+            void EnsureNormalImport(string ap)
+            {
+                if (string.IsNullOrEmpty(ap)) return;
+                var ti = AssetImporter.GetAtPath(ap) as TextureImporter;
+                if (ti != null && ti.textureType != TextureImporterType.NormalMap)
+                {
+                    ti.textureType = TextureImporterType.NormalMap;
+                    ti.SaveAndReimport();
+                }
+            }
+
+            var built = new List<string>();
+            var tlayers = new TerrainLayer[n];
+            for (int i = 0; i < n; i++)
+            {
+                var lo = layersIn[i] as JObject;
+                string nm = lo?["name"]?.ToString() ?? $"Layer{i}";
+                string diff = lo?["diffuse"]?.ToString();
+                string nrm = lo?["normal"]?.ToString();
+                float tile = lo?["tile"]?.ToObject<float>() ?? 12f;
+
+                var dTex = string.IsNullOrEmpty(diff) ? null : AssetDatabase.LoadAssetAtPath<Texture2D>(diff);
+                if (dTex == null)
+                    return new { ok = false, error = $"Diffuse not found for {nm}: {diff}" };
+                EnsureNormalImport(nrm);
+                var nTex = string.IsNullOrEmpty(nrm) ? null : AssetDatabase.LoadAssetAtPath<Texture2D>(nrm);
+
+                var tl = new TerrainLayer
+                {
+                    diffuseTexture = dTex,
+                    normalMapTexture = nTex,
+                    tileSize = new Vector2(tile, tile),
+                    normalScale = 0.8f,
+                    smoothness = 0.10f,
+                    metallic = 0.0f,
+                };
+                string tlPath = $"{layerDir}/TL_{nm}.terrainlayer";
+                if (AssetDatabase.LoadAssetAtPath<TerrainLayer>(tlPath) != null)
+                    AssetDatabase.DeleteAsset(tlPath);
+                AssetDatabase.CreateAsset(tl, tlPath);
+                tlayers[i] = AssetDatabase.LoadAssetAtPath<TerrainLayer>(tlPath);
+                built.Add($"{nm}<-{Path.GetFileName(diff)}{(nTex != null ? "+N" : "")}");
+            }
+            td.terrainLayers = tlayers;
+
+            // Relief-percentile alphamap (real height range, soft bands).
+            int hr = td.heightmapResolution;
+            float[,] hs = td.GetHeights(0, 0, hr, hr);
+            float hMin = float.MaxValue, hMax = float.MinValue;
+            for (int y = 0; y < hr; y++)
+                for (int x = 0; x < hr; x++)
+                {
+                    float hv = hs[y, x];
+                    if (hv < hMin) hMin = hv;
+                    if (hv > hMax) hMax = hv;
+                }
+            float span = Mathf.Max(1e-5f, hMax - hMin);
+
+            int aw = td.alphamapWidth, ah = td.alphamapHeight;
+            var a = new float[ah, aw, n];
+            var edges = new float[n + 1];
+            edges[0] = 0f; edges[n] = 1.001f;
+            for (int i = 0; i < n - 1; i++) edges[i + 1] = Mathf.Clamp01(cutoffs[i]);
+            for (int y = 0; y < ah; y++)
+            {
+                for (int x = 0; x < aw; x++)
+                {
+                    int hy = Mathf.Clamp(Mathf.RoundToInt((float)y / (ah - 1) * (hr - 1)), 0, hr - 1);
+                    int hx = Mathf.Clamp(Mathf.RoundToInt((float)x / (aw - 1) * (hr - 1)), 0, hr - 1);
+                    float hn = (hs[hy, hx] - hMin) / span;
+                    float s = 1e-4f;
+                    for (int i = 0; i < n; i++)
+                    {
+                        float w = Band(hn, edges[i], edges[i + 1]);
+                        a[y, x, i] = w; s += w;
+                    }
+                    for (int i = 0; i < n; i++) a[y, x, i] /= s;
+                }
+            }
+            td.SetAlphamaps(0, 0, a);
+            ApplyTerrainPipelineMaterial(terrain);
+            AssetDatabase.SaveAssets();
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                terrain = terrain.name,
+                layers = built,
+                cutoffs = edges.Skip(1).Take(n - 1).ToArray(),
+                height_range = new[] { hMin, hMax },
+                note = "real PBR ground/rock layers (diffuse+normal), relief-percentile bands",
+            };
+        }
+
         private static float Band(float v, float lo, float hi)
         {
             // 1 inside [lo,hi], soft 12%-of-span feather at each edge
@@ -483,6 +613,227 @@ namespace UnityTools.Bridge
                 forest_band = new[] { bandMin, bandMax },
                 max_slope_deg = maxSlope,
                 note = "sparse procedural pines, mid-elevation band only, HDRP-safe",
+            };
+        }
+
+        // Phase 106: scatter REAL glTF/GLB tree models onto the terrain surface
+        // (replaces the procedural cube/cylinder pines). Keeps good PBR materials,
+        // but auto-repairs any white/magenta (non-pipeline / broken) renderer with
+        // a known-good HDRP foliage material so trees never render white.
+        private static object ScatterTerrainGlbTrees(JObject p)
+        {
+            int attempts = Mathf.Clamp(p["tree_count"]?.ToObject<int>() ?? 200, 1, 5000);
+            float bandMin = p["forest_min"]?.ToObject<float>() ?? 0.16f;  // norm height
+            float bandMax = p["forest_max"]?.ToObject<float>() ?? 0.52f;
+            float maxSlope = p["max_slope_deg"]?.ToObject<float>() ?? 32f;
+            float sMin = p["scale_min"]?.ToObject<float>() ?? 0.6f;
+            float sMax = p["scale_max"]?.ToObject<float>() ?? 1.5f;
+            float yOffset = p["y_offset"]?.ToObject<float>() ?? 0f;
+            float deadRatio = Mathf.Clamp01(p["dead_ratio"]?.ToObject<float>() ?? 0.12f);
+            int seed = p["seed"]?.ToObject<int>() ?? 9090;
+            bool clearPrimitive = p["clear_primitive_forest"]?.ToObject<bool>() ?? true;
+
+            // Curated default tree set (PolyHaven, present in this project).
+            var liveModels = new List<string>();
+            var deadModels = new List<string>();
+            var modelsParam = p["models"] as JArray;
+            if (modelsParam != null && modelsParam.Count > 0)
+            {
+                foreach (var m in modelsParam) liveModels.Add(m.ToString());
+            }
+            else
+            {
+                liveModels.Add("Assets/FantasyRPG/Models/PolyHaven/Nature/Trees/Nature_Trees_04_PineTree.glb");
+                liveModels.Add("Assets/FantasyRPG/Models/PolyHaven/Nature/Trees/Nature_Trees_05_FirTree.glb");
+                liveModels.Add("Assets/FantasyRPG/Models/PolyHaven/Nature/Trees/Nature_Trees_06_IslandTree.glb");
+                deadModels.Add("Assets/FantasyRPG/Models/PolyHaven/Nature/Trees/Nature_Trees_01_DeadTreeTrunk.glb");
+            }
+            var deadParam = p["dead_models"] as JArray;
+            if (deadParam != null)
+            {
+                deadModels.Clear();
+                foreach (var m in deadParam) deadModels.Add(m.ToString());
+            }
+
+            string foliageMatPath = p["foliage_material_path"]?.ToString()
+                ?? "Assets/FantasyRPG/Generated/Materials/HDRP_M_BlackPineNeedles.mat";
+            var foliageMat = AssetDatabase.LoadAssetAtPath<Material>(foliageMatPath);
+
+            // Resolve prefabs (skip any missing path so a partial set still works).
+            GameObject LoadModel(string ap)
+            {
+                var g = AssetDatabase.LoadAssetAtPath<GameObject>(ap);
+                return g;
+            }
+            var live = liveModels.Select(LoadModel).Where(g => g != null).ToList();
+            var dead = deadModels.Select(LoadModel).Where(g => g != null).ToList();
+            if (live.Count == 0 && dead.Count == 0)
+                return new { ok = false, error = "No tree GLB models could be loaded", tried_live = liveModels, tried_dead = deadModels };
+
+            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude)
+                .FirstOrDefault();
+            if (terrain == null)
+                return new { ok = false, error = "No Terrain in scene (build it first)" };
+            var td = terrain.terrainData;
+            Vector3 tp = terrain.transform.position;
+            float sizeX = td.size.x, sizeZ = td.size.z, sizeY = td.size.y;
+
+            if (clearPrimitive)
+            {
+                var oldProc = GameObject.Find("WorldForest");
+                if (oldProc != null) Undo.DestroyObjectImmediate(oldProc);
+            }
+            var oldGlb = GameObject.Find("WorldForestGLB");
+            if (oldGlb != null) Undo.DestroyObjectImmediate(oldGlb);
+            var forestRoot = new GameObject("WorldForestGLB");
+            Undo.RegisterCreatedObjectUndo(forestRoot, "UnityTools: GLB world forest");
+
+            var rng = new System.Random(seed);
+            int placed = 0, deadPlaced = 0, renderersFixed = 0, renderersKept = 0;
+            for (int i = 0; i < attempts; i++)
+            {
+                float u = (float)rng.NextDouble();
+                float v = (float)rng.NextDouble();
+                float hn = td.GetInterpolatedHeight(u, v) / Mathf.Max(0.001f, sizeY);
+                if (hn < bandMin || hn > bandMax) continue;
+                float steep = td.GetSteepness(u, v);
+                if (steep > maxSlope) continue;
+
+                bool useDead = dead.Count > 0 && rng.NextDouble() < deadRatio;
+                var pool = useDead ? dead : (live.Count > 0 ? live : dead);
+                var prefab = pool[rng.Next(pool.Count)];
+
+                var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                if (go == null) go = UnityEngine.Object.Instantiate(prefab);
+                if (go == null) continue;
+
+                float wx = tp.x + u * sizeX;
+                float wz = tp.z + v * sizeZ;
+                float wy = tp.y + td.GetInterpolatedHeight(u, v) + yOffset;
+                float scl = (float)(sMin + rng.NextDouble() * (sMax - sMin));
+                go.transform.SetParent(forestRoot.transform, true);
+                go.transform.position = new Vector3(wx, wy, wz);
+                go.transform.rotation = Quaternion.Euler(
+                    (float)(rng.NextDouble() * 4.0 - 2.0),     // slight lean
+                    (float)(rng.NextDouble() * 360.0),          // random facing
+                    (float)(rng.NextDouble() * 4.0 - 2.0));
+                go.transform.localScale = Vector3.one * scl;
+                go.name = (useDead ? "DeadTree_" : "Tree_") + placed.ToString("000");
+
+                // Material safety: keep working PBR, repair broken/white ones.
+                var rends = go.GetComponentsInChildren<Renderer>(true);
+                foreach (var rend in rends)
+                {
+                    var shared = rend.sharedMaterials;
+                    bool anyBroken = shared == null || shared.Length == 0;
+                    if (!anyBroken)
+                        foreach (var m in shared)
+                            if (m == null || IsBrokenMaterial(m) || !IsPipelineCompatible(m.shader))
+                            { anyBroken = true; break; }
+                    if (anyBroken && foliageMat != null)
+                    {
+                        var arr = new Material[Mathf.Max(1, shared?.Length ?? 1)];
+                        for (int k = 0; k < arr.Length; k++) arr[k] = foliageMat;
+                        rend.sharedMaterials = arr;
+                        renderersFixed++;
+                    }
+                    else renderersKept++;
+                }
+
+                placed++;
+                if (useDead) deadPlaced++;
+            }
+
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                placed,
+                dead_placed = deadPlaced,
+                attempts,
+                live_models = live.Select(g => g.name).ToArray(),
+                dead_models = dead.Select(g => g.name).ToArray(),
+                renderers_fixed = renderersFixed,
+                renderers_kept = renderersKept,
+                foliage_material = foliageMat != null ? foliageMat.name : "(missing)",
+                forest_band = new[] { bandMin, bandMax },
+                note = "real GLB trees on terrain surface; broken/white materials auto-repaired to HDRP foliage",
+            };
+        }
+
+        // Phase 108: place a generated/imported asset ON the terrain
+        // surface at (x,z). Used by the AI Blender asset layer to drop
+        // its own props (shrine/gate/totem...) at level-instance-links
+        // anchors so they sit on the ground, not float.
+        private static object PlaceAssetOnTerrain(JObject p)
+        {
+            string assetPath = p["asset_path"]?.ToString();
+            if (string.IsNullOrEmpty(assetPath))
+                return new { ok = false, error = "asset_path required" };
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+            if (prefab == null)
+                return new { ok = false, error = $"Asset not found: {assetPath}" };
+
+            float x = p["x"]?.ToObject<float>() ?? 0f;
+            float z = p["z"]?.ToObject<float>() ?? 0f;
+            float rotY = p["rot_y"]?.ToObject<float>() ?? 0f;
+            float scl = p["scale"]?.ToObject<float>() ?? 1f;
+            float yOff = p["y_offset"]?.ToObject<float>() ?? 0f;
+            string nm = p["name"]?.ToString();
+            string parentName = p["parent"]?.ToString();
+            string foliageMatPath = p["material_path"]?.ToString();
+
+            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude)
+                .FirstOrDefault();
+            float surfaceY = 0f;
+            if (terrain != null)
+            {
+                var td = terrain.terrainData;
+                Vector3 tp = terrain.transform.position;
+                float u = Mathf.Clamp01((x - tp.x) / Mathf.Max(0.001f, td.size.x));
+                float v = Mathf.Clamp01((z - tp.z) / Mathf.Max(0.001f, td.size.z));
+                surfaceY = tp.y + td.GetInterpolatedHeight(u, v);
+            }
+
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            if (go == null) go = UnityEngine.Object.Instantiate(prefab);
+            if (go == null) return new { ok = false, error = "Instantiate failed" };
+
+            GameObject parent = string.IsNullOrEmpty(parentName) ? null : GameObject.Find(parentName);
+            if (!string.IsNullOrEmpty(parentName) && parent == null)
+            {
+                parent = new GameObject(parentName);
+                Undo.RegisterCreatedObjectUndo(parent, "UnityTools: asset group");
+            }
+            if (parent != null) go.transform.SetParent(parent.transform, true);
+
+            go.transform.position = new Vector3(x, surfaceY + yOff, z);
+            go.transform.rotation = Quaternion.Euler(0f, rotY, 0f);
+            go.transform.localScale = Vector3.one * scl;
+            if (!string.IsNullOrEmpty(nm)) go.name = nm;
+
+            // Optional: force a known-good material if the import is white.
+            if (!string.IsNullOrEmpty(foliageMatPath))
+            {
+                var fm = AssetDatabase.LoadAssetAtPath<Material>(foliageMatPath);
+                if (fm != null)
+                    foreach (var rend in go.GetComponentsInChildren<Renderer>(true))
+                    {
+                        var arr = new Material[Mathf.Max(1, rend.sharedMaterials.Length)];
+                        for (int i = 0; i < arr.Length; i++) arr[i] = fm;
+                        rend.sharedMaterials = arr;
+                    }
+            }
+
+            Undo.RegisterCreatedObjectUndo(go, "UnityTools: place asset on terrain");
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                name = go.name,
+                asset = assetPath,
+                position = new { x, y = surfaceY + yOff, z },
+                surface_y = surfaceY,
             };
         }
 
@@ -1442,6 +1793,76 @@ namespace UnityTools.Bridge
                 camera_position_y = cam.transform.position.y,
                 camera_position_z = cam.transform.position.z,
                 target_radius = radius,
+            };
+        }
+
+        // Phase 106: position the SCENE VIEW camera (the one run_visual_qa /
+        // studio_capture_screenshot actually renders from). All session the
+        // QA shot framed the whole terrain because nothing could move the
+        // SceneView. This gives deterministic close-ups: pass a target
+        // object (frames its renderer bounds) or an explicit pivot, plus
+        // pitch/yaw/size. size = orbit distance (small = close-up).
+        private static object SetSceneView(JObject p)
+        {
+            var sv = SceneView.lastActiveSceneView;
+            if (sv == null)
+            {
+                // Try to grab/instantiate any SceneView so headless-ish
+                // editors still capture something sensible.
+                if (SceneView.sceneViews != null && SceneView.sceneViews.Count > 0)
+                    sv = SceneView.sceneViews[0] as SceneView;
+            }
+            if (sv == null)
+                return new { ok = false, error = "No SceneView available (open a Scene window)" };
+
+            Vector3 pivot = new Vector3(
+                p["pivot_x"]?.ToObject<float>() ?? 0f,
+                p["pivot_y"]?.ToObject<float>() ?? 0f,
+                p["pivot_z"]?.ToObject<float>() ?? 0f);
+            float size = p["size"]?.ToObject<float>() ?? 14f;
+            string targetName = p["target"]?.ToString();
+            string framedBy = "explicit_pivot";
+
+            if (!string.IsNullOrEmpty(targetName))
+            {
+                var target = GameObject.Find(targetName);
+                if (target == null)
+                    return new { ok = false, error = $"Target not found: {targetName}" };
+                pivot = target.transform.position;
+                var rends = target.GetComponentsInChildren<Renderer>(true);
+                if (rends.Length > 0)
+                {
+                    var b = rends[0].bounds;
+                    for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
+                    pivot = b.center;
+                    if (p["size"] == null)
+                        size = Mathf.Max(2f, b.extents.magnitude * 1.6f);
+                    framedBy = "renderer_bounds";
+                }
+                else framedBy = "transform_position";
+            }
+
+            float pitch = p["pitch"]?.ToObject<float>() ?? 12f;   // tilt down
+            float yaw = p["yaw"]?.ToObject<float>() ?? 45f;       // around Y
+            var rot = Quaternion.Euler(pitch, yaw, 0f);
+
+            sv.orthographic = false;
+            // instant=true so the camera is THERE immediately (a follow-up
+            // screenshot RPC must not catch a mid-animation pose).
+            sv.LookAt(pivot, rot, size, false, true);
+            sv.Repaint();
+
+            return new
+            {
+                ok = true,
+                framed_by = framedBy,
+                target = targetName ?? "",
+                pivot_x = pivot.x,
+                pivot_y = pivot.y,
+                pivot_z = pivot.z,
+                size,
+                pitch,
+                yaw,
             };
         }
 

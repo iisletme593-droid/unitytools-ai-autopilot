@@ -112,7 +112,17 @@ class UnityBridge:
                 raise TimeoutError(
                     f"Unity RPC zaman aşımı ({timeout:.1f}s). Unity Editor muhtemelen meşgul (compile/import/playmode)."
                 ) from e
-            except (BrokenPipeError, ConnectionResetError) as e:
+            except (BrokenPipeError, ConnectionResetError,
+                    ConnectionAbortedError, OSError) as e:
+                # WinError 10053 (ConnectionAbortedError) and other OSErrors
+                # happen during Unity domain reloads. Reset the socket so the
+                # next call reconnects fresh instead of wedging forever on a
+                # dead handle.
+                try:
+                    if self._sock is not None:
+                        self._sock.close()
+                except Exception:
+                    pass
                 self._sock = None
                 raise UnityNotConnectedError(f"Bağlantı koptu: {e}") from e
             finally:

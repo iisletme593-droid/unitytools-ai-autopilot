@@ -127,7 +127,11 @@ class BlenderBridge:
 
         return self.run_script(script, blend_file=blend_file, script_args=args)
 
-    SUPPORTED_PROP_TYPES = ("rock", "crate", "pillar", "column")
+    SUPPORTED_PROP_TYPES = (
+        "rock", "crate", "pillar", "column",
+        "boulder", "stump", "deadtrunk", "totem", "shrine",
+        "gate", "bench", "banner", "rack",
+    )
 
     def generate_prop(
         self,
@@ -136,6 +140,7 @@ class BlenderBridge:
         seed: int = 0,
         scale: float = 1.0,
         timeout: int = 120,
+        preview_path: Path | str | None = None,
     ) -> BlenderResult:
         """Run `scripts/blender/generate_prop.py` to build one parametric
         prop and export it as FBX. Supports prop_type in
@@ -165,4 +170,6 @@ class BlenderBridge:
             "--seed", str(int(seed)),
             "--scale", str(float(scale)),
         ]
+        if preview_path:
+            args.extend(["--preview", str(preview_path)])
         return self.run_script(script, script_args=args, timeout=timeout)
