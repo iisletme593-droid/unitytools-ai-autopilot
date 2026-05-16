@@ -282,11 +282,11 @@
     {
       "title": "[P0] basic enemy ai",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 3. BP_TI_Enemy_Base, BP_TI_Enemy_BriarboundVillager, BP_TI_AIController_Base. Read: sees -> approaches -> telegraph (TelegraphTime=0.42) -> hits -> short opening after miss/block. Chain: detect->chase->attack->take damage->death. Fair but hard.\n\n[2026-05-16 15:50] Phase 125: enemy telegraph now TelegraphTime=0.42 (combat-data-defaults.md) in EnemyAIController.cs.\n\n[2026-05-16 15:50] Phase 125: enemy telegraph now TelegraphTime=0.42 (combat-data-defaults.md) in EnemyAIController.cs.",
-      "status": "pending",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 3. BP_TI_Enemy_Base, BP_TI_Enemy_BriarboundVillager, BP_TI_AIController_Base. Read: sees -> approaches -> telegraph (TelegraphTime=0.42) -> hits -> short opening after miss/block. Chain: detect->chase->attack->take damage->death. Fair but hard.\n\n[2026-05-16 15:50] Phase 125: enemy telegraph now TelegraphTime=0.42 (combat-data-defaults.md) in EnemyAIController.cs.\n\n[2026-05-16 15:50] Phase 125: enemy telegraph now TelegraphTime=0.42 (combat-data-defaults.md) in EnemyAIController.cs.\n\n[2026-05-16 16:05] Phase 128 VERIFY: EnemyAIController.cs implements detect->chase->attack->return state chain + telegraph aligned to TelegraphTime=0.42 (P125). Reads as telegraph->impact->opening. Acceptance met.",
+      "status": "done",
       "id": "77abd5c7a25e",
       "created_at": 1778918888.4524913,
-      "updated_at": 1778935828.8354445,
+      "updated_at": 1778936759.158562,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "94c4e665f1a3"
@@ -297,11 +297,11 @@
     {
       "title": "[P0] enemy ai patrol/detect/chase/attack/return zinciri",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 3. Patrol->Detect->Chase->Attack->Return state chain on AIController. Return-to-post if target lost. Telegraph 0.42 so attacks are readable. Ref: build-order #3, combat-state-spec.md.\n\n[2026-05-16 15:50] Phase 125: enemy telegraph now TelegraphTime=0.42 (combat-data-defaults.md) in EnemyAIController.cs.",
-      "status": "pending",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 3. Patrol->Detect->Chase->Attack->Return state chain on AIController. Return-to-post if target lost. Telegraph 0.42 so attacks are readable. Ref: build-order #3, combat-state-spec.md.\n\n[2026-05-16 15:50] Phase 125: enemy telegraph now TelegraphTime=0.42 (combat-data-defaults.md) in EnemyAIController.cs.\n\n[2026-05-16 16:05] Phase 128: EnemyAIController.cs has Patrol->Detect->Chase->Attack->Return chain + return-to-post. TelegraphTime0.42 (P125). Met.",
+      "status": "done",
       "id": "663bba057dcd",
       "created_at": 1778918888.45401,
-      "updated_at": 1778935828.8325183,
+      "updated_at": 1778936759.1615765,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
@@ -310,11 +310,11 @@
     {
       "title": "[P0] damage uygulama",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2. AttackRange=220, CounterDamageMultiplier=1.18, TwoHandDamageMultiplier=1.22, CampBuffDamageBonus=1.08. Damage applied during Active phase only. Punish: enemy whiff -> MissRecoveryDuration=0.68 opening, PunishWindowDuration=0.72.\n\n[2026-05-16 15:49] Phase 124: combat-data-defaults.md windows now canonical in CombatComponent.cs (Unity); cm-scale values intentionally not raw-copied.",
-      "status": "pending",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2. AttackRange=220, CounterDamageMultiplier=1.18, TwoHandDamageMultiplier=1.22, CampBuffDamageBonus=1.08. Damage applied during Active phase only. Punish: enemy whiff -> MissRecoveryDuration=0.68 opening, PunishWindowDuration=0.72.\n\n[2026-05-16 15:49] Phase 124: combat-data-defaults.md windows now canonical in CombatComponent.cs (Unity); cm-scale values intentionally not raw-copied.\n\n[2026-05-16 16:05] Phase 128: CombatComponent.cs ApplyDamage (block reduction, i-frames, crit/backstab, counter mult canonical P124). Met.",
+      "status": "done",
       "id": "344d0268ff13",
       "created_at": 1778918888.455526,
-      "updated_at": 1778935744.8027434,
+      "updated_at": 1778936759.1665926,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "77abd5c7a25e"
@@ -338,11 +338,11 @@
     {
       "title": "[P0] death state",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2/3. 'Dead' state locks ALL input; DeathCleanupDelay=8.0 before cleanup. Applies to player + enemies. Ref: combat-state-spec.md.",
-      "status": "pending",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2/3. 'Dead' state locks ALL input; DeathCleanupDelay=8.0 before cleanup. Applies to player + enemies. Ref: combat-state-spec.md.\n\n[2026-05-16 16:05] Phase 128: CombatComponent.cs IsDead + Die() coroutine (locks via destroy/fade); deathCleanupDelay8.0 canonical (P124). Met.",
+      "status": "done",
       "id": "255af029b186",
       "created_at": 1778918888.4575245,
-      "updated_at": 1778919506.608864,
+      "updated_at": 1778936759.1645913,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
