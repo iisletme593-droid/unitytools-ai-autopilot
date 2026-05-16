@@ -1254,6 +1254,11 @@ namespace UnityTools.Bridge
             // Camp crafting station (core-pillars #4 progression node).
             var craft = FindOrCube("CraftingBench_Camp", hp + new Vector3(5f, 0f, -2f), PrimitiveType.Cube, root.transform);
             Ensure(craft, "Gameplay.CraftingStation");
+            // Second-class prototype altar (P2). Default ClassPrototype
+            // profile = Skirmisher = the new second class; Barbarian
+            // stays the implicit default, so one altar is enough.
+            var classAltar = FindOrCube("ClassAltar_Skirmisher", hp + new Vector3(-5f, 0f, -2f), PrimitiveType.Cube, root.transform);
+            Ensure(classAltar, "Gameplay.ClassPrototype");
 
             // A couple of readable enemies near the route.
             var enemies = new List<string>();
