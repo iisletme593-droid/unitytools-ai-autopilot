@@ -1260,6 +1260,13 @@ namespace UnityTools.Bridge
             // stays the implicit default, so one altar is enough.
             var classAltar = FindOrCube("ClassAltar_Skirmisher", hp + new Vector3(-5f, 0f, -2f), PrimitiveType.Cube, root.transform);
             Ensure(classAltar, "Gameplay.ClassPrototype");
+            // Lore pickups along the spine (camp + path). Default mode =
+            // content-independent lore note; setting dialogueId in-editor
+            // turns either into a DialogueSystem trigger (content).
+            var loreCamp = FindOrCube("LoreNote_BriarCamp", hp + new Vector3(2f, 0f, -4f), PrimitiveType.Cube, root.transform);
+            Ensure(loreCamp, "Gameplay.LorePickup");
+            var lorePath = FindOrCube("LoreNote_Path", hp + new Vector3(12f, 0f, 8f), PrimitiveType.Cube, root.transform);
+            Ensure(lorePath, "Gameplay.LorePickup");
 
             // A couple of readable enemies near the route.
             var enemies = new List<string>();
