@@ -3887,6 +3887,62 @@ def studio_generate_prop_asset(
     return payload
 
 
+# ─── Lightweight Blender forest (Phase 113) ────────────────────────────
+
+@tool(description="Replace the heavy PolyHaven GLB forest (which tanked HDRP) with a CHEAP Blender-generated low-poly conifer forest. Generates pine/fir/deadpine via Blender (~200-400 tris, 1 mesh, 2 mats each), imports them once into Unity, then scatters them across the terrain's mid band with GPU instancing + cheap HDRP trunk/needle materials. tree_count default 150. This is the performance fix for the laggy HDRP forest.")
+def studio_build_lowpoly_forest(tree_count: int = 150,
+                                scene: str = "Assets/Scenes/ForgottenValley_VS.unity",
+                                seed: int = 11) -> dict:
+    state = _require_state()
+    if _BLENDER is None or not _BLENDER.is_available():
+        return {"ok": False, "error": "Blender unavailable; set BLENDER_EXECUTABLE."}
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected."}
+
+    def call(cmd, params, timeout=180):
+        try:
+            return _UNITY.call(cmd, params, timeout=timeout)
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "error": str(exc)[:160]}
+
+    call("open_scene", {"path": scene})
+
+    # 1) Generate the 3 low-poly tree variants via Blender + import.
+    variants = [("LP_Pine", "pine", 11), ("LP_Fir", "fir", 22),
+                ("LP_DeadPine", "deadpine", 33)]
+    paths = {}
+    for nm, ptype, sd in variants:
+        gen = studio_generate_prop_asset(
+            prop_type=ptype, name=nm, seed=sd, scale=1.0,
+            import_into_unity=True,
+            unity_destination="Assets/Studio/Generated")
+        if gen.get("ok") and gen.get("unity_asset_path"):
+            paths[ptype] = gen["unity_asset_path"]
+        else:
+            return {"ok": False, "error": f"gen {ptype} failed",
+                    "detail": gen.get("error", "")[:160]}
+
+    _GM = "Assets/FantasyRPG/Generated/Materials/"
+    # 2) Scatter them cheap (GPU-instanced, per-slot HDRP materials).
+    res = call("scatter_terrain_glb_trees", {
+        "tree_count": tree_count, "forest_min": 0.12, "forest_max": 0.58,
+        "max_slope_deg": 34, "scale_min": 1.4, "scale_max": 3.0,
+        "dead_ratio": 0.14, "seed": seed, "clear_primitive_forest": True,
+        "models": [paths["pine"], paths["fir"]],
+        "dead_models": [paths["deadpine"]],
+        "trunk_material_path": _GM + "HDRP_M_WetAgedWood.mat",
+        "foliage_material_path": _GM + "HDRP_M_BlackPineNeedles.mat",
+        "gpu_instancing": True,
+    }, timeout=240)
+    call("save_scene", {})
+    state.append_regression_entry({"ts": time.time(),
+                                   "kind": "lowpoly_forest",
+                                   "placed": res.get("placed") if isinstance(res, dict) else 0})
+    return {"ok": isinstance(res, dict) and bool(res.get("ok")),
+            "scatter": res, "models": paths,
+            "note": "cheap Blender low-poly conifer forest (HDRP perf fix)"}
+
+
 # ─── DOCS-driven AI world-asset layer (Phase 108) ──────────────────────
 
 @tool(description="AI learning layer: read the Briar Hollow slice's required environment props (level-instance-links.md anchors + art bible) and MANUFACTURE them in 3D via Blender, import each into Unity, and place each on the terrain surface at its level anchor. This is the intelligence layer that lets the AI generate its own DOCS-driven 3D assets instead of using only pre-bought packs. dry_run=True only reports the manifest. Stays within the DOCS AI-usage line (environment/blockout, not final hero/boss meshes).")
@@ -4648,22 +4704,28 @@ def studio_realize_world(
                                 "b": 0.27, "a": 1.0})
     layers.append({"water": {"y": wy, "footprint": foot}})
 
-    # 3) Sparse valley forest (mid-low band only). Intelligence layer:
-    # prefer REAL GLB tree models (PolyHaven pine/fir/island + dead
-    # trunks), auto-repairing any white/magenta glTF material to a
-    # known-good HDRP foliage material. Gracefully fall back to the
-    # procedural pines if the GLB handler isn't compiled into the
-    # bridge yet (Unknown method) or no models resolve.
-    glb = call("scatter_terrain_glb_trees", {
-        "tree_count": forest_count, "forest_min": 0.14, "forest_max": 0.52,
-        "max_slope_deg": 33, "scale_min": 0.55, "scale_max": 1.5,
-        "dead_ratio": 0.12, "seed": 11,
+    # 3) Sparse valley forest. PERF: the heavy PolyHaven GLB trees
+    # (multi-hundred renderers each) tanked HDRP, so prefer the CHEAP
+    # Blender low-poly conifers (1 mesh / 2 mats, GPU-instanced) if
+    # they've been generated into Assets/Studio/Generated; gracefully
+    # fall back to procedural pines (still cheap) otherwise. The heavy
+    # PolyHaven path is intentionally retired from the main pipeline.
+    _GM = "Assets/FantasyRPG/Generated/Materials/"
+    lp = call("scatter_terrain_glb_trees", {
+        "tree_count": forest_count, "forest_min": 0.12, "forest_max": 0.58,
+        "max_slope_deg": 34, "scale_min": 1.4, "scale_max": 3.0,
+        "dead_ratio": 0.14, "seed": 11, "clear_primitive_forest": True,
+        "models": ["Assets/Studio/Generated/LP_Pine.fbx",
+                   "Assets/Studio/Generated/LP_Fir.fbx"],
+        "dead_models": ["Assets/Studio/Generated/LP_DeadPine.fbx"],
+        "trunk_material_path": _GM + "HDRP_M_WetAgedWood.mat",
+        "foliage_material_path": _GM + "HDRP_M_BlackPineNeedles.mat",
+        "gpu_instancing": True,
     })
-    used_real = isinstance(glb, dict) and glb.get("ok") and glb.get("placed", 0) > 0
-    if used_real:
-        layers.append({"forest": glb, "forest_kind": "real_glb"})
+    if isinstance(lp, dict) and lp.get("ok") and lp.get("placed", 0) > 0:
+        layers.append({"forest": lp, "forest_kind": "lowpoly_blender"})
     else:
-        layers.append({"forest_glb_skipped": glb})
+        layers.append({"forest_lowpoly_skipped": lp})
         layers.append({"forest": call("scatter_terrain_trees", {
             "tree_count": forest_count, "forest_min": 0.14, "forest_max": 0.52,
             "max_slope_deg": 33, "scale_min": 8, "scale_max": 16, "seed": 11,

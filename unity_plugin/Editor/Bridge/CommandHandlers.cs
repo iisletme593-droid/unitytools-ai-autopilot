@@ -112,6 +112,7 @@ namespace UnityTools.Bridge
                 case "repaint_terrain_biomes": return RepaintTerrainBiomes(p);
                 case "apply_terrain_pbr_layers": return ApplyTerrainPbrLayers(p);
                 case "fix_terrain_hdrp_material": return FixTerrainHdrpMaterial(p);
+                case "list_terrains": return ListTerrains(p);
                 case "setup_smart_camera": return SetupSmartCamera(p);
                 case "make_terrain_playable": return MakeTerrainPlayable(p);
                 default: throw new InvalidOperationException($"Unknown method: {method}");
@@ -156,16 +157,59 @@ namespace UnityTools.Bridge
                 if (named != null) return named;
             }
             var world = all.FirstOrDefault(t => t.name == "WorldTerrain");
-            if (world != null) return world;
+            if (world != null && TerrainRelief(world) > 0.001f) return world;
+            // Score: strongly prefer terrains that actually have relief
+            // (the visible playable one) over the many flat [0,0] tiles,
+            // then by area. This is why earlier PBR kept landing on a
+            // flat invisible tile.
             Terrain best = all[0];
-            float bestArea = -1f;
+            float bestScore = -1f;
             foreach (var t in all)
             {
                 if (t.terrainData == null) continue;
                 float area = t.terrainData.size.x * t.terrainData.size.z;
-                if (area > bestArea) { bestArea = area; best = t; }
+                float relief = TerrainRelief(t);
+                float score = area * (relief > 0.001f ? 1000f : 1f) + relief * 1e6f;
+                if (score > bestScore) { bestScore = score; best = t; }
             }
             return best;
+        }
+
+        private static float TerrainRelief(Terrain t)
+        {
+            if (t == null || t.terrainData == null) return 0f;
+            var td = t.terrainData;
+            int r = Mathf.Min(33, td.heightmapResolution);
+            float[,] hs = td.GetHeights(0, 0, r, r);
+            float mn = float.MaxValue, mx = float.MinValue;
+            for (int y = 0; y < r; y++)
+                for (int x = 0; x < r; x++)
+                { float v = hs[y, x]; if (v < mn) mn = v; if (v > mx) mx = v; }
+            return (mx - mn) * td.size.y;
+        }
+
+        private static object ListTerrains(JObject p)
+        {
+            var all = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Include);
+            var rows = new List<object>();
+            foreach (var t in all)
+            {
+                var td = t.terrainData;
+                rows.Add(new
+                {
+                    name = t.name,
+                    active = t.gameObject.activeInHierarchy,
+                    pos = new[] { t.transform.position.x, t.transform.position.y, t.transform.position.z },
+                    size = td != null ? new[] { td.size.x, td.size.y, td.size.z } : new[] { 0f, 0f, 0f },
+                    relief_m = TerrainRelief(t),
+                    layers = td != null ? td.terrainLayers.Length : 0,
+                    shader = t.materialTemplate != null && t.materialTemplate.shader != null
+                             ? t.materialTemplate.shader.name : "(none)",
+                });
+            }
+            var chosen = ResolveSceneTerrain(p);
+            return new { ok = true, count = rows.Count, terrains = rows,
+                         resolved = chosen != null ? chosen.name : "(none)" };
         }
 
         private static string ApplyTerrainPipelineMaterial(Terrain terrain)
@@ -257,6 +301,9 @@ namespace UnityTools.Bridge
             if (layerCount > 0 && terrain.terrainData.terrainLayers[0] != null
                 && terrain.terrainData.terrainLayers[0].diffuseTexture != null)
                 firstTex = terrain.terrainData.terrainLayers[0].diffuseTexture.name;
+            if (terrain.terrainData != null) EditorUtility.SetDirty(terrain.terrainData);
+            EditorUtility.SetDirty(terrain);
+            AssetDatabase.SaveAssets();
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             return new
             {
@@ -644,6 +691,12 @@ namespace UnityTools.Bridge
             terrain.heightmapPixelError = 2f;
             try { td.SetBaseMapDirty(); } catch { }
             terrain.Flush();
+            // CRITICAL: terrainData is an ASSET. Without SetDirty the
+            // terrainLayers/alphamap assignment is NOT written by
+            // SaveAssets and reverts to 0 layers on scene/domain reload
+            // (the real reason the ground kept going pale).
+            EditorUtility.SetDirty(td);
+            EditorUtility.SetDirty(terrain);
             AssetDatabase.SaveAssets();
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             return new
@@ -779,6 +832,18 @@ namespace UnityTools.Bridge
             string foliageMatPath = p["foliage_material_path"]?.ToString()
                 ?? "Assets/FantasyRPG/Generated/Materials/HDRP_M_BlackPineNeedles.mat";
             var foliageMat = AssetDatabase.LoadAssetAtPath<Material>(foliageMatPath);
+            // Optional trunk material: when set, a renderer with >=2
+            // material slots gets slot 0 = trunk, slots 1+ = foliage
+            // (the low-poly Blender conifers are 1 mesh / 2 slots).
+            string trunkMatPath = p["trunk_material_path"]?.ToString();
+            var trunkMat = string.IsNullOrEmpty(trunkMatPath) ? null
+                : AssetDatabase.LoadAssetAtPath<Material>(trunkMatPath);
+            bool gpuInstance = p["gpu_instancing"]?.ToObject<bool>() ?? true;
+            if (gpuInstance)
+            {
+                if (foliageMat != null) foliageMat.enableInstancing = true;
+                if (trunkMat != null) trunkMat.enableInstancing = true;
+            }
 
             // Resolve prefabs (skip any missing path so a partial set still works).
             GameObject LoadModel(string ap)
@@ -850,7 +915,19 @@ namespace UnityTools.Bridge
                         foreach (var m in shared)
                             if (m == null || IsBrokenMaterial(m) || !IsPipelineCompatible(m.shader))
                             { anyBroken = true; break; }
-                    if (anyBroken && foliageMat != null)
+                    // Per-slot mode: low-poly conifers are 1 mesh / 2
+                    // slots (trunk + needles). Always remap so they get
+                    // cheap correct HDRP materials (not the FBX import's).
+                    if (trunkMat != null && shared != null && shared.Length >= 2)
+                    {
+                        var arr = new Material[shared.Length];
+                        arr[0] = trunkMat;
+                        for (int k = 1; k < arr.Length; k++)
+                            arr[k] = foliageMat ?? trunkMat;
+                        rend.sharedMaterials = arr;
+                        renderersFixed++;
+                    }
+                    else if ((anyBroken || trunkMat != null) && foliageMat != null)
                     {
                         var arr = new Material[Mathf.Max(1, shared?.Length ?? 1)];
                         for (int k = 0; k < arr.Length; k++) arr[k] = foliageMat;

@@ -1,0 +1,103 @@
+"""Phase 112b decisive: recompile (SetDirty persistence + Flush/basemap),
+then apply_terrain_pbr_layers on WorldTerrain and IMMEDIATELY (no reload)
+take a guaranteed close-up at the hero's feet. If moss shows now, the
+combined fix (persist layers + Flush + basemapDistance) is correct.
+"""
+import time, json
+import unitytools.tools, unitytools.tools.unity_tools as ut
+from unitytools.cli.entry import _bootstrap
+from unitytools.studio import init_studio_unity, StudioPaths, StudioState, init_studio_tools
+from unitytools.bridges.unity import focus_unity_window
+from pathlib import Path
+
+SRC_CS = ("D:/UnityToolsV2/.claude/worktrees/wizardly-williams-9493d0/"
+          "unity_plugin/Editor/Bridge/CommandHandlers.cs")
+TX = "Assets/FantasyRPG/Textures"
+P = StudioPaths(project_root=Path('D:/UnityToolsV2/.claude/worktrees/wizardly-williams-9493d0'))
+[d.mkdir(parents=True, exist_ok=True) for d in P.all_dirs()]
+c, b, U = _bootstrap()
+init_studio_unity(U); ut._UNITY = U
+init_studio_tools(StudioState(P))
+from unitytools.studio.tools import studio_capture_screenshot
+
+
+def fresh(t=8.0):
+    try: U.disconnect()
+    except Exception: pass
+    try: return U.connect(timeout=t)
+    except Exception: return False
+
+
+def rcall(cmd, p, t=120, retries=3):
+    for k in range(retries):
+        try:
+            return U.call(cmd, p, timeout=t)
+        except Exception as e:
+            print(f"  {cmd} fail#{k}: {str(e)[:46]}")
+            focus_unity_window(); fresh(); time.sleep(3)
+    return {"ok": False, "error": f"{cmd} x{retries}"}
+
+
+def wait_main(tries=110, gap=7, tag="m"):
+    ok = 0
+    for i in range(tries):
+        if i % 3 == 0: focus_unity_window()
+        fresh()
+        t0 = time.time()
+        try:
+            r = U.call("list_root_objects", {}, timeout=22)
+            if isinstance(r, dict) and r.get("ok") and time.time()-t0 < 6.0:
+                ok += 1; print(f"[{tag}] ok x{ok}")
+                if ok >= 2: return True
+            else: ok = 0
+        except Exception as e:
+            ok = 0; print(f"[{tag}] busy#{i}: {str(e)[:42]}")
+        time.sleep(gap)
+    return False
+
+
+if not wait_main(tag="pre"): print("stalled pre"); raise SystemExit(0)
+print("recompile:", json.dumps(rcall("import_asset", {
+    "src_path": SRC_CS,
+    "dst_relative": "Editor/UnityToolsBridge/CommandHandlers.cs"}, t=60, retries=2))[:110])
+time.sleep(10)
+if not wait_main(tries=120, tag="post"): print("stalled post"); raise SystemExit(0)
+
+pbr = rcall("apply_terrain_pbr_layers", {
+    "terrain_name": "WorldTerrain",
+    "cutoffs": [0.34, 0.62, 0.88],
+    "layers": [
+        {"name": "Moss", "tile": 9,
+         "diffuse": f"{TX}/Ground/Ground037/Ground037_2K-JPG_Color.jpg",
+         "normal":  f"{TX}/Ground/Ground037/Ground037_2K-JPG_NormalGL.jpg"},
+        {"name": "WetEarth", "tile": 11,
+         "diffuse": f"{TX}/Ground/Ground103/Ground103_2K-JPG_Color.jpg",
+         "normal":  f"{TX}/Ground/Ground103/Ground103_2K-JPG_NormalGL.jpg"},
+        {"name": "MossRock", "tile": 13,
+         "diffuse": f"{TX}/Rock/Rock063/Rock063_2K-JPG_Color.jpg",
+         "normal":  f"{TX}/Rock/Rock063/Rock063_2K-JPG_NormalGL.jpg"},
+        {"name": "DarkRock", "tile": 15,
+         "diffuse": f"{TX}/Rock/Rock058/Rock058_2K-JPG_Color.jpg",
+         "normal":  f"{TX}/Rock/Rock058/Rock058_2K-JPG_NormalGL.jpg"},
+    ]}, t=240, retries=2)
+print("PBR:", json.dumps(pbr)[:340])
+
+info = rcall("get_object_details", {"name": "SK_Hero"}, t=20)
+hx, hy, hz = 225.0, 57.0, 75.0
+if isinstance(info, dict):
+    pos = info.get("position") or {}
+    if isinstance(pos, dict) and "x" in pos:
+        hx, hy, hz = float(pos["x"]), float(pos["y"]), float(pos["z"])
+
+# guaranteed close-up: explicit pivot 1m above the ground, tiny size
+rcall("set_scene_view", {"pivot_x": hx, "pivot_y": hy + 1.0,
+      "pivot_z": hz, "size": 8, "pitch": 3, "yaw": 30}, t=30, retries=2)
+time.sleep(1.5)
+print("CLOSE:", json.dumps(studio_capture_screenshot(name="fv_gt2_close"))[:110])
+rcall("set_scene_view", {"pivot_x": hx, "pivot_y": hy,
+      "pivot_z": hz, "size": 55, "pitch": 12, "yaw": 30}, t=30, retries=2)
+time.sleep(1.5)
+print("MED:", json.dumps(studio_capture_screenshot(name="fv_gt2_med"))[:110])
+rcall("save_scene", {}, t=90)
+print("DECISIVE2 DONE pbr_layers=%s" % (
+    pbr.get("layers") if isinstance(pbr, dict) else "?"))

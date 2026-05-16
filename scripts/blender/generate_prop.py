@@ -44,17 +44,22 @@ from mathutils import Vector
 PRIMITIVE_TYPES = ("rock", "crate", "pillar", "column")
 WORLD_TYPES = ("boulder", "stump", "deadtrunk", "totem", "shrine",
                "gate", "bench", "banner", "rack")
-SUPPORTED_TYPES = PRIMITIVE_TYPES + WORLD_TYPES
+# Low-poly trees (HDRP-cheap: 1 mesh, 2 mats, ~200-400 tris) — built
+# to replace the heavy PolyHaven GLB forest that tanked HDRP.
+TREE_TYPES = ("pine", "fir", "deadpine", "shrub")
+SUPPORTED_TYPES = PRIMITIVE_TYPES + WORLD_TYPES + TREE_TYPES
 
 # Art-bible palette (linear-ish sRGB): wet dark earth brown, sickly
 # moss green, burnt ash grey, dry-blood red, cold stone.
 _MATS = {
-    "M_Stone": ((0.30, 0.30, 0.31, 1.0), 0.82),
-    "M_Bark":  ((0.16, 0.11, 0.07, 1.0), 0.78),
-    "M_Wood":  ((0.27, 0.18, 0.10, 1.0), 0.66),
-    "M_Cloth": ((0.34, 0.07, 0.07, 1.0), 0.85),
-    "M_Ash":   ((0.13, 0.13, 0.14, 1.0), 0.74),
-    "M_Moss":  ((0.20, 0.27, 0.13, 1.0), 0.80),
+    "M_Stone":  ((0.30, 0.30, 0.31, 1.0), 0.82),
+    "M_Bark":   ((0.16, 0.11, 0.07, 1.0), 0.78),
+    "M_Wood":   ((0.27, 0.18, 0.10, 1.0), 0.66),
+    "M_Cloth":  ((0.34, 0.07, 0.07, 1.0), 0.85),
+    "M_Ash":    ((0.13, 0.13, 0.14, 1.0), 0.74),
+    "M_Moss":   ((0.20, 0.27, 0.13, 1.0), 0.80),
+    "M_Needle": ((0.10, 0.20, 0.12, 1.0), 0.86),  # dark sickly pine
+    "M_NeedleDry": ((0.20, 0.19, 0.12, 1.0), 0.88),
 }
 
 
@@ -171,6 +176,85 @@ def _ico(r, loc, subd=2):
     bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=subd, radius=r,
                                           location=loc)
     return bpy.context.active_object
+
+
+def _cone(r1, r2, d, loc, verts=7):
+    bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=r1,
+                                    radius2=r2, depth=d, location=loc)
+    return bpy.context.active_object
+
+
+# ─── low-poly trees (HDRP-cheap) ──────────────────────────────────────
+# One joined mesh, 2 material slots, ~200-400 tris. Designed to replace
+# the heavy multi-hundred-renderer PolyHaven GLB trees that tanked HDRP.
+def _conifer(seed, s, *, tiers, trunk_r, total_h, spread, dry=False):
+    rng = random.Random(seed)
+    th = total_h * s
+    tr = trunk_r * s
+    trunk = _cone(tr, tr * 0.6, th * (0.95 if dry else 0.62),
+                  (0, 0, th * (0.47 if dry else 0.31)), 6)
+    _assign(trunk, "M_Bark")
+    parts = [trunk]
+    if not dry:
+        nmat = "M_NeedleDry" if rng.random() < 0.18 else "M_Needle"
+        base_z = th * 0.30
+        seg = (th * 0.72) / tiers
+        rad = spread * s
+        for k in range(tiers):
+            z = base_z + k * seg * 0.82
+            r = rad * (1.0 - k / (tiers + 0.5))
+            cone = _cone(max(0.05 * s, r), 0.0, seg * 1.7,
+                         (0, 0, z + seg * 0.7), 7)
+            cone.scale = (1.0, 1.0, 1.0)
+            _assign(cone, nmat)
+            parts.append(cone)
+    else:
+        # dead pine: bare slanted branch stubs
+        for k in range(5):
+            ang = rng.random() * math.tau
+            zb = th * (0.45 + 0.1 * k)
+            br = _cone(0.05 * s, 0.0, th * 0.28,
+                       (math.cos(ang) * 0.12 * s, math.sin(ang) * 0.12 * s,
+                        zb), 4)
+            br.rotation_euler = (1.1, 0, ang)
+            _assign(br, "M_Bark")
+            parts.append(br)
+    j = _join(parts, "Tree")
+    # tiny per-instance variation so a scattered forest isn't a clone army
+    j.rotation_euler = (rng.uniform(-0.04, 0.04), rng.uniform(-0.04, 0.04),
+                        rng.uniform(0, 6.28))
+    # NOTE: do NOT _assign() here — _join keeps the per-part material
+    # slots (M_Bark trunk + M_Needle foliage). Flattening would make
+    # the whole tree one colour (the bug that made foliage bark-brown).
+    return j
+
+
+def _build_pine(seed, s):
+    return _conifer(seed, s, tiers=4, trunk_r=0.10, total_h=4.2,
+                    spread=0.95)
+
+
+def _build_fir(seed, s):
+    return _conifer(seed, s, tiers=5, trunk_r=0.12, total_h=3.4,
+                    spread=1.25)
+
+
+def _build_deadpine(seed, s):
+    return _conifer(seed, s, tiers=0, trunk_r=0.11, total_h=3.6,
+                    spread=0.4, dry=True)
+
+
+def _build_shrub(seed, s):
+    rng = random.Random(seed)
+    parts = []
+    for k in range(3):
+        b = _ico(rng.uniform(0.35, 0.6) * s,
+                 (rng.uniform(-0.3, 0.3) * s, rng.uniform(-0.3, 0.3) * s,
+                  rng.uniform(0.3, 0.55) * s), 1)
+        _jitter_verts(b, rng, 0.12 * s)
+        _assign(b, "M_Needle")
+        parts.append(b)
+    return _assign(_join(parts, "Shrub"), "M_Needle")
 
 
 # ─── primitive set (back-compat) ──────────────────────────────────────
@@ -374,6 +458,8 @@ _BUILDERS = {
     "stump": _build_stump, "deadtrunk": _build_deadtrunk,
     "totem": _build_totem, "shrine": _build_shrine, "gate": _build_gate,
     "bench": _build_bench, "banner": _build_banner, "rack": _build_rack,
+    "pine": _build_pine, "fir": _build_fir, "deadpine": _build_deadpine,
+    "shrub": _build_shrub,
 }
 
 

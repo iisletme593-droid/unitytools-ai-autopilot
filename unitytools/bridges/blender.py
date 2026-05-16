@@ -131,6 +131,7 @@ class BlenderBridge:
         "rock", "crate", "pillar", "column",
         "boulder", "stump", "deadtrunk", "totem", "shrine",
         "gate", "bench", "banner", "rack",
+        "pine", "fir", "deadpine", "shrub",
     )
 
     def generate_prop(
