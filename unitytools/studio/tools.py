@@ -4422,6 +4422,91 @@ def studio_recent_commits(limit: int = 20) -> dict:
     return {"ok": True, "count": len(commits), "commits": commits}
 
 
+@tool(description="Phase 96: intelligent world-realism orchestrator. Composes ALREADY-COMPILED bridge handlers (no C# recompile) into one smart pass that makes the real-world terrain look real: naturalistic biome repaint, a water plane filling the low valleys, sparse valley forest, HDRP Automatic adaptive exposure + scaled fog, and a smart interior camera (never shows the void edge). Reads scene state and adapts. The 'intelligence layer' — reasoning + composition over primitives instead of a new handler per step.")
+def studio_realize_world(
+    water_level: float = 0.10,
+    forest_count: int = 240,
+    relief_m: float = 1168.0,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not wired"}
+    if hasattr(_UNITY, "is_connected") and not _UNITY.is_connected():
+        return {"ok": False, "error": "Unity Editor not connected"}
+
+    def call(cmd, params, timeout=120):
+        try:
+            return _UNITY.call(cmd, params, timeout=timeout)
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "error": str(exc)[:160]}
+
+    layers: list[dict] = []
+    call("open_scene", {"path": "Assets/Scenes/ForgottenValley_VS.unity"})
+
+    # scene state — find the terrain root + its world position
+    roots = call("list_root_objects", {})
+    terr = None
+    for r in (roots.get("roots", []) if isinstance(roots, dict) else []):
+        if r.get("name") == "WorldTerrain":
+            terr = r
+            break
+    if terr is None:
+        return {"ok": False, "error": "WorldTerrain not in scene", "roots": roots}
+    tx, ty, tz = terr.get("pos", [-8000.0, 0.0, -8000.0])
+    foot = abs(tx) * 2.0 if tx < 0 else 16000.0    # corner-origin convention
+    cx, cz = tx + foot / 2.0, tz + foot / 2.0
+
+    # 1) Naturalistic biome repaint (richer, less flat)
+    layers.append({"biomes": call("repaint_terrain_biomes", {
+        "plains_to": 0.34, "forest_to": 0.66, "rock_to": 0.90,
+        "plains_color": [0.33, 0.44, 0.22],
+        "forest_color": [0.16, 0.30, 0.15],
+        "rock_color": [0.42, 0.40, 0.37],
+        "snow_color": [0.92, 0.94, 0.97],
+    })})
+
+    # 2) Water plane filling the low valleys (the big realism jump)
+    wy = ty + water_level * relief_m
+    call("create_primitive", {"type": "Plane", "name": "WorldWater",
+                              "position_x": cx, "position_y": wy, "position_z": cz})
+    call("set_scale", {"name": "WorldWater", "x": foot / 10.0, "y": 1.0,
+                       "z": foot / 10.0})
+    call("set_material_color", {"name": "WorldWater", "r": 0.05, "g": 0.19,
+                                "b": 0.27, "a": 1.0})
+    layers.append({"water": {"y": wy, "footprint": foot}})
+
+    # 3) Sparse valley forest (mid-low band only)
+    layers.append({"forest": call("scatter_terrain_trees", {
+        "tree_count": forest_count, "forest_min": 0.14, "forest_max": 0.52,
+        "max_slope_deg": 33, "scale_min": 8, "scale_max": 16, "seed": 11,
+    })})
+
+    # 4) HDRP Automatic adaptive exposure + scale-appropriate fog
+    layers.append({"exposure": call("setup_hdrp_volume", {
+        "exposure_mode": "Automatic", "fog": True, "fog_distance": 2200,
+    })})
+
+    # 5) Smart interior camera (auto-frames terrain; never the void edge)
+    layers.append({"camera": call("setup_smart_camera", {
+        "target": "WorldTerrain", "pitch": 32, "yaw": 40, "distance_factor": 0.55,
+    })})
+
+    call("save_scene", {})
+    ok = all(
+        (list(l.values())[0] or {}).get("ok", True)
+        if isinstance(list(l.values())[0], dict) else True
+        for l in layers
+    )
+    return {
+        "ok": True,
+        "applied_ok": ok,
+        "terrain_center": [cx, ty, cz],
+        "footprint_m": foot,
+        "water_y": wy,
+        "layers": layers,
+        "note": "composed compiled handlers — biomes+water+forest+adaptive-exposure+smart-cam",
+    }
+
+
 # ─── Convenience: list of all studio tool names (used by RoleConfig) ───
 
 ALL_STUDIO_TOOL_NAMES: tuple[str, ...] = (

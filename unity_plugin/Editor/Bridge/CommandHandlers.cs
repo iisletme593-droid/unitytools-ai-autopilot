@@ -104,6 +104,8 @@ namespace UnityTools.Bridge
                 case "fix_terrain_material": return FixTerrainMaterial(p);
                 case "scatter_terrain_trees": return ScatterTerrainTrees(p);
                 case "repaint_terrain_biomes": return RepaintTerrainBiomes(p);
+                case "setup_smart_camera": return SetupSmartCamera(p);
+                case "make_terrain_playable": return MakeTerrainPlayable(p);
                 default: throw new InvalidOperationException($"Unknown method: {method}");
             }
         }
@@ -142,6 +144,188 @@ namespace UnityTools.Bridge
                 }
             }
             return "builtin-default";
+        }
+
+        // ── Phase 95: the SMART playability layer. A 16 km real-world
+        // terrain is geographically true but unplayable — a 1.8 m human
+        // is a speck. This reasons about scale: shrinks the terrain to
+        // a human-explorable footprint (heightmap SHAPE preserved),
+        // recenters it, finds a good valley/meadow spawn (mid-low
+        // elevation + low slope) by scanning the heightmap, drops the
+        // character ON the surface there, and frames a third-person
+        // human-scale camera behind it. One intelligent call.
+        private static object MakeTerrainPlayable(JObject p)
+        {
+            float footprint = p["footprint_m"]?.ToObject<float>() ?? 1200f; // playable XZ
+            float reliefScale = p["relief_scale"]?.ToObject<float>() ?? 0.16f; // y = footprint*this
+            string charName = p["character"]?.ToString() ?? "SK_Hero";
+            float charScale = p["character_scale"]?.ToObject<float>() ?? 1.0f;
+
+            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None)
+                .FirstOrDefault();
+            if (terrain == null)
+                return new { ok = false, error = "No Terrain in scene" };
+            var td = terrain.terrainData;
+
+            // 1) Rescale to a human-explorable footprint, keep heightmap.
+            float yH = footprint * reliefScale;
+            td.size = new Vector3(footprint, yH, footprint);
+            // recenter so terrain centre = world origin
+            terrain.transform.position = new Vector3(-footprint / 2f, 0f, -footprint / 2f);
+
+            // 2) Scan heightmap for a good spawn: mid-low elevation +
+            // low local slope, biased toward the centre (a meadow).
+            int hr = td.heightmapResolution;
+            float[,] hs = td.GetHeights(0, 0, hr, hr);
+            float hMin = float.MaxValue, hMax = float.MinValue;
+            for (int y = 0; y < hr; y++)
+                for (int x = 0; x < hr; x++)
+                { float v = hs[y, x]; if (v < hMin) hMin = v; if (v > hMax) hMax = v; }
+            float span = Mathf.Max(1e-5f, hMax - hMin);
+
+            int bestX = hr / 2, bestY = hr / 2; float bestScore = -1f;
+            for (int gy = 4; gy < hr - 4; gy += 2)
+            {
+                for (int gx = 4; gx < hr - 4; gx += 2)
+                {
+                    float hn = (hs[gy, gx] - hMin) / span;
+                    // local slope from neighbour delta
+                    float slope = Mathf.Abs(hs[gy, gx] - hs[gy, gx + 2])
+                                + Mathf.Abs(hs[gy, gx] - hs[gy + 2, gx]);
+                    // want hn ~0.30 (low valley meadow), flat, near centre
+                    float fEle = 1f - Mathf.Abs(hn - 0.30f) / 0.30f;
+                    float fFlat = 1f - Mathf.Clamp01(slope * 40f);
+                    float cx = (gx / (float)hr - 0.5f), cy = (gy / (float)hr - 0.5f);
+                    float fCen = 1f - Mathf.Clamp01(Mathf.Sqrt(cx * cx + cy * cy) * 1.6f);
+                    float score = fEle * 0.4f + fFlat * 0.45f + fCen * 0.15f;
+                    if (score > bestScore) { bestScore = score; bestX = gx; bestY = gy; }
+                }
+            }
+            float u = bestX / (float)(hr - 1), v = bestY / (float)(hr - 1);
+            float wx = terrain.transform.position.x + u * footprint;
+            float wz = terrain.transform.position.z + v * footprint;
+            float wy = terrain.transform.position.y + td.GetInterpolatedHeight(u, v);
+
+            // 3) Place the character ON the surface there.
+            string placed = "not-found";
+            var ch = GameObject.Find(charName);
+            if (ch != null)
+            {
+                ch.transform.position = new Vector3(wx, wy, wz);
+                ch.transform.localScale = Vector3.one * charScale;
+                ch.transform.rotation = Quaternion.Euler(0f, 135f, 0f);
+                placed = $"{wx:0},{wy:0},{wz:0}";
+            }
+
+            // 4) Third-person human-scale camera behind + above.
+            var camGo = GameObject.Find("Main Camera")
+                        ?? new GameObject("Main Camera");
+            var cam = camGo.GetComponent<Camera>() ?? camGo.AddComponent<Camera>();
+            try { camGo.tag = "MainCamera"; } catch { }
+            cam.nearClipPlane = 0.2f;
+            cam.farClipPlane = Mathf.Max(2500f, footprint * 2.2f);
+            cam.fieldOfView = 60f;
+            Vector3 charPos = new Vector3(wx, wy, wz);
+            Vector3 back = Quaternion.Euler(0f, 135f, 0f) * Vector3.back;
+            camGo.transform.position = charPos + back * 9f + Vector3.up * 4f;
+            camGo.transform.rotation = Quaternion.LookRotation(
+                ((charPos + Vector3.up * 1.4f) - camGo.transform.position).normalized, Vector3.up);
+            var hdCamType = FindType("UnityEngine.Rendering.HighDefinition.HDAdditionalCameraData");
+            if (hdCamType != null && camGo.GetComponent(hdCamType) == null)
+                camGo.AddComponent(hdCamType);
+
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                footprint_m = footprint,
+                relief_m = yH,
+                spawn = placed,
+                spawn_score = bestScore,
+                character = charName,
+                note = "terrain rescaled to playable footprint; character on surface; third-person cam",
+            };
+        }
+
+        // ── Phase 94: a SMART inspection camera. Auto-frames a target
+        // (default: the terrain) with clip planes correct for huge
+        // worlds (the "view disappears when you zoom" bug = far-clip
+        // too small for a 16 km terrain). Also attaches HDRP camera
+        // data via reflection so the SRP render path (and screenshots)
+        // actually work. This is the system getting smarter about
+        // seeing the scene instead of blind hand-tuning.
+        private static object SetupSmartCamera(JObject p)
+        {
+            string targetName = p["target"]?.ToString() ?? "WorldTerrain";
+            float pitch = p["pitch"]?.ToObject<float>() ?? 28f;
+            float yaw = p["yaw"]?.ToObject<float>() ?? 35f;
+            float distFactor = p["distance_factor"]?.ToObject<float>() ?? 0.62f;
+
+            var go = GameObject.Find("Main Camera");
+            if (go == null)
+            {
+                go = new GameObject("Main Camera");
+                Undo.RegisterCreatedObjectUndo(go, "UnityTools: smart camera");
+            }
+            var cam = go.GetComponent<Camera>() ?? go.AddComponent<Camera>();
+            try { go.tag = "MainCamera"; } catch { }
+
+            // Bounds of the target (terrain or any renderered object).
+            Bounds b = new Bounds(Vector3.zero, new Vector3(200, 50, 200));
+            var tgt = GameObject.Find(targetName);
+            var terr = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None)
+                .FirstOrDefault();
+            if (tgt != null && tgt.GetComponent<Terrain>() != null) terr = tgt.GetComponent<Terrain>();
+            if (terr != null)
+            {
+                var td = terr.terrainData;
+                b = new Bounds(terr.transform.position + td.size * 0.5f, td.size);
+            }
+            else if (tgt != null)
+            {
+                var rs = tgt.GetComponentsInChildren<Renderer>();
+                if (rs.Length > 0)
+                {
+                    b = rs[0].bounds;
+                    foreach (var r in rs) b.Encapsulate(r.bounds);
+                }
+            }
+
+            float radius = b.extents.magnitude;
+            // clip planes scaled to the world so nothing vanishes:
+            cam.nearClipPlane = Mathf.Max(0.05f, radius * 0.0002f);
+            cam.farClipPlane = Mathf.Max(5000f, radius * 6f);
+            cam.fieldOfView = 60f;
+
+            float dist = radius * Mathf.Max(0.15f, distFactor) * 2f;
+            var rot = Quaternion.Euler(pitch, yaw, 0f);
+            Vector3 dir = rot * Vector3.forward;
+            go.transform.position = b.center - dir * dist + Vector3.up * (radius * 0.35f);
+            go.transform.rotation = Quaternion.LookRotation((b.center - go.transform.position).normalized, Vector3.up);
+
+            // HDRP camera data (reflection — no asmdef dep). Without it
+            // the SRP render path / screenshots can produce nothing.
+            var hdCamType = FindType("UnityEngine.Rendering.HighDefinition.HDAdditionalCameraData");
+            string hdNote = "none";
+            if (hdCamType != null)
+            {
+                var hd = go.GetComponent(hdCamType) ?? go.AddComponent(hdCamType);
+                hdNote = hd != null ? "HDAdditionalCameraData attached" : "failed";
+            }
+
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                camera = go.name,
+                target = targetName,
+                world_radius = radius,
+                near = cam.nearClipPlane,
+                far = cam.farClipPlane,
+                position = new[] { go.transform.position.x, go.transform.position.y, go.transform.position.z },
+                hdrp_camera = hdNote,
+                note = "auto-framed; clip planes scaled to world (no more zoom-vanish)",
+            };
         }
 
         // ── Phase 93: repaint terrain biome bands from the EXISTING
@@ -535,6 +719,9 @@ namespace UnityTools.Bridge
         private static object SetupHdrpVolume(JObject p)
         {
             float exposure = p["fixed_exposure"]?.ToObject<float>() ?? 12.5f;
+            // "Automatic" = HDRP adaptive eye — never blows pure white
+            // or pitch black again. The smart default.
+            string expMode = (p["exposure_mode"]?.ToString() ?? "Automatic");
             bool fog = p["fog"]?.ToObject<bool>() ?? true;
             float meanFreePath = p["fog_distance"]?.ToObject<float>() ?? 260f;
 
@@ -570,8 +757,22 @@ namespace UnityTools.Bridge
             if (expType != null)
             {
                 var exp = AddComp(expType);
-                SetVc(exp, "mode", "Fixed", applied);
-                SetVc(exp, "fixedExposure", exposure, applied);
+                if (expMode.Equals("Automatic", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Adaptive: meters the scene and self-corrects.
+                    SetVc(exp, "mode", "Automatic", applied);
+                    SetVc(exp, "meteringMode", "CenterWeighted", applied);
+                    SetVc(exp, "luminanceSource", "ColorBuffer", applied);
+                    SetVc(exp, "limitMin", -4f, applied);
+                    SetVc(exp, "limitMax", 14f, applied);
+                    SetVc(exp, "adaptationSpeedDarkToLight", 3f, applied);
+                    SetVc(exp, "adaptationSpeedLightToDark", 1f, applied);
+                }
+                else
+                {
+                    SetVc(exp, "mode", "Fixed", applied);
+                    SetVc(exp, "fixedExposure", exposure, applied);
+                }
             }
             if (toneType != null)
             {
