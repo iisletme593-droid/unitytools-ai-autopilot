@@ -5174,24 +5174,79 @@ namespace UnityTools.Bridge
             return min + (float)rng.NextDouble() * (max - min);
         }
 
+        // Cached unit cone mesh (radius 1 at y=0 base, apex at y=1),
+        // built once and shared by every tier of every tree -> cheap +
+        // GPU-instanceable. ~12 sides = 24 tris.
+        private static Mesh _coneMesh;
+        private static Mesh ConeMesh()
+        {
+            if (_coneMesh != null) return _coneMesh;
+            const int N = 12;
+            var verts = new Vector3[N + 2];
+            var tris = new System.Collections.Generic.List<int>();
+            verts[0] = new Vector3(0f, 1f, 0f);            // apex
+            verts[1] = Vector3.zero;                       // base centre
+            for (int i = 0; i < N; i++)
+            {
+                float a = (i / (float)N) * Mathf.PI * 2f;
+                verts[2 + i] = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+            }
+            for (int i = 0; i < N; i++)
+            {
+                int a = 2 + i, b = 2 + (i + 1) % N;
+                tris.Add(0); tris.Add(b); tris.Add(a);     // side
+                tris.Add(1); tris.Add(a); tris.Add(b);     // bottom cap
+            }
+            _coneMesh = new Mesh { name = "UT_ConeMesh" };
+            _coneMesh.SetVertices(new System.Collections.Generic.List<Vector3>(verts));
+            _coneMesh.SetTriangles(tris, 0);
+            _coneMesh.RecalculateNormals();
+            _coneMesh.RecalculateBounds();
+            return _coneMesh;
+        }
+
+        private static GameObject ConePart(string n, Transform parent,
+            Vector3 lpos, float radius, float height, Material mat)
+        {
+            var go = new GameObject(n, typeof(MeshFilter), typeof(MeshRenderer));
+            go.transform.SetParent(parent);
+            go.transform.localPosition = lpos;
+            go.transform.localScale = new Vector3(radius, height, radius);
+            go.GetComponent<MeshFilter>().sharedMesh = ConeMesh();
+            go.GetComponent<MeshRenderer>().sharedMaterial = mat;
+            return go;
+        }
+
+        // Real conifer silhouette: thin tapered brown trunk + 3 stacked
+        // green cone tiers (wide low -> narrow top). Pivot at base
+        // (y=0) so the ground-snap keeps it on the surface. ~80 tris,
+        // shared cone mesh -> cheap & instanceable. No FBX = reliable.
         private static void CreateSimplePine(string name, Vector3 pos, float scale, Transform parent, Material trunkMat, Material foliageMat, System.Random rng)
         {
             var root = new GameObject(name);
             root.transform.SetParent(parent);
             root.transform.position = pos;
-            root.transform.rotation = Quaternion.Euler(0f, RandomRange(rng, 0f, 360f), 0f);
-            var trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            trunk.name = "Trunk";
-            trunk.transform.SetParent(root.transform);
-            trunk.transform.localPosition = new Vector3(0f, 1.15f * scale, 0f);
-            trunk.transform.localScale = new Vector3(0.18f * scale, 1.15f * scale, 0.18f * scale);
-            trunk.GetComponent<Renderer>().sharedMaterial = trunkMat;
-            var crown = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            crown.name = "PineNeedles";
-            crown.transform.SetParent(root.transform);
-            crown.transform.localPosition = new Vector3(0f, 2.65f * scale, 0f);
-            crown.transform.localScale = new Vector3(1.05f * scale, 1.55f * scale, 1.05f * scale);
-            crown.GetComponent<Renderer>().sharedMaterial = foliageMat;
+            root.transform.rotation = Quaternion.Euler(
+                RandomRange(rng, -2f, 2f),
+                RandomRange(rng, 0f, 360f),
+                RandomRange(rng, -2f, 2f));
+
+            float h = RandomRange(rng, 0.9f, 1.15f);   // per-tree height jitter
+            // trunk: thin cone (acts as tapered trunk), brown
+            ConePart("Trunk", root.transform, Vector3.zero,
+                0.10f * scale, 1.25f * scale * h, trunkMat);
+
+            // 3 foliage tiers, decreasing radius/height going up,
+            // overlapping so it reads as one continuous conifer.
+            float baseY = 0.55f * scale * h;
+            for (int t = 0; t < 3; t++)
+            {
+                float r = (1.15f - t * 0.32f) * scale;
+                float th = (1.7f - t * 0.25f) * scale * h;
+                ConePart($"Foliage{t}", root.transform,
+                    new Vector3(0f, baseY, 0f), r, th, foliageMat);
+                baseY += th * 0.55f;
+            }
             DisableExpensiveRendererFeatures(root);
         }
 
