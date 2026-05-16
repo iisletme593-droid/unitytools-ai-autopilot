@@ -4000,13 +4000,17 @@ def studio_generate_world_assets(dry_run: bool = False,
 
     call("open_scene", {"path": scene})
 
-    # Base anchor = the hero spawn (fallback to a sensible valley point).
-    bx, bz = 225.0, 75.0
+    # Base anchor = the hero spawn (good playable ground). Pass the
+    # hero's elevation as ref_y so each prop snaps to ground near the
+    # playable band (not the underwater valley floor the blind offsets
+    # used to hit), and min_surface_y keeps them above the water plane.
+    bx, by, bz = 225.0, 57.0, 75.0
     info = call("get_object_details", {"name": base_object})
     if isinstance(info, dict):
         pos = info.get("position") or {}
         if isinstance(pos, dict) and "x" in pos:
-            bx, bz = float(pos["x"]), float(pos["z"])
+            bx, by, bz = float(pos["x"]), float(pos.get("y", 57.0)), float(pos["z"])
+    min_sy = by - 25.0  # keep props within the playable elevation band
 
     results = []
     for (slot, ptype, pscale, dx, dz, seed) in MANIFEST:
@@ -4042,6 +4046,8 @@ def studio_generate_world_assets(dry_run: bool = False,
                 "rot_y": (seed * 37) % 360, "scale": 1.0,
                 "parent": "WorldGeneratedProps",
                 "material_path": mat,
+                "ref_y": by, "min_surface_y": min_sy,
+                "max_slope_deg": 34, "search_radius": 160,
             })
             row["placed"] = bool(isinstance(placed, dict) and placed.get("ok"))
             row["place"] = placed if isinstance(placed, dict) else {}

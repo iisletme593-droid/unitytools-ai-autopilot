@@ -999,15 +999,60 @@ namespace UnityTools.Bridge
             string parentName = p["parent"]?.ToString();
             string foliageMatPath = p["material_path"]?.ToString();
 
+            // Snap-to-good-ground: blind anchor offsets often land in the
+            // valley floor / underwater. If the sampled point is below
+            // min_surface_y (or far from a reference elevation), spiral-
+            // search nearby for a point that is above water, low-slope,
+            // and (if ref_y given) near the playable elevation band.
+            float minSurfaceY = p["min_surface_y"]?.ToObject<float>() ?? float.NaN;
+            float refY = p["ref_y"]?.ToObject<float>() ?? float.NaN;
+            float searchR = p["search_radius"]?.ToObject<float>() ?? 140f;
+            float maxSlopeP = p["max_slope_deg"]?.ToObject<float>() ?? 32f;
+
             var terrain = ResolveSceneTerrain(p);
             float surfaceY = 0f;
             if (terrain != null)
             {
                 var td = terrain.terrainData;
                 Vector3 tp = terrain.transform.position;
-                float u = Mathf.Clamp01((x - tp.x) / Mathf.Max(0.001f, td.size.x));
-                float v = Mathf.Clamp01((z - tp.z) / Mathf.Max(0.001f, td.size.z));
-                surfaceY = tp.y + td.GetInterpolatedHeight(u, v);
+                float HeightAt(float wx, float wz, out float steep)
+                {
+                    float uu = Mathf.Clamp01((wx - tp.x) / Mathf.Max(0.001f, td.size.x));
+                    float vv = Mathf.Clamp01((wz - tp.z) / Mathf.Max(0.001f, td.size.z));
+                    steep = td.GetSteepness(uu, vv);
+                    return tp.y + td.GetInterpolatedHeight(uu, vv);
+                }
+                float s0;
+                surfaceY = HeightAt(x, z, out s0);
+                bool needBetter =
+                    (!float.IsNaN(minSurfaceY) && surfaceY < minSurfaceY)
+                    || s0 > maxSlopeP
+                    || (!float.IsNaN(refY) && Mathf.Abs(surfaceY - refY) > 35f);
+                if (needBetter)
+                {
+                    float bestX = x, bestZ = z, bestY = surfaceY, bestScore = float.MaxValue;
+                    var rng = new System.Random((int)(x * 31 + z * 17));
+                    for (int ring = 1; ring <= 8; ring++)
+                    {
+                        float rad = searchR * ring / 8f;
+                        for (int a = 0; a < 12; a++)
+                        {
+                            double ang = a * (Math.PI / 6.0) + rng.NextDouble();
+                            float cx = x + (float)Math.Cos(ang) * rad;
+                            float cz = z + (float)Math.Sin(ang) * rad;
+                            float st;
+                            float hy = HeightAt(cx, cz, out st);
+                            if (!float.IsNaN(minSurfaceY) && hy < minSurfaceY) continue;
+                            if (st > maxSlopeP) continue;
+                            float score = st
+                                + (!float.IsNaN(refY) ? Mathf.Abs(hy - refY) : 0f)
+                                + rad * 0.02f;
+                            if (score < bestScore)
+                            { bestScore = score; bestX = cx; bestZ = cz; bestY = hy; }
+                        }
+                    }
+                    x = bestX; z = bestZ; surfaceY = bestY;
+                }
             }
 
             var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
