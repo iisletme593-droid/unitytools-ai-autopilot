@@ -4744,11 +4744,16 @@ def studio_realize_world(
             "max_slope_deg": 33, "scale_min": 8, "scale_max": 16, "seed": 11,
         }), "forest_kind": "procedural_fallback"})
 
-    # 4) Fixed exposure 13 — paired with the 22000-lux sun this is the
-    # locked-in recipe that reads as balanced natural daylight (the
-    # Automatic mode was unstable: sometimes pale, sometimes dark).
+    # 4) Fixed exposure 16 — ROOT CAUSE of the long "pale ground"
+    # saga: EV 13 with the 22000-lux sun blows out real 2K PBR albedo
+    # to flat pale (solid-colour biomes never blew out, which is why
+    # earlier shots looked green and masked this). HDRP Fixed EV is
+    # inverted (higher = darker); an exposure sweep showed EV~16 is
+    # the balanced natural-daylight point where the moss/wet-earth/
+    # rock textures actually read. The terrain DATA was correct all
+    # along (list_terrains: 4 PBR layers + HDRP/TerrainLit).
     layers.append({"exposure": call("setup_hdrp_volume", {
-        "exposure_mode": "Fixed", "fixed_exposure": 13.0,
+        "exposure_mode": "Fixed", "fixed_exposure": 16.0,
         "fog": True, "fog_distance": 2200,
     })})
 
