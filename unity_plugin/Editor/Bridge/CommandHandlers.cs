@@ -98,8 +98,95 @@ namespace UnityTools.Bridge
                 case "create_scene_snapshot": return CreateSceneSnapshot(p);
                 case "restore_scene_snapshot": return RestoreSceneSnapshot(p);
                 case "setup_hdrp_volume": return SetupHdrpVolume(p);
+                case "list_root_objects": return ListRootObjects(p);
+                case "assign_material_asset": return AssignMaterialAsset(p);
                 default: throw new InvalidOperationException($"Unknown method: {method}");
             }
+        }
+
+        // ── Phase 90: whole-scene read (no 200 cap; roots are few even
+        // with heavy GLB hierarchies) + premium material assignment.
+        private static object ListRootObjects(JObject p)
+        {
+            var scene = SceneManager.GetActiveScene();
+            var roots = scene.GetRootGameObjects();
+            var list = new List<object>();
+            foreach (var r in roots)
+            {
+                var rends = r.GetComponentsInChildren<Renderer>(true);
+                int childCount = r.GetComponentsInChildren<Transform>(true).Length - 1;
+                list.Add(new
+                {
+                    name = r.name,
+                    active = r.activeSelf,
+                    children = childCount,
+                    renderers = rends.Length,
+                    pos = new[] { r.transform.position.x, r.transform.position.y, r.transform.position.z },
+                });
+            }
+            return new { ok = true, scene = scene.name, root_count = roots.Length, roots = list };
+        }
+
+        private static object AssignMaterialAsset(JObject p)
+        {
+            string matPath = p["material_path"]?.ToString();
+            string nameContains = p["name_contains"]?.ToString() ?? "";
+            bool recurse = p["recurse"]?.ToObject<bool>() ?? true;
+            int maxObjects = Mathf.Clamp(p["max_objects"]?.ToObject<int>() ?? 5000, 1, 50000);
+            if (string.IsNullOrEmpty(matPath))
+                return new { ok = false, error = "material_path required" };
+
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+            if (mat == null)
+                return new { ok = false, error = $"Material not found at {matPath}" };
+
+            var scene = SceneManager.GetActiveScene();
+            int matchedObjects = 0, assignedRenderers = 0;
+            var sample = new List<string>();
+
+            void Apply(GameObject go)
+            {
+                if (matchedObjects >= maxObjects) return;
+                bool match = string.IsNullOrEmpty(nameContains)
+                    || go.name.IndexOf(nameContains, StringComparison.OrdinalIgnoreCase) >= 0;
+                if (match)
+                {
+                    matchedObjects++;
+                    var rends = recurse
+                        ? go.GetComponentsInChildren<Renderer>(true)
+                        : go.GetComponents<Renderer>();
+                    foreach (var rend in rends)
+                    {
+                        Undo.RecordObject(rend, "Bridge: assign material asset");
+                        var arr = new Material[rend.sharedMaterials.Length];
+                        for (int i = 0; i < arr.Length; i++) arr[i] = mat;
+                        rend.sharedMaterials = arr;
+                        assignedRenderers++;
+                        if (sample.Count < 8) sample.Add(rend.gameObject.name);
+                    }
+                }
+            }
+
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                foreach (var t in root.GetComponentsInChildren<Transform>(true))
+                {
+                    Apply(t.gameObject);
+                    if (matchedObjects >= maxObjects) break;
+                }
+            }
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            return new
+            {
+                ok = true,
+                material = mat.name,
+                material_path = matPath,
+                name_contains = nameContains,
+                matched_objects = matchedObjects,
+                assigned_renderers = assignedRenderers,
+                sample = sample.ToArray(),
+            };
         }
 
         // ── Phase 89: HDRP Global Volume (Exposure+Tonemapping+Fog).
