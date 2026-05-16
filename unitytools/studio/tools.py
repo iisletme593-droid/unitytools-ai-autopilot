@@ -3908,19 +3908,32 @@ def studio_build_lowpoly_forest(tree_count: int = 150,
     call("open_scene", {"path": scene})
 
     # 1) Generate the 3 low-poly tree variants via Blender + import.
+    # Resilient: the Blender step is reliable but the Unity import can
+    # transiently fail when the editor is busy post-recompile. Retry
+    # each, and proceed with whatever variants succeeded (a forest of
+    # just pine is fine; only hard-fail if NOTHING imported).
     variants = [("LP_Pine", "pine", 11), ("LP_Fir", "fir", 22),
                 ("LP_DeadPine", "deadpine", 33)]
     paths = {}
     for nm, ptype, sd in variants:
-        gen = studio_generate_prop_asset(
-            prop_type=ptype, name=nm, seed=sd, scale=1.0,
-            import_into_unity=True,
-            unity_destination="Assets/Studio/Generated")
-        if gen.get("ok") and gen.get("unity_asset_path"):
-            paths[ptype] = gen["unity_asset_path"]
-        else:
-            return {"ok": False, "error": f"gen {ptype} failed",
-                    "detail": gen.get("error", "")[:160]}
+        for attempt in range(3):
+            gen = studio_generate_prop_asset(
+                prop_type=ptype, name=nm, seed=sd, scale=1.0,
+                import_into_unity=True,
+                unity_destination="Assets/Studio/Generated")
+            if gen.get("ok") and gen.get("unity_asset_path"):
+                paths[ptype] = gen["unity_asset_path"]
+                break
+            time.sleep(6)  # let Unity settle, then retry the import
+    if not paths:
+        return {"ok": False, "error": "all tree gens failed",
+                "detail": gen.get("error", "")[:160] if isinstance(gen, dict) else ""}
+    # Fill any missing variant with an available one so the scatter
+    # always has live + dead pools.
+    any_path = next(iter(paths.values()))
+    paths.setdefault("pine", any_path)
+    paths.setdefault("fir", paths["pine"])
+    paths.setdefault("deadpine", paths["pine"])
 
     _GM = "Assets/FantasyRPG/Generated/Materials/"
     # 2) Scatter them cheap (GPU-instanced, per-slot HDRP materials).
