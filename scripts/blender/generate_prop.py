@@ -272,36 +272,58 @@ def _build_totem(seed, s):
 
 
 def _build_shrine(seed, s):
+    # SoulShrine_OldRoots: a low offering altar wrapped by a veil of
+    # old roots leaning STRONGLY inward to a canopy over the stone
+    # (art bible: "natural beauty corrupted by patient violence").
     rng = random.Random(seed)
-    altar = _cube(1.0 * s, (0, 0, 0.32 * s), (0.95, 0.95, 0.62))
-    parts = [_assign(altar, "M_Stone")]
-    n = 5
+    parts = []
+    base = _cyl(1.55 * s, 0.22 * s, (0, 0, 0.11 * s), 14)
+    _jitter_verts(base, rng, 0.05 * s, (1, 1, 0.3))
+    parts.append(_assign(base, "M_Stone"))
+    altar = _cube(1.0 * s, (0, 0, 0.44 * s), (0.85, 0.85, 0.7))
+    parts.append(_assign(altar, "M_Stone"))
+    n = 6
     for k in range(n):
-        ang = (k / n) * math.tau
-        # leaning root arch around the altar
-        arc = _cyl(0.10 * s, 1.7 * s,
-                   (math.cos(ang) * 1.25 * s, math.sin(ang) * 1.25 * s,
-                    0.75 * s),
-                   8, (math.cos(ang) * 0.5, math.sin(ang) * 0.5, ang))
+        ang = (k / n) * math.tau + rng.random() * 0.15
+        # root climbs from the outer ring up and inward over the altar
+        cx, cy = math.cos(ang) * 0.95 * s, math.sin(ang) * 0.95 * s
+        arc = _cyl(0.11 * s, 2.5 * s, (cx, cy, 1.05 * s), 7,
+                   (math.sin(ang) * 0.95,   # tilt toward centre
+                    -math.cos(ang) * 0.95,
+                    ang + rng.random() * 0.2))
         parts.append(_assign(arc, "M_Bark"))
+    # converging crown knot where the roots meet over the altar
+    knot = _ico(0.26 * s, (0, 0, 2.15 * s), 1)
+    _jitter_verts(knot, rng, 0.10 * s)
+    parts.append(_assign(knot, "M_Bark"))
     return _assign(_join(parts, "SoulShrine"), "M_Stone")
 
 
 def _build_gate(seed, s):
+    # BossGate_RootVeil: two heavy stone posts leaning toward each
+    # other, a thick sagging root lintel, and hanging root strands
+    # (the "veil") you pass through to reach the boss arena.
     rng = random.Random(seed)
-    lp = _cyl(0.30 * s, 3.4 * s, (-1.5 * s, 0, 1.7 * s), 8, (0, 0.10, 0))
-    rp = _cyl(0.30 * s, 3.4 * s, (1.5 * s, 0, 1.7 * s), 8, (0, -0.10, 0))
-    _jitter_verts(lp, rng, 0.06 * s); _jitter_verts(rp, rng, 0.06 * s)
+    lp = _cyl(0.34 * s, 3.6 * s, (-1.55 * s, 0, 1.8 * s), 8, (0, 0.16, 0))
+    rp = _cyl(0.34 * s, 3.6 * s, (1.55 * s, 0, 1.8 * s), 8, (0, -0.16, 0))
+    _jitter_verts(lp, rng, 0.07 * s); _jitter_verts(rp, rng, 0.07 * s)
+    parts = [_assign(lp, "M_Stone"), _assign(rp, "M_Stone")]
     # sagging root lintel across the top
-    lintel = _cyl(0.16 * s, 3.6 * s, (0, 0, 3.3 * s), 8,
+    lintel = _cyl(0.18 * s, 3.5 * s, (0, 0, 3.45 * s), 8,
                   (0, math.pi / 2, 0))
     bm = bmesh.new(); bm.from_mesh(lintel.data)
     for v in bm.verts:
-        v.co.z -= 0.18 * s * (1.0 - (abs(v.co.x) / (1.8 * s)))
+        v.co.z -= 0.28 * s * (1.0 - (abs(v.co.x) / (1.75 * s)))
     bm.to_mesh(lintel.data); bm.free()
-    return _assign(_join([_assign(lp, "M_Stone"), _assign(rp, "M_Stone"),
-                          _assign(lintel, "M_Bark")], "BossGate"),
-                   "M_Stone")
+    parts.append(_assign(lintel, "M_Bark"))
+    # hanging root-veil strands of varying length
+    for k in range(5):
+        fx = (-1.3 + k * 0.65) * s
+        ln = (0.9 + rng.random() * 1.1) * s
+        strand = _cyl(0.05 * s, ln, (fx, 0, 3.25 * s - ln / 2), 6,
+                      (rng.random() * 0.18 - 0.09, 0, 0))
+        parts.append(_assign(strand, "M_Bark"))
+    return _assign(_join(parts, "BossGate"), "M_Stone")
 
 
 def _build_bench(seed, s):
