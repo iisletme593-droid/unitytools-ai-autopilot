@@ -162,3 +162,9 @@
 {"ts": 1778949521.6210015, "kind": "asset_generated", "prop_type": "fir", "name": "LP_Fir", "seed": 22, "size_bytes": 19052, "path": "D:\\UnityToolsV2\\.claude\\worktrees\\wizardly-williams-9493d0\\studio\\assets\\generated\\LP_Fir\\final.fbx"}
 {"ts": 1778949523.7228649, "kind": "asset_generated", "prop_type": "deadpine", "name": "LP_DeadPine", "seed": 33, "size_bytes": 17180, "path": "D:\\UnityToolsV2\\.claude\\worktrees\\wizardly-williams-9493d0\\studio\\assets\\generated\\LP_DeadPine\\final.fbx"}
 {"ts": 1778949524.303499, "kind": "lowpoly_forest", "placed": 136}
+{"ts": 1778949646.0381515, "kind": "asset_generated", "prop_type": "pine", "name": "LP_Pine", "seed": 11, "size_bytes": 18732, "path": "D:\\UnityToolsV2\\.claude\\worktrees\\wizardly-williams-9493d0\\studio\\assets\\generated\\LP_Pine\\final.fbx"}
+{"ts": 1778949648.1314757, "kind": "asset_generated", "prop_type": "fir", "name": "LP_Fir", "seed": 22, "size_bytes": 19052, "path": "D:\\UnityToolsV2\\.claude\\worktrees\\wizardly-williams-9493d0\\studio\\assets\\generated\\LP_Fir\\final.fbx"}
+{"ts": 1778949650.2634497, "kind": "asset_generated", "prop_type": "deadpine", "name": "LP_DeadPine", "seed": 33, "size_bytes": 17180, "path": "D:\\UnityToolsV2\\.claude\\worktrees\\wizardly-williams-9493d0\\studio\\assets\\generated\\LP_DeadPine\\final.fbx"}
+{"ts": 1778949650.6611593, "kind": "lowpoly_forest", "placed": 136}
+{"ts": 1778949652.7654626, "kind": "autopilot_world_cycle", "ok": true, "elapsed_s": 9.1, "steps": {"forest": {"ok": true, "placed": 136}, "realize": {"ok": true, "biome_kind": "real_pbr", "forest_kind": "lowpoly_blender"}, "snapshot": {"ok": true, "path": "D:\\UnityToolsV2\\.claude\\worktrees\\wizardly-williams-9493d0\\studio\\qa\\screenshots\\20260516_194052_autopilot_world.png"}}}
+{"ts": 1778950037.761467, "kind": "procedural_forest", "placed": 143}
