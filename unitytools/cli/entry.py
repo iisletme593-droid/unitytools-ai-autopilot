@@ -1873,6 +1873,78 @@ def cmd_studio_loop(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_autopilot_world(args: argparse.Namespace) -> int:
+    """AI Autopilot: build/maintain the Briar Hollow world directly on a
+    recurring cadence with cheap non-laggy assets + snapshots, per DOCS.
+    Connect-and-leave: `unitytools autopilot-world --interval-minutes 25`.
+    """
+    import time as _time
+    from ..studio import (
+        StudioPaths,
+        StudioState,
+        init_studio_tools,
+        init_studio_unity,
+        init_studio_blender,
+    )
+
+    project = Path(args.project).expanduser().resolve()
+    paths = StudioPaths(project_root=project)
+    if not paths.exists():
+        console.print(
+            f"[yellow]No studio at {paths.root}.[/yellow] Run `unitytools studio-init --project {project}` first."
+        )
+        return 1
+    state = StudioState(paths)
+    init_studio_tools(state)
+
+    config, blender, unity = _bootstrap()
+    init_studio_unity(unity)
+    try:
+        init_studio_blender(blender)
+    except Exception as exc:  # noqa: BLE001
+        console.print(f"[yellow]Blender init warning: {exc}[/yellow]")
+    import unitytools.tools.unity_tools as _ut
+    _ut._UNITY = unity
+
+    from ..studio.tools import studio_autopilot_world_cycle
+
+    cycle = 0
+    while True:
+        cycle += 1
+        if not unity.connect(timeout=6.0):
+            console.print(
+                f"[yellow][cycle {cycle}] Unity bridge not reachable; "
+                f"focusing + retrying next interval.[/yellow]"
+            )
+        else:
+            with_props = (cycle % max(1, args.props_every) == 0)
+            console.print(
+                f"[cyan]== Autopilot world cycle {cycle} "
+                f"(props={'yes' if with_props else 'no'}) ==[/cyan]"
+            )
+            try:
+                res = studio_autopilot_world_cycle(
+                    with_props=with_props, forest_count=args.forest_count
+                )
+                console.print(
+                    f"[green]cycle {cycle} ok={res.get('ok')} "
+                    f"{res.get('elapsed_s')}s[/green] "
+                    f"forest={res.get('steps', {}).get('forest')} "
+                    f"realize={res.get('steps', {}).get('realize')} "
+                    f"snapshot={res.get('steps', {}).get('snapshot')}"
+                )
+            except Exception as exc:  # noqa: BLE001
+                console.print(f"[red]cycle {cycle} crashed: {exc}[/red]")
+
+        if args.once or (args.max_cycles and cycle >= args.max_cycles):
+            break
+        wait_s = max(60, int(args.interval_minutes * 60))
+        console.print(f"[dim]sleeping {wait_s}s until next cycle...[/dim]")
+        _time.sleep(wait_s)
+    console.print("[green]Autopilot world loop finished.[/green]")
+    return 0
+
+
 def _resolve_id_prefix(items: list, prefix: str, id_attr: str = "id") -> tuple:
     """Find an item by exact id match or unique id prefix.
 
@@ -2252,6 +2324,14 @@ def main() -> int:
         default=30.0,
         help="Auto-archive cutoff in days (default: 30).",
     )
+    p_ap_world = sub.add_parser("autopilot-world", help="AI Autopilot: build/maintain the Briar Hollow world on a recurring cadence (cheap low-poly Blender forest + real PBR ground @ EV16 + props + snapshots), per DOCS. Connect-and-leave.")
+    p_ap_world.add_argument("--project", default=".", help="Project root containing studio/ (default: cwd)")
+    p_ap_world.add_argument("--interval-minutes", type=float, default=25.0, help="Minutes between cycles (default: 25)")
+    p_ap_world.add_argument("--once", action="store_true", help="Run a single cycle and exit")
+    p_ap_world.add_argument("--max-cycles", type=int, default=0, help="Stop after N cycles (0 = infinite)")
+    p_ap_world.add_argument("--props-every", type=int, default=3, help="Run the heavier 12-prop pass every Nth cycle (default: 3)")
+    p_ap_world.add_argument("--forest-count", type=int, default=150, help="Low-poly tree count (default: 150)")
+
     p_chat_srv = sub.add_parser("chat-server", help="Start the TCP chat server for the Editor window")
     p_chat_srv.add_argument("--host", default="127.0.0.1")
     p_chat_srv.add_argument("--port", type=int, default=7778)
@@ -2305,6 +2385,7 @@ def main() -> int:
         "studio-run": cmd_studio_run,
         "studio-review": cmd_studio_review,
         "studio-loop": cmd_studio_loop,
+        "autopilot-world": cmd_autopilot_world,
         "studio-execute": cmd_studio_execute,
         "studio-autopilot": cmd_studio_autopilot,
     }

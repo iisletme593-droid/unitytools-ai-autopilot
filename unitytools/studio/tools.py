@@ -3956,6 +3956,96 @@ def studio_build_lowpoly_forest(tree_count: int = 150,
             "note": "cheap Blender low-poly conifer forest (HDRP perf fix)"}
 
 
+# ─── AI Autopilot world-build (Phase 122) ──────────────────────────────
+
+@tool(description="ONE autonomous AI-autopilot world-build cycle for the Briar Hollow vertical slice, per the DOCS. Focuses Unity, builds the coherent scene with CHEAP non-laggy assets (low-poly Blender conifer forest + real 2K PBR ground @ corrected EV16 + sun + water + fog + smart camera), optionally manufactures+places the 12 DOCS env props, takes a visual snapshot, and writes a status artifact. Designed to be looped by `unitytools autopilot-world` so the AI builds/maintains the world directly and continuously without hand-run scripts. with_props=False skips the heavy prop pass for a fast cycle.")
+def studio_autopilot_world_cycle(with_props: bool = True,
+                                 forest_count: int = 150) -> dict:
+    state = _require_state()
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected."}
+    try:
+        from ..bridges.unity import focus_unity_window
+        focus_unity_window()
+    except Exception:  # noqa: BLE001
+        pass
+
+    t0 = time.time()
+    steps: dict = {}
+
+    # 1) cheap low-poly Blender forest assets + scatter (HDRP perf)
+    try:
+        lf = studio_build_lowpoly_forest(tree_count=forest_count)
+        steps["forest"] = {"ok": bool(lf.get("ok")),
+                           "placed": (lf.get("scatter") or {}).get("placed")}
+    except Exception as exc:  # noqa: BLE001
+        steps["forest"] = {"ok": False, "error": str(exc)[:160]}
+
+    # 2) coherent world: sun + EV16 + real PBR ground + cheap forest +
+    #    water + fog + smart camera (studio_realize_world is wired for
+    #    the cheap forest + corrected exposure already).
+    try:
+        rw = studio_realize_world(water_level=0.085,
+                                  forest_count=forest_count,
+                                  relief_m=190.0)
+        kinds = {}
+        for layer in (rw.get("layers", []) if isinstance(rw, dict) else []):
+            if isinstance(layer, dict):
+                for k in ("biome_kind", "forest_kind"):
+                    if k in layer:
+                        kinds[k] = layer[k]
+        steps["realize"] = {"ok": bool(rw.get("ok")), **kinds}
+    except Exception as exc:  # noqa: BLE001
+        steps["realize"] = {"ok": False, "error": str(exc)[:160]}
+
+    # 3) optional DOCS env props (heavier; gate per cycle)
+    if with_props:
+        try:
+            wa = studio_generate_world_assets(dry_run=False)
+            steps["props"] = {"ok": bool(wa.get("ok")),
+                              "placed": wa.get("placed"),
+                              "total": wa.get("total")}
+        except Exception as exc:  # noqa: BLE001
+            steps["props"] = {"ok": False, "error": str(exc)[:160]}
+
+    # 4) visual snapshot (the user explicitly wants snapshots)
+    try:
+        shot = studio_capture_screenshot(name="autopilot_world")
+        steps["snapshot"] = {"ok": bool(shot.get("ok")),
+                             "path": shot.get("path")}
+    except Exception as exc:  # noqa: BLE001
+        steps["snapshot"] = {"ok": False, "error": str(exc)[:160]}
+
+    elapsed = round(time.time() - t0, 1)
+    ok = all(s.get("ok") for s in steps.values() if isinstance(s, dict))
+    payload = {"ok": ok, "elapsed_s": elapsed, "steps": steps,
+               "ts": time.time()}
+
+    # 5) status artifact (DOCS-style latest md + regression series)
+    try:
+        state.append_regression_entry({"ts": time.time(),
+                                       "kind": "autopilot_world_cycle",
+                                       "ok": ok, "elapsed_s": elapsed,
+                                       "steps": steps})
+        status_md = state.paths.root / "studio" / "autopilot-world-latest.md"
+        status_md.parent.mkdir(parents=True, exist_ok=True)
+        lines = [f"# Autopilot World — latest cycle\n",
+                 f"- ts: {time.strftime('%Y-%m-%d %H:%M:%S')}",
+                 f"- ok: {ok}  elapsed: {elapsed}s",
+                 f"- forest: {steps.get('forest')}",
+                 f"- realize: {steps.get('realize')}",
+                 f"- props: {steps.get('props', '(skipped)')}",
+                 f"- snapshot: {steps.get('snapshot')}",
+                 "",
+                 "Cheap non-laggy assets (low-poly Blender conifers + real "
+                 "2K PBR ground @ EV16) per the Briar Hollow DOCS.\n"]
+        status_md.write_text("\n".join(lines), encoding="utf-8")
+        payload["status_md"] = str(status_md)
+    except Exception:  # noqa: BLE001
+        pass
+    return payload
+
+
 # ─── DOCS-driven AI world-asset layer (Phase 108) ──────────────────────
 
 @tool(description="AI learning layer: read the Briar Hollow slice's required environment props (level-instance-links.md anchors + art bible) and MANUFACTURE them in 3D via Blender, import each into Unity, and place each on the terrain surface at its level anchor. This is the intelligence layer that lets the AI generate its own DOCS-driven 3D assets instead of using only pre-bought packs. dry_run=True only reports the manifest. Stays within the DOCS AI-usage line (environment/blockout, not final hero/boss meshes).")
