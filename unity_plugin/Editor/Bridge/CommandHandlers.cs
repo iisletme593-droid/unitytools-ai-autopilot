@@ -759,15 +759,28 @@ namespace UnityTools.Bridge
             var foliageMat = MakeMaterial("Pine_Foliage_HDRP", new Color(0.09f, 0.22f, 0.11f), 0.12f);
 
             var rng = new System.Random(seed);
-            int placed = 0;
+            int placed = 0, bandFail = 0, slopeFail = 0;
+            string placeNote = "requested band/slope";
+            // Two-pass like the GLB scatter: real-world heightmaps are
+            // steep per-sample, so if the requested band/slope rejects
+            // everything, retry wide-open so a forest still appears.
+            for (int pass = 0; pass < 2; pass++)
+            {
+                if (pass == 1)
+                {
+                    if (placed > 0) break;
+                    bandMin = 0f; bandMax = 1.01f; maxSlope = 89f;
+                    rng = new System.Random(seed);
+                    placeNote = "fallback: band/slope too strict, used full range";
+                }
             for (int i = 0; i < attempts; i++)
             {
                 float u = (float)rng.NextDouble();
                 float v = (float)rng.NextDouble();
                 float hn = td.GetInterpolatedHeight(u, v) / Mathf.Max(0.001f, sizeY);
-                if (hn < bandMin || hn > bandMax) continue;
+                if (hn < bandMin || hn > bandMax) { bandFail++; continue; }
                 float steep = td.GetSteepness(u, v);
-                if (steep > maxSlope) continue;
+                if (steep > maxSlope) { slopeFail++; continue; }
 
                 float wx = tp.x + u * sizeX;
                 float wz = tp.z + v * sizeZ;
@@ -778,6 +791,7 @@ namespace UnityTools.Bridge
                                   forestRoot.transform, trunkMat, foliageMat, rng);
                 placed++;
             }
+            }  // end pass loop
 
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             return new
@@ -785,9 +799,14 @@ namespace UnityTools.Bridge
                 ok = true,
                 placed,
                 attempts,
+                band_fail = bandFail,
+                slope_fail = slopeFail,
+                terrain = terrain.name,
+                terrain_relief_m = TerrainRelief(terrain),
                 forest_band = new[] { bandMin, bandMax },
                 max_slope_deg = maxSlope,
-                note = "sparse procedural pines, mid-elevation band only, HDRP-safe",
+                note = "procedural pines (cylinder trunk + green crown, HDRP-coloured, "
+                       + "pivot-at-base so never sunk); " + placeNote,
             };
         }
 

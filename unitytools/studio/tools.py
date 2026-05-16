@@ -3977,13 +3977,11 @@ def studio_generate_prop_asset(
 
 # ─── Lightweight Blender forest (Phase 113) ────────────────────────────
 
-@tool(description="Replace the heavy PolyHaven GLB forest (which tanked HDRP) with a CHEAP Blender-generated low-poly conifer forest. Generates pine/fir/deadpine via Blender (~200-400 tris, 1 mesh, 2 mats each), imports them once into Unity, then scatters them across the terrain's mid band with GPU instancing + cheap HDRP trunk/needle materials. tree_count default 150. This is the performance fix for the laggy HDRP forest.")
+@tool(description="Build a CHEAP, robust forest on the terrain: in-engine procedural pines (brown cylinder trunk + green crown, HDRP-coloured, pivot-at-base so never sunk, 2 primitives so non-laggy, two-pass band/slope robust). Replaces the fragile Blender-FBX low-poly path that rendered as white speckle-clumps. tree_count default 150. No Blender/FBX dependency.")
 def studio_build_lowpoly_forest(tree_count: int = 150,
                                 scene: str = "Assets/Scenes/ForgottenValley_VS.unity",
                                 seed: int = 11) -> dict:
     state = _require_state()
-    if _BLENDER is None or not _BLENDER.is_available():
-        return {"ok": False, "error": "Blender unavailable; set BLENDER_EXECUTABLE."}
     if _UNITY is None:
         return {"ok": False, "error": "Unity bridge not injected."}
 
@@ -3995,53 +3993,25 @@ def studio_build_lowpoly_forest(tree_count: int = 150,
 
     call("open_scene", {"path": scene})
 
-    # 1) Generate the 3 low-poly tree variants via Blender + import.
-    # Resilient: the Blender step is reliable but the Unity import can
-    # transiently fail when the editor is busy post-recompile. Retry
-    # each, and proceed with whatever variants succeeded (a forest of
-    # just pine is fine; only hard-fail if NOTHING imported).
-    variants = [("LP_Pine", "pine", 11), ("LP_Fir", "fir", 22),
-                ("LP_DeadPine", "deadpine", 33)]
-    paths = {}
-    for nm, ptype, sd in variants:
-        for attempt in range(3):
-            gen = studio_generate_prop_asset(
-                prop_type=ptype, name=nm, seed=sd, scale=1.0,
-                import_into_unity=True,
-                unity_destination="Assets/Studio/Generated")
-            if gen.get("ok") and gen.get("unity_asset_path"):
-                paths[ptype] = gen["unity_asset_path"]
-                break
-            time.sleep(6)  # let Unity settle, then retry the import
-    if not paths:
-        return {"ok": False, "error": "all tree gens failed",
-                "detail": gen.get("error", "")[:160] if isinstance(gen, dict) else ""}
-    # Fill any missing variant with an available one so the scatter
-    # always has live + dead pools.
-    any_path = next(iter(paths.values()))
-    paths.setdefault("pine", any_path)
-    paths.setdefault("fir", paths["pine"])
-    paths.setdefault("deadpine", paths["pine"])
-
-    _GM = "Assets/FantasyRPG/Generated/Materials/"
-    # 2) Scatter them cheap (GPU-instanced, per-slot HDRP materials).
-    res = call("scatter_terrain_glb_trees", {
+    # ROBUST procedural pine forest. The Blender-FBX low-poly path
+    # rendered as white speckle-clumps in HDRP (pivot/scale/material-
+    # slot/white-import fragility, user-confirmed across several fix
+    # attempts). scatter_terrain_trees builds CreateSimplePine in-engine
+    # (brown cylinder trunk + green crown, HDRP-coloured via MakeMaterial,
+    # pivot-at-base so never sunk, 2 primitives so cheap & non-laggy,
+    # two-pass band/slope robust). No FBX pipeline = no failure modes.
+    res = call("scatter_terrain_trees", {
         "tree_count": tree_count, "forest_min": 0.05, "forest_max": 0.92,
-        "max_slope_deg": 55, "scale_min": 1.4, "scale_max": 3.0,
-        "dead_ratio": 0.14, "seed": seed, "clear_primitive_forest": True,
-        "models": [paths["pine"], paths["fir"]],
-        "dead_models": [paths["deadpine"]],
-        "trunk_material_path": _GM + "HDRP_M_WetAgedWood.mat",
-        "foliage_material_path": _GM + "HDRP_M_BlackPineNeedles.mat",
-        "gpu_instancing": True,
-    }, timeout=240)
+        "max_slope_deg": 55, "scale_min": 6, "scale_max": 13, "seed": seed,
+    }, timeout=180)
     call("save_scene", {})
     state.append_regression_entry({"ts": time.time(),
-                                   "kind": "lowpoly_forest",
+                                   "kind": "procedural_forest",
                                    "placed": res.get("placed") if isinstance(res, dict) else 0})
     return {"ok": isinstance(res, dict) and bool(res.get("ok")),
-            "scatter": res, "models": paths,
-            "note": "cheap Blender low-poly conifer forest (HDRP perf fix)"}
+            "scatter": res,
+            "note": "robust in-engine procedural pine forest (cheap, HDRP-"
+                    "coloured, pivot-at-base; replaces fragile FBX path)"}
 
 
 # ─── AI Autopilot world-build (Phase 122) ──────────────────────────────
@@ -4901,32 +4871,18 @@ def studio_realize_world(
                                 "b": 0.27, "a": 1.0})
     layers.append({"water": {"y": wy, "footprint": foot}})
 
-    # 3) Sparse valley forest. PERF: the heavy PolyHaven GLB trees
-    # (multi-hundred renderers each) tanked HDRP, so prefer the CHEAP
-    # Blender low-poly conifers (1 mesh / 2 mats, GPU-instanced) if
-    # they've been generated into Assets/Studio/Generated; gracefully
-    # fall back to procedural pines (still cheap) otherwise. The heavy
-    # PolyHaven path is intentionally retired from the main pipeline.
-    _GM = "Assets/FantasyRPG/Generated/Materials/"
-    lp = call("scatter_terrain_glb_trees", {
+    # 3) Sparse valley forest. ROBUST: the Blender-FBX low-poly path
+    # rendered as white speckle-clumps (pivot/scale/material-slot/white-
+    # import fragility, user-confirmed). Switched to the in-engine
+    # PROCEDURAL pine (scatter_terrain_trees -> CreateSimplePine: brown
+    # cylinder trunk + green crown, HDRP-coloured via MakeMaterial,
+    # pivot-at-base so never sunk, 2 primitives so cheap, two-pass
+    # band/slope robust). Zero FBX-pipeline failure modes.
+    fr = call("scatter_terrain_trees", {
         "tree_count": forest_count, "forest_min": 0.05, "forest_max": 0.92,
-        "max_slope_deg": 55, "scale_min": 1.4, "scale_max": 3.0,
-        "dead_ratio": 0.14, "seed": 11, "clear_primitive_forest": True,
-        "models": ["Assets/Studio/Generated/LP_Pine.fbx",
-                   "Assets/Studio/Generated/LP_Fir.fbx"],
-        "dead_models": ["Assets/Studio/Generated/LP_DeadPine.fbx"],
-        "trunk_material_path": _GM + "HDRP_M_WetAgedWood.mat",
-        "foliage_material_path": _GM + "HDRP_M_BlackPineNeedles.mat",
-        "gpu_instancing": True,
+        "max_slope_deg": 55, "scale_min": 6, "scale_max": 13, "seed": 11,
     })
-    if isinstance(lp, dict) and lp.get("ok") and lp.get("placed", 0) > 0:
-        layers.append({"forest": lp, "forest_kind": "lowpoly_blender"})
-    else:
-        layers.append({"forest_lowpoly_skipped": lp})
-        layers.append({"forest": call("scatter_terrain_trees", {
-            "tree_count": forest_count, "forest_min": 0.14, "forest_max": 0.52,
-            "max_slope_deg": 33, "scale_min": 8, "scale_max": 16, "seed": 11,
-        }), "forest_kind": "procedural_fallback"})
+    layers.append({"forest": fr, "forest_kind": "procedural_pine"})
 
     # 4) Fixed exposure 16 — ROOT CAUSE of the long "pale ground"
     # saga: EV 13 with the 22000-lux sun blows out real 2K PBR albedo
