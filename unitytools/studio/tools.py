@@ -4442,6 +4442,22 @@ def studio_realize_world(
     layers: list[dict] = []
     call("open_scene", {"path": "Assets/Scenes/ForgottenValley_VS.unity"})
 
+    # 0) ENSURE A SUN. Root cause of the white/black/pale variance all
+    # session: the scene often had NO directional light at all (cleared
+    # by rebuilds), so exposure was meaningless. A proper HDRP daylight
+    # sun + Fixed exposure 13 is the locked-in recipe that produced the
+    # believable green terrain. Idempotent (create if missing, then set).
+    lights = call("list_lights", {})
+    if isinstance(lights, dict) and lights.get("count", 0) == 0:
+        call("create_light", {"name": "Sun", "light_type": "Directional",
+                              "position_x": 0, "position_y": 500, "position_z": 0,
+                              "r": 1.0, "g": 0.96, "b": 0.88,
+                              "intensity": 1.0, "range_val": 200})
+        call("set_rotation", {"name": "Sun", "x": 48, "y": -34, "z": 0})
+    call("set_light_properties", {"name": "Sun", "intensity": 22000.0,
+                                  "shadows_enabled": 1, "shadow_strength": 0.7})
+    layers.append({"sun": "ensured (HDRP daylight 22000 lux)"})
+
     # scene state — find the terrain root + its world position
     roots = call("list_root_objects", {})
     terr = None
@@ -4480,9 +4496,12 @@ def studio_realize_world(
         "max_slope_deg": 33, "scale_min": 8, "scale_max": 16, "seed": 11,
     })})
 
-    # 4) HDRP Automatic adaptive exposure + scale-appropriate fog
+    # 4) Fixed exposure 13 — paired with the 22000-lux sun this is the
+    # locked-in recipe that reads as balanced natural daylight (the
+    # Automatic mode was unstable: sometimes pale, sometimes dark).
     layers.append({"exposure": call("setup_hdrp_volume", {
-        "exposure_mode": "Automatic", "fog": True, "fog_distance": 2200,
+        "exposure_mode": "Fixed", "fixed_exposure": 13.0,
+        "fog": True, "fog_distance": 2200,
     })})
 
     # 5) Smart interior camera (auto-frames terrain; never the void edge)
