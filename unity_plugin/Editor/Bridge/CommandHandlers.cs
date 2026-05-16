@@ -752,6 +752,11 @@ namespace UnityTools.Bridge
 
             var existing = GameObject.Find("WorldForest");
             if (existing != null) Undo.DestroyObjectImmediate(existing);
+            // Also nuke any leftover WorldForestGLB from abandoned FBX
+            // tree experiments (broken white-speckle / huge-dark clusters)
+            // so the procedural forest is the ONLY forest in the scene.
+            var glbJunk = GameObject.Find("WorldForestGLB");
+            if (glbJunk != null) Undo.DestroyObjectImmediate(glbJunk);
             var forestRoot = new GameObject("WorldForest");
             Undo.RegisterCreatedObjectUndo(forestRoot, "UnityTools: world forest");
 
