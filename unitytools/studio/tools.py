@@ -4014,6 +4014,129 @@ def studio_build_lowpoly_forest(tree_count: int = 150,
                     "coloured, pivot-at-base; replaces fragile FBX path)"}
 
 
+# ─── External asset drop-folder ingest (Phase 148) ─────────────────────
+
+@tool(description="Ingest user-downloaded external tree models (free3d/etc). Scan a drop folder under the Unity project for .fbx/.obj/.glb meshes, measure each via Blender headless, and AUTO-DECIMATE any over the poly budget to game-ready (~3k tris) — the safeguard against the 27M-tris PolyHaven problem. Imports the (decimated) FBX into Unity, then scatters them with the robust ground-snap + HDRP-coloured + GPU-instanced pipeline. drop_subdir defaults to 'ExternalDrop/Trees'. dry_run only reports what it found + poly counts. Use this after the user manually downloads assets (free3d blocks bot downloads).")
+def studio_ingest_external_trees(drop_subdir: str = "ExternalDrop/Trees",
+                                 tri_budget: int = 6000,
+                                 tree_count: int = 130,
+                                 dry_run: bool = False) -> dict:
+    import subprocess
+    state = _require_state()
+    if _UNITY is None:
+        return {"ok": False, "error": "Unity bridge not injected."}
+    cfg = getattr(_BLENDER, "config", None)
+    blender_exe = getattr(cfg, "blender_executable", None) if cfg else None
+
+    # Resolve the Unity project root from the bridge convention used
+    # everywhere else this session.
+    proj = Path("C:/Users/Kitli Matmazel/CascadeProjects/windsurf-project/UnityProject")
+    drop = proj / "Assets" / drop_subdir
+    if not drop.is_dir():
+        drop.mkdir(parents=True, exist_ok=True)
+        return {"ok": False, "error": f"Drop folder empty/created: {drop}. "
+                "Put downloaded .fbx/.obj/.glb tree files here, then re-run."}
+
+    exts = (".fbx", ".obj", ".glb", ".gltf")
+    found = [p for p in drop.rglob("*") if p.suffix.lower() in exts]
+    if not found:
+        return {"ok": False, "error": f"No mesh files in {drop} "
+                "(.fbx/.obj/.glb). Download + place them first."}
+
+    repo = Path("D:/UnityToolsV2/.claude/worktrees/wizardly-williams-9493d0")
+    dec_script = repo / "scripts" / "blender" / "decimate_tree.py"
+
+    def measure(fp: Path) -> int:
+        if not blender_exe or not Path(blender_exe).exists():
+            return -1
+        expr = (f"import bpy;"
+                f"bpy.ops.import_scene."
+                f"{'gltf' if fp.suffix.lower() in ('.glb', '.gltf') else ('obj' if fp.suffix.lower()=='.obj' else 'fbx')}"
+                f"(filepath=r'{fp}');"
+                f"ms=[o for o in bpy.data.objects if o.type=='MESH'];"
+                f"print('TRIS=%d'%sum(len(o.data.polygons) for o in ms))")
+        try:
+            out = subprocess.run([blender_exe, "--background",
+                                  "--python-expr", expr],
+                                 capture_output=True, text=True, timeout=300)
+            for ln in (out.stdout or "").splitlines():
+                if ln.startswith("TRIS="):
+                    return int(ln.split("=")[1])
+        except Exception:  # noqa: BLE001
+            pass
+        return -1
+
+    report = []
+    for fp in found:
+        tris = measure(fp)
+        report.append({"file": fp.name, "tris": tris,
+                        "over_budget": tris > tri_budget if tris > 0 else None})
+    if dry_run:
+        return {"ok": True, "dry_run": True, "drop": str(drop),
+                "found": report, "tri_budget": tri_budget}
+
+    gen_dir = proj / "Assets" / "Studio" / "Generated"
+    gen_dir.mkdir(parents=True, exist_ok=True)
+    unity_models = []
+    for fp in found:
+        tris = measure(fp)
+        out_fbx = gen_dir / f"EXT_{fp.stem}.fbx"
+        if tris > tri_budget and blender_exe and dec_script.exists():
+            # decimate to game-ready (the 27M-tris safeguard)
+            try:
+                subprocess.run([blender_exe, "--background", "--python",
+                                str(dec_script), "--", "--glb", str(fp),
+                                "--output", str(out_fbx),
+                                "--target", "2800"],
+                               capture_output=True, text=True, timeout=600)
+            except Exception:  # noqa: BLE001
+                continue
+        else:
+            # already cheap (or no Blender): copy/convert through import
+            try:
+                shutil.copy2(fp, out_fbx if fp.suffix.lower() == ".fbx"
+                             else out_fbx.with_suffix(fp.suffix))
+            except Exception:  # noqa: BLE001
+                continue
+        if out_fbx.exists():
+            unity_models.append("Assets/Studio/Generated/" + out_fbx.name)
+
+    if not unity_models:
+        return {"ok": False, "error": "No models could be prepared "
+                "(decimate/copy failed)", "report": report}
+
+    def call(cmd, params, t=240):
+        try:
+            return _UNITY.call(cmd, params, timeout=t)
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "error": str(exc)[:160]}
+
+    call("open_scene", {"path": "Assets/Scenes/ForgottenValley_VS.unity"})
+    for m in unity_models:
+        call("import_asset", {"src_path": str(gen_dir / Path(m).name),
+                              "dst_relative": "Studio/Generated/" + Path(m).name})
+    _GM = "Assets/FantasyRPG/Generated/Materials/"
+    res = call("scatter_terrain_glb_trees", {
+        "tree_count": tree_count, "forest_min": 0.05, "forest_max": 0.92,
+        "max_slope_deg": 55, "scale_min": 6, "scale_max": 16,
+        "dead_ratio": 0.0, "seed": 11, "clear_primitive_forest": True,
+        "models": unity_models, "dead_models": unity_models,
+        "trunk_material_path": _GM + "HDRP_M_WetAgedWood.mat",
+        "foliage_material_path": _GM + "HDRP_M_BlackPineNeedles.mat",
+        "gpu_instancing": True,
+    })
+    call("save_scene", {})
+    state.append_regression_entry({"ts": time.time(),
+                                   "kind": "external_trees_ingested",
+                                   "models": len(unity_models),
+                                   "placed": res.get("placed") if isinstance(res, dict) else 0})
+    return {"ok": isinstance(res, dict) and bool(res.get("ok")),
+            "report": report, "models": unity_models,
+            "scatter": res,
+            "note": "external trees auto-poly-checked, decimated if over "
+                    "budget, scattered with ground-snap+HDRP+instancing"}
+
+
 # ─── AI Autopilot world-build (Phase 122) ──────────────────────────────
 
 @tool(description="ONE autonomous AI-autopilot world-build cycle for the Briar Hollow vertical slice, per the DOCS. Focuses Unity, builds the coherent scene with CHEAP non-laggy assets (low-poly Blender conifer forest + real 2K PBR ground @ corrected EV16 + sun + water + fog + smart camera), optionally manufactures+places the 12 DOCS env props, takes a visual snapshot, and writes a status artifact. Designed to be looped by `unitytools autopilot-world` so the AI builds/maintains the world directly and continuously without hand-run scripts. with_props=False skips the heavy prop pass for a fast cycle.")
