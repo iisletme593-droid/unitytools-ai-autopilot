@@ -174,3 +174,5 @@
 {"ts": 1778951657.3919342, "kind": "procedural_forest", "placed": 140}
 {"ts": 1778951658.579214, "kind": "autopilot_world_cycle", "ok": true, "elapsed_s": 1.7, "steps": {"forest": {"ok": true, "placed": 140}, "realize": {"ok": true, "biome_kind": "real_pbr", "forest_kind": "procedural_pine"}, "snapshot": {"ok": true, "path": "D:\\UnityToolsV2\\.claude\\worktrees\\wizardly-williams-9493d0\\studio\\qa\\screenshots\\20260516_201418_autopilot_world.png"}}}
 {"ts": 1778951912.181503, "kind": "procedural_forest", "placed": 140}
+{"ts": 1778951978.2736437, "kind": "procedural_forest", "placed": 140}
+{"ts": 1778951980.1608303, "kind": "autopilot_world_cycle", "ok": true, "elapsed_s": 2.5, "steps": {"forest": {"ok": true, "placed": 140}, "realize": {"ok": true, "biome_kind": "real_pbr", "forest_kind": "procedural_pine"}, "snapshot": {"ok": true, "path": "D:\\UnityToolsV2\\.claude\\worktrees\\wizardly-williams-9493d0\\studio\\qa\\screenshots\\20260516_201940_autopilot_world.png"}}}
