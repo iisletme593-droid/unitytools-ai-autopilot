@@ -48,11 +48,11 @@
     {
       "title": "Third-person controller: move, sprint(stamina), dodge-roll, interact",
       "role": "designer",
-      "description": "Remnant-feel but forgiving dodge window.",
+      "description": "Remnant-feel but forgiving dodge window.\n\n[2026-05-16 11:18] STAGE 2. Space. DodgeCost=24 stamina; DodgeInvulnerabilityWindow=0.32; DodgeCounterWindow=0.42; DodgeRecoveryTime=0.28. Dodge moves camera-relative; short recovery prevents spam; disabled if stamina<24. Combo: Space->LMB = Sidestep Reaver (within DodgeCounterWindow). Ref: combat-state-spec.md, combat-data-defaults.md.",
       "status": "rejected",
       "id": "ee4a791cf0b3",
       "created_at": 1778879650.743221,
-      "updated_at": 1778919287.5922105,
+      "updated_at": 1778919506.603857,
       "milestone": "f54e01a96f16",
       "depends_on": [
         "65a038cbc347"
@@ -185,11 +185,11 @@
     {
       "title": "[P0] third-person template tabaninin sorunsuz acilmasi",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 1 (build-order). Goal: third-person template opens clean, no errors. Assets: BP_TI_PlayerCharacter, BP_TI_PlayerController, BP_TI_GameMode. Acceptance: project boots to template map, WASD moves, camera follows. Ref: DOCS/implementation/blueprint-build-order.md #1.",
       "status": "pending",
       "id": "646eec4ee63a",
       "created_at": 1778918888.4449742,
-      "updated_at": 1778918888.4449742,
+      "updated_at": 1778919506.5973418,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
@@ -198,11 +198,11 @@
     {
       "title": "[P0] player controller setup (spring arm, camera lag, camera collision)",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 1. Spring-arm + camera lag + camera collision on BP_TI_PlayerCharacter. Inherit template movement; add sprint (LeftShift, drains 14 stamina/s). Camera: lag enabled, probe collision so it never clips terrain. Acceptance: smooth follow, no wall clip, sprint visibly faster. Ref: build-order #1, input-combo-layout.md (LeftShift=sprint).",
       "status": "pending",
       "id": "c2723246e052",
       "created_at": 1778918888.4459786,
-      "updated_at": 1778918888.4459786,
+      "updated_at": 1778919506.5993402,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
@@ -211,11 +211,11 @@
     {
       "title": "[P0] input mapping (WASD + mouse + dodge + light/heavy attack + block)",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 1. Key map (input-combo-layout.md): LMB light, MouseWheelDown heavy, RMB block, Space dodge, LeftShift sprint, Q/R skills, F battlecry, C finisher, X weapon-swap, V two-hand, E interact, MiddleMouse lock-on, Tab inventory, 1-4 quickslots. Acceptance: every action bound + logs on press.\n\n[2026-05-16 11:18] STAGE 2. MouseWheelDown. HeavyAttackStaminaCost=30, slower startup, higher stagger, clear HitPauseTime=0.06, StaggerThreshold=40. Combo: LMB,LMB,MWD = Rend Breaker (shield/posture opener); MWD,LMB = Crush Followup. Risky, decisive. Ref: combat-state-spec.md, combat-data-defaults.md.",
       "status": "pending",
       "id": "94c4e665f1a3",
       "created_at": 1778918888.446982,
-      "updated_at": 1778919238.9089715,
+      "updated_at": 1778919506.606362,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "c4553d689806"
@@ -226,11 +226,11 @@
     {
       "title": "[P0] stamina sistemi",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2. BPC_TI_StaminaComponent (combat-data-defaults.md): Max=100, Regen=18/s, SprintDrain=14/s, DodgeCost=24, HeavyCost=32, BlockDrainPerHit=18, ExhaustedRecoveryDelay=1.15. Rule: stamina<cost disables dodge & heavy. Acceptance: bar drains/regens per values; exhausted state gates actions.",
       "status": "pending",
       "id": "65a038cbc347",
       "created_at": 1778918888.4479825,
-      "updated_at": 1778919238.9037359,
+      "updated_at": 1778919506.6018562,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "c2723246e052"
@@ -254,11 +254,11 @@
     {
       "title": "[P0] light attack",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2. LMB. LightAttackStaminaCost=12, AttackStartupTime=0.16, AttackRange=220, ComboResetWindow=1.1, ComboBranchWindow=0.34, AttackRecoveryTime=0.36, RecoveryExitWindow=0.24. Combo: LMB,LMB,LMB = Cleaver Chain (fast, low commit, grind spine). Phases: Startup->Active->Recovery. HitReact cancels it.",
       "status": "pending",
       "id": "c4553d689806",
       "created_at": 1778918888.4494865,
-      "updated_at": 1778919238.9067326,
+      "updated_at": 1778919506.605362,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "ee4a791cf0b3"
@@ -282,11 +282,11 @@
     {
       "title": "[P0] basic enemy ai",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 3. BP_TI_Enemy_Base, BP_TI_Enemy_BriarboundVillager, BP_TI_AIController_Base. Read: sees -> approaches -> telegraph (TelegraphTime=0.42) -> hits -> short opening after miss/block. Chain: detect->chase->attack->take damage->death. Fair but hard.",
       "status": "pending",
       "id": "77abd5c7a25e",
       "created_at": 1778918888.4524913,
-      "updated_at": 1778919238.9099753,
+      "updated_at": 1778919506.6125169,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "94c4e665f1a3"
@@ -297,11 +297,11 @@
     {
       "title": "[P0] enemy ai patrol/detect/chase/attack/return zinciri",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 3. Patrol->Detect->Chase->Attack->Return state chain on AIController. Return-to-post if target lost. Telegraph 0.42 so attacks are readable. Ref: build-order #3, combat-state-spec.md.",
       "status": "pending",
       "id": "663bba057dcd",
       "created_at": 1778918888.45401,
-      "updated_at": 1778918888.45401,
+      "updated_at": 1778919506.613519,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
@@ -310,11 +310,11 @@
     {
       "title": "[P0] damage uygulama",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2. AttackRange=220, CounterDamageMultiplier=1.18, TwoHandDamageMultiplier=1.22, CampBuffDamageBonus=1.08. Damage applied during Active phase only. Punish: enemy whiff -> MissRecoveryDuration=0.68 opening, PunishWindowDuration=0.72.",
       "status": "pending",
       "id": "344d0268ff13",
       "created_at": 1778918888.455526,
-      "updated_at": 1778919238.910975,
+      "updated_at": 1778919506.6098683,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "77abd5c7a25e"
@@ -325,11 +325,11 @@
     {
       "title": "[P0] hit reaction",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2. HitReactDuration=0.45, HitPauseTime=0.06. HitReact cancels any active attack. Hit-pause = brief freeze for impact weight (core pillar 1: combat tok). Anim+camera+audio same dir.",
       "status": "pending",
       "id": "9262922226d9",
       "created_at": 1778918888.4575245,
-      "updated_at": 1778918888.4575245,
+      "updated_at": 1778919506.6073618,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
@@ -338,11 +338,11 @@
     {
       "title": "[P0] death state",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2/3. 'Dead' state locks ALL input; DeathCleanupDelay=8.0 before cleanup. Applies to player + enemies. Ref: combat-state-spec.md.",
       "status": "pending",
       "id": "255af029b186",
       "created_at": 1778918888.4575245,
-      "updated_at": 1778918888.4575245,
+      "updated_at": 1778919506.608864,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
