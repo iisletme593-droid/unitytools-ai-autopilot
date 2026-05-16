@@ -351,11 +351,11 @@
     {
       "title": "[P0] loot pickup",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 4. BP_TI_LootPickup + ST_TI_ItemDefinition. Pickup on E (InteractionRange=220). Scene loot (level-instance-links.md): LootChest_Bridge LootTier=2; OfferingPickup_North/Bridge/Shrine OfferingValue=1 each. Acceptance: E picks up -> item enters inventory -> world actor removed. Ref: build-order #4.",
       "status": "pending",
       "id": "22ad4a341283",
       "created_at": 1778918888.4595356,
-      "updated_at": 1778919238.912508,
+      "updated_at": 1778922344.8450563,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "344d0268ff13"
@@ -366,11 +366,11 @@
     {
       "title": "[P0] inventory iskeleti",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 4. WBP_TI_Inventory + ST_TI_ItemDefinition. Minimal: add item, single weapon slot, Tab opens panel. Not full grid yet. Acceptance: picked loot shows in list; weapon slot equips. Ref: build-order #4.",
       "status": "pending",
       "id": "a2f7f653b33f",
       "created_at": 1778918888.4605389,
-      "updated_at": 1778919238.9145122,
+      "updated_at": 1778922344.847054,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "22ad4a341283"
@@ -381,11 +381,11 @@
     {
       "title": "[P0] health/stamina UI",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 4. HUD: health bar + stamina bar (StaminaComponent Max=100) + guard meter (BlockStability=55, GuardRegen=22/s). Stamina bar must visibly drain on sprint/dodge/heavy and gate actions when <cost. Ref: combat-data-defaults.md.",
       "status": "pending",
       "id": "94cbd84c8dfb",
       "created_at": 1778918888.4620414,
-      "updated_at": 1778918888.4620414,
+      "updated_at": 1778922344.8520532,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
@@ -394,11 +394,11 @@
     {
       "title": "[P0] skill bar + quest tracker + mini map shell",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 4. Skill bar (Q/R/F/C) + quest tracker shell + mini-map shell. Just shells/placeholders for the slice. Q primary, R secondary, F battlecry, C finisher (FinisherConfirmWindow=1.1). Ref: input-combo-layout.md.",
       "status": "pending",
       "id": "3dc4d01d0bc0",
       "created_at": 1778918888.4635491,
-      "updated_at": 1778918888.4635491,
+      "updated_at": 1778922344.8530529,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
@@ -407,11 +407,11 @@
     {
       "title": "[P0] basic equipment",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 4. ST_TI_ItemDefinition + weapon-loadout-structure.md common fields: WeaponTag, EquipmentTier, WeaponDamage, PostureDamage, AttackReach, AttackSpeedModifier, bSupportsBlock, bSupportsTwoHandMode, bStartsUnlocked. Player state: PrimaryWeaponTag, CurrentWeaponProfileTag, CurrentLoadoutTier.",
       "status": "pending",
       "id": "80fc3f19c034",
       "created_at": 1778918888.4645529,
-      "updated_at": 1778918888.4645529,
+      "updated_at": 1778922344.8480535,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
@@ -420,11 +420,11 @@
     {
       "title": "[P0] class loadout rack sistemi",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 4/5. weapon-loadout-structure.md. Actors: BP_TI_Weapon_BarbarAxe/BarbarGreatsword/WardenShield, BP_TI_WeaponRack(TI_Interact/TI_GrantLoadout/TI_UpdateVisualTier), BP_TI_ArmorStand(TI_GrantArmorTier), BP_TI_WarBanner(TI_GrantCampBuff). Player graph: TI_HandleWeaponSwap(X), TI_HandleTwoHandToggle(V), TI_RefreshCombatProfile. Camp placements: WeaponRack_BarbarCamp/GreatswordCamp/ShieldCamp, ArmorStand_Camp, WarBanner_Camp. Weapon diff felt in combat, not just name.",
       "status": "pending",
       "id": "859ce3be0079",
       "created_at": 1778918888.4660578,
-      "updated_at": 1778918888.4660578,
+      "updated_at": 1778922344.850053,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
@@ -433,11 +433,11 @@
     {
       "title": "[P0] Briar Hollow blockout",
       "role": "level_designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 5. LVL_TI_BriarHollow_Blockout. Real terrain+biomes+forest+water already built (studio_realize_world). Layout (level-instance-links.md): CampAnchor_Main, EncounterMarker_North/Bridge/Shrine, SoulShrine_OldRoots, BossGate_RootVeil, BossArena_BarkMaiden, PatrolAnchors, RestTotem_Bridge(8s)/Shrine(12s), CraftingBench_Camp(tier1), LootChest_Bridge(tier2). GATED: needs make_terrain_playable recompile for human-scale surface placement of these anchors.",
       "status": "pending",
       "id": "0e66aee02af3",
       "created_at": 1778918888.4670577,
-      "updated_at": 1778919238.9155116,
+      "updated_at": 1778922344.855053,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "a2f7f653b33f"
@@ -448,11 +448,11 @@
     {
       "title": "[P0] first playable route (spawn->camp->path->landmark read)",
       "role": "level_designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 5. EncounterDirector_BriarHollow: CurrentRoutePhase=Camp, EncounterProgressCount=0, RequiredBossUnlockCount=3. Loop: spawn->Camp->collect 3 Offerings (North/Bridge/Shrine, value 1 each)->offer at SoulShrine_OldRoots (RequiredOfferingCount=3)->BossGate_RootVeil opens->BarkMaiden. This IS the vertical-slice spine (Valheim explore + KO grind + Remnant boss).",
       "status": "pending",
       "id": "8126e0da741f",
       "created_at": 1778918888.46856,
-      "updated_at": 1778919238.9175146,
+      "updated_at": 1778922344.8560534,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "0e66aee02af3"
@@ -463,11 +463,11 @@
     {
       "title": "[P0] world partition + temel streaming bolgeleme",
       "role": "level_designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 5. Zone the slice into streaming regions: Camp / North / Bridge / Shrine / BossArena. Keep only the active region + neighbors loaded. Vertical slice = one cell set, no full open world. Defer true large-scale streaming (DOCS Kesinlikle Ertele).",
       "status": "pending",
       "id": "48ada652d12b",
       "created_at": 1778918888.4695637,
-      "updated_at": 1778918888.4695637,
+      "updated_at": 1778922344.8560534,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
@@ -476,11 +476,11 @@
     {
       "title": "[P0] mini boss arena",
       "role": "level_designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 6. BP_TI_Boss_BarkMaiden in BossArena_BarkMaiden. BossSpawn_BarkMaiden EnemyStateTag=Dormant -> activates when BossGate opens. 3 attack patterns + short summon + arena zoning (lane closure). Reads via combat-state-spec telegraph(0.42)->impact->opening. Ref: build-order #6, level-instance-links.md.",
       "status": "pending",
       "id": "36a4410b3e34",
       "created_at": 1778918888.4706867,
-      "updated_at": 1778919238.9189727,
+      "updated_at": 1778922344.8597803,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "8126e0da741f"
