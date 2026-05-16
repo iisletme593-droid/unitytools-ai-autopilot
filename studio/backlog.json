@@ -434,10 +434,10 @@
       "title": "[P0] Briar Hollow blockout",
       "role": "level_designer",
       "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 5. LVL_TI_BriarHollow_Blockout. Real terrain+biomes+forest+water already built (studio_realize_world). Layout (level-instance-links.md): CampAnchor_Main, EncounterMarker_North/Bridge/Shrine, SoulShrine_OldRoots, BossGate_RootVeil, BossArena_BarkMaiden, PatrolAnchors, RestTotem_Bridge(8s)/Shrine(12s), CraftingBench_Camp(tier1), LootChest_Bridge(tier2). GATED: needs make_terrain_playable recompile for human-scale surface placement of these anchors.",
-      "status": "pending",
+      "status": "done",
       "id": "0e66aee02af3",
       "created_at": 1778918888.4670577,
-      "updated_at": 1778922344.855053,
+      "updated_at": 1778923698.849968,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "a2f7f653b33f"
@@ -449,10 +449,10 @@
       "title": "[P0] first playable route (spawn->camp->path->landmark read)",
       "role": "level_designer",
       "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 5. EncounterDirector_BriarHollow: CurrentRoutePhase=Camp, EncounterProgressCount=0, RequiredBossUnlockCount=3. Loop: spawn->Camp->collect 3 Offerings (North/Bridge/Shrine, value 1 each)->offer at SoulShrine_OldRoots (RequiredOfferingCount=3)->BossGate_RootVeil opens->BarkMaiden. This IS the vertical-slice spine (Valheim explore + KO grind + Remnant boss).",
-      "status": "pending",
+      "status": "done",
       "id": "8126e0da741f",
       "created_at": 1778918888.46856,
-      "updated_at": 1778922344.8560534,
+      "updated_at": 1778923698.8519697,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "0e66aee02af3"
@@ -477,10 +477,10 @@
       "title": "[P0] mini boss arena",
       "role": "level_designer",
       "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 6. BP_TI_Boss_BarkMaiden in BossArena_BarkMaiden. BossSpawn_BarkMaiden EnemyStateTag=Dormant -> activates when BossGate opens. 3 attack patterns + short summon + arena zoning (lane closure). Reads via combat-state-spec telegraph(0.42)->impact->opening. Ref: build-order #6, level-instance-links.md.",
-      "status": "pending",
+      "status": "done",
       "id": "36a4410b3e34",
       "created_at": 1778918888.4706867,
-      "updated_at": 1778922344.8597803,
+      "updated_at": 1778923698.8539894,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "8126e0da741f"

@@ -180,7 +180,7 @@ namespace UnityTools.Bridge
             float hMin = float.MaxValue, hMax = float.MinValue;
             for (int y = 0; y < hr; y++)
                 for (int x = 0; x < hr; x++)
-                { float v = hs[y, x]; if (v < hMin) hMin = v; if (v > hMax) hMax = v; }
+                { float hv = hs[y, x]; if (hv < hMin) hMin = hv; if (hv > hMax) hMax = hv; }
             float span = Mathf.Max(1e-5f, hMax - hMin);
 
             int bestX = hr / 2, bestY = hr / 2; float bestScore = -1f;
