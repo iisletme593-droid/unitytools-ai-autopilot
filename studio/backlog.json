@@ -211,11 +211,11 @@
     {
       "title": "[P0] input mapping (WASD + mouse + dodge + light/heavy attack + block)",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 1. Key map (input-combo-layout.md): LMB light, MouseWheelDown heavy, RMB block, Space dodge, LeftShift sprint, Q/R skills, F battlecry, C finisher, X weapon-swap, V two-hand, E interact, MiddleMouse lock-on, Tab inventory, 1-4 quickslots. Acceptance: every action bound + logs on press.\n\n[2026-05-16 11:18] STAGE 2. MouseWheelDown. HeavyAttackStaminaCost=30, slower startup, higher stagger, clear HitPauseTime=0.06, StaggerThreshold=40. Combo: LMB,LMB,MWD = Rend Breaker (shield/posture opener); MWD,LMB = Crush Followup. Risky, decisive. Ref: combat-state-spec.md, combat-data-defaults.md.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 1. Key map (input-combo-layout.md): LMB light, MouseWheelDown heavy, RMB block, Space dodge, LeftShift sprint, Q/R skills, F battlecry, C finisher, X weapon-swap, V two-hand, E interact, MiddleMouse lock-on, Tab inventory, 1-4 quickslots. Acceptance: every action bound + logs on press.\n\n[2026-05-16 11:18] STAGE 2. MouseWheelDown. HeavyAttackStaminaCost=30, slower startup, higher stagger, clear HitPauseTime=0.06, StaggerThreshold=40. Combo: LMB,LMB,MWD = Rend Breaker (shield/posture opener); MWD,LMB = Crush Followup. Risky, decisive. Ref: combat-state-spec.md, combat-data-defaults.md.\n\n[2026-05-16 15:49] Phase 124: combat-data-defaults.md windows now canonical in CombatComponent.cs (Unity); cm-scale values intentionally not raw-copied.",
       "status": "pending",
       "id": "94c4e665f1a3",
       "created_at": 1778918888.446982,
-      "updated_at": 1778919506.606362,
+      "updated_at": 1778935744.7994614,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "c4553d689806"
@@ -254,11 +254,11 @@
     {
       "title": "[P0] light attack",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2. LMB. LightAttackStaminaCost=12, AttackStartupTime=0.16, AttackRange=220, ComboResetWindow=1.1, ComboBranchWindow=0.34, AttackRecoveryTime=0.36, RecoveryExitWindow=0.24. Combo: LMB,LMB,LMB = Cleaver Chain (fast, low commit, grind spine). Phases: Startup->Active->Recovery. HitReact cancels it.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2. LMB. LightAttackStaminaCost=12, AttackStartupTime=0.16, AttackRange=220, ComboResetWindow=1.1, ComboBranchWindow=0.34, AttackRecoveryTime=0.36, RecoveryExitWindow=0.24. Combo: LMB,LMB,LMB = Cleaver Chain (fast, low commit, grind spine). Phases: Startup->Active->Recovery. HitReact cancels it.\n\n[2026-05-16 15:49] Phase 124: combat-data-defaults.md windows now canonical in CombatComponent.cs (Unity); cm-scale values intentionally not raw-copied.",
       "status": "pending",
       "id": "c4553d689806",
       "created_at": 1778918888.4494865,
-      "updated_at": 1778919506.605362,
+      "updated_at": 1778935744.7974417,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "ee4a791cf0b3"
@@ -310,11 +310,11 @@
     {
       "title": "[P0] damage uygulama",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2. AttackRange=220, CounterDamageMultiplier=1.18, TwoHandDamageMultiplier=1.22, CampBuffDamageBonus=1.08. Damage applied during Active phase only. Punish: enemy whiff -> MissRecoveryDuration=0.68 opening, PunishWindowDuration=0.72.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2. AttackRange=220, CounterDamageMultiplier=1.18, TwoHandDamageMultiplier=1.22, CampBuffDamageBonus=1.08. Damage applied during Active phase only. Punish: enemy whiff -> MissRecoveryDuration=0.68 opening, PunishWindowDuration=0.72.\n\n[2026-05-16 15:49] Phase 124: combat-data-defaults.md windows now canonical in CombatComponent.cs (Unity); cm-scale values intentionally not raw-copied.",
       "status": "pending",
       "id": "344d0268ff13",
       "created_at": 1778918888.455526,
-      "updated_at": 1778919506.6098683,
+      "updated_at": 1778935744.8027434,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "77abd5c7a25e"
@@ -325,11 +325,11 @@
     {
       "title": "[P0] hit reaction",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2. HitReactDuration=0.45, HitPauseTime=0.06. HitReact cancels any active attack. Hit-pause = brief freeze for impact weight (core pillar 1: combat tok). Anim+camera+audio same dir.",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 11:18] STAGE 2. HitReactDuration=0.45, HitPauseTime=0.06. HitReact cancels any active attack. Hit-pause = brief freeze for impact weight (core pillar 1: combat tok). Anim+camera+audio same dir.\n\n[2026-05-16 15:49] Phase 124: combat-data-defaults.md windows now canonical in CombatComponent.cs (Unity); cm-scale values intentionally not raw-copied.",
       "status": "pending",
       "id": "9262922226d9",
       "created_at": 1778918888.4575245,
-      "updated_at": 1778919506.6073618,
+      "updated_at": 1778935744.801236,
       "milestone": "755482ff6a9d",
       "depends_on": [],
       "blockers": [],
