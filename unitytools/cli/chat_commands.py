@@ -135,8 +135,10 @@ _ALIASES: dict[str, str] = {
     "neden": "why", "niçin": "why", "nicin": "why",
     # Phase 71 standup digest
     "toplantı": "standup", "toplanti": "standup",
-    "özet": "standup", "ozet": "standup",
     "günbaşı": "standup", "gunbasi": "standup",
+    # Phase 126 progress report ('ne durumdayiz')
+    "ilerleme": "progress", "durum": "progress", "progress": "progress",
+    "özet": "progress", "ozet": "progress", "nedurumda": "progress",
     # Phase 72 journal
     "not": "log", "kayıt": "log", "kayit": "log",
     "günlük": "journal", "gunluk": "journal",
@@ -218,6 +220,7 @@ _CANONICAL_COMMANDS: tuple[str, ...] = (
     "tasks", "milestones", "ms", "decisions",
     "refs", "screenshots", "shots", "locales", "dialogs", "assets",
     "behaviours", "behaviors", "roles",
+    "progress",  # Phase 126: 'ne durumdayiz' rich progress report
 )
 
 
@@ -277,8 +280,11 @@ _NL_PATTERNS: list[tuple["_re.Pattern[str]", str]] = [
     (_re.compile(r"(sistem durumu|teşhis|diagnostics|araç sayısı|kaç tool|how many tools)", _re.I), "diag"),
     (_re.compile(r"(bağlantı durumu|bridge durumu|unity bağlı|connection status|are we connected)", _re.I), "status"),
     (_re.compile(r"(stüdyo özeti|studio durumu|studio summary|proje durumu)", _re.I), "studio"),
+    # ── progress / "ne durumdayiz" (Phase 126 — rich operator report).
+    # Placed before standup so status questions get the full picture.
+    (_re.compile(r"(ne durumday[ıi]z|ne durumda[yız]*|durum ne(dir)?|nerede kald[ıi]k|ne kadar ilerl|ilerleme (ne|nas[ıi]l|durumu)|progress|how far|where are we|son durum ne|kac phase|kaç phase|ne yapt[ıi]n|ne yap[ıi]ld[ıi]|özet ver|ozet ver|durum raporu ver)", _re.I), "progress"),
     # ── daily flow (report)
-    (_re.compile(r"(standup|stand up|bugün ne oldu|durum raporu|günaydın özet|daily digest|\bdaily\b|ne yapıldı bugün)", _re.I), "standup"),
+    (_re.compile(r"(standup|stand up|bugün ne oldu|günaydın özet|daily digest|\bdaily\b)", _re.I), "standup"),
     (_re.compile(r"(gün ?sonu|günü bitir|wrap[\s-]?up|kapanış özet|end of day|gün özeti)", _re.I), "wrap-up"),
     (_re.compile(r"(sıradaki|ne yapayım|bana (bir )?iş ver|next task|what.?s next|sıradaki görev)", _re.I), "next"),
     (_re.compile(r"(sprint planı|sprint ne|bu sprint|current sprint|\bsprint\b)", _re.I), "sprint"),
@@ -521,6 +527,22 @@ def dispatch(line: str, ctx: Optional["DispatchContext"] = None) -> CommandResul
     # ── why <task-id>   (Phase 70: diagnostic for blockers + unsatisfied deps)
     if cmd == "why":
         return _dispatch_why(args)
+
+    # ── progress   (Phase 126: 'ne durumdayiz' — rich operator-style report)
+    if cmd == "progress":
+        try:
+            from ..studio.tools import studio_progress_report
+            r = studio_progress_report()
+        except Exception as exc:  # noqa: BLE001
+            return CommandResult(handled=True, ok=False,
+                                 tool_name="studio_progress_report",
+                                 message=f"progress failed: {exc}")
+        return CommandResult(
+            handled=True, ok=bool(r.get("ok")),
+            tool_name="studio_progress_report",
+            message=r.get("message", "(bos)"),
+            tool_result=r,
+        )
 
     # ── standup [hours]   (Phase 71: morning digest — closed/in-flight/blocked)
     if cmd == "standup":

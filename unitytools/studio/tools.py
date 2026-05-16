@@ -960,6 +960,94 @@ def studio_role_status(role: str, recent_days: float = 7.0) -> dict:
     }
 
 
+@tool(description="Phase 126: Human-readable PROGRESS REPORT — answers 'ne durumdayiz / where are we / how far along' the way the operator would. Aggregates backlog counts (closed/in-flight/blocked/pending), the latest journal entries (the real work done), the AI Autopilot world daemon's last cycle, and recent regression events into one plain summary string. This is what the chat returns when the user asks for status/progress.")
+def studio_progress_report() -> dict:
+    import time as _t
+    state = _require_state()
+    lines: list[str] = []
+
+    # 1) backlog snapshot
+    try:
+        su = studio_standup(window_hours=48.0)
+        if isinstance(su, dict) and su.get("ok"):
+            lines.append(
+                f"BACKLOG: {su.get('total_tasks', '?')} gorev | "
+                f"kapanan(48s)={su.get('closed_recent_count', 0)} "
+                f"akista={su.get('in_flight_count', 0)} "
+                f"bloke={su.get('blocked_count', 0)} "
+                f"bekleyen={su.get('pending_count', 0)}"
+            )
+            for t in (su.get("closed_recent") or [])[:4]:
+                lines.append(f"  + kapandi: {t.get('title', '')[:70]}")
+    except Exception as exc:  # noqa: BLE001
+        lines.append(f"BACKLOG: (okunamadi: {str(exc)[:80]})")
+
+    # 2) AI Autopilot daemon — last cycle
+    try:
+        ap = state.paths.root / "autopilot-world-latest.md"
+        if ap.exists():
+            body = ap.read_text(encoding="utf-8", errors="replace").strip()
+            snippet = " | ".join(
+                l.strip("- ").strip()
+                for l in body.splitlines()
+                if l.strip().startswith("- ")
+            )[:300]
+            lines.append(f"AUTOPILOT (autopilot-world): {snippet}")
+        else:
+            lines.append("AUTOPILOT: henuz cycle durumu yok (daemon yeni baslamis olabilir).")
+    except Exception:  # noqa: BLE001
+        pass
+
+    # 3) latest journal entries (the real work narrative)
+    try:
+        jr = studio_journal_read(days=3)
+        text = ""
+        if isinstance(jr, dict):
+            ebd = jr.get("entries_by_date") or {}
+            if isinstance(ebd, dict) and ebd:
+                # most recent date's markdown
+                text = ebd[sorted(ebd.keys())[-1]]
+            if not text:
+                rec = jr.get("recent")
+                if isinstance(rec, list):
+                    text = "\n".join(str(e) for e in rec)
+                elif isinstance(rec, str):
+                    text = rec
+        if text:
+            bullets = [ln.strip() for ln in text.splitlines()
+                       if ln.strip().startswith("- ")][-5:]
+            if bullets:
+                lines.append("SON GUNLUK (ne yapildi):")
+                for ln in bullets:
+                    lines.append(f"  {ln[:200]}")
+    except Exception:  # noqa: BLE001
+        pass
+
+    # 4) recent regression events (cycle/alignment time series)
+    try:
+        rp = state.paths.qa / "regression.jsonl"
+        if rp.exists():
+            rows = [r for r in rp.read_text(encoding="utf-8",
+                    errors="replace").splitlines() if r.strip()][-5:]
+            import json as _j
+            kinds = []
+            for r in rows:
+                try:
+                    d = _j.loads(r)
+                    kinds.append(f"{d.get('kind', '?')}"
+                                 + (f"(placed={d['placed']})" if 'placed' in d else "")
+                                 + (f"(ok={d['ok']})" if 'ok' in d else ""))
+                except Exception:  # noqa: BLE001
+                    pass
+            if kinds:
+                lines.append("SON OLAYLAR: " + ", ".join(kinds))
+    except Exception:  # noqa: BLE001
+        pass
+
+    msg = "\n".join(lines) if lines else "Henuz kayitli ilerleme yok."
+    return {"ok": True, "message": msg, "generated_ts": _t.time()}
+
+
 @tool(description="Phase 81: Combined activity timeline across the studio — recent git commits, tasks closed, decisions made, and journal entries — in one DESC-by-timestamp stream. days defaults to 7. Each event carries: timestamp (unix), source ('commit'/'task'/'decision'/'journal'), title, and source-specific extras. Useful for the 'what happened recently' daily catch-up.")
 def studio_recent_activity(days: float = 7.0) -> dict:
     import time
