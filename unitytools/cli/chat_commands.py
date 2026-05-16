@@ -135,10 +135,10 @@ _ALIASES: dict[str, str] = {
     "neden": "why", "niçin": "why", "nicin": "why",
     # Phase 71 standup digest
     "toplantı": "standup", "toplanti": "standup",
+    "özet": "standup", "ozet": "standup",
     "günbaşı": "standup", "gunbasi": "standup",
     # Phase 126 progress report ('ne durumdayiz')
-    "ilerleme": "progress", "durum": "progress", "progress": "progress",
-    "özet": "progress", "ozet": "progress", "nedurumda": "progress",
+    "ilerleme": "progress", "progress": "progress", "nedurumda": "progress",
     # Phase 72 journal
     "not": "log", "kayıt": "log", "kayit": "log",
     "günlük": "journal", "gunluk": "journal",
@@ -282,7 +282,7 @@ _NL_PATTERNS: list[tuple["_re.Pattern[str]", str]] = [
     (_re.compile(r"(stüdyo özeti|studio durumu|studio summary|proje durumu)", _re.I), "studio"),
     # ── progress / "ne durumdayiz" (Phase 126 — rich operator report).
     # Placed before standup so status questions get the full picture.
-    (_re.compile(r"(ne durumday[ıi]z|ne durumda[yız]*|durum ne(dir)?|nerede kald[ıi]k|ne kadar ilerl|ilerleme (ne|nas[ıi]l|durumu)|progress|how far|where are we|son durum ne|kac phase|kaç phase|ne yapt[ıi]n|ne yap[ıi]ld[ıi]|özet ver|ozet ver|durum raporu ver)", _re.I), "progress"),
+    (_re.compile(r"(ne durumday[ıi]z|ne durumda[yız]*|durum ne(dir)?|nerede kald[ıi]k|ne kadar ilerl|ilerleme (ne|nas[ıi]l|durumu)|how far along|where are we|son durum ne|kac phase|kaç phase|ne yapt[ıi]n\b|neler yapt[ıi]n|özet ver|ozet ver|durum raporu ver)", _re.I), "progress"),
     # ── daily flow (report)
     (_re.compile(r"(standup|stand up|bugün ne oldu|günaydın özet|daily digest|\bdaily\b)", _re.I), "standup"),
     (_re.compile(r"(gün ?sonu|günü bitir|wrap[\s-]?up|kapanış özet|end of day|gün özeti)", _re.I), "wrap-up"),
