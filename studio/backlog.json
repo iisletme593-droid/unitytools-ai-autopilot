@@ -4,156 +4,182 @@
       "title": "Build clean ForgottenValley_VS scene: terrain bowl, hero path, hearth clearing, sealed pass",
       "role": "level_designer",
       "description": "Hand-built valley, no autopilot junk. Readable landmarks.",
-      "status": "pending",
+      "status": "rejected",
       "id": "e85ce8a1a1d3",
       "created_at": 1778879650.7407157,
-      "updated_at": 1778879650.7407157,
+      "updated_at": 1778919287.5872197,
       "milestone": "f54e01a96f16",
       "depends_on": [],
-      "blockers": [],
+      "blockers": [
+        "rejected: pre-DOCS improvised task; DOCS backlog is source of truth"
+      ],
       "artifacts": []
     },
     {
       "title": "URP realistic baseline: low golden sun, ACES tonemap volume, BOUNDED linear fog 15-70m",
       "role": "tech_artist",
       "description": "Fix the unbounded-fog void mistake. Lock perf rails.",
-      "status": "pending",
+      "status": "rejected",
       "id": "598efa3ef8a2",
       "created_at": 1778879650.742221,
-      "updated_at": 1778879650.742221,
+      "updated_at": 1778919287.58822,
       "milestone": "f54e01a96f16",
       "depends_on": [],
-      "blockers": [],
+      "blockers": [
+        "rejected: pre-DOCS improvised task; DOCS backlog is source of truth"
+      ],
       "artifacts": []
     },
     {
       "title": "LOD + tris budget pass: every tree/rock LOD group, on-screen <=900k",
       "role": "tech_artist",
       "description": "Weak-GPU 60fps gate.",
-      "status": "pending",
+      "status": "rejected",
       "id": "5c7c064fffeb",
       "created_at": 1778879650.742221,
-      "updated_at": 1778879650.742221,
+      "updated_at": 1778919287.5902057,
       "milestone": "f54e01a96f16",
       "depends_on": [],
-      "blockers": [],
+      "blockers": [
+        "rejected: pre-DOCS improvised task; DOCS backlog is source of truth"
+      ],
       "artifacts": []
     },
     {
       "title": "Third-person controller: move, sprint(stamina), dodge-roll, interact",
       "role": "designer",
       "description": "Remnant-feel but forgiving dodge window.",
-      "status": "pending",
+      "status": "rejected",
       "id": "ee4a791cf0b3",
       "created_at": 1778879650.743221,
-      "updated_at": 1778879650.743221,
+      "updated_at": 1778919287.5922105,
       "milestone": "f54e01a96f16",
-      "depends_on": [],
-      "blockers": [],
+      "depends_on": [
+        "65a038cbc347"
+      ],
+      "blockers": [
+        "rejected: pre-DOCS improvised task; DOCS backlog is source of truth"
+      ],
       "artifacts": []
     },
     {
       "title": "Gather system: wood/stone/herb/relic-shard nodes + pickup",
       "role": "designer",
       "description": "Valheim spine.",
-      "status": "pending",
+      "status": "rejected",
       "id": "f39e8522413f",
       "created_at": 1778879650.743221,
-      "updated_at": 1778879650.743221,
+      "updated_at": 1778919287.593209,
       "milestone": "f54e01a96f16",
       "depends_on": [],
-      "blockers": [],
+      "blockers": [
+        "rejected: pre-DOCS improvised task; DOCS backlog is source of truth"
+      ],
       "artifacts": []
     },
     {
       "title": "Hearth 3-tier upgrade: torch radius / stamina / weapon tier",
       "role": "designer",
       "description": "Progression without a skill screen.",
-      "status": "pending",
+      "status": "rejected",
       "id": "785e3450e2c0",
       "created_at": 1778879650.7447221,
-      "updated_at": 1778879650.7447221,
+      "updated_at": 1778919287.5946846,
       "milestone": "f54e01a96f16",
       "depends_on": [],
-      "blockers": [],
+      "blockers": [
+        "rejected: pre-DOCS improvised task; DOCS backlog is source of truth"
+      ],
       "artifacts": []
     },
     {
       "title": "Day/night cycle + relic meter drives night threat level",
       "role": "designer",
       "description": "V-Rising rhythm.",
-      "status": "pending",
+      "status": "rejected",
       "id": "86bfaa42c7c2",
       "created_at": 1778879650.7447221,
-      "updated_at": 1778879650.7447221,
+      "updated_at": 1778919287.5961905,
       "milestone": "f54e01a96f16",
       "depends_on": [],
-      "blockers": [],
+      "blockers": [
+        "rejected: pre-DOCS improvised task; DOCS backlog is source of truth"
+      ],
       "artifacts": []
     },
     {
       "title": "Night wave at hearth: forgiving but real spike",
       "role": "designer",
       "description": "The tension beat.",
-      "status": "pending",
+      "status": "rejected",
       "id": "c5792ccd664f",
       "created_at": 1778879650.7457223,
-      "updated_at": 1778879650.7457223,
+      "updated_at": 1778919287.5971947,
       "milestone": "f54e01a96f16",
       "depends_on": [],
-      "blockers": [],
+      "blockers": [
+        "rejected: pre-DOCS improvised task; DOCS backlog is source of truth"
+      ],
       "artifacts": []
     },
     {
       "title": "Grove Warden mini-boss: 2 tells, 1 catharsis kill",
       "role": "designer",
       "description": "Remnant boss, tuned kind.",
-      "status": "pending",
+      "status": "rejected",
       "id": "d98bb25120e8",
       "created_at": 1778879650.7457223,
-      "updated_at": 1778879650.7457223,
+      "updated_at": 1778919287.5981948,
       "milestone": "f54e01a96f16",
       "depends_on": [],
-      "blockers": [],
+      "blockers": [
+        "rejected: pre-DOCS improvised task; DOCS backlog is source of truth"
+      ],
       "artifacts": []
     },
     {
       "title": "Hearth + relic amber accent pass; interactable rim cue",
       "role": "art_director",
       "description": "Eye always finds home + goal.",
-      "status": "pending",
+      "status": "rejected",
       "id": "cd82fdb0f904",
       "created_at": 1778879650.7467217,
-      "updated_at": 1778879650.7467217,
+      "updated_at": 1778919287.600188,
       "milestone": "f54e01a96f16",
       "depends_on": [],
-      "blockers": [],
+      "blockers": [
+        "rejected: pre-DOCS improvised task; DOCS backlog is source of truth"
+      ],
       "artifacts": []
     },
     {
       "title": "60fps weak-GPU check + fog-never-a-wall visual regression",
       "role": "qa",
       "description": "Guard the two known failure modes.",
-      "status": "pending",
+      "status": "rejected",
       "id": "8c4b933b552e",
       "created_at": 1778879650.7467217,
-      "updated_at": 1778879650.7467217,
+      "updated_at": 1778919287.601193,
       "milestone": "f54e01a96f16",
       "depends_on": [],
-      "blockers": [],
+      "blockers": [
+        "rejected: pre-DOCS improvised task; DOCS backlog is source of truth"
+      ],
       "artifacts": []
     },
     {
       "title": "Session arc tuning: 20min calm / mid tension / night spike / boss payoff",
       "role": "producer",
       "description": "2h kafa-dagitma feel.",
-      "status": "pending",
+      "status": "rejected",
       "id": "70c1735e0c03",
       "created_at": 1778879650.748225,
-      "updated_at": 1778879650.748225,
+      "updated_at": 1778919287.6021922,
       "milestone": "f54e01a96f16",
       "depends_on": [],
-      "blockers": [],
+      "blockers": [
+        "rejected: pre-DOCS improvised task; DOCS backlog is source of truth"
+      ],
       "artifacts": []
     },
     {
@@ -189,9 +215,11 @@
       "status": "pending",
       "id": "94c4e665f1a3",
       "created_at": 1778918888.446982,
-      "updated_at": 1778918888.446982,
+      "updated_at": 1778919238.9089715,
       "milestone": "755482ff6a9d",
-      "depends_on": [],
+      "depends_on": [
+        "c4553d689806"
+      ],
       "blockers": [],
       "artifacts": []
     },
@@ -202,9 +230,11 @@
       "status": "pending",
       "id": "65a038cbc347",
       "created_at": 1778918888.4479825,
-      "updated_at": 1778918888.4479825,
+      "updated_at": 1778919238.9037359,
       "milestone": "755482ff6a9d",
-      "depends_on": [],
+      "depends_on": [
+        "c2723246e052"
+      ],
       "blockers": [],
       "artifacts": []
     },
@@ -228,9 +258,11 @@
       "status": "pending",
       "id": "c4553d689806",
       "created_at": 1778918888.4494865,
-      "updated_at": 1778918888.4494865,
+      "updated_at": 1778919238.9067326,
       "milestone": "755482ff6a9d",
-      "depends_on": [],
+      "depends_on": [
+        "ee4a791cf0b3"
+      ],
       "blockers": [],
       "artifacts": []
     },
@@ -254,9 +286,11 @@
       "status": "pending",
       "id": "77abd5c7a25e",
       "created_at": 1778918888.4524913,
-      "updated_at": 1778918888.4524913,
+      "updated_at": 1778919238.9099753,
       "milestone": "755482ff6a9d",
-      "depends_on": [],
+      "depends_on": [
+        "94c4e665f1a3"
+      ],
       "blockers": [],
       "artifacts": []
     },
@@ -280,9 +314,11 @@
       "status": "pending",
       "id": "344d0268ff13",
       "created_at": 1778918888.455526,
-      "updated_at": 1778918888.455526,
+      "updated_at": 1778919238.910975,
       "milestone": "755482ff6a9d",
-      "depends_on": [],
+      "depends_on": [
+        "77abd5c7a25e"
+      ],
       "blockers": [],
       "artifacts": []
     },
@@ -319,9 +355,11 @@
       "status": "pending",
       "id": "22ad4a341283",
       "created_at": 1778918888.4595356,
-      "updated_at": 1778918888.4595356,
+      "updated_at": 1778919238.912508,
       "milestone": "755482ff6a9d",
-      "depends_on": [],
+      "depends_on": [
+        "344d0268ff13"
+      ],
       "blockers": [],
       "artifacts": []
     },
@@ -332,9 +370,11 @@
       "status": "pending",
       "id": "a2f7f653b33f",
       "created_at": 1778918888.4605389,
-      "updated_at": 1778918888.4605389,
+      "updated_at": 1778919238.9145122,
       "milestone": "755482ff6a9d",
-      "depends_on": [],
+      "depends_on": [
+        "22ad4a341283"
+      ],
       "blockers": [],
       "artifacts": []
     },
@@ -397,9 +437,11 @@
       "status": "pending",
       "id": "0e66aee02af3",
       "created_at": 1778918888.4670577,
-      "updated_at": 1778918888.4670577,
+      "updated_at": 1778919238.9155116,
       "milestone": "755482ff6a9d",
-      "depends_on": [],
+      "depends_on": [
+        "a2f7f653b33f"
+      ],
       "blockers": [],
       "artifacts": []
     },
@@ -410,9 +452,11 @@
       "status": "pending",
       "id": "8126e0da741f",
       "created_at": 1778918888.46856,
-      "updated_at": 1778918888.46856,
+      "updated_at": 1778919238.9175146,
       "milestone": "755482ff6a9d",
-      "depends_on": [],
+      "depends_on": [
+        "0e66aee02af3"
+      ],
       "blockers": [],
       "artifacts": []
     },
@@ -436,9 +480,11 @@
       "status": "pending",
       "id": "36a4410b3e34",
       "created_at": 1778918888.4706867,
-      "updated_at": 1778918888.4706867,
+      "updated_at": 1778919238.9189727,
       "milestone": "755482ff6a9d",
-      "depends_on": [],
+      "depends_on": [
+        "8126e0da741f"
+      ],
       "blockers": [],
       "artifacts": []
     },
