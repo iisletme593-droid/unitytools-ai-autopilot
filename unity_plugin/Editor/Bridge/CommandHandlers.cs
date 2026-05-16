@@ -115,6 +115,7 @@ namespace UnityTools.Bridge
                 case "list_terrains": return ListTerrains(p);
                 case "setup_smart_camera": return SetupSmartCamera(p);
                 case "make_terrain_playable": return MakeTerrainPlayable(p);
+                case "wire_playable_slice": return WirePlayableSlice(p);
                 default: throw new InvalidOperationException($"Unknown method: {method}");
             }
         }
@@ -981,6 +982,123 @@ namespace UnityTools.Bridge
         // surface at (x,z). Used by the AI Blender asset layer to drop
         // its own props (shrine/gate/totem...) at level-instance-links
         // anchors so they sit on the ground, not float.
+        // Phase 136: make the slice genuinely PLAYABLE — attach the
+        // (compiled, spec-aligned) Gameplay.* scripts to scene objects
+        // in ForgottenValley_VS: hero gets controller/combat/stamina/
+        // inventory + "Player" tag, camera gets ThirdPersonCamera, HUD/
+        // streaming objects, camp racks/banner/loot, and a couple of
+        // enemies. Idempotent (reuse existing). Reflection type-resolve
+        // so the editor assembly needs no asmdef ref to Assembly-CSharp.
+        private static System.Type ResolveGameType(string n)
+        {
+            var t = System.Type.GetType(n);
+            if (t != null) return t;
+            return System.AppDomain.CurrentDomain.GetAssemblies()
+                .SelectMany(a => { try { return a.GetTypes(); } catch { return new System.Type[0]; } })
+                .FirstOrDefault(x => x.FullName == n || x.Name == n);
+        }
+
+        private static object WirePlayableSlice(JObject p)
+        {
+            string heroName = p["hero"]?.ToString() ?? "SK_Hero";
+            var wired = new List<string>();
+            var missing = new List<string>();
+
+            void Ensure(GameObject go, string typeName)
+            {
+                if (go == null) return;
+                var ty = ResolveGameType(typeName);
+                if (ty == null) { missing.Add(typeName); return; }
+                var has = go.GetComponent(ty);
+                if (has == null)
+                {
+                    go.AddComponent(ty);
+                    wired.Add($"{go.name}+{ty.Name}");
+                }
+            }
+            GameObject FindOrCube(string nm, Vector3 pos, PrimitiveType prim, Transform parent)
+            {
+                var g = GameObject.Find(nm);
+                if (g == null)
+                {
+                    g = GameObject.CreatePrimitive(prim);
+                    g.name = nm;
+                    Undo.RegisterCreatedObjectUndo(g, "Bridge: playable slice");
+                }
+                g.transform.position = pos;
+                if (parent != null) g.transform.SetParent(parent, true);
+                return g;
+            }
+
+            var hero = GameObject.Find(heroName);
+            if (hero == null)
+                return new { ok = false, error = $"Hero '{heroName}' not in scene" };
+            try { hero.tag = "Player"; } catch { /* builtin tag always exists */ }
+            Vector3 hp = hero.transform.position;
+
+            // Player component stack (CharacterController first for the
+            // PlayerController [RequireComponent]).
+            Ensure(hero, "UnityEngine.CharacterController");
+            Ensure(hero, "Gameplay.StaminaComponent");
+            Ensure(hero, "Gameplay.InventoryComponent");
+            Ensure(hero, "Gameplay.ExperienceComponent");
+            Ensure(hero, "Gameplay.CombatComponent");
+            Ensure(hero, "Gameplay.PlayerController");
+
+            var cam = GameObject.Find("Main Camera") ?? (Camera.main ? Camera.main.gameObject : null);
+            if (cam != null) Ensure(cam, "Gameplay.ThirdPersonCamera");
+
+            var root = GameObject.Find("TI_Playable") ?? new GameObject("TI_Playable");
+            Undo.RegisterCreatedObjectUndo(root, "Bridge: playable slice root");
+
+            var hud = GameObject.Find("TI_HUD") ?? new GameObject("TI_HUD");
+            hud.transform.SetParent(root.transform, true);
+            Ensure(hud, "Gameplay.RpgHudController");
+            Ensure(hud, "Gameplay.HudShells");
+
+            var stream = GameObject.Find("TI_WorldStreaming") ?? new GameObject("TI_WorldStreaming");
+            stream.transform.SetParent(root.transform, true);
+            Ensure(stream, "Gameplay.RegionStreamer");
+
+            // Camp loadout + offering near the hero/spawn.
+            var rack = FindOrCube("WeaponRack_BarbarCamp", hp + new Vector3(3f, 0f, 2f), PrimitiveType.Cube, root.transform);
+            Ensure(rack, "Gameplay.WeaponRack");
+            var banner = FindOrCube("WarBanner_Camp", hp + new Vector3(-3f, 0f, 2f), PrimitiveType.Cube, root.transform);
+            Ensure(banner, "Gameplay.WarBanner");
+            var chest = FindOrCube("LootChest_Bridge", hp + new Vector3(0f, 0f, 5f), PrimitiveType.Cube, root.transform);
+            Ensure(chest, "Gameplay.LootPickup");
+
+            // A couple of readable enemies near the route.
+            var enemies = new List<string>();
+            for (int i = 0; i < 2; i++)
+            {
+                var e = FindOrCube($"Enemy_Briarbound_{i + 1:00}",
+                    hp + new Vector3(8f + i * 3f, 0f, 10f + i * 4f),
+                    PrimitiveType.Capsule, root.transform);
+                Ensure(e, "Gameplay.CombatComponent");
+                Ensure(e, "Gameplay.EnemyAIController");
+                enemies.Add(e.name);
+            }
+
+            var scene = SceneManager.GetActiveScene();
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            return new
+            {
+                ok = true,
+                hero = heroName,
+                hero_tag = hero.tag,
+                wired,
+                wired_count = wired.Count,
+                missing_types = missing,
+                camp = new[] { "WeaponRack_BarbarCamp", "WarBanner_Camp", "LootChest_Bridge" },
+                enemies,
+                scene = scene.name,
+                note = "Gameplay scripts attached to ForgottenValley_VS objects; scene saved",
+            };
+        }
+
         private static object PlaceAssetOnTerrain(JObject p)
         {
             string assetPath = p["asset_path"]?.ToString();
