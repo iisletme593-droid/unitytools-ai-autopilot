@@ -4295,21 +4295,36 @@ namespace UnityTools.Bridge
 
         private static string CaptureSceneViewScreenshot(string relativeFolder)
         {
-            Camera cam = null;
+            // Source viewpoint: the SceneView camera (or Main) — but we do
+            // NOT render through it. The SceneView camera has no
+            // HDAdditionalCameraData, so a bare cam.Render() in HDRP
+            // produces a degraded image (terrain splat missing -> the
+            // session-long "pale ground"). Instead clone the pose onto a
+            // throwaway camera WITH HDRP camera data and render that.
+            Camera src = null;
             var sceneView = SceneView.lastActiveSceneView;
-            if (sceneView != null)
-            {
-                sceneView.Repaint();
-                cam = sceneView.camera;
-            }
-            if (cam == null) cam = Camera.main;
-            if (cam == null) throw new InvalidOperationException("No SceneView or MainCamera is available for screenshot capture.");
+            if (sceneView != null) { sceneView.Repaint(); src = sceneView.camera; }
+            if (src == null) src = Camera.main;
+            if (src == null) throw new InvalidOperationException("No SceneView or MainCamera available for screenshot capture.");
 
-            int width = 1280;
-            int height = 720;
+            int width = 1280, height = 720;
             var rt = new RenderTexture(width, height, 24);
-            var previousTarget = cam.targetTexture;
             var previousActive = RenderTexture.active;
+
+            var capGo = new GameObject("__UT_CaptureCam");
+            capGo.hideFlags = HideFlags.HideAndDontSave;
+            var cam = capGo.AddComponent<Camera>();
+            cam.CopyFrom(src);
+            cam.transform.position = src.transform.position;
+            cam.transform.rotation = src.transform.rotation;
+            cam.clearFlags = CameraClearFlags.Skybox;
+            cam.enabled = false;
+            // HDRP camera data via reflection (no asmdef dep) — this is
+            // what makes the HDRP render path actually draw the scene.
+            var hdCamType = FindType("UnityEngine.Rendering.HighDefinition.HDAdditionalCameraData");
+            if (hdCamType != null && capGo.GetComponent(hdCamType) == null)
+                capGo.AddComponent(hdCamType);
+
             try
             {
                 cam.targetTexture = rt;
@@ -4330,10 +4345,10 @@ namespace UnityTools.Bridge
             }
             finally
             {
-                cam.targetTexture = previousTarget;
                 RenderTexture.active = previousActive;
                 rt.Release();
                 UnityEngine.Object.DestroyImmediate(rt);
+                UnityEngine.Object.DestroyImmediate(capGo);
             }
         }
 

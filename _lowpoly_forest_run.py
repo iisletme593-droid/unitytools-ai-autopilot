@@ -7,7 +7,7 @@ import time, json
 import unitytools.tools, unitytools.tools.unity_tools as ut
 from unitytools.cli.entry import _bootstrap
 from unitytools.studio import (init_studio_unity, StudioPaths, StudioState,
-                               init_studio_tools)
+                               init_studio_tools, init_studio_blender)
 from unitytools.bridges.unity import focus_unity_window
 from pathlib import Path
 
@@ -19,6 +19,10 @@ P = StudioPaths(project_root=Path('D:/UnityToolsV2/.claude/worktrees/wizardly-wi
 c, b, U = _bootstrap()
 init_studio_unity(U); ut._UNITY = U
 init_studio_tools(StudioState(P))
+try:
+    init_studio_blender(b)
+except Exception as e:
+    print("blender init warn:", e)
 import unitytools.studio.tools as st
 from unitytools.studio.tools import studio_capture_screenshot
 
