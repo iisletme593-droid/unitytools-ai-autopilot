@@ -1237,6 +1237,9 @@ namespace UnityTools.Bridge
             Ensure(banner, "Gameplay.WarBanner");
             var chest = FindOrCube("LootChest_Bridge", hp + new Vector3(0f, 0f, 5f), PrimitiveType.Cube, root.transform);
             Ensure(chest, "Gameplay.LootPickup");
+            // Camp crafting station (core-pillars #4 progression node).
+            var craft = FindOrCube("CraftingBench_Camp", hp + new Vector3(5f, 0f, -2f), PrimitiveType.Cube, root.transform);
+            Ensure(craft, "Gameplay.CraftingStation");
 
             // A couple of readable enemies near the route.
             var enemies = new List<string>();
