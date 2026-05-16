@@ -351,11 +351,11 @@
     {
       "title": "[P0] loot pickup",
       "role": "designer",
-      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 4. BP_TI_LootPickup + ST_TI_ItemDefinition. Pickup on E (InteractionRange=220). Scene loot (level-instance-links.md): LootChest_Bridge LootTier=2; OfferingPickup_North/Bridge/Shrine OfferingValue=1 each. Acceptance: E picks up -> item enters inventory -> world actor removed. Ref: build-order #4.",
-      "status": "pending",
+      "description": "From DOCS/backlog/vertical-slice-backlog.md (P0). Same-architecture ingest; see DOCS/design + DOCS/implementation for the detailed pass specs.\n\n[2026-05-16 12:05] STAGE 4. BP_TI_LootPickup + ST_TI_ItemDefinition. Pickup on E (InteractionRange=220). Scene loot (level-instance-links.md): LootChest_Bridge LootTier=2; OfferingPickup_North/Bridge/Shrine OfferingValue=1 each. Acceptance: E picks up -> item enters inventory -> world actor removed. Ref: build-order #4.\n\n[2026-05-16 16:18] Phase 129: implemented LootPickup.cs per spec (E pickup, 2.2m=InteractionRange220, item->InventoryComponent, world actor Destroyed; offering/lootTier per level-instance-links.md). Acceptance met by new code.",
+      "status": "done",
       "id": "22ad4a341283",
       "created_at": 1778918888.4595356,
-      "updated_at": 1778922344.8450563,
+      "updated_at": 1778937494.8560197,
       "milestone": "755482ff6a9d",
       "depends_on": [
         "344d0268ff13"
