@@ -103,6 +103,7 @@ namespace UnityTools.Bridge
                 case "build_terrain_from_heightmap": return BuildTerrainFromHeightmap(p);
                 case "fix_terrain_material": return FixTerrainMaterial(p);
                 case "scatter_terrain_trees": return ScatterTerrainTrees(p);
+                case "repaint_terrain_biomes": return RepaintTerrainBiomes(p);
                 default: throw new InvalidOperationException($"Unknown method: {method}");
             }
         }
@@ -141,6 +142,98 @@ namespace UnityTools.Bridge
                 }
             }
             return "builtin-default";
+        }
+
+        // ── Phase 93: repaint terrain biome bands from the EXISTING
+        // terrain (no elevation re-fetch). Normalizes by the terrain's
+        // OWN min/max height so the bands adapt to the real relief
+        // distribution — fixes "Alpine data is all high -> all white
+        // rock/snow". Tunable band cutoffs (as 0..1 percentiles of the
+        // terrain's own height range) + colours. Deterministic + live.
+        private static object RepaintTerrainBiomes(JObject p)
+        {
+            float plainsTo = p["plains_to"]?.ToObject<float>() ?? 0.30f;
+            float forestTo = p["forest_to"]?.ToObject<float>() ?? 0.64f;
+            float rockTo   = p["rock_to"]?.ToObject<float>() ?? 0.88f;
+
+            Color cPlain  = ReadColor(p["plains_color"], new Color(0.27f, 0.42f, 0.18f));
+            Color cForest = ReadColor(p["forest_color"], new Color(0.14f, 0.27f, 0.13f));
+            Color cRock   = ReadColor(p["rock_color"],   new Color(0.40f, 0.39f, 0.37f));
+            Color cSnow   = ReadColor(p["snow_color"],   new Color(0.90f, 0.92f, 0.95f));
+
+            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None)
+                .FirstOrDefault();
+            if (terrain == null)
+                return new { ok = false, error = "No Terrain in scene" };
+            var td = terrain.terrainData;
+
+            int hr = td.heightmapResolution;
+            float[,] hs = td.GetHeights(0, 0, hr, hr);
+            float hMin = float.MaxValue, hMax = float.MinValue;
+            for (int y = 0; y < hr; y++)
+                for (int x = 0; x < hr; x++)
+                {
+                    float v = hs[y, x];
+                    if (v < hMin) hMin = v;
+                    if (v > hMax) hMax = v;
+                }
+            float span = Mathf.Max(1e-5f, hMax - hMin);
+
+            td.terrainLayers = new[]
+            {
+                new TerrainLayer { diffuseTexture = SolidTex(cPlain,  "Plains"),      tileSize = new Vector2(20, 20) },
+                new TerrainLayer { diffuseTexture = SolidTex(cForest, "ForestFloor"), tileSize = new Vector2(20, 20) },
+                new TerrainLayer { diffuseTexture = SolidTex(cRock,   "Rock"),        tileSize = new Vector2(20, 20) },
+                new TerrainLayer { diffuseTexture = SolidTex(cSnow,   "Snow"),        tileSize = new Vector2(20, 20) },
+            };
+
+            int aw = td.alphamapWidth, ah = td.alphamapHeight;
+            var a = new float[ah, aw, 4];
+            for (int y = 0; y < ah; y++)
+            {
+                for (int x = 0; x < aw; x++)
+                {
+                    int hy = Mathf.Clamp(Mathf.RoundToInt((float)y / (ah - 1) * (hr - 1)), 0, hr - 1);
+                    int hx = Mathf.Clamp(Mathf.RoundToInt((float)x / (aw - 1) * (hr - 1)), 0, hr - 1);
+                    float hn = (hs[hy, hx] - hMin) / span;     // 0..1 over real range
+                    // soft band membership centred in each percentile slice
+                    float wP = Band(hn, 0f, plainsTo);
+                    float wF = Band(hn, plainsTo, forestTo);
+                    float wR = Band(hn, forestTo, rockTo);
+                    float wS = Band(hn, rockTo, 1.001f);
+                    float s = wP + wF + wR + wS + 1e-4f;
+                    a[y, x, 0] = wP / s; a[y, x, 1] = wF / s;
+                    a[y, x, 2] = wR / s; a[y, x, 3] = wS / s;
+                }
+            }
+            td.SetAlphamaps(0, 0, a);
+            ApplyTerrainPipelineMaterial(terrain);
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                terrain = terrain.name,
+                height_range_norm = new[] { hMin, hMax },
+                cutoffs = new[] { plainsTo, forestTo, rockTo },
+                note = "repainted by terrain's own relief percentile (no re-fetch)",
+            };
+        }
+
+        private static float Band(float v, float lo, float hi)
+        {
+            // 1 inside [lo,hi], soft 12%-of-span feather at each edge
+            float feather = Mathf.Max(0.02f, (hi - lo) * 0.30f);
+            if (v < lo) return Mathf.Clamp01(1f - (lo - v) / feather);
+            if (v > hi) return Mathf.Clamp01(1f - (v - hi) / feather);
+            return 1f;
+        }
+
+        private static Color ReadColor(JToken t, Color def)
+        {
+            if (t is JArray ja && ja.Count >= 3)
+                return new Color(ja[0].ToObject<float>(), ja[1].ToObject<float>(),
+                                 ja[2].ToObject<float>());
+            return def;
         }
 
         // ── Phase 92: scatter sparse procedural pines on the real-world
