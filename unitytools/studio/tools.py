@@ -4027,7 +4027,7 @@ def studio_autopilot_world_cycle(with_props: bool = True,
                                        "kind": "autopilot_world_cycle",
                                        "ok": ok, "elapsed_s": elapsed,
                                        "steps": steps})
-        status_md = state.paths.root / "studio" / "autopilot-world-latest.md"
+        status_md = state.paths.root / "autopilot-world-latest.md"
         status_md.parent.mkdir(parents=True, exist_ok=True)
         lines = [f"# Autopilot World — latest cycle\n",
                  f"- ts: {time.strftime('%Y-%m-%d %H:%M:%S')}",
