@@ -111,6 +111,7 @@ namespace UnityTools.Bridge
                 case "place_asset_on_terrain": return PlaceAssetOnTerrain(p);
                 case "repaint_terrain_biomes": return RepaintTerrainBiomes(p);
                 case "apply_terrain_pbr_layers": return ApplyTerrainPbrLayers(p);
+                case "fix_terrain_hdrp_material": return FixTerrainHdrpMaterial(p);
                 case "setup_smart_camera": return SetupSmartCamera(p);
                 case "make_terrain_playable": return MakeTerrainPlayable(p);
                 default: throw new InvalidOperationException($"Unknown method: {method}");
@@ -136,21 +137,134 @@ namespace UnityTools.Bridge
         // HDRP terrains render invisible/grey without an HDRP terrain
         // material. Try the pipeline-correct shader; degrade silently
         // on built-in/URP (default terrain material is fine there).
+        // Phase 111 ROOT CAUSE: the scene has >1 Terrain (the big playable
+        // "WorldTerrain" plus a small leftover "Terrain_ForestGround_
+        // 500x500"). Every handler used FindObjectsByType<Terrain>()
+        // .FirstOrDefault(), which grabbed the WRONG (small/invisible)
+        // one — so all the real PBR ground/biome work landed on a
+        // terrain nobody sees, and WorldTerrain stayed pale. Resolve the
+        // intended terrain deterministically: explicit terrain_name ->
+        // "WorldTerrain" -> the LARGEST by area -> first.
+        private static Terrain ResolveSceneTerrain(JObject p)
+        {
+            var all = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude);
+            if (all == null || all.Length == 0) return null;
+            string wanted = p?["terrain_name"]?.ToString();
+            if (!string.IsNullOrEmpty(wanted))
+            {
+                var named = all.FirstOrDefault(t => t.name == wanted);
+                if (named != null) return named;
+            }
+            var world = all.FirstOrDefault(t => t.name == "WorldTerrain");
+            if (world != null) return world;
+            Terrain best = all[0];
+            float bestArea = -1f;
+            foreach (var t in all)
+            {
+                if (t.terrainData == null) continue;
+                float area = t.terrainData.size.x * t.terrainData.size.z;
+                if (area > bestArea) { bestArea = area; best = t; }
+            }
+            return best;
+        }
+
         private static string ApplyTerrainPipelineMaterial(Terrain terrain)
         {
             if (terrain == null) return "no-terrain";
-            string[] candidates = { "HDRP/TerrainLit", "Universal Render Pipeline/Terrain/Lit" };
-            foreach (var sn in candidates)
+
+            // 1) HDRP/URP's OWN default terrain material via reflection on
+            //    the active RenderPipelineAsset. This is the reliable path
+            //    — Shader.Find("HDRP/TerrainLit") returns null on a fresh
+            //    boot because the shader isn't in Always-Included, so the
+            //    old code silently fell back to the broken built-in shader
+            //    (the pale-desert look).
+            var rpAsset = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline
+                          ?? UnityEngine.Rendering.GraphicsSettings.defaultRenderPipeline;
+            if (rpAsset != null)
             {
-                var sh = Shader.Find(sn);
+                var t = rpAsset.GetType();
+                foreach (var member in new[] { "defaultTerrainMaterial", "GetDefaultTerrainMaterial" })
+                {
+                    try
+                    {
+                        Material dm = null;
+                        var prop = t.GetProperty(member,
+                            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                        if (prop != null) dm = prop.GetValue(rpAsset) as Material;
+                        if (dm == null)
+                        {
+                            var meth = t.GetMethod(member,
+                                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                                null, System.Type.EmptyTypes, null);
+                            if (meth != null) dm = meth.Invoke(rpAsset, null) as Material;
+                        }
+                        if (dm != null && dm.shader != null)
+                        {
+                            terrain.materialTemplate = new Material(dm) { name = "UnityTools_TerrainMat" };
+                            return "rp-default:" + dm.shader.name;
+                        }
+                    }
+                    catch { /* try next */ }
+                }
+            }
+
+            // 2) Any existing project material that uses an SRP terrain shader.
+            foreach (var guid in AssetDatabase.FindAssets("t:Material"))
+            {
+                var mp = AssetDatabase.GUIDToAssetPath(guid);
+                var mm = AssetDatabase.LoadAssetAtPath<Material>(mp);
+                var sn = mm?.shader != null ? mm.shader.name : "";
+                if (sn.IndexOf("TerrainLit", StringComparison.OrdinalIgnoreCase) >= 0
+                    || sn.IndexOf("Terrain/Lit", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    terrain.materialTemplate = new Material(mm) { name = "UnityTools_TerrainMat" };
+                    return "asset:" + sn;
+                }
+            }
+
+            // 3) Shader.Find as a last resort (works once a layer/material
+            //    has loaded the shader into memory).
+            foreach (var shn in new[] { "HDRP/TerrainLit", "Universal Render Pipeline/Terrain/Lit" })
+            {
+                var sh = Shader.Find(shn);
                 if (sh != null)
                 {
-                    var m = new Material(sh) { name = "UnityTools_TerrainMat" };
-                    terrain.materialTemplate = m;
-                    return sn;
+                    terrain.materialTemplate = new Material(sh) { name = "UnityTools_TerrainMat" };
+                    return "shaderfind:" + shn;
                 }
             }
             return "builtin-default";
+        }
+
+        // Phase 111: standalone diagnose+fix for the terrain HDRP material
+        // (returns the resolved material/shader so QA can confirm).
+        private static object FixTerrainHdrpMaterial(JObject p)
+        {
+            var terrain = ResolveSceneTerrain(p);
+            if (terrain == null)
+                return new { ok = false, error = "No Terrain in scene" };
+            string before = terrain.materialTemplate != null && terrain.materialTemplate.shader != null
+                ? terrain.materialTemplate.shader.name : "(none)";
+            string resolved = ApplyTerrainPipelineMaterial(terrain);
+            string after = terrain.materialTemplate != null && terrain.materialTemplate.shader != null
+                ? terrain.materialTemplate.shader.name : "(none)";
+            int layerCount = terrain.terrainData != null ? terrain.terrainData.terrainLayers.Length : 0;
+            string firstTex = "(none)";
+            if (layerCount > 0 && terrain.terrainData.terrainLayers[0] != null
+                && terrain.terrainData.terrainLayers[0].diffuseTexture != null)
+                firstTex = terrain.terrainData.terrainLayers[0].diffuseTexture.name;
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                resolved,
+                shader_before = before,
+                shader_after = after,
+                terrain_layer_count = layerCount,
+                first_layer_diffuse = firstTex,
+                rp = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null
+                     ? UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline.GetType().Name : "(builtin)",
+            };
         }
 
         // ── Phase 95: the SMART playability layer. A 16 km real-world
@@ -168,8 +282,7 @@ namespace UnityTools.Bridge
             string charName = p["character"]?.ToString() ?? "SK_Hero";
             float charScale = p["character_scale"]?.ToObject<float>() ?? 1.0f;
 
-            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude)
-                .FirstOrDefault();
+            var terrain = ResolveSceneTerrain(p);
             if (terrain == null)
                 return new { ok = false, error = "No Terrain in scene" };
             var td = terrain.terrainData;
@@ -280,8 +393,7 @@ namespace UnityTools.Bridge
             // Bounds of the target (terrain or any renderered object).
             Bounds b = new Bounds(Vector3.zero, new Vector3(200, 50, 200));
             var tgt = GameObject.Find(targetName);
-            var terr = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude)
-                .FirstOrDefault();
+            var terr = ResolveSceneTerrain(p);
             if (tgt != null && tgt.GetComponent<Terrain>() != null) terr = tgt.GetComponent<Terrain>();
             if (terr != null)
             {
@@ -352,8 +464,7 @@ namespace UnityTools.Bridge
             Color cRock   = ReadColor(p["rock_color"],   new Color(0.40f, 0.39f, 0.37f));
             Color cSnow   = ReadColor(p["snow_color"],   new Color(0.90f, 0.92f, 0.95f));
 
-            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude)
-                .FirstOrDefault();
+            var terrain = ResolveSceneTerrain(p);
             if (terrain == null)
                 return new { ok = false, error = "No Terrain in scene" };
             var td = terrain.terrainData;
@@ -431,8 +542,7 @@ namespace UnityTools.Bridge
             while (cutoffs.Count < n - 1)
                 cutoffs.Add((cutoffs.Count + 1) / (float)n);
 
-            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude)
-                .FirstOrDefault();
+            var terrain = ResolveSceneTerrain(p);
             if (terrain == null)
                 return new { ok = false, error = "No Terrain in scene" };
             var td = terrain.terrainData;
@@ -567,8 +677,7 @@ namespace UnityTools.Bridge
             float sMax = p["scale_max"]?.ToObject<float>() ?? 16f;
             int seed = p["seed"]?.ToObject<int>() ?? 9090;
 
-            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude)
-                .FirstOrDefault();
+            var terrain = ResolveSceneTerrain(p);
             if (terrain == null)
                 return new { ok = false, error = "No Terrain in scene (build it first)" };
             var td = terrain.terrainData;
@@ -670,8 +779,7 @@ namespace UnityTools.Bridge
             if (live.Count == 0 && dead.Count == 0)
                 return new { ok = false, error = "No tree GLB models could be loaded", tried_live = liveModels, tried_dead = deadModels };
 
-            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude)
-                .FirstOrDefault();
+            var terrain = ResolveSceneTerrain(p);
             if (terrain == null)
                 return new { ok = false, error = "No Terrain in scene (build it first)" };
             var td = terrain.terrainData;
@@ -783,8 +891,7 @@ namespace UnityTools.Bridge
             string parentName = p["parent"]?.ToString();
             string foliageMatPath = p["material_path"]?.ToString();
 
-            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude)
-                .FirstOrDefault();
+            var terrain = ResolveSceneTerrain(p);
             float surfaceY = 0f;
             if (terrain != null)
             {
