@@ -102,6 +102,7 @@ namespace UnityTools.Bridge
                 case "assign_material_asset": return AssignMaterialAsset(p);
                 case "build_terrain_from_heightmap": return BuildTerrainFromHeightmap(p);
                 case "fix_terrain_material": return FixTerrainMaterial(p);
+                case "scatter_terrain_trees": return ScatterTerrainTrees(p);
                 default: throw new InvalidOperationException($"Unknown method: {method}");
             }
         }
@@ -140,6 +141,69 @@ namespace UnityTools.Bridge
                 }
             }
             return "builtin-default";
+        }
+
+        // ── Phase 92: scatter sparse procedural pines on the real-world
+        // terrain, only in a mid-elevation "forest" band and off steep
+        // slopes. Procedural + HDRP-correct materials (PipelineLitShader)
+        // so it sidesteps the broken GLB-material pipeline entirely.
+        private static object ScatterTerrainTrees(JObject p)
+        {
+            int attempts = Mathf.Clamp(p["tree_count"]?.ToObject<int>() ?? 220, 1, 5000);
+            float bandMin = p["forest_min"]?.ToObject<float>() ?? 0.16f; // norm height
+            float bandMax = p["forest_max"]?.ToObject<float>() ?? 0.52f;
+            float maxSlope = p["max_slope_deg"]?.ToObject<float>() ?? 32f;
+            float sMin = p["scale_min"]?.ToObject<float>() ?? 8f;
+            float sMax = p["scale_max"]?.ToObject<float>() ?? 16f;
+            int seed = p["seed"]?.ToObject<int>() ?? 9090;
+
+            var terrain = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None)
+                .FirstOrDefault();
+            if (terrain == null)
+                return new { ok = false, error = "No Terrain in scene (build it first)" };
+            var td = terrain.terrainData;
+            Vector3 tp = terrain.transform.position;
+            float sizeX = td.size.x, sizeZ = td.size.z, sizeY = td.size.y;
+
+            var existing = GameObject.Find("WorldForest");
+            if (existing != null) Undo.DestroyObjectImmediate(existing);
+            var forestRoot = new GameObject("WorldForest");
+            Undo.RegisterCreatedObjectUndo(forestRoot, "UnityTools: world forest");
+
+            var trunkMat = MakeMaterial("Pine_Trunk_HDRP", new Color(0.24f, 0.15f, 0.08f), 0.10f);
+            var foliageMat = MakeMaterial("Pine_Foliage_HDRP", new Color(0.09f, 0.22f, 0.11f), 0.12f);
+
+            var rng = new System.Random(seed);
+            int placed = 0;
+            for (int i = 0; i < attempts; i++)
+            {
+                float u = (float)rng.NextDouble();
+                float v = (float)rng.NextDouble();
+                float hn = td.GetInterpolatedHeight(u, v) / Mathf.Max(0.001f, sizeY);
+                if (hn < bandMin || hn > bandMax) continue;
+                float steep = td.GetSteepness(u, v);
+                if (steep > maxSlope) continue;
+
+                float wx = tp.x + u * sizeX;
+                float wz = tp.z + v * sizeZ;
+                float wy = tp.y + td.GetInterpolatedHeight(u, v);
+                float scl = (float)(sMin + rng.NextDouble() * (sMax - sMin));
+                string nm = $"Pine_{placed:000}";
+                CreateSimplePine(nm, new Vector3(wx, wy, wz), scl,
+                                  forestRoot.transform, trunkMat, foliageMat, rng);
+                placed++;
+            }
+
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            return new
+            {
+                ok = true,
+                placed,
+                attempts,
+                forest_band = new[] { bandMin, bandMax },
+                max_slope_deg = maxSlope,
+                note = "sparse procedural pines, mid-elevation band only, HDRP-safe",
+            };
         }
 
         private static object FixTerrainMaterial(JObject p)
