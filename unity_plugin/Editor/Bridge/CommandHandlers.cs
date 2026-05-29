@@ -1295,6 +1295,23 @@ namespace UnityTools.Bridge
             var lorePath = FindOrCube("LoreNote_Path", hp + new Vector3(12f, 0f, 8f), PrimitiveType.Cube, root.transform);
             Ensure(lorePath, "Gameplay.LorePickup");
 
+            // Rest Totems (Phase 164): heal-rest anchor + respawn anchor.
+            // RestTotem_Bridge is the mid-path anchor (startActive after first rest).
+            // RestTotem_Camp is the spawn camp anchor (startActive=true from the start
+            // so it's always the emergency fallback before the player rests anywhere).
+            var totemCamp = FindOrCube("RestTotem_Camp",
+                hp + new Vector3(1f, 0f, -2f), PrimitiveType.Cylinder, root.transform);
+            Ensure(totemCamp, "Gameplay.RestTotem");
+            {   // Mark camp totem as active from the start via reflection.
+                var totemTy = ResolveGameType("Gameplay.RestTotem");
+                var totemComp = totemCamp.GetComponent(totemTy);
+                if (totemComp != null)
+                    totemTy.GetField("startActive")?.SetValue(totemComp, true);
+            }
+            var totemBridge = FindOrCube("RestTotem_Bridge",
+                hp + new Vector3(10f, 0f, 6f), PrimitiveType.Cylinder, root.transform);
+            Ensure(totemBridge, "Gameplay.RestTotem");
+
             // A couple of readable enemies near the route.
             var enemies = new List<string>();
             for (int i = 0; i < 2; i++)
