@@ -242,16 +242,26 @@ First studio operator tools are live: `unreal_scan_project`, `unreal_create_basi
 
 Ilk studio operator araclari aktif: `unreal_scan_project`, `unreal_create_basic_level`, `unreal_setup_studio_lighting` ve `unreal_create_blockout_map`.
 
+## Agent Game Developer Studio
+
+A long-lived autonomous agent stack on top of UnityTools. The Studio writes the
+GDD, runs daily standups, blocks out levels by comparing screenshots against
+reference images, dispatches tasks to a Worker that actually edits the scene,
+and journals every decision to disk. Local-first: works against Anthropic
+Claude or fully offline against Ollama (gemma4, qwen2.5, llama3).
+
+```sh
+unitytools studio-init --project .
+unitytools studio-run --role designer            # write a GDD pitch
+unitytools studio-review --phase morning         # daily plan
+unitytools studio-autopilot --max-tasks 5        # auto-execute backlog
+```
+
+Full reference: [docs/STUDIO.md](docs/STUDIO.md).
+
 ## Dual-Agent System
 
-UnityTools supports an advanced hierarchical dual-agent system with learning capabilities:
-
-- 📘 **[Quick Start Guide](DUAL_AGENT_QUICKSTART.md)** - 5 dakikada başlangıç
-- 📗 **[Complete Guide](DUAL_AGENT_GUIDE.md)** - Detaylı kullanım kılavuzu
-- 📙 **[Philosophy](DUAL_AGENT_PHILOSOPHY.md)** - Neden iyi planlama önemli?
-- 📕 **[Technical Summary](DUAL_AGENT_SUMMARY.md)** - API ve mimari detayları
-- 🚀 **[Enhanced Features](ENHANCED_FEATURES.md)** - Memory & Context (NEW!)
-- ✅ **[Integration Report](FINAL_INTEGRATION_REPORT.md)** - Full test results
+UnityTools supports an advanced hierarchical dual-agent system with learning capabilities. See [docs/](docs/) for the technical reference (architecture, scene intelligence, Unreal bridge, migration).
 
 **TL;DR**: 
 - Reader/Worker default to Qwen 2.5:14b-instruct for fast scene reading and tool execution

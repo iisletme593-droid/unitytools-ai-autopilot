@@ -23,6 +23,46 @@ from ..core.protocol import RpcRequest, RpcResponse
 logger = logging.getLogger(__name__)
 
 
+def focus_unity_window() -> bool:
+    """Bring the Unity Editor window to the foreground (Windows only).
+
+    Root cause of recurring session friction: when the Unity Editor is
+    unfocused/backgrounded, Windows + Unity throttle EditorApplication.
+    update to a crawl, so the bridge command pump stalls — `ping`
+    answers on the listener thread but real main-thread ops (open_scene,
+    recompile) time out. Re-focusing the window un-throttles the loop.
+
+    Safe + idempotent. Returns True if a Unity window was activated.
+    Call this before a burst of main-thread bridge ops.
+    """
+    import sys
+
+    if not sys.platform.startswith("win"):
+        return False
+    try:
+        import subprocess
+
+        ps = (
+            "$ws = New-Object -ComObject WScript.Shell;"
+            "$p = Get-Process Unity -ErrorAction SilentlyContinue |"
+            " Where-Object { $_.MainWindowTitle } |"
+            " Sort-Object WorkingSet64 -Descending | Select-Object -First 1;"
+            "if ($p) { $ws.AppActivate($p.Id) | Out-Null; 'OK ' + $p.Id }"
+            " else { 'NO_UNITY' }"
+        )
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps],
+            capture_output=True, text=True, timeout=20,
+        )
+        ok = "OK " in (out.stdout or "")
+        if ok:
+            logger.info("Unity window focused: %s", out.stdout.strip())
+        return ok
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("focus_unity_window failed: %s", exc)
+        return False
+
+
 class UnityNotConnectedError(RuntimeError):
     pass
 
@@ -109,10 +149,33 @@ class UnityBridge:
                 self._sock.settimeout(timeout)
                 line = self._read_line()
             except socket.timeout as e:
+                # CRITICAL: a timed-out request's response may still
+                # arrive later and sit in the socket buffer. If we keep
+                # the socket, the NEXT call reads that stale line as its
+                # own response -> every subsequent RPC is desynced by one
+                # (the cause of "scatter" returning an import_asset dict
+                # and screenshots returning a set_scene_view dict). Drop
+                # the socket so the next call reconnects fresh & clean.
+                try:
+                    if self._sock is not None:
+                        self._sock.close()
+                except Exception:
+                    pass
+                self._sock = None
                 raise TimeoutError(
                     f"Unity RPC zaman aşımı ({timeout:.1f}s). Unity Editor muhtemelen meşgul (compile/import/playmode)."
                 ) from e
-            except (BrokenPipeError, ConnectionResetError) as e:
+            except (BrokenPipeError, ConnectionResetError,
+                    ConnectionAbortedError, OSError) as e:
+                # WinError 10053 (ConnectionAbortedError) and other OSErrors
+                # happen during Unity domain reloads. Reset the socket so the
+                # next call reconnects fresh instead of wedging forever on a
+                # dead handle.
+                try:
+                    if self._sock is not None:
+                        self._sock.close()
+                except Exception:
+                    pass
                 self._sock = None
                 raise UnityNotConnectedError(f"Bağlantı koptu: {e}") from e
             finally:

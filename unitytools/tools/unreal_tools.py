@@ -1,4 +1,4 @@
-﻿"""Unreal Editor tools exposed to the LLM."""
+"""Unreal Editor tools exposed to the LLM."""
 from __future__ import annotations
 
 import shutil

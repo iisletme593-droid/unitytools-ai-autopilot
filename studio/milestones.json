@@ -1,0 +1,22 @@
+{
+  "milestones": [
+    {
+      "name": "Vertical Slice - Forgotten Valley",
+      "description": "One realistic valley biome with the full explore->gather->upgrade->night->mini-boss loop, 60fps on weak GPU.",
+      "status": "planning",
+      "id": "f54e01a96f16",
+      "target_date": null,
+      "success_criteria": [],
+      "created_at": 1778879650.7407157
+    },
+    {
+      "name": "Vertical Slice - Briar Hollow",
+      "description": "DOCS-driven 4-pillar vertical slice: spawn->camp->path->landmark->mini-boss on the real-world terrain.",
+      "status": "planning",
+      "id": "755482ff6a9d",
+      "target_date": null,
+      "success_criteria": [],
+      "created_at": 1778918888.4311023
+    }
+  ]
+}

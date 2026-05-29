@@ -1,0 +1,171 @@
+"""Recurring producer loop.
+
+Runs the Producer at fixed intervals (default daily at script start),
+saving each pass to the day's review file. Designed to be cheap to test:
+`run(once=True)` does exactly one iteration and returns; `run(...)` with
+an interval sleeps in small chunks so Ctrl+C is responsive.
+
+When a Dispatcher is passed in, the loop also walks the backlog after
+each Producer pass and runs every pending task through the right role
+agent — closing the full self-driving cycle: review -> plan -> execute
+-> sleep -> repeat.
+
+When `archiver_every > 0`, every Nth pass also runs auto-archive so
+done/rejected tasks older than `archiver_age_days` migrate out of
+backlog.json into studio/archive/<YYYY>.json. Maintenance becomes
+hands-off in a long-running loop.
+
+For real autonomy bind this to the user's existing scheduler (cron,
+launchd, Windows Task Scheduler, or the project's MCP scheduled-tasks).
+The loop here is a self-contained alternative.
+"""
+from __future__ import annotations
+
+import logging
+import time
+from dataclasses import dataclass, field
+from typing import Callable, Optional
+
+from .archive import ArchiveResult, archive_old_tasks
+from .config import STUDIO_DEFAULTS
+from .dispatch import DispatchSummary, Dispatcher
+from .review import Phase, ReviewRecord, run_review
+from .runner import RoleRunner
+from .state import StudioState
+
+logger = logging.getLogger(__name__)
+
+
+# Sleep in small slices so a Ctrl+C lands within a second instead of after
+# the full interval.
+_SLICE_SECONDS = 1.0
+
+
+@dataclass
+class LoopStats:
+    iterations: int = 0
+    last_phase: Optional[Phase] = None
+    last_record: Optional[ReviewRecord] = None
+    records: list[ReviewRecord] = field(default_factory=list)
+    # Set when a Dispatcher is wired into the loop. Each entry summarises
+    # one dispatch_pending() call following its review.
+    dispatch_summaries: list[DispatchSummary] = field(default_factory=list)
+    # Set when archiver_every > 0. One ArchiveResult per archive pass.
+    archive_summaries: list[ArchiveResult] = field(default_factory=list)
+
+
+class LoopRunner:
+    """Simple time-based loop that runs the Producer review on a cadence."""
+
+    def __init__(
+        self,
+        state: StudioState,
+        runner: RoleRunner,
+        sleep_fn: Callable[[float], None] = time.sleep,
+        now_fn: Callable[[], float] = time.time,
+        dispatcher: Optional[Dispatcher] = None,
+        dispatch_max_tasks: int = STUDIO_DEFAULTS.max_tasks_per_producer_run,
+        archiver_every: int = 0,
+        archiver_age_days: float = 30.0,
+    ):
+        self.state = state
+        self.runner = runner
+        self._sleep = sleep_fn
+        self._now = now_fn
+        self.dispatcher = dispatcher
+        self.dispatch_max_tasks = dispatch_max_tasks
+        # 0 disables auto-archive. N = run after every Nth pass.
+        self.archiver_every = max(0, int(archiver_every))
+        self.archiver_age_days = float(archiver_age_days)
+        self.stats = LoopStats()
+        self._stop_requested = False
+
+    def request_stop(self) -> None:
+        self._stop_requested = True
+
+    def run(
+        self,
+        once: bool = False,
+        interval_seconds: float = 86400.0,
+        max_iterations: Optional[int] = None,
+        phase_picker: Optional[Callable[[float], Phase]] = None,
+    ) -> LoopStats:
+        """Run the producer review at most max_iterations times.
+
+        - `once=True` short-circuits to a single iteration.
+        - `phase_picker(now)` returns "morning" / "evening" / "adhoc";
+          default uses local clock-hour: morning if hour < 12 else evening.
+        - When a Dispatcher was passed at construction, each pass also
+          dispatches up to `dispatch_max_tasks` pending tasks AFTER the
+          review writes. Failures in dispatch are logged but do not
+          stop the loop.
+        """
+        picker = phase_picker or _default_phase_picker
+        cap = 1 if once else (max_iterations if max_iterations is not None else None)
+        i = 0
+        while True:
+            if self._stop_requested:
+                logger.info("Loop stopped by request after %d iterations", self.stats.iterations)
+                break
+            now = self._now()
+            phase: Phase = picker(now)
+            try:
+                _result, record = run_review(self.state, self.runner, phase, now=now)
+                self.stats.records.append(record)
+                self.stats.last_record = record
+                self.stats.last_phase = phase
+            except Exception:
+                logger.exception("Producer review failed; continuing")
+
+            if self.dispatcher is not None and not self._stop_requested:
+                try:
+                    summary = self.dispatcher.dispatch_pending(limit=self.dispatch_max_tasks)
+                    self.stats.dispatch_summaries.append(summary)
+                except Exception:
+                    logger.exception("Dispatcher pass failed; continuing")
+
+            self.stats.iterations += 1
+            i += 1
+
+            # Auto-archive runs AFTER iterations counter increments so the
+            # "every N passes" math is intuitive: archiver_every=2 fires
+            # on passes 2, 4, 6, ...
+            if (
+                self.archiver_every > 0
+                and self.stats.iterations % self.archiver_every == 0
+                and not self._stop_requested
+            ):
+                try:
+                    archive_result = archive_old_tasks(
+                        self.state,
+                        older_than_days=self.archiver_age_days,
+                        now=now,
+                    )
+                    self.stats.archive_summaries.append(archive_result)
+                    if archive_result.count:
+                        logger.info(
+                            "Auto-archive moved %d task(s) at iteration %d",
+                            archive_result.count,
+                            self.stats.iterations,
+                        )
+                except Exception:
+                    logger.exception("Auto-archive pass failed; continuing")
+
+            if cap is not None and i >= cap:
+                break
+
+            # Sleep in slices so Ctrl+C / request_stop is responsive.
+            slept = 0.0
+            while slept < interval_seconds and not self._stop_requested:
+                step = min(_SLICE_SECONDS, interval_seconds - slept)
+                self._sleep(step)
+                slept += step
+
+        return self.stats
+
+
+def _default_phase_picker(now: float) -> Phase:
+    hour = time.localtime(now).tm_hour
+    if hour < 12:
+        return "morning"
+    return "evening"

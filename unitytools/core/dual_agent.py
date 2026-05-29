@@ -1,4 +1,4 @@
-﻿"""Dual-agent orchestrator: Master (planning) + Worker (execution).
+"""Dual-agent orchestrator: Master (planning) + Worker (execution).
 
 Master Agent (Qwen 2.5:14b):
   - KullanÄ±cÄ± isteÄŸini analiz eder
@@ -336,9 +336,9 @@ class DualAgentOrchestrator:
     def __init__(
         self,
         config: Config,
-        master_model: str = "qwen3.6:latest",
-        worker_model: str = "qwen2.5:14b-instruct",
-        reader_model: str = "qwen2.5:14b-instruct",
+        master_model: str = "gemma4:latest",
+        worker_model: str = "gemma4:latest",
+        reader_model: str = "gemma4:latest",
         enable_memory: bool = True,
         enable_context: bool = True,
     ) -> None:

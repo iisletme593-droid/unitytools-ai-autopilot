@@ -1,7 +1,9 @@
-﻿"""Dual-agent interactive chat REPL.
+"""Dual-agent interactive chat REPL.
 
-Reader and Worker default to qwen2.5:14b-instruct for fast scene/context work.
-Master defaults to qwen3.6:latest for planning when installed.
+Phase 57: defaults flip to gemma4:latest across all three slots
+(Reader / Master / Worker) per the user's preference. Override via
+DUAL_AGENT_READER / DUAL_AGENT_MASTER / DUAL_AGENT_WORKER env vars
+or --reader / --master / --worker CLI flags.
 """
 from __future__ import annotations
 
@@ -23,9 +25,9 @@ console = Console()
 
 def run_dual_chat(
     config: Config,
-    master_model: str = "qwen3.6:latest",
-    worker_model: str = "qwen2.5:14b-instruct",
-    reader_model: str = "qwen2.5:14b-instruct",
+    master_model: str = "gemma4:latest",
+    worker_model: str = "gemma4:latest",
+    reader_model: str = "gemma4:latest",
 ) -> int:
     """Run dual-agent interactive chat."""
     console.print(

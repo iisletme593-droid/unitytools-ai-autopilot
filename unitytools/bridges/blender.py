@@ -126,3 +126,51 @@ class BlenderBridge:
             args.extend(["--scale", str(scale)])
 
         return self.run_script(script, blend_file=blend_file, script_args=args)
+
+    SUPPORTED_PROP_TYPES = (
+        "rock", "crate", "pillar", "column",
+        "boulder", "stump", "deadtrunk", "totem", "shrine",
+        "gate", "bench", "banner", "rack",
+        "pine", "fir", "deadpine", "shrub",
+    )
+
+    def generate_prop(
+        self,
+        prop_type: str,
+        output_path: Path | str,
+        seed: int = 0,
+        scale: float = 1.0,
+        timeout: int = 120,
+        preview_path: Path | str | None = None,
+    ) -> BlenderResult:
+        """Run `scripts/blender/generate_prop.py` to build one parametric
+        prop and export it as FBX. Supports prop_type in
+        {rock, crate, pillar, column}.
+
+        Returns the BlenderResult; success means the FBX was written to
+        `output_path` (the studio tool layer also re-checks that path).
+        """
+        if prop_type not in self.SUPPORTED_PROP_TYPES:
+            return BlenderResult(
+                success=False,
+                stdout="",
+                stderr=(
+                    f"Unknown prop_type {prop_type!r}; supported: "
+                    f"{', '.join(self.SUPPORTED_PROP_TYPES)}"
+                ),
+                return_code=-1,
+            )
+        script = self.scripts_dir / "generate_prop.py"
+        if not script.exists():
+            return BlenderResult(
+                success=False, stdout="", stderr=f"Generate script not found: {script}", return_code=-1
+            )
+        args = [
+            "--type", prop_type,
+            "--output", str(output_path),
+            "--seed", str(int(seed)),
+            "--scale", str(float(scale)),
+        ]
+        if preview_path:
+            args.extend(["--preview", str(preview_path)])
+        return self.run_script(script, script_args=args, timeout=timeout)
