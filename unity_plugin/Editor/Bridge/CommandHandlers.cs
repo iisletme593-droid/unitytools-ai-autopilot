@@ -1178,6 +1178,30 @@ namespace UnityTools.Bridge
                 return g;
             }
 
+            // SetupSI: Ensure + configure StatusInfliction via reflection so
+            // different actors get different primary status types and chances
+            // without needing direct Assembly-CSharp type references here.
+            void SetupSI(GameObject go, string statusTypeName, float chance = 0.40f)
+            {
+                Ensure(go, "Gameplay.StatusInfliction");
+                if (go == null) return;
+                var siTy = ResolveGameType("Gameplay.StatusInfliction");
+                if (siTy == null) return;
+                var comp = go.GetComponent(siTy);
+                if (comp == null) return;
+                var primaryFi = siTy.GetField("primary");
+                if (primaryFi == null) return;
+                var entry = primaryFi.GetValue(comp);
+                if (entry == null) return;
+                var entryTy = entry.GetType();
+                var statusEnumTy = ResolveGameType("Gameplay.StatusType");
+                if (statusEnumTy != null && System.Enum.IsDefined(statusEnumTy, statusTypeName))
+                    entryTy.GetField("type")?.SetValue(entry, System.Enum.Parse(statusEnumTy, statusTypeName));
+                var chanceFi = entryTy.GetField("chance");
+                if (chanceFi != null) chanceFi.SetValue(entry, chance);
+                wired.Add($"{go.name}+StatusInfliction[{statusTypeName},{chance:F2}]");
+            }
+
             var hero = GameObject.Find(heroName);
             if (hero == null)
                 return new { ok = false, error = $"Hero '{heroName}' not in scene" };
@@ -1193,6 +1217,9 @@ namespace UnityTools.Bridge
             Ensure(hero, "Gameplay.CombatComponent");
             Ensure(hero, "Gameplay.StatusEffectComponent");
             Ensure(hero, "Gameplay.PlayerController");
+            // Hero is a blade fighter — Bleed on hit (40 % base, boosted on
+            // combo-3 and backstab by the StatusInfliction.backstabChanceMultiplier).
+            SetupSI(hero, "Bleed", 0.40f);
 
             var cam = GameObject.Find("Main Camera") ?? (Camera.main ? Camera.main.gameObject : null);
             if (cam != null) Ensure(cam, "Gameplay.ThirdPersonCamera");
@@ -1279,6 +1306,8 @@ namespace UnityTools.Bridge
                 Ensure(e, "Gameplay.StatusEffectComponent");
                 Ensure(e, "Gameplay.EnemyAIController");
                 Ensure(e, "Gameplay.EliteAffix");   // may roll an elite
+                // Briar = thorny plant creature → Poison on hit (35 % chance).
+                SetupSI(e, "Poison", 0.35f);
                 enemies.Add(e.name);
             }
             // One GUARANTEED elite for the slice (name contains "Elite"
@@ -1289,6 +1318,10 @@ namespace UnityTools.Bridge
             Ensure(champ, "Gameplay.StatusEffectComponent");
             Ensure(champ, "Gameplay.EnemyAIController");
             Ensure(champ, "Gameplay.EliteAffix");
+            // Elite champion is fire-touched (Searing affix visual, EliteAffix
+            // handles proximity Burn proc; this adds Burn on EACH MELEE HIT too
+            // at high chance — the champion is genuinely dangerous up-close).
+            SetupSI(champ, "Burn", 0.55f);
             enemies.Add(champ.name);
 
             var scene = SceneManager.GetActiveScene();
