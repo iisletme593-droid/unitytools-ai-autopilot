@@ -1312,6 +1312,41 @@ namespace UnityTools.Bridge
                 hp + new Vector3(10f, 0f, 6f), PrimitiveType.Cylinder, root.transform);
             Ensure(totemBridge, "Gameplay.RestTotem");
 
+            // Phase 165: Offering → SoulShrine → BossGate spine.
+            // Three offering pickups along the route (value=1 each, matching
+            // DOCS/implementation/level-instance-links.md OfferingValue=1).
+            // OfferingTracker.Collect() is called by LootPickup.Collect() when
+            // offeringValue > 0; no extra wiring needed beyond the component.
+            string[] offeringNames = {
+                "OfferingPickup_North", "OfferingPickup_Bridge", "OfferingPickup_Shrine"
+            };
+            Vector3[] offeringPos = {
+                hp + new Vector3(6f, 0f, 14f),
+                hp + new Vector3(12f, 0f, 8f),
+                hp + new Vector3(18f, 0f, 18f),
+            };
+            var lpTy = ResolveGameType("Gameplay.LootPickup");
+            for (int oi = 0; oi < offeringNames.Length; oi++)
+            {
+                var oGo = FindOrCube(offeringNames[oi], offeringPos[oi], PrimitiveType.Cube, root.transform);
+                Ensure(oGo, "Gameplay.LootPickup");
+                // Set offeringValue = 1 via reflection so OfferingTracker.Collect fires.
+                var lpComp = lpTy != null ? oGo.GetComponent(lpTy) : null;
+                if (lpComp != null)
+                    lpTy.GetField("offeringValue")?.SetValue(lpComp, 1);
+                wired.Add($"{offeringNames[oi]}+LootPickup[offering=1]");
+            }
+            // SoulShrine_OldRoots — the offering altar where the player presents
+            // collected offerings to unlock BossGate_RootVeil.
+            var shrine = FindOrCube("SoulShrine_OldRoots",
+                hp + new Vector3(20f, 0f, 20f), PrimitiveType.Cube, root.transform);
+            Ensure(shrine, "Gameplay.SoulShrine");
+            // BossGate_RootVeil — subscribes to OfferingTracker.OnBossGateUnlocked
+            // and starts BossEncounterManager.StartEncounter() on unlock.
+            var gate = FindOrCube("BossGate_RootVeil",
+                hp + new Vector3(22f, 0f, 22f), PrimitiveType.Cube, root.transform);
+            Ensure(gate, "Gameplay.BossGate");
+
             // A couple of readable enemies near the route.
             var enemies = new List<string>();
             for (int i = 0; i < 2; i++)
