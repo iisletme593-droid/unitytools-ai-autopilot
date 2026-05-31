@@ -1,0 +1,8 @@
+*.png
+*.jpg
+*.jpeg
+*.mp4
+studio/qa/
+*.unity
+*.fbx
+*.glb
