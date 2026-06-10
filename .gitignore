@@ -46,3 +46,14 @@ Thumbs.db
 .vscode/
 .idea/
 *.log
+
+# Secrets / keys (NEVER commit)
+*.pem
+*.key
+.env.*
+!.env.example
+
+# Local runtime / tooling state
+.claude/
+GameStudioData/
+.uvq_tmp/

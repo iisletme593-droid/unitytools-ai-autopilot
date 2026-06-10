@@ -20,6 +20,52 @@ AI sunlari parca parca degil, pipeline olarak yapabilmeli:
 - Build/package alir
 - Steam page capsule/key art/screenshot/trailer prompt assetlerini uretir
 
+## Capability Levels
+
+### Level 1 - Basic Assistant
+
+- Chatbot
+- Kod onerisi
+- Aciklama ve yonlendirme
+
+### Level 2 - Coding Agent
+
+- Kod yazar
+- Dosya duzenler
+- Test calistirir
+
+### Level 3 - Autonomous Engineering Agent
+
+- Plan yapar
+- Repo tarar
+- Kod uretir
+- Debug eder
+- Kendini duzeltir
+
+### Level 4 - Unreal Development Agent
+
+- C++
+- Blueprint
+- Asset
+- Level
+- Animation
+- Niagara
+- Build and packaging
+
+### Level 5 - Autonomous Game Director AI
+
+- Combat, camera, VFX, audio, pacing ve enemy AI gibi yaratici/oynanis kararlarini verir
+- Sadece teknik is yapmaz; oyunu daha eglenceli hale getirmeye calisir
+
+### Level 6 - Self-Evolving Game Studio
+
+- Player data okur
+- Fun analysis yapar
+- Harita, economy, quest, NPC davranisi ve liveops eventlerini guvenli sekilde iterasyonla degistirir
+- Her denemeyi hafizaya yazar ve sonraki prototipi daha akilli baslatir
+
+Local implementation details live in `docs/SELF_EVOLVING_GAME_STUDIO.md`.
+
 ## Agent Roles
 
 ### Studio Director

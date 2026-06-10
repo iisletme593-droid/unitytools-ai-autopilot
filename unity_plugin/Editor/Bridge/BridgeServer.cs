@@ -21,6 +21,10 @@ namespace UnityTools.Bridge
         private const int DefaultPort = 7777;
         private const string PrefsKey = "UnityToolsBridgeEnabled";
 
+        // Paylasilan gizli token (UNITYTOOLS_BRIDGE_TOKEN/SECRET/KEY). Bos ise
+        // kimlik dogrulama kapali (yalnizca loopback dinlemesi korur).
+        private static string _authToken;
+
         private static TcpListener _listener;
         private static Thread _acceptThread;
         private static readonly List<ClientConnection> _clients = new List<ClientConnection>();
@@ -44,6 +48,9 @@ namespace UnityTools.Bridge
         {
             if (IsRunning) return;
             CloseTransport();
+            _authToken = ResolveAuthToken();
+            if (string.IsNullOrEmpty(_authToken))
+                Debug.LogWarning("[UnityTools] BridgeServer auth token yok (UNITYTOOLS_BRIDGE_TOKEN/SECRET/KEY). Kimlik dogrulama kapali; yalnizca loopback korur.");
             if (port <= 0) port = ResolveDefaultPort();
             Exception lastError = null;
             for (int candidate = port; candidate < port + 24; candidate++)
@@ -99,6 +106,54 @@ namespace UnityTools.Bridge
             catch { }
 
             return DefaultPort;
+        }
+
+        // Token'i environment'tan, yoksa proje kokundeki .env'den coz.
+        // Oncelik: UNITYTOOLS_BRIDGE_TOKEN -> UNITYTOOLS_SECRET -> UNITYTOOLS_KEY.
+        private static string ResolveAuthToken()
+        {
+            string[] keys = { "UNITYTOOLS_BRIDGE_TOKEN", "UNITYTOOLS_SECRET", "UNITYTOOLS_KEY" };
+            foreach (string k in keys)
+            {
+                string v = Environment.GetEnvironmentVariable(k);
+                if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+            }
+            try
+            {
+                string projectRoot = Directory.GetParent(Application.dataPath)?.FullName ?? "";
+                string envPath = Path.Combine(projectRoot, ".env");
+                if (File.Exists(envPath))
+                {
+                    foreach (string raw in File.ReadAllLines(envPath))
+                    {
+                        string line = raw.Trim();
+                        if (line.StartsWith("#")) continue;
+                        foreach (string k in keys)
+                        {
+                            string prefix = k + "=";
+                            if (line.StartsWith(prefix, StringComparison.Ordinal))
+                            {
+                                string value = line.Substring(prefix.Length).Trim();
+                                if (!string.IsNullOrWhiteSpace(value)) return value;
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return "";
+        }
+
+        // Sabit zamanli string karsilastirmasi (zamanlama sizintisini engeller).
+        private static bool ConstantTimeEquals(string a, string b)
+        {
+            if (a == null || b == null) return false;
+            byte[] ba = Encoding.UTF8.GetBytes(a);
+            byte[] bb = Encoding.UTF8.GetBytes(b);
+            int diff = ba.Length ^ bb.Length;
+            for (int i = 0; i < ba.Length && i < bb.Length; i++)
+                diff |= ba[i] ^ bb[i];
+            return diff == 0;
         }
 
         public static void Stop()
@@ -172,6 +227,18 @@ namespace UnityTools.Bridge
             string method = request["method"]?.ToString() ?? "";
             JObject parameters = request["params"] as JObject ?? new JObject();
             JObject response = new JObject { ["id"] = id };
+
+            // Guvenlik: token yapilandirilmissa her istekte sabit zamanli dogrula.
+            if (!string.IsNullOrEmpty(_authToken) && !ConstantTimeEquals(_authToken, request["token"]?.ToString()))
+            {
+                response["error"] = new JObject
+                {
+                    ["code"] = 401,
+                    ["message"] = "Unauthorized: gecersiz veya eksik token.",
+                };
+                client.Send(response.ToString(Formatting.None));
+                return;
+            }
 
             try
             {

@@ -251,14 +251,30 @@ def cmd_install_unreal_plugin(args: argparse.Namespace) -> int:
         return 1
 
     target = project_root / "Plugins" / "UnrealToolsBridge"
+    installed_mode = "fresh"
     if target.exists():
-        shutil.rmtree(target)
-    shutil.copytree(source, target)
+        try:
+            shutil.rmtree(target)
+        except PermissionError as exc:
+            installed_mode = "overlay"
+            console.print(
+                "[yellow][WARN] Unreal Editor is locking plugin binaries; updating Source/Content in-place instead.[/yellow]"
+            )
+            console.print(f"[dim]{exc}[/dim]")
+            ignore_locked = shutil.ignore_patterns("Binaries", "Intermediate", "Saved", ".vs")
+            shutil.copytree(source, target, dirs_exist_ok=True, ignore=ignore_locked)
+        else:
+            shutil.copytree(source, target)
+    else:
+        shutil.copytree(source, target)
     _enable_unreal_plugin(uproject, "UnrealToolsBridge")
     console.print("[green][OK] Installed UnrealToolsBridge:[/green]")
     console.print(f"  - {target}")
     console.print(f"  - Enabled in {uproject.name}")
-    console.print("[dim]Open/restart Unreal Editor, enable PythonScriptPlugin if prompted, then run: unitytools unreal-ping[/dim]")
+    if installed_mode == "overlay":
+        console.print("[dim]Source/Content were updated while Unreal stayed open. Restart Unreal before expecting new C++ binaries.[/dim]")
+    else:
+        console.print("[dim]Open/restart Unreal Editor, enable PythonScriptPlugin if prompted, then run: unitytools unreal-ping[/dim]")
     return 0
 
 
@@ -564,7 +580,22 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
         master_model = _resolve_ollama_model(config, master_model, config.ollama_model)
         worker_model = _resolve_ollama_model(config, worker_model, config.ollama_model)
         reader_model = _resolve_ollama_model(config, reader_model, config.ollama_model)
-    
+
+    # Guvenlik: loopback disi --host yalnizca acik izin + token ile.
+    from ..core.security import is_loopback_host
+    if not is_loopback_host(args.host) and not config.allow_remote:
+        console.print(
+            f"[red]--host {args.host} loopback degil. Loopback disi dinlemek tehlikelidir; "
+            "UNITYTOOLS_ALLOW_REMOTE=1 ve bir UNITYTOOLS_SECRET/BRIDGE_TOKEN ayarla.[/red]"
+        )
+        return 1
+    if not is_loopback_host(args.host) and config.allow_remote and not config.bridge_token:
+        console.print(
+            "[red]Loopback disi dinleme istendi ama token yok: kimlik dogrulamasiz uzaktan "
+            "kod calistirma riski. Once UNITYTOOLS_SECRET/BRIDGE_TOKEN ayarla.[/red]"
+        )
+        return 1
+
     from ..core.chat_server import ChatServer
     server = ChatServer(
         config,
@@ -577,6 +608,8 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
         enable_memory=enable_memory,
         enable_context=enable_context,
         engine_context=getattr(args, "engine", "auto"),
+        auth_token=config.bridge_token,
+        allow_remote=config.allow_remote,
     )
     
     mode_label = f"dual-agent (Reader: {reader_model}, Master: {master_model}, Worker: {worker_model})" if use_dual else "single-agent"
@@ -589,6 +622,10 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
         mode_label += f" + {', '.join(features)}"
     
     console.print(f"[cyan]Starting chat server: {args.host}:{args.port} ({mode_label})[/cyan]")
+    if config.bridge_token:
+        console.print("[green]Auth: ON (token required). Editor paneli ayni token'i gondermeli.[/green]")
+    else:
+        console.print("[yellow]Auth: OFF (token yok). Sadece loopback baglantilari kabul edilir.[/yellow]")
     console.print("[dim]In Unity: Tools > UnityTools > Open Chat, then Connect.[/dim]")
     if use_dual:
         console.print("[yellow]Dual-agent mode: Master plans, Worker executes. Use it for complex tasks; single-agent is faster for simple edits.[/yellow]")

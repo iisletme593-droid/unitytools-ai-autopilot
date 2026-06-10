@@ -9,6 +9,8 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
+from .security import allow_remote_enabled, get_bridge_token, is_loopback_host
+
 
 @dataclass
 class Config:
@@ -20,6 +22,10 @@ class Config:
     provider: str = "ollama"  # "anthropic" | "ollama"
     ollama_host: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen2.5:14b-instruct"
+
+    # Güvenlik: kopru/chat-server paylasilan token + uzak baglanti izni
+    bridge_token: str = ""
+    allow_remote: bool = False
 
     # Üretim parametreleri
     max_tokens: int = 8192
@@ -74,6 +80,8 @@ class Config:
             unreal_executable=os.getenv("UNREAL_EXECUTABLE") or _autodetect_unreal(),
             project_root=root,
             log_level=os.getenv("LOG_LEVEL", "INFO"),
+            bridge_token=get_bridge_token(),
+            allow_remote=allow_remote_enabled(),
         )
         return cfg
 
@@ -117,6 +125,26 @@ class Config:
             problems.append("UNITYTOOLS_MAX_TOKENS cok dusuk (<512).")
         if self.history_turn_limit < 4:
             problems.append("UNITYTOOLS_HISTORY_LIMIT cok dusuk (<4).")
+        # Guvenlik: kopru/chat-server kimlik dogrulama ve loopback durumu.
+        if not self.bridge_token:
+            problems.append(
+                "UNITYTOOLS_SECRET / UNITYTOOLS_BRIDGE_TOKEN bos: kopru ve chat-server "
+                "kimlik dogrulamasi devre disi (yalnizca loopback baglantilari korur)."
+            )
+        if self.allow_remote and not self.bridge_token:
+            problems.append(
+                "UNITYTOOLS_ALLOW_REMOTE acik ama token yok: uzak baglanti kimlik "
+                "dogrulamasiz olur. Once bir UNITYTOOLS_SECRET/BRIDGE_TOKEN ayarla."
+            )
+        for label, host in (
+            ("UNITY_BRIDGE_HOST", self.unity_bridge_host),
+            ("UNREAL_BRIDGE_HOST", self.unreal_bridge_host),
+        ):
+            if host and not is_loopback_host(host) and not self.allow_remote:
+                problems.append(
+                    f"{label}={host} loopback degil; loopback disi baglanti icin "
+                    "UNITYTOOLS_ALLOW_REMOTE=1 ve bir token gerekir."
+                )
         return problems
 
 

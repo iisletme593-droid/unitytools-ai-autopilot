@@ -259,10 +259,19 @@ namespace UnityTools.Bridge
                 throw new ArgumentException("src_path and dst_relative are required");
             if (!File.Exists(srcPath))
                 throw new FileNotFoundException($"Source file not found: {srcPath}");
-            string fullDst = Path.Combine(Application.dataPath, dstRel);
+            // Guvenlik: hedefi Assets/ altinda tut; .. / mutlak / surucu-harfli yollari reddet.
+            string assetsRoot = Path.GetFullPath(Application.dataPath);
+            string rel = dstRel.Replace("\\", "/").TrimStart('/');
+            if (Path.IsPathRooted(rel) || rel.Contains(":"))
+                throw new ArgumentException($"dst_relative must be relative to Assets/: {dstRel}");
+            string fullDst = Path.GetFullPath(Path.Combine(assetsRoot, rel));
+            string rootPrefix = assetsRoot.Replace("\\", "/").TrimEnd('/') + "/";
+            if (!fullDst.Replace("\\", "/").StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException($"dst_relative escapes the Assets/ folder: {dstRel}");
             Directory.CreateDirectory(Path.GetDirectoryName(fullDst));
             File.Copy(srcPath, fullDst, overwrite: true);
-            string assetPath = "Assets/" + dstRel.Replace("\\", "/");
+            string assetRel = fullDst.Substring(assetsRoot.Length).Replace("\\", "/").TrimStart('/');
+            string assetPath = "Assets/" + assetRel;
             AssetDatabase.Refresh();
             AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
             return new { dst_path = assetPath, size_bytes = new FileInfo(fullDst).Length };
@@ -321,10 +330,32 @@ namespace UnityTools.Bridge
             return new { ok = false, cancelled = true, path = path };
         }
 
+        // Guvenlik: kopru uzerinden yalnizca sahne-yazimi icin guvenli menu onekleri.
+        // Ek onekler UNITYTOOLS_MENU_ALLOW (noktali-virgulle ayrilmis) ile eklenebilir.
+        private static readonly string[] _defaultMenuAllow = { "GameObject/", "Component/" };
+
+        private static bool MenuAllowed(string menu)
+        {
+            var allow = new List<string>(_defaultMenuAllow);
+            string extra = Environment.GetEnvironmentVariable("UNITYTOOLS_MENU_ALLOW");
+            if (!string.IsNullOrWhiteSpace(extra))
+            {
+                foreach (string part in extra.Split(';'))
+                    if (!string.IsNullOrWhiteSpace(part)) allow.Add(part.Trim());
+            }
+            foreach (string prefix in allow)
+                if (menu.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
         private static object ExecuteMenuItem(JObject p)
         {
             string menu = p["path"]?.ToString();
             if (string.IsNullOrEmpty(menu)) throw new ArgumentException("path is required");
+            if (!MenuAllowed(menu))
+                throw new InvalidOperationException(
+                    $"Menu item not allowed by bridge policy: '{menu}'. " +
+                    "Allow it via UNITYTOOLS_MENU_ALLOW (semicolon-separated prefixes).");
             bool ok = EditorApplication.ExecuteMenuItem(menu);
             return new { ok = ok };
         }
@@ -444,10 +475,25 @@ namespace UnityTools.Bridge
                     .SelectMany(a => a.GetTypes())
                     .FirstOrDefault(t => t.Name == typeName || t.FullName == typeName);
             if (compType == null) throw new InvalidOperationException($"Component type not found: {typeName}");
+            // Guvenlik: yalnizca UnityEngine.* veya projenin kendi script assembly'lerinden
+            // Component turlerine izin ver; rastgele assembly'lerden tur eklemeyi engelle.
+            if (!IsSafeComponentType(compType))
+                throw new InvalidOperationException($"Component type not allowed by bridge policy: {compType.FullName}");
             var comp = go.AddComponent(compType);
             Undo.RegisterCreatedObjectUndo(comp, $"Bridge: add {typeName}");
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             return new { ok = true, component = compType.Name };
+        }
+
+        private static bool IsSafeComponentType(Type t)
+        {
+            if (t == null) return false;
+            if (!typeof(Component).IsAssignableFrom(t)) return false;
+            string ns = t.Namespace ?? "";
+            if (ns.StartsWith("UnityEngine", StringComparison.Ordinal)) return true;
+            string asm = t.Assembly.GetName().Name ?? "";
+            // Projenin kendi script assembly'leri (Assembly-CSharp, Assembly-CSharp-Editor, ...).
+            return asm.StartsWith("Assembly-CSharp", StringComparison.Ordinal);
         }
 
         private static object RemoveComponent(JObject p)

@@ -3,13 +3,16 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import socket
 import threading
 import uuid
+from pathlib import Path
 from typing import Any, Optional
 
 from ..core.config import Config
 from ..core.protocol import RpcRequest, RpcResponse
+from ..core.security import is_loopback_host
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +34,15 @@ class UnrealBridge:
                 return True
             preferred = int(getattr(self.config, "unreal_bridge_port", 8777))
             host = getattr(self.config, "unreal_bridge_host", "127.0.0.1")
+            if not is_loopback_host(host) and not getattr(self.config, "allow_remote", False):
+                logger.error(
+                    "Unreal bridge host %s loopback degil; loopback disi baglanti icin "
+                    "UNITYTOOLS_ALLOW_REMOTE=1 ve bir token gerekir.",
+                    host,
+                )
+                return False
+            token = getattr(self.config, "bridge_token", "") or ""
+            active_project = os.getenv("UNREALTOOLS_ACTIVE_PROJECT", "").strip()
             candidates = [preferred] + [p for p in range(8777, 8801) if p != preferred]
             for port in candidates:
                 s: socket.socket | None = None
@@ -39,7 +51,10 @@ class UnrealBridge:
                     connect_timeout = timeout if port == preferred else min(timeout, 0.15)
                     s.settimeout(connect_timeout)
                     s.connect((host, port))
-                    if not self._probe_connected_socket(s, timeout=min(connect_timeout, 1.0)):
+                    if not self._probe_connected_socket(s, timeout=min(connect_timeout, 1.0), token=token):
+                        s.close()
+                        continue
+                    if active_project and not self._probe_project_match(s, active_project, timeout=min(timeout, 1.0), token=token):
                         s.close()
                         continue
                     s.settimeout(None)
@@ -75,7 +90,12 @@ class UnrealBridge:
         timeout = float(timeout if timeout is not None else getattr(self.config, "unreal_rpc_timeout", 180.0))
         if not self.is_connected():
             raise UnrealNotConnectedError("Could not connect to Unreal Editor bridge. Is Unreal open and UnrealToolsBridge enabled?")
-        request = RpcRequest(id=str(uuid.uuid4())[:8], method=method, params=params or {})
+        request = RpcRequest(
+            id=str(uuid.uuid4())[:8],
+            method=method,
+            params=params or {},
+            token=(getattr(self.config, "bridge_token", "") or None),
+        )
         response = self._send_and_receive(request, timeout=timeout)
         if response.error:
             raise RuntimeError(f"Unreal RPC error ({response.error.code}): {response.error.message}")
@@ -84,7 +104,7 @@ class UnrealBridge:
     def _send_and_receive(self, request: RpcRequest, timeout: float) -> RpcResponse:
         with self._lock:
             assert self._sock is not None
-            payload = request.model_dump_json().encode("utf-8") + b"\n"
+            payload = request.model_dump_json(exclude_none=True).encode("utf-8") + b"\n"
             try:
                 self._sock.sendall(payload)
                 self._sock.settimeout(timeout)
@@ -119,8 +139,10 @@ class UnrealBridge:
             return False
 
     @staticmethod
-    def _probe_connected_socket(sock: socket.socket, timeout: float) -> bool:
+    def _probe_connected_socket(sock: socket.socket, timeout: float, token: str = "") -> bool:
         request = {"id": str(uuid.uuid4())[:8], "method": "ping", "params": {}}
+        if token:
+            request["token"] = token
         try:
             sock.settimeout(timeout)
             sock.sendall(json.dumps(request).encode("utf-8") + b"\n")
@@ -136,3 +158,36 @@ class UnrealBridge:
             return bool(result.get("pong"))
         except Exception:
             return False
+
+    @staticmethod
+    def _probe_project_match(sock: socket.socket, active_project: str, timeout: float, token: str = "") -> bool:
+        request = {"id": str(uuid.uuid4())[:8], "method": "get_project_info", "params": {}}
+        if token:
+            request["token"] = token
+        try:
+            sock.settimeout(timeout)
+            sock.sendall(json.dumps(request).encode("utf-8") + b"\n")
+            buffer = b""
+            while b"\n" not in buffer:
+                chunk = sock.recv(65536)
+                if not chunk:
+                    return False
+                buffer += chunk
+            line, _, _ = buffer.partition(b"\n")
+            data = json.loads(line.decode("utf-8"))
+            info = data.get("result") or {}
+            remote = str(info.get("project_dir_abs") or info.get("project_dir") or "")
+            if not remote:
+                return False
+            active_norm = _norm_path(active_project)
+            remote_norm = _norm_path(remote)
+            return bool(active_norm and remote_norm and active_norm == remote_norm)
+        except Exception:
+            return False
+
+
+def _norm_path(value: str) -> str:
+    try:
+        return str(Path(value).expanduser().resolve()).rstrip("\\/").lower()
+    except Exception:
+        return value.replace("/", "\\").rstrip("\\").lower()

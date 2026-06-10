@@ -35,7 +35,12 @@ from .context_manager import ContextManager
 logger = logging.getLogger(__name__)
 
 
-READER_SYSTEM_PROMPT = """You are the FAST READER agent for UnityTools.
+READER_SYSTEM_PROMPT = """You are the FAST READER agent for UnityTools / UnrealTools GameStudio.
+
+Critical engine routing:
+- If ENGINE_CONTEXT says Unreal, read and reason about Unreal project/level/assets and prefer unreal_* tools.
+- If ENGINE_CONTEXT says Unity, read and reason about Unity scene/assets and prefer unity_* tools.
+- Never output raw JSON to the user.
 
 Role:
 - Read the user's request and the live Unity context.
@@ -48,7 +53,12 @@ Good output:
 """
 
 
-MASTER_SYSTEM_PROMPT = """Sen bir MASTER PLANNER ve ARCHITECT'sin. Unity Editor iÃ§in gÃ¶revleri planlayan Ã¼st dÃ¼zey bir AI'sÄ±n.
+MASTER_SYSTEM_PROMPT = """Sen bir MASTER PLANNER ve ARCHITECT'sin. Unity/Unreal GameStudio gorevlerini planlayan ust duzey bir AI'sin.
+
+CRITICAL ENGINE ROUTING:
+- ENGINE_CONTEXT: Unreal ise unreal_* tool'lari planla; Unity tool'u planlama.
+- ENGINE_CONTEXT: Unity ise unity_* tool'lari planla; Unreal tool'u planlama.
+- JSON plan sadece internal pipeline icindir. Kullaniciya final cevapta ham JSON yazma.
 
 === ROLÃœN ===
 KullanÄ±cÄ±dan gelen istekleri analiz eder, stratejik planlar yaparsÄ±n. Ama tool'larÄ± DOÄRUDAN Ã‡AÄIRMAZSIN.
@@ -194,7 +204,12 @@ KÃ¶tÃ¼ Plan:
 """
 
 
-WORKER_SYSTEM_PROMPT = """Sen bir WORKER EXECUTOR'sun. Unity Editor'de komutlarÄ± Ã§alÄ±ÅŸtÄ±ran alt dÃ¼zey bir AI'sÄ±n.
+WORKER_SYSTEM_PROMPT = """Sen bir WORKER EXECUTOR'sun. Unity/Unreal GameStudio komutlarini tool'larla calistiran alt duzey AI'sin.
+
+CRITICAL ENGINE ROUTING:
+- ENGINE_CONTEXT: Unreal ise sadece unreal_* tool'larini kullan. Unity tool'u kullanma.
+- ENGINE_CONTEXT: Unity ise sadece unity_* tool'larini kullan. Unreal tool'u kullanma.
+- Final kullanici metnine ham JSON basma; JSON yalnizca internal rapor icin.
 
 === ROLÃœN ===
 Master agent'tan gelen DETAYLI talimatlarÄ± alÄ±r ve tool'larÄ± Ã§aÄŸÄ±rarak uygularsÄ±n.
@@ -341,11 +356,13 @@ class DualAgentOrchestrator:
         reader_model: str = "qwen2.5:14b-instruct",
         enable_memory: bool = True,
         enable_context: bool = True,
+        engine_context: str = "auto",
     ) -> None:
         self.config = config
         self.master_model = master_model
         self.worker_model = worker_model
         self.reader_model = reader_model
+        self.engine_context = (engine_context or "auto").lower()
 
         # Reader orchestrator (fast context interpretation, no writes)
         reader_config = self._clone_config(config, reader_model)
@@ -355,7 +372,7 @@ class DualAgentOrchestrator:
         # Master orchestrator (planning, no tools)
         master_config = self._clone_config(config, master_model)
         self.master = Orchestrator(master_config)
-        self.master.max_tokens = 4096  # Master doesn't need huge context
+        self.master.max_tokens = 2048  # Keep local master planning responsive.
 
         # Worker orchestrator (execution, with tools)
         worker_config = self._clone_config(config, worker_model)
@@ -497,6 +514,7 @@ class DualAgentOrchestrator:
                 logger.info("Worker executing step %d: %s", step_id, description)
 
                 # Worker executes with tools
+                worker_prompt = self._with_engine_hint(worker_prompt)
                 worker_result = self.worker.chat(
                     worker_prompt,
                     on_tool_call=on_tool_call,
@@ -667,7 +685,7 @@ EÄŸer hata varsa, ne olduÄŸunu aÃ§Ä±kla.
         live_context: dict[str, Any] | None = None,
     ) -> str:
         """Build enhanced master prompt with context and memory."""
-        prompt_parts = [f"KullanÄ±cÄ± isteÄŸi: {user_message}\n"]
+        prompt_parts = [self._engine_hint(), f"KullanÄ±cÄ± isteÄŸi: {user_message}\n"]
 
         if reader_brief:
             prompt_parts.append(f"\n=== FAST READER BRIEF ===\n{reader_brief}\n")
@@ -746,14 +764,30 @@ PlanÄ± ÅŸu formatta JSON olarak ver:
         from .tool_registry import get_tool
 
         text = (user_message or "").lower()
-        plan: list[tuple[str, dict[str, Any]]] = [
-            ("unity_get_project_info", {}),
-            ("unity_get_scene_catalog", {"max": 350}),
-        ]
-        if any(w in text for w in ("asset", "prefab", "tree", "agac", "ağaç", "rock", "kaya", "prop", "real", "realistic", "relis")):
-            plan.append(("unity_get_asset_catalog_summary", {}))
-        if any(w in text for w in ("kas", "kasma", "performans", "performance", "triangle", "poly", "lod", "optimize")):
-            plan.append(("unity_profile_scene_performance", {"max_objects": 10000}))
+        wants_plan_only = any(w in text for w in ("plan", "hazirla", "hazırla", "tasarla", "design", "blueprint", "mimari"))
+        wants_ui_plan = any(w in text for w in ("ui", "hud", "menu", "inventory", "settings", "widget", "umg"))
+
+        if self.engine_context == "unreal":
+            actor_limit = 80 if (wants_plan_only or wants_ui_plan) else 250
+            plan: list[tuple[str, dict[str, Any]]] = [
+                ("unreal_get_project_info", {}),
+                ("unreal_list_level_actors", {"max_results": actor_limit}),
+            ]
+            wants_real_asset = any(w in text for w in ("asset", "prefab", "tree", "agac", "ağaç", "rock", "kaya", "prop", "realistic", "relis")) or re.search(r"\breal\b", text)
+            if wants_real_asset:
+                plan.append(("unreal_get_asset_catalog_summary", {"max_assets": 1500}))
+            if any(w in text for w in ("scan", "tara", "analyze project", "proje tara", "project scan")):
+                plan.append(("unreal_scan_project", {"max_assets": 3000, "max_actors": 500}))
+        else:
+            plan = [
+                ("unity_get_project_info", {}),
+                ("unity_get_scene_catalog", {"max": 350}),
+            ]
+            wants_real_asset = any(w in text for w in ("asset", "prefab", "tree", "agac", "ağaç", "rock", "kaya", "prop", "realistic", "relis")) or re.search(r"\breal\b", text)
+            if wants_real_asset:
+                plan.append(("unity_get_asset_catalog_summary", {}))
+            if any(w in text for w in ("kas", "kasma", "performans", "performance", "triangle", "poly", "lod", "optimize")):
+                plan.append(("unity_profile_scene_performance", {"max_objects": 10000}))
 
         results: dict[str, Any] = {}
         for tool_name, params in plan:
@@ -769,14 +803,16 @@ PlanÄ± ÅŸu formatta JSON olarak ver:
             results[tool_name] = result
             if on_tool_result:
                 on_tool_result(tool_name, result)
-            if self.context and tool_name == "unity_get_scene_catalog" and isinstance(result, dict):
-                objects = result.get("objects") or result.get("items") or []
+            if self.context and tool_name in {"unity_get_scene_catalog", "unreal_list_level_actors"} and isinstance(result, dict):
+                objects = result.get("objects") or result.get("items") or result.get("actors") or []
                 if isinstance(objects, list):
                     self.context.update_scene(objects)
         return results
 
     def _reader_brief(self, user_message: str, live_context: dict[str, Any]) -> str:
-        prompt = f"""Kullanici istegi:
+        prompt = f"""{self._engine_hint()}
+
+Kullanici istegi:
 {user_message}
 
 Canli okuma sonuclari:
@@ -795,6 +831,30 @@ Planner icin kisa Turkce briefing yaz. JSON yazma. Sadece ne var, ne yapilmali, 
         except Exception as exc:
             logger.warning("Reader brief failed: %s", exc)
             return ""
+
+    def _engine_hint(self) -> str:
+        if self.engine_context == "unreal":
+            return (
+                "ENGINE_CONTEXT: Unreal Editor / private GameStudio mode.\n"
+                "- Use unreal_* tools for project scan, level, actor, asset, import, UI/HUD planning, build, and gameplay work.\n"
+                "- Do not use Unity tools unless the user explicitly says Unity.\n"
+                "- Do not answer with raw JSON to the user. JSON is only internal planning.\n"
+                "- If the user asks for a plan, write a clear Turkish/English studio plan and save/execute tool work when available.\n"
+            )
+        if self.engine_context == "unity":
+            return (
+                "ENGINE_CONTEXT: Unity Editor / private GameStudio mode.\n"
+                "- Use unity_* tools for scene, GameObject, asset, material, Autopilot, and optimization work.\n"
+                "- Do not use Unreal tools unless the user explicitly says Unreal.\n"
+                "- Do not answer with raw JSON to the user. JSON is only internal planning.\n"
+            )
+        return (
+            "ENGINE_CONTEXT: auto. Infer Unity vs Unreal from the user request.\n"
+            "- Do not answer with raw JSON to the user. JSON is only internal planning.\n"
+        )
+
+    def _with_engine_hint(self, prompt: str) -> str:
+        return f"{self._engine_hint()}\nWorker instruction:\n{prompt}"
     
     def _update_context_from_tools(self, tool_calls: list[dict[str, Any]]) -> None:
         """Update context manager from tool results."""

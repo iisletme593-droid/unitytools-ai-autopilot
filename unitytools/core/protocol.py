@@ -15,6 +15,9 @@ class RpcRequest(BaseModel):
     id: str
     method: str  # "create_cube", "import_fbx", "list_scene_objects" vs.
     params: dict[str, Any] = Field(default_factory=dict)
+    # Paylasilan gizli token (UNITYTOOLS_SECRET/BRIDGE_TOKEN). Editor tarafi
+    # yapilandirilmissa bunu sabit zamanli karsilastirir. None ise gonderilmez.
+    token: Optional[str] = None
 
 
 class RpcError(BaseModel):

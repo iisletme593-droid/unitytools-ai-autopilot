@@ -14,6 +14,11 @@
       "Name": "UnrealToolsBridge",
       "Type": "Editor",
       "LoadingPhase": "Default"
+    },
+    {
+      "Name": "UnrealToolsRuntime",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
     }
   ],
   "Plugins": [

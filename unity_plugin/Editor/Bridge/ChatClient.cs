@@ -21,6 +21,7 @@ namespace UnityTools.Bridge
         private NetworkStream _stream;
         private Thread _readThread;
         private volatile bool _running;
+        private readonly string _token;
 
         public event Action OnDisconnected;
         public event Action<Exception> OnError;
@@ -29,6 +30,48 @@ namespace UnityTools.Bridge
         {
             Host = host;
             Port = port;
+            _token = ResolveToken();
+        }
+
+        // Paylasilan token: env (UNITYTOOLS_BRIDGE_TOKEN/SECRET/KEY), yoksa proje .env.
+        // Chat-server tarafindaki token ile ayni olmali; aksi halde mesajlar reddedilir.
+        private static string ResolveToken()
+        {
+            string[] keys = { "UNITYTOOLS_BRIDGE_TOKEN", "UNITYTOOLS_SECRET", "UNITYTOOLS_KEY" };
+            foreach (string k in keys)
+            {
+                string v = Environment.GetEnvironmentVariable(k);
+                if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+            }
+            try
+            {
+                string projectRoot = System.IO.Directory.GetParent(Application.dataPath)?.FullName ?? "";
+                string envPath = System.IO.Path.Combine(projectRoot, ".env");
+                if (System.IO.File.Exists(envPath))
+                {
+                    foreach (string raw in System.IO.File.ReadAllLines(envPath))
+                    {
+                        string line = raw.Trim();
+                        if (line.StartsWith("#")) continue;
+                        foreach (string k in keys)
+                        {
+                            string prefix = k + "=";
+                            if (line.StartsWith(prefix, StringComparison.Ordinal))
+                            {
+                                string value = line.Substring(prefix.Length).Trim();
+                                if (!string.IsNullOrWhiteSpace(value)) return value;
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return "";
+        }
+
+        private void AddToken(JObject message)
+        {
+            if (!string.IsNullOrEmpty(_token)) message["token"] = _token;
         }
 
         public bool Connect(int timeoutMs = 2000)
@@ -88,26 +131,32 @@ namespace UnityTools.Bridge
 
         public void SendUserMessage(string content)
         {
-            Send(new JObject
+            var msg = new JObject
             {
                 ["type"] = "user_message",
                 ["content"] = content,
-            });
+            };
+            AddToken(msg);
+            Send(msg);
         }
 
         public void SendUserMessageWithImages(string content, JArray images)
         {
-            Send(new JObject
+            var msg = new JObject
             {
                 ["type"] = "user_message_with_images",
                 ["content"] = content,
                 ["images"] = images ?? new JArray(),
-            });
+            };
+            AddToken(msg);
+            Send(msg);
         }
 
         public void SendReset()
         {
-            Send(new JObject { ["type"] = "reset" });
+            var msg = new JObject { ["type"] = "reset" };
+            AddToken(msg);
+            Send(msg);
         }
 
         public void SendPing()

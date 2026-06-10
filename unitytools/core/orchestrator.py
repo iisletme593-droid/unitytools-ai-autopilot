@@ -81,6 +81,16 @@ Kullanici Unreal/UE/UE5 isterse Unity tool'lari yerine unreal_* tool'larini kull
 - FBX/OBJ/GLB/GLTF/texture/audio import ve dirty package save
 - Unity -> Unreal migration icin once source assetleri staging'e kopyala, sonra Unreal import et
 
+=== GAMESTUDIO LEVELS ===
+Level 1 Basic Assistant: aciklar ve onerir.
+Level 2 Coding Agent: dosya duzenler ve test calistirir.
+Level 3 Autonomous Engineering Agent: repo tarar, planlar, uygular, debug eder.
+Level 4 Unreal Development Agent: C++, Blueprint, asset, level, animation, Niagara, build/packaging.
+Level 5 Autonomous Game Director AI: creative kararlar verir ve oynanabilir iyilestirme yapar.
+Level 6 Self-Evolving Game Studio: player data -> fun analysis -> safe mutation -> QA -> memory dongusu.
+Kullanici evrimlesen studyodan bahsederse gamestudio_* tool'lariyla manifest, roadmap,
+experiment memory ve iteration plan olustur. Kontrolsuz self-modification yapma.
+
 === DAVRANIS KURALLARI ===
 0. Kullanici bir seyi yapma derse (ornegin "sahneye koyma", "silme", "degistirme"),
    bu negatif talimat en yuksek onceliktir. Planinda bile yasaklanan islemi yazma.
@@ -442,6 +452,7 @@ class Orchestrator:
             "options": {
                 "temperature": 0.4,
                 "num_ctx": 8192,
+                "num_predict": max(256, int(self.max_tokens)),
             },
         }
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -576,12 +587,69 @@ class Orchestrator:
         if any(word in text for word in ("game studio", "studio", "oyun studyosu", "oyun stüdyosu", "gameplay", "ui", "hud", "multiplayer", "replication", "dedicated", "steam", "build")):
             selected.update(
                 {
+                    "gamestudio_get_evolution_architecture",
+                    "gamestudio_list_templates",
+                    "gamestudio_plan_unreal_fast_action",
+                    "gamestudio_preflight_prompt",
+                    "gamestudio_initialize_self_evolving_studio",
+                    "gamestudio_record_game_experiment",
+                    "gamestudio_create_iteration_plan",
                     "unreal_scan_project",
+                    "unreal_open_level",
                     "unreal_create_basic_level",
                     "unreal_setup_studio_lighting",
                     "unreal_create_blockout_map",
+                    "unreal_create_arena_survivor_prototype",
+                    "unreal_apply_arena_survivor_runtime_scaffold",
+                    "unreal_spawn_arena_survivor_player_pawn",
+                    "unreal_spawn_arena_survivor_placeholder_enemies",
+                    "unreal_reset_arena_survivor_runtime_state",
+                    "unreal_simulate_arena_survivor_wave_clear",
+                    "unreal_simulate_arena_survivor_pickup_collect",
                     "unreal_search_assets_semantic",
                     "unreal_get_asset_catalog_summary",
+                    "unreal_save_dirty_packages",
+                }
+            )
+
+        if any(word in text for word in ("evolve", "evolving", "self-evolving", "evrim", "evrimles", "evrimle", "transformens", "director ai", "liveops", "player data", "fun analysis", "agent roles")):
+            selected.update(
+                {
+                    "gamestudio_get_evolution_architecture",
+                    "gamestudio_list_templates",
+                    "gamestudio_plan_unreal_fast_action",
+                    "gamestudio_preflight_prompt",
+                    "gamestudio_initialize_self_evolving_studio",
+                    "gamestudio_record_game_experiment",
+                    "gamestudio_create_iteration_plan",
+                    "unreal_scan_project",
+                    "unreal_open_level",
+                    "unreal_get_project_info",
+                    "unreal_get_asset_catalog_summary",
+                    "unreal_create_arena_survivor_prototype",
+                    "unreal_open_level",
+                    "unreal_apply_arena_survivor_runtime_scaffold",
+                    "unreal_spawn_arena_survivor_player_pawn",
+                    "unreal_spawn_arena_survivor_placeholder_enemies",
+                    "unreal_reset_arena_survivor_runtime_state",
+                    "unreal_simulate_arena_survivor_wave_clear",
+                    "unreal_simulate_arena_survivor_pickup_collect",
+                }
+            )
+
+        if any(word in text for word in ("arena", "survivor", "wave", "prototype", "prototip", "playable slice", "seed game")):
+            selected.update(
+                {
+                    "gamestudio_record_game_experiment",
+                    "gamestudio_create_iteration_plan",
+                    "unreal_create_arena_survivor_prototype",
+                    "unreal_apply_arena_survivor_runtime_scaffold",
+                    "unreal_spawn_arena_survivor_player_pawn",
+                    "unreal_spawn_arena_survivor_placeholder_enemies",
+                    "unreal_reset_arena_survivor_runtime_state",
+                    "unreal_simulate_arena_survivor_wave_clear",
+                    "unreal_simulate_arena_survivor_pickup_collect",
+                    "unreal_scan_project",
                     "unreal_save_dirty_packages",
                 }
             )
@@ -592,6 +660,7 @@ class Orchestrator:
                     "unreal_ping",
                     "unreal_scan_project",
                     "unreal_get_project_info",
+                    "unreal_open_level",
                     "unreal_list_level_actors",
                     "unreal_find_level_actors_semantic",
                     "unreal_search_assets_semantic",
@@ -599,6 +668,13 @@ class Orchestrator:
                     "unreal_create_basic_level",
                     "unreal_setup_studio_lighting",
                     "unreal_create_blockout_map",
+                    "unreal_create_arena_survivor_prototype",
+                    "unreal_apply_arena_survivor_runtime_scaffold",
+                    "unreal_spawn_arena_survivor_player_pawn",
+                    "unreal_spawn_arena_survivor_placeholder_enemies",
+                    "unreal_reset_arena_survivor_runtime_state",
+                    "unreal_simulate_arena_survivor_wave_clear",
+                    "unreal_simulate_arena_survivor_pickup_collect",
                     "unreal_spawn_basic_actor",
                     "unreal_set_actor_transform",
                     "unreal_import_asset",

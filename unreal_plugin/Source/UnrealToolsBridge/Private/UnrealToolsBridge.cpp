@@ -3,18 +3,21 @@
 #include "Async/Async.h"
 #include "Containers/Queue.h"
 #include "Containers/Ticker.h"
+#include "Editor.h"
 #include "Framework/Docking/TabManager.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "Json.h"
 #include "LevelEditor.h"
 #include "Misc/Paths.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
 #include "Sockets.h"
 #include "SocketSubsystem.h"
 #include "Styling/CoreStyle.h"
 #include "ToolMenus.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -37,8 +40,19 @@ public:
     {
         Host = TEXT("127.0.0.1");
         Port = 7778;
+        // Guvenlik: interpreter'i acik bir mutlak yolla override edilebilir kil
+        // (PATH'ten bulunan sahte bir 'python' calistirilmasini onlemek icin).
         Command = TEXT("python");
+        {
+            FString PyOverride = FPlatformMisc::GetEnvironmentVariable(TEXT("UNITYTOOLS_PYTHON"));
+            PyOverride.TrimStartAndEndInline();
+            if (!PyOverride.IsEmpty())
+            {
+                Command = PyOverride;
+            }
+        }
         Arguments = TEXT("-m unitytools.cli.entry chat-server --use-dual-agent --engine unreal");
+        AuthToken = ResolveAuthToken();
 
         ChildSlot
         [
@@ -137,6 +151,92 @@ public:
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
                 [
+                    SNew(SBorder)
+                    .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+                    .BorderBackgroundColor(FLinearColor(0.040f, 0.049f, 0.066f, 1.0f))
+                    .Padding(10)
+                    [
+                        SNew(SVerticalBox)
+                        + SVerticalBox::Slot().AutoHeight()
+                        [
+                            SNew(SHorizontalBox)
+                            + SHorizontalBox::Slot().FillWidth(1.0f)
+                            [
+                                SNew(SVerticalBox)
+                                + SVerticalBox::Slot().AutoHeight()
+                                [
+                                    SNew(STextBlock)
+                                    .Text(LOCTEXT("SceneControlTitle", "Sahne kontrolu"))
+                                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                                    .ColorAndOpacity(FLinearColor(0.58f, 0.66f, 0.78f, 1.0f))
+                                ]
+                                + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
+                                [
+                                    SAssignNew(ActiveSceneText, STextBlock)
+                                    .Text(LOCTEXT("ActiveSceneUnknown", "Aktif sahne: okunuyor..."))
+                                    .ColorAndOpacity(FLinearColor(0.78f, 0.84f, 0.92f, 1.0f))
+                                ]
+                            ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(6, 0, 0, 0)
+                            [
+                                SNew(SButton)
+                                .Text(LOCTEXT("RefreshScene", "Yenile"))
+                                .OnClicked(this, &SUnrealToolsChatPanel::OnRefreshSceneClicked)
+                            ]
+                        ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+                        [
+                            SNew(SHorizontalBox)
+                            + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 6, 0)
+                            [
+                                SAssignNew(SceneNameInput, SEditableTextBox)
+                                .HintText(LOCTEXT("SceneNameHint", "Sahne adi yaz: NewMap, Lvl_IntroRoom, UT_ArenaSurvivor_V001..."))
+                            ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                            [
+                                SNew(SButton)
+                                .Text(LOCTEXT("ListScenes", "Sahneleri Listele"))
+                                .OnClicked(this, &SUnrealToolsChatPanel::OnListLevelsClicked)
+                            ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                            [
+                                SNew(SButton)
+                                .Text(LOCTEXT("OpenScene", "Ac"))
+                                .OnClicked(this, &SUnrealToolsChatPanel::OnOpenSceneClicked)
+                            ]
+                            + SHorizontalBox::Slot().AutoWidth()
+                            [
+                                SNew(SButton)
+                                .Text(LOCTEXT("UseActiveScene", "Bu Sahnede Calis"))
+                                .OnClicked(this, &SUnrealToolsChatPanel::OnUseActiveSceneClicked)
+                            ]
+                        ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+                        [
+                            SNew(SHorizontalBox)
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                            [
+                                SNew(STextBlock)
+                                .Text(LOCTEXT("QuickActionsLabel", "Hizli aksiyonlar:"))
+                                .ColorAndOpacity(FLinearColor(0.50f, 0.57f, 0.66f, 1.0f))
+                            ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                            [ MakePromptButton(LOCTEXT("SceneStatus", "Sahne Durumu"), TEXT("Sahne durumunu kontrol et ve risk ozetini goster.")) ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                            [ MakePromptButton(LOCTEXT("SelectedContext", "Seciliyi Oku"), TEXT("Secili actorleri oku ve context ozetle.")) ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                            [ MakePromptButton(LOCTEXT("CleanupPreview", "AI Temizlik Onizle"), TEXT("AI placed actors silmeden once onizle.")) ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                            [ MakePromptButton(LOCTEXT("ForestGround", "Orman Zemini"), TEXT("Open world zemini hazirla, forest ground ve hafif fog uygula.")) ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                            [ MakePromptButton(LOCTEXT("ForestScatter", "Agac/Kaya Serp"), TEXT("Sahneye 18 agac ve kaya dogal dagit, forest palet uygula.")) ]
+                            + SHorizontalBox::Slot().AutoWidth()
+                            [ MakePromptButton(LOCTEXT("PremiumLight", "Isik/Sis"), TEXT("Aktif sahneye premium isik kamera ve sis ayarla.")) ]
+                        ]
+                    ]
+                ]
+                + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+                [
                     SNew(SHorizontalBox)
                     + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
                     [
@@ -223,6 +323,7 @@ public:
         ];
 
         AddMessage(TEXT("System"), TEXT("UnrealTools Game Studio ready. Core will auto-start; use Start Studio if needed."));
+        RefreshActiveSceneLabel();
         TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSP(this, &SUnrealToolsChatPanel::ProcessInbound), 0.1f);
         FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSP(this, &SUnrealToolsChatPanel::AutoBoot), 1.0f);
     }
@@ -238,9 +339,12 @@ private:
     int32 Port = 7778;
     FString Command;
     FString Arguments;
+    FString AuthToken;
     TSharedPtr<SScrollBox> Messages;
     TSharedPtr<SMultiLineEditableTextBox> Input;
+    TSharedPtr<SEditableTextBox> SceneNameInput;
     TSharedPtr<STextBlock> StatusText;
+    TSharedPtr<STextBlock> ActiveSceneText;
     FTSTicker::FDelegateHandle TickerHandle;
     FProcHandle CoreProcess;
     uint32 CorePid = 0;
@@ -298,6 +402,49 @@ private:
         return FReply::Handled();
     }
 
+    FReply OnRefreshSceneClicked()
+    {
+        RefreshActiveSceneLabel();
+        AddMessage(TEXT("System"), FString::Printf(TEXT("Aktif sahne: %s"), *GetActiveMapName()));
+        return FReply::Handled();
+    }
+
+    FReply OnListLevelsClicked()
+    {
+        const FString Prompt = TEXT("Sahneleri listele hangi mapler var; aktif map bilgisini de goster.");
+        AddMessage(TEXT("Sen"), Prompt);
+        SendUserMessage(Prompt);
+        return FReply::Handled();
+    }
+
+    FReply OnOpenSceneClicked()
+    {
+        FString SceneName = SceneNameInput.IsValid() ? SceneNameInput->GetText().ToString() : TEXT("");
+        SceneName.TrimStartAndEndInline();
+        if (SceneName.IsEmpty())
+        {
+            AddMessage(TEXT("Error"), TEXT("Once sahne adi yaz: NewMap gibi."));
+            return FReply::Handled();
+        }
+        const FString Prompt = FString::Printf(TEXT("%s sahnesini ac"), *SceneName);
+        AddMessage(TEXT("Sen"), Prompt);
+        SendUserMessage(Prompt);
+        return FReply::Handled();
+    }
+
+    FReply OnUseActiveSceneClicked()
+    {
+        RefreshActiveSceneLabel();
+        const FString ActiveMap = GetActiveMapName();
+        const FString Prompt = FString::Printf(
+            TEXT("Bu aktif sahnede calis: %s. Once unreal_get_project_info ile aktif map'i dogrula, sonra bundan sonraki talimatlari bu sahneye uygula."),
+            *ActiveMap
+        );
+        AddMessage(TEXT("Sen"), Prompt);
+        SendUserMessage(Prompt);
+        return FReply::Handled();
+    }
+
     FReply OnSendClicked()
     {
         FString Text = Input.IsValid() ? Input->GetText().ToString() : TEXT("");
@@ -340,6 +487,36 @@ private:
         if (Input.IsValid())
         {
             Input->SetText(FText::FromString(Text));
+        }
+    }
+
+    FString GetActiveMapName() const
+    {
+        if (GEditor)
+        {
+            UWorld* World = GEditor->GetEditorWorldContext().World();
+            if (World)
+            {
+                return World->GetName();
+            }
+        }
+        return TEXT("Unknown");
+    }
+
+    void RefreshActiveSceneLabel()
+    {
+        const FString ActiveMap = GetActiveMapName();
+        if (ActiveSceneText.IsValid())
+        {
+            ActiveSceneText->SetText(FText::FromString(FString::Printf(TEXT("Aktif sahne: %s"), *ActiveMap)));
+        }
+        if (SceneNameInput.IsValid())
+        {
+            const FString CurrentText = SceneNameInput->GetText().ToString();
+            if (CurrentText.IsEmpty() && ActiveMap != TEXT("Unknown"))
+            {
+                SceneNameInput->SetText(FText::FromString(ActiveMap));
+            }
         }
     }
 
@@ -388,6 +565,18 @@ private:
             });
     }
 
+    TSharedRef<SWidget> MakePromptButton(const FText& Label, const FString Prompt)
+    {
+        return SNew(SButton)
+            .Text(Label)
+            .OnClicked_Lambda([this, Prompt]()
+            {
+                AddMessage(TEXT("Sen"), Prompt);
+                SendUserMessage(Prompt);
+                return FReply::Handled();
+            });
+    }
+
     void StartCore()
     {
         if (IsPortOpen(Port))
@@ -401,6 +590,8 @@ private:
             return;
         }
         FString WorkingDir = FPaths::ProjectDir();
+        FString ProjectDirFull = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+        FPlatformMisc::SetEnvironmentVar(TEXT("UNREALTOOLS_ACTIVE_PROJECT"), *ProjectDirFull);
         CoreProcess = FPlatformProcess::CreateProc(*Command, *Arguments, true, false, false, &CorePid, 0, *WorkingDir, nullptr);
         if (CoreProcess.IsValid())
         {
@@ -528,13 +719,36 @@ private:
         InboundLines.Enqueue(TEXT("{\"type\":\"error\",\"message\":\"Core baglantisi kapandi.\"}"));
     }
 
+    // Paylasilan token: env (UNITYTOOLS_BRIDGE_TOKEN/SECRET/KEY). Chat-server'daki
+    // token ile ayni olmali; aksi halde mesajlar reddedilir.
+    FString ResolveAuthToken() const
+    {
+        const TCHAR* Keys[] = { TEXT("UNITYTOOLS_BRIDGE_TOKEN"), TEXT("UNITYTOOLS_SECRET"), TEXT("UNITYTOOLS_KEY") };
+        for (const TCHAR* Key : Keys)
+        {
+            FString V = FPlatformMisc::GetEnvironmentVariable(Key);
+            V.TrimStartAndEndInline();
+            if (!V.IsEmpty())
+            {
+                return V;
+            }
+        }
+        return FString();
+    }
+
     void SendUserMessage(const FString& Text)
     {
         TSharedPtr<FJsonObject> Root = MakeShared<FJsonObject>();
         Root->SetStringField(TEXT("type"), TEXT("user_message"));
         Root->SetStringField(TEXT("content"), Text);
+        Root->SetStringField(TEXT("unreal_project"), FPaths::ConvertRelativePathToFull(FPaths::ProjectDir()));
+        if (!AuthToken.IsEmpty())
+        {
+            Root->SetStringField(TEXT("token"), AuthToken);
+        }
         FString Out;
-        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+        TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
+            TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Out);
         FJsonSerializer::Serialize(Root.ToSharedRef(), Writer);
         SendJson(Out);
     }
@@ -546,10 +760,24 @@ private:
             AddMessage(TEXT("Error"), TEXT("Bagli degil."));
             return;
         }
-        FString Line = Payload + TEXT("\n");
+        FString LinePayload = Payload;
+        LinePayload.ReplaceInline(TEXT("\r"), TEXT(""));
+        LinePayload.ReplaceInline(TEXT("\n"), TEXT(""));
+        FString Line = LinePayload + TEXT("\n");
         FTCHARToUTF8 Convert(*Line);
-        int32 Sent = 0;
-        Socket->Send(reinterpret_cast<const uint8*>(Convert.Get()), Convert.Length(), Sent);
+        const uint8* Data = reinterpret_cast<const uint8*>(Convert.Get());
+        int32 TotalSent = 0;
+        const int32 TotalBytes = Convert.Length();
+        while (TotalSent < TotalBytes)
+        {
+            int32 Sent = 0;
+            if (!Socket->Send(Data + TotalSent, TotalBytes - TotalSent, Sent) || Sent <= 0)
+            {
+                AddMessage(TEXT("Error"), TEXT("Mesaj core'a gonderilemedi."));
+                break;
+            }
+            TotalSent += Sent;
+        }
     }
 
     void HandleLine(const FString& Line)

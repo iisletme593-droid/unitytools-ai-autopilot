@@ -19,6 +19,7 @@ from typing import Any, Optional
 
 from ..core.config import Config
 from ..core.protocol import RpcRequest, RpcResponse
+from ..core.security import is_loopback_host
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,15 @@ class UnityBridge:
         with self._lock:
             if self._sock is not None:
                 return True
+            host = self.config.unity_bridge_host
+            if not is_loopback_host(host) and not getattr(self.config, "allow_remote", False):
+                logger.error(
+                    "Unity bridge host %s loopback degil; loopback disi baglanti icin "
+                    "UNITYTOOLS_ALLOW_REMOTE=1 ve bir token gerekir.",
+                    host,
+                )
+                return False
+            token = getattr(self.config, "bridge_token", "") or ""
             preferred = int(self.config.unity_bridge_port)
             candidates = [preferred] + [p for p in range(7777, 7801) if p != preferred]
             for port in candidates:
@@ -52,8 +62,8 @@ class UnityBridge:
                 try:
                     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     s.settimeout(timeout)
-                    s.connect((self.config.unity_bridge_host, port))
-                    if not self._probe_connected_socket(s, timeout=min(timeout, 1.0)):
+                    s.connect((host, port))
+                    if not self._probe_connected_socket(s, timeout=min(timeout, 1.0), token=token):
                         s.close()
                         continue
                     s.settimeout(None)  # blocking after handshake
@@ -95,7 +105,12 @@ class UnityBridge:
                 "Unity Editor'a bağlanılamadı. Editor'ün açık olduğundan ve "
                 "BridgeServer'ın çalıştığından emin ol."
             )
-        request = RpcRequest(id=str(uuid.uuid4())[:8], method=method, params=params or {})
+        request = RpcRequest(
+            id=str(uuid.uuid4())[:8],
+            method=method,
+            params=params or {},
+            token=(getattr(self.config, "bridge_token", "") or None),
+        )
         response = self._send_and_receive(request, timeout=timeout)
         if response.error:
             raise RuntimeError(f"Unity RPC hatası ({response.error.code}): {response.error.message}")
@@ -103,7 +118,7 @@ class UnityBridge:
     def _send_and_receive(self, request: RpcRequest, timeout: float) -> RpcResponse:
         with self._lock:
             assert self._sock is not None
-            payload = request.model_dump_json().encode("utf-8") + b"\n"
+            payload = request.model_dump_json(exclude_none=True).encode("utf-8") + b"\n"
             try:
                 self._sock.sendall(payload)
                 self._sock.settimeout(timeout)
@@ -133,8 +148,10 @@ class UnityBridge:
         return line
 
     @staticmethod
-    def _probe_connected_socket(sock: socket.socket, timeout: float) -> bool:
+    def _probe_connected_socket(sock: socket.socket, timeout: float, token: str = "") -> bool:
         request = {"id": str(uuid.uuid4())[:8], "method": "ping", "params": {}}
+        if token:
+            request["token"] = token
         try:
             sock.settimeout(timeout)
             sock.sendall(json.dumps(request).encode("utf-8") + b"\n")
