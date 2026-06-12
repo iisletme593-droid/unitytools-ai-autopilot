@@ -68,6 +68,21 @@ Ensure-Tool "python" "Python.Python.3.11" @(
     "$env:LOCALAPPDATA\Programs\Python\Python311\Scripts"
 )
 
+# Blender: asset uretim hatti icin (PATH'e girmez, klasorden tespit edilir;
+# unitytools BLENDER_EXECUTABLE ile veya otomatik tespitle bulur)
+$blenderExe = Get-ChildItem "$env:ProgramFiles\Blender Foundation\Blender*\blender.exe" -ErrorAction SilentlyContinue |
+    Sort-Object FullName -Descending | Select-Object -First 1
+if ($blenderExe) {
+    Write-Ok "Blender zaten kurulu: $($blenderExe.FullName)"
+} else {
+    Write-Warn2 "Blender bulunamadi, winget ile kuruluyor (asset uretimi icin)..."
+    winget install --id BlenderFoundation.Blender -e --source winget --accept-package-agreements --accept-source-agreements
+    $blenderExe = Get-ChildItem "$env:ProgramFiles\Blender Foundation\Blender*\blender.exe" -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending | Select-Object -First 1
+    if ($blenderExe) { Write-Ok "Blender kuruldu: $($blenderExe.FullName)" }
+    else { Write-Warn2 "Blender winget'le kurulamadi; sonra elle kurulabilir (blender.org). Devam ediliyor." }
+}
+
 # ---------------------------------------------------------------- 2. repo
 Write-Step "Repo hazirlaniyor: $InstallDir"
 $parent = Split-Path $InstallDir -Parent
