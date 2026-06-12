@@ -6,6 +6,7 @@ import logging
 import os
 import socket
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Optional
@@ -59,6 +60,7 @@ class UnrealBridge:
                         continue
                     s.settimeout(None)
                     self._sock = s
+                    self._buffer = b""  # eski bağlantıdan yarım satır taşmasın
                     self.config.unreal_bridge_port = port
                     logger.info("Unreal bridge connected: %s:%d", host, port)
                     return True
@@ -74,12 +76,17 @@ class UnrealBridge:
 
     def disconnect(self) -> None:
         with self._lock:
-            if self._sock is not None:
-                try:
-                    self._sock.close()
-                except Exception:
-                    pass
-                self._sock = None
+            self._drop_connection_locked()
+
+    def _drop_connection_locked(self) -> None:
+        """Soketi kapat ve buffer'ı sıfırla. self._lock tutulurken çağrılmalı."""
+        if self._sock is not None:
+            try:
+                self._sock.close()
+            except Exception:
+                pass
+            self._sock = None
+        self._buffer = b""
 
     def is_connected(self) -> bool:
         if self._sock is not None:
@@ -105,20 +112,38 @@ class UnrealBridge:
         with self._lock:
             assert self._sock is not None
             payload = request.model_dump_json(exclude_none=True).encode("utf-8") + b"\n"
+            deadline = time.monotonic() + timeout
             try:
                 self._sock.sendall(payload)
-                self._sock.settimeout(timeout)
-                line = self._read_line()
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise socket.timeout()
+                    self._sock.settimeout(remaining)
+                    line = self._read_line()
+                    try:
+                        data = json.loads(line.decode("utf-8"))
+                    except (UnicodeDecodeError, json.JSONDecodeError) as e:
+                        self._drop_connection_locked()
+                        raise UnrealNotConnectedError(
+                            f"Malformed RPC response, connection reset: {e}"
+                        ) from e
+                    if data.get("id") == request.id:
+                        return RpcResponse.model_validate(data)
+                    # Late reply from a previously timed-out call; discard so it
+                    # is not mistaken for this request's result.
+                    logger.warning(
+                        "Discarded mismatched RPC response (got id=%s, expected=%s, method=%s)",
+                        data.get("id"), request.id, request.method,
+                    )
             except socket.timeout as e:
                 raise TimeoutError(f"Unreal RPC timeout ({timeout:.1f}s). Editor may be busy compiling/importing.") from e
             except (BrokenPipeError, ConnectionResetError) as e:
-                self._sock = None
+                self._drop_connection_locked()
                 raise UnrealNotConnectedError(f"Connection lost: {e}") from e
             finally:
                 if self._sock is not None:
                     self._sock.settimeout(None)
-        data = json.loads(line.decode("utf-8"))
-        return RpcResponse.model_validate(data)
 
     def _read_line(self) -> bytes:
         assert self._sock is not None
