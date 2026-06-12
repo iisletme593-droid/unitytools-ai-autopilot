@@ -47,7 +47,7 @@ namespace Autopilot
             ConfigureImporters();
             int swapped = 0;
 
-            // â”€â”€ Player â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Player ─────────────────────────────────────────────────────────
             var player = GameObject.FindWithTag("Player");
             if (player != null)
             {
@@ -56,7 +56,7 @@ namespace Autopilot
                 AttachWeapon(player.transform, SwordAsset, KatanaAsset);
             }
 
-            // â”€â”€ Enemies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Enemies ────────────────────────────────────────────────────────
             var enemies = UnityEngine.Object.FindObjectsByType<Gameplay.EnemyAIController>(
                 FindObjectsInactive.Exclude);
             for (int i = 0; i < enemies.Length; i++)
@@ -175,7 +175,7 @@ namespace Autopilot
 
             if (handBone != null)
             {
-                // Kemige dogrudan bagla â€” kucuk offset
+                // Kemige dogrudan bagla — kucuk offset
                 w.transform.localPosition = new Vector3(0f, 0.05f, 0f);
                 w.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
             }

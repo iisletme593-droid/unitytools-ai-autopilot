@@ -96,10 +96,10 @@ Panel otomatik olarak `.env` dosyasındaki `USE_DUAL_AGENT` ayarını okur.
 - ✅ İlk denemede doğru sonuç istediğinizde
 
 ### Single-Agent Yeterli:
-- âš¡ Basit sorgular ("List scene objects")
-- âš¡ Tek tool çağrısı ("Create a cube")
-- âš¡ Hızlı yanıt gereken durumlar
-- âš¡ Deneme-yanılma yapılabilecek işler
+- ⚡ Basit sorgular ("List scene objects")
+- ⚡ Tek tool çağrısı ("Create a cube")
+- ⚡ Hızlı yanıt gereken durumlar
+- ⚡ Deneme-yanılma yapılabilecek işler
 
 ### Master'ın Değeri
 

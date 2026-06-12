@@ -44,13 +44,13 @@ def run_dual_chat(
     session: PromptSession = PromptSession(history=InMemoryHistory())
 
     def on_master_thinking(msg: str) -> None:
-        console.print(f"[bold magenta]ğŸ§  Master:[/bold magenta] [dim]{msg}[/dim]")
+        console.print(f"[bold magenta]🧠 Master:[/bold magenta] [dim]{msg}[/dim]")
 
     def on_worker_executing(msg: str) -> None:
-        console.print(f"[bold blue]âš™ï¸  Worker:[/bold blue] [dim]{msg}[/dim]")
+        console.print(f"[bold blue]⚙️  Worker:[/bold blue] [dim]{msg}[/dim]")
 
     def on_tool_call(name: str, params: dict) -> None:
-        console.print(f"[yellow]ğŸ”§ Tool:[/yellow] {name}")
+        console.print(f"[yellow]🔧 Tool:[/yellow] {name}")
         if params:
             syntax = Syntax(
                 str(params),
@@ -65,12 +65,12 @@ def run_dual_chat(
         if isinstance(result, dict):
             ok = result.get("ok", True)
             if ok:
-                console.print(f"[green]âœ“ {name} succeeded[/green]")
+                console.print(f"[green]✓ {name} succeeded[/green]")
             else:
                 error = result.get("error", "Unknown error")
-                console.print(f"[red]âœ— {name} failed: {error}[/red]")
+                console.print(f"[red]✗ {name} failed: {error}[/red]")
         else:
-            console.print(f"[green]âœ“ {name} completed[/green]")
+            console.print(f"[green]✓ {name} completed[/green]")
 
     while True:
         try:
@@ -103,14 +103,14 @@ def run_dual_chat(
             )
 
             # Show final result
-            console.print("\n[bold green]ğŸ“Š Result:[/bold green]")
+            console.print("\n[bold green]📊 Result:[/bold green]")
             console.print(Panel(result.text, border_style="green"))
 
             # Show stats
             console.print(
                 f"[dim]Steps: {len(result.worker_reports)} | "
                 f"Tools: {len(result.tool_calls)} | "
-                f"Success: {'âœ“' if result.success else 'âœ—'}[/dim]"
+                f"Success: {'✓' if result.success else '✗'}[/dim]"
             )
 
         except Exception as e:

@@ -561,7 +561,7 @@ namespace Autopilot
                 if (fixPlan.Count == 0 || score >= MaxScore) break;
                 if (score - prevScore < 1.0f) stagnant++;
                 else stagnant = 0;
-                if (stagnant >= 3) { Log("âš  Skor artmıyor, döngü durduruluyor."); break; }
+                if (stagnant >= 3) { Log("⚠ Skor artmıyor, döngü durduruluyor."); break; }
                 prevScore = score;
                 var fix = fixPlan[0];
                 float before = score;
@@ -605,7 +605,7 @@ namespace Autopilot
             if (weakRuns >= 3 && !learning.exhaustedFixes.Contains(fixId))
             {
                 learning.exhaustedFixes.Add(fixId);
-                Log($"âš  [{fixId}] 3 kez denendi, sonuç yok → kalıcı olarak atlandı.");
+                Log($"⚠ [{fixId}] 3 kez denendi, sonuç yok → kalıcı olarak atlandı.");
             }
         }
 
@@ -833,7 +833,7 @@ namespace Autopilot
                 // Tükenmiş gösterimi
                 bool exhausted = learning != null && learning.exhaustedFixes != null &&
                                  learning.exhaustedFixes.Contains(f.id);
-                EditorGUILayout.LabelField(exhausted ? "âš " : "→", GUILayout.Width(14));
+                EditorGUILayout.LabelField(exhausted ? "⚠" : "→", GUILayout.Width(14));
                 EditorGUILayout.LabelField(f.name, EditorStyles.miniLabel, GUILayout.Width(180));
                 EditorGUILayout.LabelField(f.description, EditorStyles.miniLabel, GUILayout.ExpandWidth(true));
                 EditorGUILayout.EndHorizontal();
@@ -857,7 +857,7 @@ namespace Autopilot
 
             var allStyle = new GUIStyle(GUI.skin.button)
                 { fontStyle = FontStyle.Bold, normal = { textColor = CGold } };
-            if (GUILayout.Button("âš¡  TÜMÜNÜ ÇALIŞTIR", allStyle, GUILayout.Height(32)))
+            if (GUILayout.Button("⚡  TÜMÜNÜ ÇALIŞTIR", allStyle, GUILayout.Height(32)))
                 RunAllFixes();
             EditorGUILayout.EndHorizontal();
 
