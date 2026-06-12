@@ -1,24 +1,24 @@
-﻿# ğŸš€ Dual-Agent Quick Start
+﻿# 🚀 Dual-Agent Quick Start
 
-## 5 Dakikada BaÅŸlangÄ±Ã§
+## 5 Dakikada Başlangıç
 
-### 1. Modelleri Ä°ndirin (Ä°lk Kez)
+### 1. Modelleri İndirin (İlk Kez)
 
 ```powershell
-# Master: GÃ¼Ã§lÃ¼ planlayÄ±cÄ± (9GB, 10-30s planlama)
+# Master: Güçlü planlayıcı (9GB, 10-30s planlama)
 ollama pull qwen2.5:14b-instruct
 
-# Worker: HÄ±zlÄ± executor (9GB, saniyeler iÃ§inde execution)
+# Worker: Hızlı executor (9GB, saniyeler içinde execution)
 ollama pull qwen2.5:14b-instruct
 ```
 
-**Bekleme sÃ¼releri**:
+**Bekleme süreleri**:
 - Qwen 2.5:14b: ~30-45 dakika (9GB)
 - Qwen 2.5:14b: ~10-15 dakika (9GB)
 
-### 2. Dual-Agent Modunu AktifleÅŸtirin
+### 2. Dual-Agent Modunu Aktifleştirin
 
-`.env` dosyanÄ±zda:
+`.env` dosyanızda:
 
 ```env
 UNITYTOOLS_PROVIDER=ollama
@@ -30,134 +30,134 @@ DUAL_AGENT_WORKER=qwen2.5:14b-instruct
 ### 3. Test Edin
 
 ```powershell
-# Terminal chat baÅŸlat
+# Terminal chat başlat
 unitytools dual-chat
 
-# Ä°lk komut (basit test)
+# İlk komut (basit test)
 > List all objects in the scene
 
-# Ä°kinci komut (karmaÅŸÄ±k test)
+# İkinci komut (karmaşık test)
 > Create a small forest with 15 realistic trees
 ```
 
-## ğŸ¯ Ä°lk KullanÄ±mda Beklentiler
+## 🎯 İlk Kullanımda Beklentiler
 
 ### Basit Komut: "List scene objects"
 
 ```
 [Master] Analyzing request... (5-10 saniye)
-  â†“ Plan: Single step, use unity_list_scene_objects
+  ↓ Plan: Single step, use unity_list_scene_objects
 [Worker] Executing... (2-3 saniye)
-  â†“ Tool: unity_list_scene_objects()
+  ↓ Tool: unity_list_scene_objects()
 [Master] Summarizing... (3-5 saniye)
-  â†“ Result: "Scene has 12 objects: Camera, Light, Cube..."
+  ↓ Result: "Scene has 12 objects: Camera, Light, Cube..."
 
 Toplam: ~15 saniye
 ```
 
-### KarmaÅŸÄ±k Komut: "Create a forest"
+### Karmaşık Komut: "Create a forest"
 
 ```
 [Master] Analyzing request... (30-60 saniye)
-  â†“ Deep analysis:
+  ↓ Deep analysis:
     - Check available tree assets
     - Analyze scene state
     - Calculate optimal placement
     - Prepare fallback plans
-  â†“ Plan: 3 steps with detailed parameters
+  ↓ Plan: 3 steps with detailed parameters
 
 [Worker] Step 1: Search tree assets... (5 saniye)
-  â†“ Found: 5 tree types
+  ↓ Found: 5 tree types
 
 [Worker] Step 2: Analyze scene... (3 saniye)
-  â†“ Found: Clear area at (0,0,0)
+  ↓ Found: Clear area at (0,0,0)
 
 [Worker] Step 3: Create forest... (8 saniye)
-  â†“ Created: 15 trees with natural scatter
+  ↓ Created: 15 trees with natural scatter
 
 [Master] Summarizing... (5 saniye)
-  â†“ Result: "Created forest with 15 trees..."
+  ↓ Result: "Created forest with 15 trees..."
 
 Toplam: ~70 saniye
 ```
 
-## ğŸ’¡ Ä°lk Deneme Ä°puÃ§larÄ±
+## 💡 İlk Deneme İpuçları
 
-### âœ… Ä°yi Ä°lk Komutlar
+### ✅ İyi İlk Komutlar
 
-1. **Basit sorgu** (master'Ä± tanÄ±yÄ±n):
+1. **Basit sorgu** (master'ı tanıyın):
    ```
    List all objects in the scene
    ```
 
-2. **Orta seviye** (planlama gÃ¶rmek iÃ§in):
+2. **Orta seviye** (planlama görmek için):
    ```
    Create 5 cubes in a line
    ```
 
-3. **KarmaÅŸÄ±k** (master'Ä±n gÃ¼cÃ¼nÃ¼ gÃ¶rmek iÃ§in):
+3. **Karmaşık** (master'ın gücünü görmek için):
    ```
    Create a small village with houses and trees
    ```
 
-### âŒ Ä°lk Denemede KaÃ§Ä±nÄ±n
+### ❌ İlk Denemede Kaçının
 
-1. **Ã‡ok karmaÅŸÄ±k istekler**:
+1. **Çok karmaşık istekler**:
    ```
    Create a complete game level with enemies, items, and lighting
    ```
-   â†’ Daha kÃ¼Ã§Ã¼k parÃ§alara bÃ¶lÃ¼n
+   → Daha küçük parçalara bölün
 
 2. **Belirsiz istekler**:
    ```
    Make something cool
    ```
-   â†’ Spesifik olun
+   → Spesifik olun
 
 3. **Asset gerektiren ama asset olmayan**:
    ```
    Place 50 medieval buildings
    ```
-   â†’ Ã–nce asset'lerinizi kontrol edin
+   → Önce asset'lerinizi kontrol edin
 
-## ğŸ“Š Performans Beklentileri
+## 📊 Performans Beklentileri
 
-| Komut Tipi | Master SÃ¼resi | Worker SÃ¼resi | Toplam |
+| Komut Tipi | Master Süresi | Worker Süresi | Toplam |
 |------------|---------------|---------------|--------|
 | Basit sorgu | 5-10s | 2-5s | ~15s |
-| Orta karmaÅŸÄ±k | 15-30s | 5-10s | ~40s |
-| Ã‡ok karmaÅŸÄ±k | 10-30s | 10-30s | ~90s |
+| Orta karmaşık | 15-30s | 5-10s | ~40s |
+| Çok karmaşık | 10-30s | 10-30s | ~90s |
 
-**Ã–nemli**: Master'Ä±n sÃ¼resi sabit deÄŸil, isteÄŸin karmaÅŸÄ±klÄ±ÄŸÄ±na gÃ¶re deÄŸiÅŸir.
+**Önemli**: Master'ın süresi sabit değil, isteğin karmaşıklığına göre değişir.
 
-## ğŸ“ Master'Ä±n DÃ¼ÅŸÃ¼nce SÃ¼reci
+## 🎓 Master'ın Düşünce Süreci
 
-Master 30-60 saniye ne yapÄ±yor?
+Master 30-60 saniye ne yapıyor?
 
 ```
-[0-10s]  Ä°steÄŸi parse et, anahtar kelimeleri Ã§Ä±kar
+[0-10s]  İsteği parse et, anahtar kelimeleri çıkar
 [10-20s] Mevcut durumu analiz et (assets, scene, constraints)
-[20-40s] OlasÄ± yaklaÅŸÄ±mlarÄ± deÄŸerlendir, en iyisini seÃ§
-[40-50s] DetaylÄ± plan oluÅŸtur (steps, parameters, fallbacks)
-[50-60s] PlanÄ± JSON'a Ã§evir, worker'a hazÄ±rla
+[20-40s] Olası yaklaşımları değerlendir, en iyisini seç
+[40-50s] Detaylı plan oluştur (steps, parameters, fallbacks)
+[50-60s] Planı JSON'a çevir, worker'a hazırla
 ```
 
-Bu sÃ¼re **boÅŸa gitmez**:
-- Hata oranÄ±nÄ± %80 azaltÄ±r
-- Ä°lk denemede baÅŸarÄ± ÅŸansÄ±nÄ± artÄ±rÄ±r
+Bu süre **boşa gitmez**:
+- Hata oranını %80 azaltır
+- İlk denemede başarı şansını artırır
 - Edge case'leri yakalar
-- Alternatif planlar hazÄ±rlar
+- Alternatif planlar hazırlar
 
-## ğŸ”§ Sorun Giderme
+## 🔧 Sorun Giderme
 
-### "Master Ã§ok yavaÅŸ"
+### "Master çok yavaş"
 
-**Normal**: 10-30s planlama beklenen davranÄ±ÅŸ  
+**Normal**: 10-30s planlama beklenen davranış  
 **Anormal**: >2 dakika
 
-Ã‡Ã¶zÃ¼m:
+Çözüm:
 ```powershell
-# Ollama'yÄ± restart edin
+# Ollama'yı restart edin
 taskkill /F /IM ollama.exe
 ollama serve
 
@@ -168,29 +168,29 @@ unitytools dual-chat
 ### "Worker hata veriyor"
 
 Kontrol edin:
-1. Unity Editor aÃ§Ä±k mÄ±?
-2. Bridge baÄŸlÄ± mÄ±? â†’ `unitytools unity-ping`
-3. Asset'ler var mÄ±? (asset gerektiren komutlarda)
+1. Unity Editor açık mı?
+2. Bridge bağlı mı? → `unitytools unity-ping`
+3. Asset'ler var mı? (asset gerektiren komutlarda)
 
-### "SonuÃ§ beklediÄŸim gibi deÄŸil"
+### "Sonuç beklediğim gibi değil"
 
-Master'Ä±n planÄ±nÄ± gÃ¶rmek iÃ§in:
+Master'ın planını görmek için:
 ```powershell
-# Debug mode ile Ã§alÄ±ÅŸtÄ±rÄ±n
+# Debug mode ile çalıştırın
 $env:LOG_LEVEL="DEBUG"
 unitytools dual-chat
 ```
 
-## ğŸ“š Sonraki AdÄ±mlar
+## 📚 Sonraki Adımlar
 
-1. âœ… Basit komutlarla alÄ±ÅŸÄ±n
-2. âœ… Master'Ä±n planlarÄ±nÄ± inceleyin (log'larda)
-3. âœ… KarmaÅŸÄ±k komutlar deneyin
-4. âœ… Kendi workflow'unuzu oluÅŸturun
+1. ✅ Basit komutlarla alışın
+2. ✅ Master'ın planlarını inceleyin (log'larda)
+3. ✅ Karmaşık komutlar deneyin
+4. ✅ Kendi workflow'unuzu oluşturun
 
-## ğŸ¯ GerÃ§ek DÃ¼nya Ã–rnekleri
+## 🎯 Gerçek Dünya Örnekleri
 
-### Ã–rnek 1: Prototip Sahne
+### Örnek 1: Prototip Sahne
 
 ```
 User: Create a prototype scene with ground, player spawn, and 3 enemy spawns
@@ -203,12 +203,12 @@ Master Plan (45s):
   5. Position camera to see all
 
 Worker Execution (15s):
-  âœ“ All steps completed
+  ✓ All steps completed
 
 Result: Clean prototype scene ready for testing
 ```
 
-### Ã–rnek 2: Asset Placement
+### Örnek 2: Asset Placement
 
 ```
 User: Place trees around the perimeter of the scene
@@ -221,27 +221,27 @@ Master Plan (60s):
   5. Randomize rotation and scale
 
 Worker Execution (25s):
-  âœ“ Found 3 tree types
-  âœ“ Scene bounds: 20x20
-  âœ“ Placed 16 trees around perimeter
+  ✓ Found 3 tree types
+  ✓ Scene bounds: 20x20
+  ✓ Placed 16 trees around perimeter
 
 Result: Natural-looking tree border
 ```
 
-## ğŸ’¬ Topluluk
+## 💬 Topluluk
 
-Deneyimlerinizi paylaÅŸÄ±n:
-- GitHub Issues: Sorunlar ve Ã¶neriler
-- GitHub Discussions: KullanÄ±m senaryolarÄ±
-- Pull Requests: Ä°yileÅŸtirmeler
+Deneyimlerinizi paylaşın:
+- GitHub Issues: Sorunlar ve öneriler
+- GitHub Discussions: Kullanım senaryoları
+- Pull Requests: İyileştirmeler
 
 ---
 
-**HazÄ±r mÄ±sÄ±nÄ±z?**
+**Hazır mısınız?**
 
 ```powershell
 unitytools dual-chat
 ```
 
-**Ä°yi planlamalar!** ğŸ¯
+**İyi planlamalar!** 🎯
 

@@ -1,75 +1,75 @@
-﻿# ğŸ¯ Dual-Agent System - Ã–zet
+﻿# 🎯 Dual-Agent System - Özet
 
-## âœ… Tamamlanan Ä°ÅŸler
+## ✅ Tamamlanan İşler
 
 ### 1. Core Implementation
-- âœ… `DualAgentOrchestrator` - Master/Worker hiyerarÅŸisi
-- âœ… `SimpleDualAgent` - Otomatik model routing
-- âœ… Master system prompt (planlama odaklÄ±)
-- âœ… Worker system prompt (execution odaklÄ±)
-- âœ… JSON plan extraction ve parsing
+- ✅ `DualAgentOrchestrator` - Master/Worker hiyerarşisi
+- ✅ `SimpleDualAgent` - Otomatik model routing
+- ✅ Master system prompt (planlama odaklı)
+- ✅ Worker system prompt (execution odaklı)
+- ✅ JSON plan extraction ve parsing
 
 ### 2. CLI Integration
-- âœ… `unitytools dual-chat` komutu
-- âœ… `--master` ve `--worker` parametreleri
-- âœ… Rich console output (renkli, formatted)
-- âœ… Callback system (on_master_thinking, on_worker_executing)
+- ✅ `unitytools dual-chat` komutu
+- ✅ `--master` ve `--worker` parametreleri
+- ✅ Rich console output (renkli, formatted)
+- ✅ Callback system (on_master_thinking, on_worker_executing)
 
 ### 3. Chat Server Integration
-- âœ… `ChatServer` dual-agent desteÄŸi
-- âœ… `use_dual_agent` parametresi
-- âœ… Unity Editor iÃ§in hello message (mode bilgisi)
-- âœ… Master/worker progress messages
+- ✅ `ChatServer` dual-agent desteği
+- ✅ `use_dual_agent` parametresi
+- ✅ Unity Editor için hello message (mode bilgisi)
+- ✅ Master/worker progress messages
 
 ### 4. Configuration
-- âœ… `.env` dosyasÄ±na dual-agent ayarlarÄ±
-- âœ… `USE_DUAL_AGENT`, `DUAL_AGENT_MASTER`, `DUAL_AGENT_WORKER`
-- âœ… Model cloning (farklÄ± modeller iÃ§in config)
+- ✅ `.env` dosyasına dual-agent ayarları
+- ✅ `USE_DUAL_AGENT`, `DUAL_AGENT_MASTER`, `DUAL_AGENT_WORKER`
+- ✅ Model cloning (farklı modeller için config)
 
 ### 5. Documentation
-- âœ… `DUAL_AGENT_GUIDE.md` - KapsamlÄ± kullanÄ±m kÄ±lavuzu
-- âœ… README.md gÃ¼ncellemesi
-- âœ… API reference
-- âœ… Best practices
-- âœ… Troubleshooting guide
+- ✅ `DUAL_AGENT_GUIDE.md` - Kapsamlı kullanım kılavuzu
+- ✅ README.md güncellemesi
+- ✅ API reference
+- ✅ Best practices
+- ✅ Troubleshooting guide
 
-## ğŸ“ OluÅŸturulan Dosyalar
+## 📁 Oluşturulan Dosyalar
 
 ```
 unitytools/
-â”œâ”€â”€ core/
-â”‚   â”œâ”€â”€ dual_agent.py           # Master-Worker orchestrator
-â”‚   â”œâ”€â”€ simple_dual_agent.py    # Smart routing
-â”‚   â””â”€â”€ chat_server.py          # Updated for dual-agent
-â”œâ”€â”€ cli/
-â”‚   â”œâ”€â”€ dual_chat.py            # Dual-agent REPL
-â”‚   â””â”€â”€ entry.py                # Updated with dual-chat command
-DUAL_AGENT_GUIDE.md             # KullanÄ±m kÄ±lavuzu
+├── core/
+│   ├── dual_agent.py           # Master-Worker orchestrator
+│   ├── simple_dual_agent.py    # Smart routing
+│   └── chat_server.py          # Updated for dual-agent
+├── cli/
+│   ├── dual_chat.py            # Dual-agent REPL
+│   └── entry.py                # Updated with dual-chat command
+DUAL_AGENT_GUIDE.md             # Kullanım kılavuzu
 DUAL_AGENT_SUMMARY.md           # Bu dosya
 test_dual_agent.py              # Test script (hierarchical)
 test_simple_dual.py             # Test script (routing)
 ```
 
-## ğŸ¨ Mimari
+## 🎨 Mimari
 
 ### Hierarchical Mode (DualAgentOrchestrator)
 
 ```
 User Request
-    â†“
+    ↓
 Master Agent (Qwen 2.5:14b)
-    â”œâ”€ Analyze request
-    â”œâ”€ Create JSON plan
-    â””â”€ Decompose into steps
-        â†“
+    ├─ Analyze request
+    ├─ Create JSON plan
+    └─ Decompose into steps
+        ↓
 Worker Agent (Qwen 2.5:14b)
-    â”œâ”€ Execute step 1 (with tools)
-    â”œâ”€ Execute step 2 (with tools)
-    â””â”€ Execute step N (with tools)
-        â†“
+    ├─ Execute step 1 (with tools)
+    ├─ Execute step 2 (with tools)
+    └─ Execute step N (with tools)
+        ↓
 Master Agent
-    â””â”€ Summarize results
-        â†“
+    └─ Summarize results
+        ↓
 User Response
 ```
 
@@ -77,17 +77,17 @@ User Response
 
 ```
 User Request
-    â†“
+    ↓
 Complexity Analysis
-    â”œâ”€ Simple? â†’ Fast Model (7b)
-    â””â”€ Complex? â†’ Smart Model (14b)
-        â†“
+    ├─ Simple? → Fast Model (7b)
+    └─ Complex? → Smart Model (14b)
+        ↓
 Execute with Tools
-    â†“
+    ↓
 User Response
 ```
 
-## ğŸš€ KullanÄ±m Ã–rnekleri
+## 🚀 Kullanım Örnekleri
 
 ### Terminal
 
@@ -116,37 +116,37 @@ result = simple.chat("List scene objects")  # Auto-selects fast model
 
 ### Unity Editor
 
-`.env` dosyasÄ±nda:
+`.env` dosyasında:
 ```env
 USE_DUAL_AGENT=true
 DUAL_AGENT_MASTER=qwen2.5:14b-instruct
 DUAL_AGENT_WORKER=qwen2.5:14b-instruct
 ```
 
-## âš ï¸ Bilinen Sorunlar
+## ⚠️ Bilinen Sorunlar
 
-### 1. Qwen 2.5:14b YavaÅŸ
-- **Sorun**: 9GB model, yanÄ±t sÃ¼resi 30-60 saniye
-- **Ã‡Ã¶zÃ¼m**: `qwen2.5:14b` master olarak kullan
+### 1. Qwen 2.5:14b Yavaş
+- **Sorun**: 9GB model, yanıt süresi 30-60 saniye
+- **Çözüm**: `qwen2.5:14b` master olarak kullan
 
 ### 2. Master Planning Timeout
-- **Sorun**: Master plan oluÅŸtururken takÄ±lÄ±yor
-- **Ã‡Ã¶zÃ¼m**: `SimpleDualAgent` kullan (routing mode)
+- **Sorun**: Master plan oluştururken takılıyor
+- **Çözüm**: `SimpleDualAgent` kullan (routing mode)
 
 ### 3. Windows Console Encoding
 - **Sorun**: Emoji ve Unicode karakterler hata veriyor
-- **Ã‡Ã¶zÃ¼m**: `$env:PYTHONIOENCODING="utf-8"` veya emoji kullanma
+- **Çözüm**: `$env:PYTHONIOENCODING="utf-8"` veya emoji kullanma
 
-## ğŸ”§ Ã–nerilen KonfigÃ¼rasyon
+## 🔧 Önerilen Konfigürasyon
 
-### HÄ±z Ã–ncelikli
+### Hız Öncelikli
 
 ```env
 DUAL_AGENT_MASTER=qwen2.5:14b-instruct
 DUAL_AGENT_WORKER=qwen2.5:7b-instruct
 ```
 
-### Kalite Ã–ncelikli
+### Kalite Öncelikli
 
 ```env
 DUAL_AGENT_MASTER=qwen2.5:14b-instruct
@@ -160,62 +160,62 @@ DUAL_AGENT_MASTER=qwen2.5:14b-instruct
 DUAL_AGENT_WORKER=qwen2.5:14b-instruct
 ```
 
-## ğŸ“Š Performans KarÅŸÄ±laÅŸtÄ±rmasÄ±
+## 📊 Performans Karşılaştırması
 
-| Mode | Model | Basit Sorgu | KarmaÅŸÄ±k GÃ¶rev | Token KullanÄ±mÄ± |
+| Mode | Model | Basit Sorgu | Karmaşık Görev | Token Kullanımı |
 |------|-------|-------------|----------------|-----------------|
 | Single | qwen2.5:14b | ~5s | ~30s | Orta |
-| Hierarchical | 3.6 + 14b | ~15s | ~45s | YÃ¼ksek |
-| Routing | 14b / 7b | ~3s / ~5s | ~30s | DÃ¼ÅŸÃ¼k |
+| Hierarchical | 3.6 + 14b | ~15s | ~45s | Yüksek |
+| Routing | 14b / 7b | ~3s / ~5s | ~30s | Düşük |
 
-## ğŸ¯ Sonraki AdÄ±mlar
+## 🎯 Sonraki Adımlar
 
-### KÄ±sa Vadeli
-1. âœ… Master timeout sorununu Ã§Ã¶z â†’ SimpleDualAgent ile Ã§Ã¶zÃ¼ldÃ¼
-2. â³ Unity Editor integration test et
-3. â³ Performance benchmarks yap
-4. â³ Real-world scenarios test et
+### Kısa Vadeli
+1. ✅ Master timeout sorununu çöz → SimpleDualAgent ile çözüldü
+2. ⏳ Unity Editor integration test et
+3. ⏳ Performance benchmarks yap
+4. ⏳ Real-world scenarios test et
 
 ### Orta Vadeli
-1. â³ Adaptive routing (ML-based complexity detection)
-2. â³ Plan caching (repeated tasks)
-3. â³ Multi-worker parallel execution
-4. â³ Visual plan viewer (Unity Editor UI)
+1. ⏳ Adaptive routing (ML-based complexity detection)
+2. ⏳ Plan caching (repeated tasks)
+3. ⏳ Multi-worker parallel execution
+4. ⏳ Visual plan viewer (Unity Editor UI)
 
 ### Uzun Vadeli
-1. â³ Fine-tuned models (Unity-specific)
-2. â³ Distributed execution (multiple machines)
-3. â³ Learning from user feedback
-4. â³ Auto-optimization (model selection)
+1. ⏳ Fine-tuned models (Unity-specific)
+2. ⏳ Distributed execution (multiple machines)
+3. ⏳ Learning from user feedback
+4. ⏳ Auto-optimization (model selection)
 
-## ğŸ’¡ KullanÄ±m Tavsiyeleri
+## 💡 Kullanım Tavsiyeleri
 
-1. **BaÅŸlangÄ±Ã§**: `SimpleDualAgent` ile baÅŸla (daha stabil)
-2. **Test**: Basit gÃ¶revlerle test et (list, search)
-3. **KarmaÅŸÄ±k**: Sonra karmaÅŸÄ±k gÃ¶revleri dene (create, build)
-4. **Optimize**: Performance'a gÃ¶re model kombinasyonunu ayarla
+1. **Başlangıç**: `SimpleDualAgent` ile başla (daha stabil)
+2. **Test**: Basit görevlerle test et (list, search)
+3. **Karmaşık**: Sonra karmaşık görevleri dene (create, build)
+4. **Optimize**: Performance'a göre model kombinasyonunu ayarla
 
-## ğŸ¤ KatkÄ±
+## 🤝 Katkı
 
-Dual-agent sistemi **experimental** durumda. Geri bildirimleriniz Ã§ok deÄŸerli:
+Dual-agent sistemi **experimental** durumda. Geri bildirimleriniz çok değerli:
 
-- Hangi senaryolar iyi Ã§alÄ±ÅŸÄ±yor?
-- Hangi model kombinasyonlarÄ± optimal?
-- Performance sorunlarÄ± nerede?
-- Hangi Ã¶zellikler eksik?
+- Hangi senaryolar iyi çalışıyor?
+- Hangi model kombinasyonları optimal?
+- Performance sorunları nerede?
+- Hangi özellikler eksik?
 
-GitHub Issues veya Pull Requests ile katkÄ±da bulunabilirsiniz!
+GitHub Issues veya Pull Requests ile katkıda bulunabilirsiniz!
 
-## ğŸ“š Kaynaklar
+## 📚 Kaynaklar
 
-- [DUAL_AGENT_GUIDE.md](DUAL_AGENT_GUIDE.md) - DetaylÄ± kullanÄ±m kÄ±lavuzu
-- [README.md](README.md) - Ana proje dokÃ¼mantasyonu
+- [DUAL_AGENT_GUIDE.md](DUAL_AGENT_GUIDE.md) - Detaylı kullanım kılavuzu
+- [README.md](README.md) - Ana proje dokümantasyonu
 - [unitytools/core/dual_agent.py](unitytools/core/dual_agent.py) - Kaynak kod
 - [unitytools/core/simple_dual_agent.py](unitytools/core/simple_dual_agent.py) - Routing kod
 
 ---
 
-**OluÅŸturulma Tarihi**: 2026-05-05  
+**Oluşturulma Tarihi**: 2026-05-05  
 **Versiyon**: 2.2.1  
 **Durum**: Experimental / Beta
 

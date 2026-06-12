@@ -9,45 +9,45 @@ using UnityEngine;
 
 namespace Autopilot
 {
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    //  THORNY IVY â€” VISION LEARNER
+    // ─────────────────────────────────────────────────────────────────────────
+    //  THORNY IVY — VISION LEARNER
     //
-    //  Ã‡alÄ±ÅŸma prensibi:
-    //    1. AutopilotData/reference_images/*.png dosyalarÄ±nÄ± yÃ¼kler
-    //    2. Her birinden renk/parlaklÄ±k/sis metrikleri Ã§Ä±karÄ±r â†’ hedef belirler
-    //    3. Unity kamerasÄ±ndan screenshot alÄ±r, aynÄ± metrikleri Ã¶lÃ§er
-    //    4. FarkÄ± minimize edecek parametre ayarÄ± yapar (hill-climbing)
-    //    5. Ã–lÃ§ek doÄŸrulamasÄ± â€” her nesne iÃ§in beklenen metre aralÄ±ÄŸÄ±
-    //    6. Hedef skora (â‰¥78) ulaÅŸana veya 60 iterasyon bitene dek devam eder
+    //  Çalışma prensibi:
+    //    1. AutopilotData/reference_images/*.png dosyalarını yükler
+    //    2. Her birinden renk/parlaklık/sis metrikleri çıkarır → hedef belirler
+    //    3. Unity kamerasından screenshot alır, aynı metrikleri ölçer
+    //    4. Farkı minimize edecek parametre ayarı yapar (hill-climbing)
+    //    5. Ölçek doğrulaması — her nesne için beklenen metre aralığı
+    //    6. Hedef skora (≥78) ulaşana veya 60 iterasyon bitene dek devam eder
     //
-    //  MenÃ¼: Tools > Autopilot > â˜… Vision Learner
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  Menü: Tools > Autopilot > ★ Vision Learner
+    // ─────────────────────────────────────────────────────────────────────────
     public static class AutopilotVisionLearner
     {
         const float ScoreThreshold   = 78f;
         const int   MaxIterations    = 60;
         const int   SnapW            = 320;
         const int   SnapH            = 180;
-        const float StepDecay        = 0.92f; // iterasyon baÅŸÄ±na adÄ±m kÃ¼Ã§Ã¼lme oranÄ±
+        const float StepDecay        = 0.92f; // iterasyon başına adım küçülme oranı
 
         static readonly string RefDir = Path.GetFullPath(
             Path.Combine(Application.dataPath, "..", "AutopilotData", "reference_images"));
 
-        // â”€â”€ GÃ¶rsel metrik paketi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Görsel metrik paketi ──────────────────────────────────────────────
         struct VM
         {
             public float Lum;            // ortalama luminans
-            public float R, G, B;        // kanal ortalamalarÄ±
-            public float WarmFrac;       // turuncu-sÄ±cak piksel oranÄ± (kampfire/fener)
-            public float DarkFrac;       // lum<0.35 oranÄ± (gotik karanlÄ±k)
-            public float BlueFrac;       // mavi > kÄ±rmÄ±zÄ±*1.2 oranÄ± (sis soÄŸukluÄŸu)
-            public float SkyLum;         // Ã¼st 1/3 luminans (gÃ¶kyÃ¼zÃ¼/sis)
+            public float R, G, B;        // kanal ortalamaları
+            public float WarmFrac;       // turuncu-sıcak piksel oranı (kampfire/fener)
+            public float DarkFrac;       // lum<0.35 oranı (gotik karanlık)
+            public float BlueFrac;       // mavi > kırmızı*1.2 oranı (sis soğukluğu)
+            public float SkyLum;         // üst 1/3 luminans (gökyüzü/sis)
             public float MidLum;         // orta 1/3 luminans (orman/yol)
             public float GroundLum;      // alt 1/3 luminans (zemin)
             public float Saturation;     // ortalama doygunluk
         }
 
-        // VarsayÄ±lan hedef â€” tÃ¼m gÃ¶rseller analiz edilince Ã¼zerine yazÄ±lÄ±r
+        // Varsayılan hedef — tüm görseller analiz edilince üzerine yazılır
         static VM _target = new VM
         {
             Lum = 0.112f, R = 0.202f, G = 0.222f, B = 0.305f,
@@ -64,7 +64,7 @@ namespace Autopilot
         static float _step = 1.0f;
         static readonly List<string> _log = new();
 
-        // Her iterasyon sonrasÄ± kaydedilen en iyi parametre kÃ¼mesi
+        // Her iterasyon sonrası kaydedilen en iyi parametre kümesi
         static SceneParams _bestParams;
 
         struct SceneParams
@@ -75,11 +75,11 @@ namespace Autopilot
             public float SunIntensity;
         }
 
-        // â”€â”€ MenÃ¼ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        [MenuItem("Tools/Autopilot/â˜… Vision Learner - BaÅŸlat")]
+        // ── Menü ─────────────────────────────────────────────────────────────
+        [MenuItem("Tools/Autopilot/★ Vision Learner - Başlat")]
         public static void Start()
         {
-            if (_running) { Debug.Log("[VisionLearner] Zaten Ã§alÄ±ÅŸÄ±yor."); return; }
+            if (_running) { Debug.Log("[VisionLearner] Zaten çalışıyor."); return; }
             LoadTarget();
             _running   = true;
             _iter      = 0;
@@ -87,12 +87,12 @@ namespace Autopilot
             _prevScore = 0f;
             _step      = 1.0f;
             _log.Clear();
-            _log.Add($"Hedef skor â‰¥ {ScoreThreshold}/100. Referans: {RefDir}");
-            Debug.Log("[VisionLearner] Ã–ÄŸrenme baÅŸlatÄ±ldÄ±.");
+            _log.Add($"Hedef skor ≥ {ScoreThreshold}/100. Referans: {RefDir}");
+            Debug.Log("[VisionLearner] Öğrenme başlatıldı.");
             EditorApplication.delayCall += Tick;
         }
 
-        [MenuItem("Tools/Autopilot/â˜… Vision Learner - Durdur")]
+        [MenuItem("Tools/Autopilot/★ Vision Learner - Durdur")]
         public static void Stop()
         {
             _running = false;
@@ -102,12 +102,12 @@ namespace Autopilot
             foreach (var l in _log.TakeLast(25)) Debug.Log(l);
         }
 
-        [MenuItem("Tools/Autopilot/â˜… Vision Learner - Tek Analiz")]
+        [MenuItem("Tools/Autopilot/★ Vision Learner - Tek Analiz")]
         public static void AnalyzeOnce()
         {
             LoadTarget();
             var tex = Snapshot();
-            if (tex == null) { Debug.LogWarning("[VisionLearner] Screenshot alÄ±namadÄ±."); return; }
+            if (tex == null) { Debug.LogWarning("[VisionLearner] Screenshot alınamadı."); return; }
             var m = Measure(tex);
             UnityEngine.Object.DestroyImmediate(tex);
             float s = Score(m);
@@ -120,16 +120,16 @@ namespace Autopilot
                       $"  Sky={m.SkyLum:F3} | Mid={m.MidLum:F3} | Ground={m.GroundLum:F3}");
         }
 
-        [MenuItem("Tools/Autopilot/â˜… Vision Learner - Ã–lÃ§ek DoÄŸrula")]
+        [MenuItem("Tools/Autopilot/★ Vision Learner - Ölçek Doğrula")]
         public static void ValidateScalesMenu() => ValidateScales(verbose: true);
 
-        // â”€â”€ Ana Ã¶ÄŸrenme dÃ¶ngÃ¼sÃ¼ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Ana öğrenme döngüsü ───────────────────────────────────────────────
         static void Tick()
         {
             if (!_running) return;
             if (_iter >= MaxIterations) { Stop(); return; }
 
-            // Screenshot & Ã¶lÃ§Ã¼m
+            // Screenshot & ölçüm
             var tex = Snapshot();
             VM actual = default;
             float score = 0f;
@@ -141,7 +141,7 @@ namespace Autopilot
             }
 
             // Loglama
-            string arrow = score > _prevScore + 0.2f ? "â†‘" : score < _prevScore - 0.2f ? "â†“" : "â€”";
+            string arrow = score > _prevScore + 0.2f ? "↑" : score < _prevScore - 0.2f ? "↓" : "—";
             string line  = $"[{_iter:D3}] {arrow} {score:F1}/100  " +
                            $"Lum:{actual.Lum:F3} Warm:{actual.WarmFrac:F3} " +
                            $"Dark:{actual.DarkFrac:F3} Fog:{RenderSettings.fogDensity:F3} " +
@@ -158,16 +158,16 @@ namespace Autopilot
 
             if (score >= ScoreThreshold)
             {
-                _log.Add($"âœ“ Hedef aÅŸÄ±ldÄ±: {score:F1}/100 ({_iter} iter)");
-                Debug.Log($"[VisionLearner] âœ“ TamamlandÄ±! {score:F1}/100");
+                _log.Add($"✓ Hedef aşıldı: {score:F1}/100 ({_iter} iter)");
+                Debug.Log($"[VisionLearner] ✓ Tamamlandı! {score:F1}/100");
                 Stop();
                 return;
             }
 
-            // KÃ¶tÃ¼ durum â†’ tam yeniden kurulum (8. veya 20. iterasyonda)
+            // Kötü durum → tam yeniden kurulum (8. veya 20. iterasyonda)
             if ((_iter == 8 && score < 22f) || (_iter == 20 && score < 35f))
             {
-                Debug.Log($"[VisionLearner] Skor Ã§ok dÃ¼ÅŸÃ¼k ({score:F1}) â€” sahne yeniden kuruluyor.");
+                Debug.Log($"[VisionLearner] Skor çok düşük ({score:F1}) — sahne yeniden kuruluyor.");
                 SceneBuilder.BuildScene();
                 SceneMaterialPainter.PaintAll();
                 IslandTreePainter.PaintAll();
@@ -179,28 +179,28 @@ namespace Autopilot
             EditorApplication.delayCall += Tick;
         }
 
-        // â”€â”€ Parametre ayarÄ± â€” hill-climbing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Parametre ayarı — hill-climbing ───────────────────────────────────
         static void Adjust(VM a, float score)
         {
             float s = _step;
 
-            // 1. PARLAKLK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // 1. PARLAKLK ─────────────────────────────────────────────────────
             float lumErr = a.Lum - _target.Lum;
-            if (lumErr > 0.008f) // Ã§ok parlak
+            if (lumErr > 0.008f) // çok parlak
             {
                 RenderSettings.ambientLight = ScaleColor(RenderSettings.ambientLight,
                     1f - 0.10f * s * Mathf.Clamp01(lumErr / 0.05f));
                 AdjustSun(-0.04f * s);
             }
-            else if (lumErr < -0.008f) // Ã§ok karanlÄ±k
+            else if (lumErr < -0.008f) // çok karanlık
             {
                 RenderSettings.ambientLight = ScaleColor(RenderSettings.ambientLight,
                     1f + 0.06f * s * Mathf.Clamp01(-lumErr / 0.05f));
                 AdjustSun(+0.025f * s);
             }
 
-            // 2. SÄ°S YOÄUNLUÄU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            // KaranlÄ±k piksel oranÄ± dÃ¼ÅŸÃ¼kse â†’ sis artÄ±r (nesneler daha az gÃ¶rÃ¼nÃ¼r olacak)
+            // 2. SİS YOĞUNLUĞU ───────────────────────────────────────────────
+            // Karanlık piksel oranı düşükse → sis artır (nesneler daha az görünür olacak)
             float darkErr = a.DarkFrac - _target.DarkFrac;
             if (darkErr < -0.05f)
                 RenderSettings.fogDensity = Mathf.Clamp(
@@ -209,20 +209,20 @@ namespace Autopilot
                 RenderSettings.fogDensity = Mathf.Clamp(
                     RenderSettings.fogDensity - 0.002f * s, 0.012f, 0.080f);
 
-            // 3. SÄ°S RENGÄ° â€” hedef mavi-gri'ye yumuÅŸak yakÄ±nsama â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // 3. SİS RENGİ — hedef mavi-gri'ye yumuşak yakınsama ────────────
             Color fogTarget = new Color(0.28f, 0.30f, 0.38f);
             RenderSettings.fogColor = Color.Lerp(
                 RenderSettings.fogColor, fogTarget, 0.08f * s);
 
-            // 4. SICAK AKSAN (kampfire/fener) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // 4. SICAK AKSAN (kampfire/fener) ─────────────────────────────────
             float warmErr = a.WarmFrac - _target.WarmFrac;
-            if (warmErr < -0.02f)      // yetersiz sÄ±cak Ä±ÅŸÄ±k
+            if (warmErr < -0.02f)      // yetersiz sıcak ışık
                 AdjustWarmLights(+0.6f * s, +2f * s);
-            else if (warmErr > 0.03f)  // fazla sÄ±cak
+            else if (warmErr > 0.03f)  // fazla sıcak
                 AdjustWarmLights(-0.3f * s, 0f);
 
-            // 5. MOR/KALE IÅIK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            // Sis Ã§ok soÄŸuk deÄŸilse kale bÃ¼yÃ¼sel Ä±ÅŸÄ±nÄ±nÄ± koru
+            // 5. MOR/KALE IŞIK ────────────────────────────────────────────────
+            // Sis çok soğuk değilse kale büyüsel ışınını koru
             if (a.BlueFrac < _target.BlueFrac * 0.80f)
             {
                 AdjustMagicLights(+0.4f * s);
@@ -231,15 +231,15 @@ namespace Autopilot
                     Mathf.Clamp(fc.b + 0.008f * s, 0f, 0.6f));
             }
 
-            // 6. AMBÄ°ENT RENK â€” hedef: koyu mavi-gri â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // 6. AMBİENT RENK — hedef: koyu mavi-gri ────────────────────────
             Color ambTarget = new Color(0.022f, 0.028f, 0.052f);
             RenderSettings.ambientLight = Color.Lerp(
                 RenderSettings.ambientLight, ambTarget, 0.05f * s);
 
-            // 7. Ã–LÃ‡EK DOÄRULAMA (her 8 iterasyonda) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // 7. ÖLÇEK DOĞRULAMA (her 8 iterasyonda) ─────────────────────────
             if (_iter % 8 == 0) ValidateScales(verbose: false);
 
-            // 8. MATERYAL YENÄ°DEN BOYAMA (her 18 iterasyonda, dÃ¼ÅŸÃ¼k skor) â”€â”€â”€â”€â”€
+            // 8. MATERYAL YENİDEN BOYAMA (her 18 iterasyonda, düşük skor) ─────
             if (_iter % 18 == 9 && score < 55f)
             {
                 SceneMaterialPainter.RunAsTask(out _);
@@ -249,14 +249,14 @@ namespace Autopilot
             SaveScene();
         }
 
-        // â”€â”€ Referans gÃ¶rsellerden hedef metrikleri hesapla â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Referans görsellerden hedef metrikleri hesapla ────────────────────
         static void LoadTarget()
         {
             if (_targetReady) return;
 
             if (!Directory.Exists(RefDir))
             {
-                Debug.LogWarning($"[VisionLearner] Referans klasÃ¶r yok: {RefDir}  VarsayÄ±lan hedef kullanÄ±lÄ±yor.");
+                Debug.LogWarning($"[VisionLearner] Referans klasör yok: {RefDir}  Varsayılan hedef kullanılıyor.");
                 _targetReady = true;
                 return;
             }
@@ -304,12 +304,12 @@ namespace Autopilot
                 Saturation = acc.Saturation* inv,
             };
             _targetReady = true;
-            Debug.Log($"[VisionLearner] {n} gÃ¶rsel analiz edildi.\n" +
+            Debug.Log($"[VisionLearner] {n} görsel analiz edildi.\n" +
                       $"  Hedef: Lum={_target.Lum:F3}  Warm={_target.WarmFrac:F3}  " +
                       $"Dark={_target.DarkFrac:F3}  Sis={_target.SkyLum:F3}");
         }
 
-        // â”€â”€ Screenshot (HDRP dahil) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Screenshot (HDRP dahil) ───────────────────────────────────────────
         static Texture2D Snapshot()
         {
             var cam = Camera.main;
@@ -334,12 +334,12 @@ namespace Autopilot
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[VisionLearner] Screenshot hatasÄ±: {ex.Message}");
+                Debug.LogWarning($"[VisionLearner] Screenshot hatası: {ex.Message}");
                 return null;
             }
         }
 
-        // â”€â”€ Piksel analizi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Piksel analizi ────────────────────────────────────────────────────
         static VM Measure(Texture2D tex)
         {
             var pixels = tex.GetPixels();
@@ -363,17 +363,17 @@ namespace Autopilot
                 float mn = Mathf.Min(p.r, p.g, p.b);
                 sumSat += mx > 0.001f ? (mx - mn) / mx : 0f;
 
-                // SÄ±cak turuncu tespiti (kampfire / fener)
+                // Sıcak turuncu tespiti (kampfire / fener)
                 if (p.r > 0.38f && p.g > 0.12f && p.b < 0.14f &&
                     p.r > p.g * 1.4f && p.r > p.b * 2.2f) warm++;
 
-                // KaranlÄ±k piksel
+                // Karanlık piksel
                 if (lum < 0.35f) dark++;
 
-                // SoÄŸuk mavi piksel (sis / atmosfer)
+                // Soğuk mavi piksel (sis / atmosfer)
                 if (p.b > p.r * 1.22f && p.b > 0.20f) blue++;
 
-                // Dikey bÃ¶lge
+                // Dikey bölge
                 int row = i / w;
                 if (row >= topThird)         { skySum    += lum; skyN++;    }
                 else if (row >= bottomThird) { midSum    += lum; midN++;    }
@@ -397,15 +397,15 @@ namespace Autopilot
             };
         }
 
-        // â”€â”€ Ã‡ok metrikli skor (0â€“100) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Çok metrikli skor (0–100) ─────────────────────────────────────────
         static float Score(VM a)
         {
             float s = 100f;
-            s -= Mathf.Abs(a.Lum      - _target.Lum)      * 240f; // aÄŸÄ±rlÄ±k 24
-            s -= Mathf.Abs(a.WarmFrac - _target.WarmFrac)  * 220f; // aÄŸÄ±rlÄ±k 22 â€” kampfire kritik
-            s -= Mathf.Abs(a.DarkFrac - _target.DarkFrac)  * 140f; // aÄŸÄ±rlÄ±k 14
-            s -= Mathf.Abs(a.SkyLum   - _target.SkyLum)    * 100f; // aÄŸÄ±rlÄ±k 10
-            s -= Mathf.Abs(a.GroundLum- _target.GroundLum) * 100f; // aÄŸÄ±rlÄ±k 10
+            s -= Mathf.Abs(a.Lum      - _target.Lum)      * 240f; // ağırlık 24
+            s -= Mathf.Abs(a.WarmFrac - _target.WarmFrac)  * 220f; // ağırlık 22 — kampfire kritik
+            s -= Mathf.Abs(a.DarkFrac - _target.DarkFrac)  * 140f; // ağırlık 14
+            s -= Mathf.Abs(a.SkyLum   - _target.SkyLum)    * 100f; // ağırlık 10
+            s -= Mathf.Abs(a.GroundLum- _target.GroundLum) * 100f; // ağırlık 10
             s -= Mathf.Abs(a.R        - _target.R)          * 70f;
             s -= Mathf.Abs(a.G        - _target.G)          * 70f;
             s -= Mathf.Abs(a.B        - _target.B)          * 70f;
@@ -414,7 +414,7 @@ namespace Autopilot
             return Mathf.Clamp(s, 0f, 100f);
         }
 
-        // â”€â”€ IÅŸÄ±k yardÄ±mcÄ±larÄ± â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Işık yardımcıları ─────────────────────────────────────────────────
         static void AdjustSun(float delta)
         {
             foreach (var l in UnityEngine.Object.FindObjectsByType<Light>(
@@ -432,7 +432,7 @@ namespace Autopilot
                 FindObjectsInactive.Include))
             {
                 if (l.type != LightType.Point) continue;
-                if (l.color.r > 0.55f && l.color.b < 0.25f) // sÄ±cak ton filtresi
+                if (l.color.r > 0.55f && l.color.b < 0.25f) // sıcak ton filtresi
                 {
                     l.intensity = Mathf.Clamp(l.intensity + intDelta, 0.5f, 12f);
                     l.range     = Mathf.Clamp(l.range + rangeDelta,    5f, 40f);
@@ -446,14 +446,14 @@ namespace Autopilot
                 FindObjectsInactive.Include))
             {
                 if (l.type != LightType.Point) continue;
-                // Mor/mavi ton â€” kale sihirli Ä±ÅŸÄ±n
+                // Mor/mavi ton — kale sihirli ışın
                 if (l.color.b > l.color.r * 1.1f && l.color.r > 0.20f)
                     l.intensity = Mathf.Clamp(l.intensity + intDelta, 0.5f, 14f);
             }
         }
 
-        // â”€â”€ Ã–lÃ§ek doÄŸrulamasÄ± â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // Her nesne tipi iÃ§in beklenen yÃ¼kseklik aralÄ±ÄŸÄ± (metre, world scale)
+        // ── Ölçek doğrulaması ─────────────────────────────────────────────────
+        // Her nesne tipi için beklenen yükseklik aralığı (metre, world scale)
         static readonly (string kw, float min, float max)[] SizeTable =
         {
             ("PineTree",      7f,  18f),
@@ -500,7 +500,7 @@ namespace Autopilot
                 {
                     if (!go.name.Contains(kw, StringComparison.OrdinalIgnoreCase)) continue;
 
-                    // Bounding box yÃ¼ksekliÄŸi kullan
+                    // Bounding box yüksekliği kullan
                     var renderers = go.GetComponentsInChildren<MeshRenderer>(true);
                     if (renderers.Length == 0) break;
 
@@ -512,13 +512,13 @@ namespace Autopilot
                     if (h < minM)
                     {
                         go.transform.localScale *= (minM / h);
-                        if (verbose) Debug.Log($"[ScaleValidator] â†‘ {go.name} {h:F2}mâ†’{minM:F2}m");
+                        if (verbose) Debug.Log($"[ScaleValidator] ↑ {go.name} {h:F2}m→{minM:F2}m");
                         fixed_++;
                     }
                     else if (h > maxM)
                     {
                         go.transform.localScale *= (maxM / h);
-                        if (verbose) Debug.Log($"[ScaleValidator] â†“ {go.name} {h:F2}mâ†’{maxM:F2}m");
+                        if (verbose) Debug.Log($"[ScaleValidator] ↓ {go.name} {h:F2}m→{maxM:F2}m");
                         fixed_++;
                     }
                     else ok++;
@@ -527,10 +527,10 @@ namespace Autopilot
             }
 
             if (fixed_ > 0 || verbose)
-                Debug.Log($"[ScaleValidator] {fixed_} dÃ¼zeltildi, {ok} uygun.");
+                Debug.Log($"[ScaleValidator] {fixed_} düzeltildi, {ok} uygun.");
         }
 
-        // â”€â”€ YardÄ±mcÄ±lar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Yardımcılar ───────────────────────────────────────────────────────
         static Color ScaleColor(Color c, float factor) =>
             new Color(
                 Mathf.Clamp(c.r * factor, 0f, 0.35f),
@@ -559,7 +559,7 @@ namespace Autopilot
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
         }
 
-        // â”€â”€ Autopilot Brain entegrasyonu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Autopilot Brain entegrasyonu ──────────────────────────────────────
         public static float GetCurrentScore()
         {
             LoadTarget();
@@ -585,11 +585,11 @@ namespace Autopilot
                 if (score < ScoreThreshold)
                 {
                     Start();
-                    reason = $"Vision Learner baÅŸlatÄ±ldÄ±. Mevcut skor: {score:F1}/100";
+                    reason = $"Vision Learner başlatıldı. Mevcut skor: {score:F1}/100";
                 }
                 else
                 {
-                    reason = $"GÃ¶rsel hedef zaten karÅŸÄ±lanmÄ±ÅŸ: {score:F1}/100";
+                    reason = $"Görsel hedef zaten karşılanmış: {score:F1}/100";
                 }
                 return true;
             }

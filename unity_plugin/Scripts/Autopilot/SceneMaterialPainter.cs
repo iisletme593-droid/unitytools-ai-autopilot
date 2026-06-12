@@ -8,11 +8,11 @@ namespace Autopilot
 {
     // Referans gorsel palet: yesil cimen, krem kale tasi, misty mavi-gri sis, sabah isigi.
     // Her Renderer'in her alt materyalini (sharedMaterials[]) tek tek kontrol eder.
-    // Oncelik sirasi: (1) materyal ismi â†’ (2) obje ismi â†’ (3) skip.
+    // Oncelik sirasi: (1) materyal ismi → (2) obje ismi → (3) skip.
     // Dokulu GLB materyalleri EZILMEZ; sadece doku/renk atanmamis materyaller boyanir.
     public static class SceneMaterialPainter
     {
-        // â”€â”€ Materyal tanimi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Materyal tanimi ──────────────────────────────────────────────────
         private struct MatDef
         {
             public Color albedo;
@@ -34,12 +34,12 @@ namespace Autopilot
             }
         }
 
-        // â”€â”€ MATERYAL ISMI â†’ RENK haritasi (en hassas esleme) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── MATERYAL ISMI → RENK haritasi (en hassas esleme) ─────────────────
         // Unity'nin linear color space'inde degerler.
-        // Yaprak: linear 0.04/0.17/0.03 â†’ ekranda koyu orman yesili gorunur.
+        // Yaprak: linear 0.04/0.17/0.03 → ekranda koyu orman yesili gorunur.
         static readonly (string kw, MatDef def)[] ByMaterialName =
         {
-            // â”€â”€ YAPRAK / AGAC YESILI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── YAPRAK / AGAC YESILI ──────────────────────────────────────────
             ("leaf",      new MatDef(0.025f,0.14f,0.015f, s:0.06f, ds:true)),
             ("leaves",    new MatDef(0.025f,0.14f,0.015f, s:0.06f, ds:true)),
             ("foliage",   new MatDef(0.030f,0.16f,0.018f, s:0.07f, ds:true)),
@@ -48,9 +48,9 @@ namespace Autopilot
             ("needle",    new MatDef(0.022f,0.13f,0.013f, s:0.05f, ds:true)),
             ("frond",     new MatDef(0.028f,0.15f,0.016f, s:0.07f, ds:true)),
             ("canopy",    new MatDef(0.022f,0.13f,0.012f, s:0.05f, ds:true)),
-            ("branch",    new MatDef(0.14f, 0.09f,0.055f, s:0.11f)),         // dal â†’ kahverengi
+            ("branch",    new MatDef(0.14f, 0.09f,0.055f, s:0.11f)),         // dal → kahverengi
             ("twig",      new MatDef(0.13f, 0.08f,0.050f, s:0.10f)),
-            // â”€â”€ KABUK / GOVDE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── KABUK / GOVDE ─────────────────────────────────────────────────
             ("bark",      new MatDef(0.13f, 0.085f,0.050f, s:0.12f)),
             ("trunk",     new MatDef(0.12f, 0.080f,0.048f, s:0.10f)),
             ("log",       new MatDef(0.15f, 0.095f,0.055f, s:0.12f)),
@@ -58,7 +58,7 @@ namespace Autopilot
             ("wood",      new MatDef(0.18f, 0.115f,0.070f, s:0.15f)),
             ("plank",     new MatDef(0.20f, 0.130f,0.080f, s:0.12f)),
             ("timber",    new MatDef(0.19f, 0.120f,0.075f, s:0.13f)),
-            // â”€â”€ KAYA / TAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── KAYA / TAS ────────────────────────────────────────────────────
             ("rock",      new MatDef(0.20f, 0.19f,0.17f,  s:0.20f)),
             ("stone",     new MatDef(0.21f, 0.20f,0.18f,  s:0.22f)),
             ("boulder",   new MatDef(0.18f, 0.17f,0.15f,  s:0.18f)),
@@ -66,12 +66,12 @@ namespace Autopilot
             ("cliff",     new MatDef(0.19f, 0.18f,0.16f,  s:0.18f)),
             ("gravel",    new MatDef(0.22f, 0.20f,0.18f,  s:0.15f)),
             ("cobble",    new MatDef(0.24f, 0.22f,0.20f,  s:0.28f)),
-            // â”€â”€ YOSUN / BITKI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── YOSUN / BITKI ─────────────────────────────────────────────────
             ("moss",      new MatDef(0.06f, 0.14f,0.04f,  s:0.08f)),
             ("lichen",    new MatDef(0.08f, 0.15f,0.06f,  s:0.07f)),
             ("grass",     new MatDef(0.025f,0.065f,0.015f, s:0.06f)),  // referans: koyu gri-yesil (gotik)
             ("fern",      new MatDef(0.06f, 0.19f,0.04f,  s:0.07f)),
-            // â”€â”€ METAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── METAL ─────────────────────────────────────────────────────────
             ("iron",      new MatDef(0.35f, 0.33f,0.31f,  m:0.85f,s:0.50f)),
             ("steel",     new MatDef(0.40f, 0.38f,0.36f,  m:0.88f,s:0.65f)),
             ("bronze",    new MatDef(0.50f, 0.36f,0.18f,  m:0.75f,s:0.55f)),
@@ -88,29 +88,29 @@ namespace Autopilot
             ("pommel",    new MatDef(0.42f, 0.32f,0.16f,  m:0.85f,s:0.65f)),
             ("tsuba",     new MatDef(0.35f, 0.28f,0.14f,  m:0.80f,s:0.60f)),
             ("grip",      new MatDef(0.15f, 0.10f,0.07f,  s:0.15f)),
-            // â”€â”€ KUMAS / DERI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── KUMAS / DERI ──────────────────────────────────────────────────
             ("cloth",     new MatDef(0.18f, 0.16f,0.14f,  s:0.07f)),
             ("fabric",    new MatDef(0.16f, 0.14f,0.12f,  s:0.06f)),
             ("leather",   new MatDef(0.20f, 0.12f,0.07f,  s:0.18f)),
             ("fur",       new MatDef(0.22f, 0.17f,0.12f,  s:0.05f)),
             ("silk",      new MatDef(0.25f, 0.22f,0.18f,  s:0.45f)),
             ("robe",      new MatDef(0.12f, 0.08f,0.18f,  s:0.08f)),         // mor cuce kiyafeti
-            // â”€â”€ KEMIK / KAFATAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── KEMIK / KAFATAS ───────────────────────────────────────────────
             ("bone",      new MatDef(0.60f, 0.55f,0.45f,  s:0.22f)),
             ("skull",     new MatDef(0.58f, 0.53f,0.43f,  s:0.20f)),
-            // â”€â”€ TUHAF / MAGIK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── TUHAF / MAGIK ─────────────────────────────────────────────────
             ("crystal",   new MatDef(0.30f, 0.50f,0.75f,  m:0.0f, s:0.92f, er:0.05f,eg:0.15f,eb:0.35f)),
             ("gem",       new MatDef(0.25f, 0.45f,0.70f,  m:0.0f, s:0.95f, er:0.04f,eg:0.12f,eb:0.30f)),
             ("glass",     new MatDef(0.50f, 0.70f,0.85f,  m:0.0f, s:0.95f)),
             ("orb",       new MatDef(0.20f, 0.35f,0.65f,  m:0.0f, s:0.90f, er:0.08f,eg:0.18f,eb:0.45f)),
             ("scroll",    new MatDef(0.65f, 0.55f,0.38f,  s:0.18f)),
             ("parchment", new MatDef(0.62f, 0.52f,0.35f,  s:0.12f)),
-            // â”€â”€ ATES / ISIK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── ATES / ISIK ───────────────────────────────────────────────────
             ("fire",      new MatDef(0.50f, 0.18f,0.02f,  s:0.08f, er:1.8f,eg:0.50f,eb:0.02f)),
             ("flame",     new MatDef(0.55f, 0.20f,0.02f,  s:0.05f, er:2.0f,eg:0.55f,eb:0.02f)),
             ("ember",     new MatDef(0.40f, 0.12f,0.01f,  s:0.05f, er:1.2f,eg:0.25f,eb:0.01f)),
             ("glow",      new MatDef(0.60f, 0.45f,0.20f,  m:0.2f, s:0.50f, er:0.6f,eg:0.35f,eb:0.05f)),
-            // â”€â”€ TOPRAK / ZEMIN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── TOPRAK / ZEMIN ────────────────────────────────────────────────
             ("dirt",      new MatDef(0.14f, 0.10f,0.07f,  s:0.10f)),   // patika toprak
             ("soil",      new MatDef(0.12f, 0.09f,0.065f, s:0.08f)),
             ("mud",       new MatDef(0.13f, 0.10f,0.072f, s:0.15f)),
@@ -118,17 +118,17 @@ namespace Autopilot
             ("terrain",   new MatDef(0.025f,0.060f,0.014f,s:0.06f)),  // referans: koyu zemin
         };
 
-        // â”€â”€ OBJE ISMI â†’ RENK (ikincil esleme) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── OBJE ISMI → RENK (ikincil esleme) ────────────────────────────────
         static readonly (string kw, MatDef def)[] ByObjectName =
         {
-            // Zemin â€” referans: koyu gri-yesil (gotik atmosfer, yoÄŸun sis)
+            // Zemin — referans: koyu gri-yesil (gotik atmosfer, yoğun sis)
             ("OuterGround",  new MatDef(0.025f,0.065f,0.015f, s:0.06f)), // koyu gri-yesil
             ("GrassGround",  new MatDef(0.025f,0.065f,0.015f, s:0.06f)), // koyu gri-yesil
             ("DirtPath",     new MatDef(0.08f, 0.062f,0.040f, s:0.14f)), // koyu camurlu toprak
             ("CourtStone",   new MatDef(0.12f, 0.110f,0.095f, s:0.28f)), // koyu kale avlusu
             ("CourtGround",  new MatDef(0.10f, 0.090f,0.075f, s:0.22f)), // koyu avlu zemini
             ("DungeonFloor", new MatDef(0.06f, 0.050f,0.040f, s:0.38f)), // koyu zindan zemini
-            // Kale â€” referans: koyu gotik tas, siyah kuleler (816ea051 / 0f1450a9)
+            // Kale — referans: koyu gotik tas, siyah kuleler (816ea051 / 0f1450a9)
             ("Wall",         new MatDef(0.09f, 0.080f,0.070f, s:0.14f)), // siyah kale duvari
             ("Tower",        new MatDef(0.08f, 0.070f,0.060f, s:0.12f)), // siyah kule
             ("TowerTop",     new MatDef(0.05f, 0.040f,0.060f, s:0.10f)), // koyu mor-siyah spire
@@ -136,7 +136,7 @@ namespace Autopilot
             // Agac (GLB bulunamazsa capsule gibi fallback)
             ("PineTree",     new MatDef(0.025f,0.14f,0.015f, s:0.06f)),
             ("FirTree",      new MatDef(0.020f,0.12f,0.012f, s:0.05f)),
-            ("IslandTree",   new MatDef(0.10f, 0.27f,0.050f, s:0.10f, ds:true)), // arborikÃ¼ltÃ¼r: orta kanopi
+            ("IslandTree",   new MatDef(0.10f, 0.27f,0.050f, s:0.10f, ds:true)), // arborikültür: orta kanopi
             ("DeadTreeTrunk",new MatDef(0.16f,0.10f,0.060f,  s:0.10f)),
             ("TreeStump",    new MatDef(0.15f,0.095f,0.055f, s:0.11f)),
             // Kaya
@@ -168,7 +168,7 @@ namespace Autopilot
             ("PocketWatch",  new MatDef(0.58f,0.43f,0.18f,  m:0.90f,s:0.80f)),
         };
 
-        // â”€â”€ Ana boyama fonksiyonu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Ana boyama fonksiyonu ────────────────────────────────────────────
         [MenuItem("Tools/Autopilot/5 - Paint Scene Materials (Reference Palette)")]
         public static void PaintAll()
         {
@@ -190,9 +190,9 @@ namespace Autopilot
                 {
                     if (mats[i] == null) { continue; }
 
-                    // Dokulu / duzgun import edilmis â†’ dokunma
+                    // Dokulu / duzgun import edilmis → dokunma
                     if (HasRealTexture(mats[i])) { skipped++; continue; }
-                    // Zaten bizim materyalimiz â†’ dokunma
+                    // Zaten bizim materyalimiz → dokunma
                     if (mats[i].name.StartsWith("_RPG_Mat_")) { skipped++; continue; }
 
                     // Esleme: once materyal ismine, sonra obje ismine bak
@@ -218,7 +218,7 @@ namespace Autopilot
             EditorUtility.DisplayDialog("Materyal Boyama Tamam", msg + "\nSahne kaydedildi.", "OK");
         }
 
-        // â”€â”€ Yardimci: _RPG_ altinda mi? â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Yardimci: _RPG_ altinda mi? ──────────────────────────────────────
         static bool IsUnderRPGRoot(Transform t)
         {
             while (t != null)
@@ -229,7 +229,7 @@ namespace Autopilot
             return false;
         }
 
-        // â”€â”€ Dokulu materyal kontrolu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Dokulu materyal kontrolu ─────────────────────────────────────────
         // glTFast'in dogru import ettigi materyaller _BaseColorMap veya _MainTex
         // iceriyor ya da materyal GLB asset icinde gomiluyor.
         static bool HasRealTexture(Material mat)
@@ -260,7 +260,7 @@ namespace Autopilot
             return false;
         }
 
-        // â”€â”€ Materyal ismiyle esleme â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Materyal ismiyle esleme ───────────────────────────────────────────
         static MatDef? FindByMatName(string matName)
         {
             string lower = matName.ToLower();
@@ -269,7 +269,7 @@ namespace Autopilot
             return null;
         }
 
-        // â”€â”€ Obje ismiyle esleme â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Obje ismiyle esleme ───────────────────────────────────────────────
         static MatDef? FindByObjName(string objName)
         {
             string lower = objName.ToLower();
@@ -278,7 +278,7 @@ namespace Autopilot
             return null;
         }
 
-        // â”€â”€ HDRP/Lit materyal olustur â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── HDRP/Lit materyal olustur ─────────────────────────────────────────
         static Material BuildMaterial(MatDef def, string name)
         {
             var shader = Shader.Find("HDRP/Lit") ?? Shader.Find("Standard");
@@ -317,7 +317,7 @@ namespace Autopilot
         static void SetFloat(Material m, string prop, float v)
         { if (m.HasProperty(prop)) m.SetFloat(prop, v); }
 
-        // â”€â”€ Autopilot task entry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Autopilot task entry ──────────────────────────────────────────────
         public static bool RunAsTask(out string reason)
         {
             try { PaintAll(); reason = "Referans palet materyal boyama tamam (yesil cimen + krem kale)."; return true; }

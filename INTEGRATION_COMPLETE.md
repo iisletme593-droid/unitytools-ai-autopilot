@@ -1,8 +1,8 @@
-﻿# âœ… Dual-Agent System - Full Integration Complete
+﻿# ✅ Dual-Agent System - Full Integration Complete
 
-## ğŸ‰ Tamamlanan Entegrasyonlar
+## 🎉 Tamamlanan Entegrasyonlar
 
-### 1. âœ… Python Backend (Core System)
+### 1. ✅ Python Backend (Core System)
 
 #### Dosyalar:
 - `unitytools/core/dual_agent.py` - Master/Worker orchestrator
@@ -11,30 +11,30 @@
 - `unitytools/cli/dual_chat.py` - Terminal REPL
 - `unitytools/cli/entry.py` - CLI commands
 
-#### Ã–zellikler:
-- âœ… Qwen 2.5:14b master agent (gÃ¼Ã§lÃ¼ planlama)
-- âœ… Qwen 2.5:14b worker agent (hÄ±zlÄ± execution)
-- âœ… JSON plan formatÄ±
-- âœ… DetaylÄ± raporlama
-- âœ… Fallback handling
-- âœ… Auto-detection from `.env`
+#### Özellikler:
+- ✅ Qwen 2.5:14b master agent (güçlü planlama)
+- ✅ Qwen 2.5:14b worker agent (hızlı execution)
+- ✅ JSON plan formatı
+- ✅ Detaylı raporlama
+- ✅ Fallback handling
+- ✅ Auto-detection from `.env`
 
-### 2. âœ… Unity Editor Integration
+### 2. ✅ Unity Editor Integration
 
 #### Dosyalar:
 - `unity_plugin/Editor/Bridge/ChatWindow.cs` - Updated UI
 - `unity_plugin/Editor/Bridge/ChatServerProcess.cs` - Process management
 - `unity_plugin/Editor/Bridge/ChatClient.cs` - No changes needed
 
-#### Ã–zellikler:
-- âœ… Dual-agent mode detection
-- âœ… Master/Worker progress display
-- âœ… Plan visualization
-- âœ… Mode indicator in UI
-- âœ… Automatic .env reading
-- âœ… Status chips updated
+#### Özellikler:
+- ✅ Dual-agent mode detection
+- ✅ Master/Worker progress display
+- ✅ Plan visualization
+- ✅ Mode indicator in UI
+- ✅ Automatic .env reading
+- ✅ Status chips updated
 
-### 3. âœ… Configuration
+### 3. ✅ Configuration
 
 #### `.env` File:
 ```env
@@ -48,7 +48,7 @@ DUAL_AGENT_WORKER=qwen2.5:14b-instruct
 - Unity Editor reads `.env` and shows mode
 - No manual configuration needed
 
-### 4. âœ… Documentation
+### 4. ✅ Documentation
 
 | File | Purpose |
 |------|---------|
@@ -58,7 +58,7 @@ DUAL_AGENT_WORKER=qwen2.5:14b-instruct
 | `DUAL_AGENT_SUMMARY.md` | Technical details |
 | `INTEGRATION_COMPLETE.md` | This file |
 
-## ğŸš€ How to Use
+## 🚀 How to Use
 
 ### Terminal Chat
 
@@ -100,60 +100,60 @@ unitytools dual-chat --master qwen2.5:14b-instruct --worker qwen2.5:14b
 
 7. **Watch Progress**:
    ```
-   ğŸ§  Master: Master agent analyzing request...
-   ğŸ“‹ Master Plan: Create forest (3 steps)
-   âš™ï¸ Worker: Step 1: Search tree assets
-   ğŸ”§ Tool: unity_find_tree_assets
-   âœ“ unity_find_tree_assets succeeded
-   âš™ï¸ Worker: Step 2: Analyze scene
+   🧠 Master: Master agent analyzing request...
+   📋 Master Plan: Create forest (3 steps)
+   ⚙️ Worker: Step 1: Search tree assets
+   🔧 Tool: unity_find_tree_assets
+   ✓ unity_find_tree_assets succeeded
+   ⚙️ Worker: Step 2: Analyze scene
    ...
-   âœ“ Worker completed 3 step(s)
+   ✓ Worker completed 3 step(s)
    ```
 
-## ğŸ“Š Message Flow
+## 📊 Message Flow
 
 ### Single-Agent Mode
 
 ```
-User â†’ Python â†’ Orchestrator â†’ Tools â†’ Unity
-                     â†“
+User → Python → Orchestrator → Tools → Unity
+                     ↓
                   Response
 ```
 
 ### Dual-Agent Mode
 
 ```
-User â†’ Python â†’ Master (Qwen 2.5:14b)
-                  â†“ Plan (JSON)
+User → Python → Master (Qwen 2.5:14b)
+                  ↓ Plan (JSON)
                Worker (Qwen 2.5:14b)
-                  â†“ Execute
-                Tools â†’ Unity
-                  â†“ Results
+                  ↓ Execute
+                Tools → Unity
+                  ↓ Results
                Master
-                  â†“ Summary
+                  ↓ Summary
               Response
 ```
 
-## ğŸ¨ Unity UI Updates
+## 🎨 Unity UI Updates
 
 ### Before (Single-Agent):
 ```
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚ UnityTools AI Autopilot             â”‚
-â”‚ Chat inside Unity Editor...         â”‚
-â”‚ [AI Connected] [Bridge OK] [ollama] â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+┌─────────────────────────────────────┐
+│ UnityTools AI Autopilot             │
+│ Chat inside Unity Editor...         │
+│ [AI Connected] [Bridge OK] [ollama] │
+└─────────────────────────────────────┘
 ```
 
 ### After (Dual-Agent):
 ```
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚ UnityTools AI Autopilot             â”‚
-â”‚ Dual-Agent: Master plans deeply,    â”‚
-â”‚ Worker executes fast. Better!       â”‚
-â”‚ [AI Connected] [Bridge OK]          â”‚
-â”‚ [Dual-Agent]                        â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+┌─────────────────────────────────────┐
+│ UnityTools AI Autopilot             │
+│ Dual-Agent: Master plans deeply,    │
+│ Worker executes fast. Better!       │
+│ [AI Connected] [Bridge OK]          │
+│ [Dual-Agent]                        │
+└─────────────────────────────────────┘
 
 Connected. Provider: ollama,
 DUAL-AGENT: Master=qwen2.5:14b-instruct,
@@ -164,7 +164,7 @@ Dual-agent mode: Master plans (10-30s),
 Worker executes. Good planning = better results!
 ```
 
-## ğŸ”§ Technical Details
+## 🔧 Technical Details
 
 ### Chat Server Protocol
 
@@ -216,7 +216,7 @@ New message types:
 }
 ```
 
-## âœ… Integration Checklist
+## ✅ Integration Checklist
 
 - [x] Python dual-agent orchestrator
 - [x] Python chat server dual-agent support
@@ -230,7 +230,7 @@ New message types:
 - [x] Test scripts
 - [x] README updates
 
-## ğŸ¯ Testing Checklist
+## 🎯 Testing Checklist
 
 ### Python Side
 
@@ -254,38 +254,38 @@ New message types:
 
 ### End-to-End
 
-- [ ] Unity â†’ Python â†’ Master â†’ Worker â†’ Tools â†’ Unity
+- [ ] Unity → Python → Master → Worker → Tools → Unity
 - [ ] Complex command (forest creation)
 - [ ] Master plans 10-30s
 - [ ] Worker executes fast
 - [ ] Results appear in Unity scene
 - [ ] UI shows all progress
 
-## ğŸ“ Example Session
+## 📝 Example Session
 
 ```
 [Unity Editor]
 > Create a small forest with 15 trees
 
 [Chat Window]
-ğŸ§  Master: Master agent analyzing request...
+🧠 Master: Master agent analyzing request...
 (30 seconds pass)
 
-ğŸ“‹ Master Plan: Create realistic forest (3 steps)
+📋 Master Plan: Create realistic forest (3 steps)
 
-âš™ï¸ Worker: Step 1: Search for tree assets
-ğŸ”§ Tool: unity_find_tree_assets
-âœ“ unity_find_tree_assets succeeded
+⚙️ Worker: Step 1: Search for tree assets
+🔧 Tool: unity_find_tree_assets
+✓ unity_find_tree_assets succeeded
 
-âš™ï¸ Worker: Step 2: Analyze scene state
-ğŸ”§ Tool: unity_list_scene_objects
-âœ“ unity_list_scene_objects succeeded
+⚙️ Worker: Step 2: Analyze scene state
+🔧 Tool: unity_list_scene_objects
+✓ unity_list_scene_objects succeeded
 
-âš™ï¸ Worker: Step 3: Create forest with scatter
-ğŸ”§ Tool: unity_create_forest_from_assets
-âœ“ unity_create_forest_from_assets succeeded
+⚙️ Worker: Step 3: Create forest with scatter
+🔧 Tool: unity_create_forest_from_assets
+✓ unity_create_forest_from_assets succeeded
 
-âœ“ Worker completed 3 step(s)
+✓ Worker completed 3 step(s)
 
 [UnityTools AI]
 Created a natural forest with 15 trees using 3 different
@@ -294,7 +294,7 @@ tree types (Oak, Pine, Birch). Trees are scattered in a
 No overlaps detected. Forest center: (0, 0, 0).
 ```
 
-## ğŸ“ Key Benefits
+## 🎓 Key Benefits
 
 1. **Better Planning**: Master takes time to analyze
 2. **Fewer Errors**: Edge cases caught early
@@ -302,7 +302,7 @@ No overlaps detected. Forest center: (0, 0, 0).
 4. **Clear Progress**: UI shows each step
 5. **Automatic**: No manual configuration needed
 
-## ğŸ”® Future Enhancements
+## 🔮 Future Enhancements
 
 - [ ] Visual plan viewer in Unity
 - [ ] Plan editing before execution
@@ -311,7 +311,7 @@ No overlaps detected. Forest center: (0, 0, 0).
 - [ ] Performance metrics dashboard
 - [ ] Learning from user feedback
 
-## ğŸ“š Resources
+## 📚 Resources
 
 - [Quick Start](DUAL_AGENT_QUICKSTART.md)
 - [Complete Guide](DUAL_AGENT_GUIDE.md)
@@ -320,7 +320,7 @@ No overlaps detected. Forest center: (0, 0, 0).
 
 ---
 
-**Status**: âœ… FULLY INTEGRATED AND READY TO USE
+**Status**: ✅ FULLY INTEGRATED AND READY TO USE
 
 **Date**: 2026-05-05  
 **Version**: 2.2.1  

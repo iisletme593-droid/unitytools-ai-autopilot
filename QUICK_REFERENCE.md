@@ -1,14 +1,14 @@
-﻿# ğŸš€ UnityTools AI - HÄ±zlÄ± Referans
+﻿# 🚀 UnityTools AI - Hızlı Referans
 
-## ğŸ“‹ HÄ±zlÄ± BaÅŸlangÄ±Ã§
+## 📋 Hızlı Başlangıç
 
-### 1. Modelleri Ä°ndir
+### 1. Modelleri İndir
 ```powershell
 ollama pull qwen2.5:14b-instruct          # Master (9GB)
 ollama pull qwen2.5:14b-instruct    # Worker (9GB)
 ```
 
-### 2. KonfigÃ¼rasyon (.env)
+### 2. Konfigürasyon (.env)
 ```env
 UNITYTOOLS_PROVIDER=ollama
 USE_DUAL_AGENT=true
@@ -16,22 +16,22 @@ DUAL_AGENT_MASTER=qwen2.5:14b-instruct
 DUAL_AGENT_WORKER=qwen2.5:14b-instruct
 ```
 
-### 3. Unity'de BaÅŸlat
+### 3. Unity'de Başlat
 ```
 Window > UnityTools AI > Autopilot Chat
 ```
 
 ---
 
-## ğŸ¯ Komutlar
+## 🎯 Komutlar
 
-### CLI KomutlarÄ±
+### CLI Komutları
 
 ```powershell
 # Dual-agent chat (terminal)
 unitytools dual-chat
 
-# Chat server (Unity iÃ§in)
+# Chat server (Unity için)
 unitytools chat-server
 
 # Memory olmadan
@@ -46,7 +46,7 @@ unitytools status
 unitytools unity-ping
 ```
 
-### Unity MenÃ¼
+### Unity Menü
 
 ```
 Window > UnityTools AI > Autopilot Chat
@@ -57,7 +57,7 @@ Tools > UnityTools > Stop Embedded Chat Core
 
 ---
 
-## ğŸ’¬ Ã–rnek Promptlar
+## 💬 Örnek Promptlar
 
 ### Basit Komutlar
 ```
@@ -75,7 +75,7 @@ Place 10 trees around the scene
 Create a grid of 3x3 spheres
 ```
 
-### KarmaÅŸÄ±k Komutlar
+### Karmaşık Komutlar
 ```
 Create a small forest with 20 realistic trees
 Build a medieval village with houses and trees
@@ -85,21 +85,21 @@ Create a procedural island with terrain, trees, and rocks
 
 ---
 
-## ğŸ“Š Sistem Durumu
+## 📊 Sistem Durumu
 
-### Kontrol KomutlarÄ±
+### Kontrol Komutları
 
 ```powershell
 # Memory istatistikleri
 python -c "from unitytools.core.memory_system import MemorySystem; m = MemorySystem(); print(m.get_statistics())"
 
-# Pattern'leri gÃ¶rÃ¼ntÃ¼le
+# Pattern'leri görüntüle
 cat ~/.unitytools/memory/patterns.json
 
 # Long-term memory
 cat ~/.unitytools/memory/long_term_memory.jsonl
 
-# Test Ã§alÄ±ÅŸtÄ±r
+# Test çalıştır
 python test_full_integration.py
 ```
 
@@ -109,23 +109,23 @@ python test_full_integration.py
 Tools > UnityTools > Bridge Status
 ```
 
-GÃ¶rmeli:
-- âœ… AI Connected
-- âœ… Unity Bridge OK
-- âœ… Core Managed
-- âœ… Dual-Agent (eÄŸer aktifse)
+Görmeli:
+- ✅ AI Connected
+- ✅ Unity Bridge OK
+- ✅ Core Managed
+- ✅ Dual-Agent (eğer aktifse)
 
 ---
 
-## ğŸ”§ Sorun Giderme
+## 🔧 Sorun Giderme
 
-### "Master Ã§ok yavaÅŸ"
+### "Master çok yavaş"
 
-**Normal**: 10-30s planlama beklenen davranÄ±ÅŸ  
+**Normal**: 10-30s planlama beklenen davranış  
 **Anormal**: >2 dakika
 
 ```powershell
-# Ollama'yÄ± restart et
+# Ollama'yı restart et
 taskkill /F /IM ollama.exe
 ollama serve
 ```
@@ -133,25 +133,25 @@ ollama serve
 ### "Worker hata veriyor"
 
 ```powershell
-# Unity bridge kontrolÃ¼
+# Unity bridge kontrolü
 unitytools unity-ping
 
-# Unity Editor aÃ§Ä±k mÄ± kontrol et
-# Bridge Server Ã§alÄ±ÅŸÄ±yor mu kontrol et
+# Unity Editor açık mı kontrol et
+# Bridge Server çalışıyor mu kontrol et
 ```
 
-### "Memory Ã§alÄ±ÅŸmÄ±yor"
+### "Memory çalışmıyor"
 
 ```powershell
-# Memory path kontrolÃ¼
+# Memory path kontrolü
 ls ~/.unitytools/memory/
 
-# Permissions kontrolÃ¼
+# Permissions kontrolü
 # Manuel test
 python test_full_integration.py
 ```
 
-### "Context gÃ¼ncellenmiyor"
+### "Context güncellenmiyor"
 
 ```python
 # Python'da manuel test
@@ -163,79 +163,79 @@ print(ctx.get_context_summary())
 
 ---
 
-## ğŸ“ˆ Performans Ä°puÃ§larÄ±
+## 📈 Performans İpuçları
 
-### Model SeÃ§imi
+### Model Seçimi
 
-| Senaryo | Master | Worker | SÃ¼re |
+| Senaryo | Master | Worker | Süre |
 |---------|--------|--------|------|
 | **En iyi kalite** | qwen2.5:14b-instruct | qwen2.5:14b | 10-30s |
-| HÄ±zlÄ± | qwen2.5:14b | qwen2.5:7b | 10-15s |
+| Hızlı | qwen2.5:14b | qwen2.5:7b | 10-15s |
 | Dengeli | qwen2.5:14b | qwen2.5:14b | 10-15s |
 
 ### Optimizasyon
 
 ```env
-# Master iÃ§in daha az token
+# Master için daha az token
 UNITYTOOLS_MAX_TOKENS=4096
 
 # History limit
 UNITYTOOLS_HISTORY_LIMIT=40
 
-# Timeout ayarlarÄ±
+# Timeout ayarları
 UNITY_RPC_TIMEOUT=180
 ```
 
 ---
 
-## ğŸ“ Best Practices
+## 🎓 Best Practices
 
-### Ä°lk KullanÄ±m
+### İlk Kullanım
 
-1. âœ… Basit komutlarla baÅŸla
-2. âœ… Master'Ä±n planlarÄ±nÄ± incele
-3. âœ… KarmaÅŸÄ±k gÃ¶revleri dene
-4. âœ… Ã–ÄŸrenme sÃ¼recini gÃ¶zlemle
+1. ✅ Basit komutlarla başla
+2. ✅ Master'ın planlarını incele
+3. ✅ Karmaşık görevleri dene
+4. ✅ Öğrenme sürecini gözlemle
 
-### KarmaÅŸÄ±k GÃ¶revler
+### Karmaşık Görevler
 
-1. âœ… Spesifik ol
-2. âœ… Context bilgisi ver
-3. âœ… Master'a zaman tanÄ± (10-30s)
-4. âœ… SonuÃ§larÄ± kontrol et
+1. ✅ Spesifik ol
+2. ✅ Context bilgisi ver
+3. ✅ Master'a zaman tanı (10-30s)
+4. ✅ Sonuçları kontrol et
 
-### Ã–ÄŸrenme
+### Öğrenme
 
-1. âœ… Benzer gÃ¶revleri tekrarla
-2. âœ… Pattern'leri kontrol et
-3. âœ… Ä°statistikleri takip et
-4. âœ… Memory'yi temizle (gerekirse)
+1. ✅ Benzer görevleri tekrarla
+2. ✅ Pattern'leri kontrol et
+3. ✅ İstatistikleri takip et
+4. ✅ Memory'yi temizle (gerekirse)
 
 ---
 
-## ğŸ“š DokÃ¼mantasyon Linkleri
+## 📚 Dokümantasyon Linkleri
 
-### BaÅŸlangÄ±Ã§
-- [README.md](README.md) - Ana dokÃ¼mantasyon
-- [DUAL_AGENT_QUICKSTART.md](DUAL_AGENT_QUICKSTART.md) - 5 dakikada baÅŸlangÄ±Ã§
+### Başlangıç
+- [README.md](README.md) - Ana dokümantasyon
+- [DUAL_AGENT_QUICKSTART.md](DUAL_AGENT_QUICKSTART.md) - 5 dakikada başlangıç
 
-### DetaylÄ± KÄ±lavuzlar
-- [DUAL_AGENT_GUIDE.md](DUAL_AGENT_GUIDE.md) - KapsamlÄ± kullanÄ±m
+### Detaylı Kılavuzlar
+- [DUAL_AGENT_GUIDE.md](DUAL_AGENT_GUIDE.md) - Kapsamlı kullanım
 - [DUAL_AGENT_PHILOSOPHY.md](DUAL_AGENT_PHILOSOPHY.md) - Felsefe ve ROI
-- [ENHANCED_FEATURES.md](ENHANCED_FEATURES.md) - Yeni Ã¶zellikler
+- [ENHANCED_FEATURES.md](ENHANCED_FEATURES.md) - Yeni özellikler
 
 ### Teknik
-- [DUAL_AGENT_SUMMARY.md](DUAL_AGENT_SUMMARY.md) - Teknik Ã¶zet
-- [FINAL_INTEGRATION_REPORT.md](FINAL_INTEGRATION_REPORT.md) - Test sonuÃ§larÄ±
+- [DUAL_AGENT_SUMMARY.md](DUAL_AGENT_SUMMARY.md) - Teknik özet
+- [FINAL_INTEGRATION_REPORT.md](FINAL_INTEGRATION_REPORT.md) - Test sonuçları
 - [SYSTEM_STATUS.md](SYSTEM_STATUS.md) - Sistem durumu
 
 ---
 
-## ğŸ”‘ Ã–nemli Dosyalar
+## 🔑 Önemli Dosyalar
 
-### KonfigÃ¼rasyon
+### Konfigürasyon
 ```
-.env                              # Ana konfigÃ¼rasyon
+.env                              # Ana konfigürasyon
 ~/.unitytools/memory/             # Memory storage
 ```
 
@@ -262,7 +262,7 @@ test_dual_agent.py                # Dual-agent test
 
 ---
 
-## ğŸ’¡ HÄ±zlÄ± Notlar
+## 💡 Hızlı Notlar
 
 ### Master Agent
 - Qwen 2.5:14b (9GB)
@@ -272,9 +272,9 @@ test_dual_agent.py                # Dual-agent test
 
 ### Worker Agent
 - Qwen 2.5:14b (9GB)
-- Saniyeler iÃ§inde execution
+- Saniyeler içinde execution
 - Tool calling
-- DetaylÄ± raporlama
+- Detaylı raporlama
 
 ### Memory System
 - Long-term memory
@@ -290,10 +290,10 @@ test_dual_agent.py                # Dual-agent test
 
 ---
 
-## ğŸ¯ HÄ±zlÄ± Test
+## 🎯 Hızlı Test
 
 ```powershell
-# 1. Test Ã§alÄ±ÅŸtÄ±r
+# 1. Test çalıştır
 python test_full_integration.py
 
 # 2. Unity'de test et
@@ -303,13 +303,13 @@ python test_full_integration.py
 # 3. Memory kontrol et
 cat ~/.unitytools/memory/patterns.json
 
-# 4. KarmaÅŸÄ±k test
+# 4. Karmaşık test
 # Komut: "Create a small forest with 15 trees"
 ```
 
 ---
 
-**HazÄ±r mÄ±sÄ±nÄ±z?**
+**Hazır mısınız?**
 
 ```powershell
 unitytools dual-chat
@@ -321,5 +321,5 @@ veya
 Unity > Window > UnityTools AI > Autopilot Chat
 ```
 
-**Ä°yi Ã§alÄ±ÅŸmalar!** ğŸš€
+**İyi çalışmalar!** 🚀
 

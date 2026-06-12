@@ -1,51 +1,51 @@
 ﻿# Dual-Agent System Guide
 
-## ğŸ¯ Konsept
+## 🎯 Konsept
 
-UnityTools artÄ±k **iki farklÄ± AI modeli** kullanarak hiyerarÅŸik bir sistem sunuyor:
+UnityTools artık **iki farklı AI modeli** kullanarak hiyerarşik bir sistem sunuyor:
 
 ```
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚  MASTER AGENT (Qwen 2.5:14b - 9GB)        â”‚
-â”‚  - GÃ¼Ã§lÃ¼ planlama (30-60 saniye)       â”‚
-â”‚  - Derin analiz & strateji              â”‚
-â”‚  - Edge case detection                  â”‚
-â”‚  - Kalite kontrolÃ¼                      â”‚
-â”‚  "Measure twice, cut once"             â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-               â”‚ delegates
+┌─────────────────────────────────────────┐
+│  MASTER AGENT (Qwen 2.5:14b - 9GB)        │
+│  - Güçlü planlama (30-60 saniye)       │
+│  - Derin analiz & strateji              │
+│  - Edge case detection                  │
+│  - Kalite kontrolü                      │
+│  "Measure twice, cut once"             │
+└──────────────┬──────────────────────────┘
+               │ delegates
                â–¼
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚  WORKER AGENT (Qwen 2.5:14b - 9GB)     â”‚
-â”‚  - HÄ±zlÄ± tool execution                 â”‚
-â”‚  - Master'Ä±n planÄ±nÄ± takip eder         â”‚
-â”‚  - Unity/Blender komutlarÄ±              â”‚
-â”‚  - DetaylÄ± raporlama                    â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+┌─────────────────────────────────────────┐
+│  WORKER AGENT (Qwen 2.5:14b - 9GB)     │
+│  - Hızlı tool execution                 │
+│  - Master'ın planını takip eder         │
+│  - Unity/Blender komutları              │
+│  - Detaylı raporlama                    │
+└─────────────────────────────────────────┘
 ```
 
-### ğŸ’¡ Felsefe
+### 💡 Felsefe
 
-**"Ä°yi planlama her ÅŸeyi kolaylaÅŸtÄ±rÄ±r"**
+**"İyi planlama her şeyi kolaylaştırır"**
 
-Master agent 30-60 saniye planlama yapar. Bu yavaÅŸ gÃ¶rÃ¼nebilir ama:
-- âœ… Daha az hata
-- âœ… Daha iyi sonuÃ§lar
-- âœ… Edge case'leri yakalar
-- âœ… Alternatif planlar hazÄ±rlar
-- âœ… Worker'a net talimatlar verir
+Master agent 30-60 saniye planlama yapar. Bu yavaş görünebilir ama:
+- ✅ Daha az hata
+- ✅ Daha iyi sonuçlar
+- ✅ Edge case'leri yakalar
+- ✅ Alternatif planlar hazırlar
+- ✅ Worker'a net talimatlar verir
 
-SonuÃ§: **HÄ±zlÄ± baÅŸarÄ±sÄ±z execution < YavaÅŸ baÅŸarÄ±lÄ± planlama**
+Sonuç: **Hızlı başarısız execution < Yavaş başarılı planlama**
 
-## ğŸ“¦ Kurulum
+## 📦 Kurulum
 
-### 1. Modelleri Ä°ndirin
+### 1. Modelleri İndirin
 
 ```powershell
-# Worker model (hÄ±zlÄ±, tool execution)
+# Worker model (hızlı, tool execution)
 ollama pull qwen2.5:14b-instruct
 
-# Master model (gÃ¼Ã§lÃ¼, planning)
+# Master model (güçlü, planning)
 ollama pull qwen2.5:14b-instruct
 
 # Alternatif: Daha hafif kombinasyon
@@ -53,9 +53,9 @@ ollama pull qwen2.5:7b-instruct   # Worker
 ollama pull qwen2.5:14b-instruct  # Master
 ```
 
-### 2. Dual-Agent Modunu AktifleÅŸtirin
+### 2. Dual-Agent Modunu Aktifleştirin
 
-`.env` dosyanÄ±zda:
+`.env` dosyanızda:
 
 ```env
 UNITYTOOLS_PROVIDER=ollama
@@ -64,130 +64,130 @@ DUAL_AGENT_MASTER=qwen2.5:14b-instruct
 DUAL_AGENT_WORKER=qwen2.5:14b-instruct
 ```
 
-## ğŸš€ KullanÄ±m
+## 🚀 Kullanım
 
 ### Terminal Chat (Dual-Agent)
 
 ```powershell
-# VarsayÄ±lan modeller ile
+# Varsayılan modeller ile
 unitytools dual-chat
 
-# Ã–zel modeller ile
+# Özel modeller ile
 unitytools dual-chat --master qwen2.5:14b-instruct --worker qwen2.5:7b-instruct
 ```
 
 ### Unity Editor'de Dual-Agent
 
-Unity Editor'de chat panelini aÃ§Ä±n:
+Unity Editor'de chat panelini açın:
 ```
 Window > UnityTools AI > Autopilot Chat
 ```
 
-Panel otomatik olarak `.env` dosyasÄ±ndaki `USE_DUAL_AGENT` ayarÄ±nÄ± okur.
+Panel otomatik olarak `.env` dosyasındaki `USE_DUAL_AGENT` ayarını okur.
 
-## ğŸ’¡ Ne Zaman KullanmalÄ±?
+## 💡 Ne Zaman Kullanmalı?
 
-### Dual-Agent (Qwen 2.5:14b Master) Ä°deal:
-- âœ… KarmaÅŸÄ±k sahne oluÅŸturma ("Create a medieval village with 50 buildings")
-- âœ… Multi-step gÃ¶revler ("Import models, setup materials, arrange in grid")
-- âœ… Planlama gerektiren iÅŸler ("Design a level layout with proper flow")
-- âœ… BÃ¼yÃ¼k batch iÅŸlemler ("Place 100 trees with natural distribution")
-- âœ… Edge case'lerin Ã¶nemli olduÄŸu durumlar
-- âœ… Ä°lk denemede doÄŸru sonuÃ§ istediÄŸinizde
+### Dual-Agent (Qwen 2.5:14b Master) İdeal:
+- ✅ Karmaşık sahne oluşturma ("Create a medieval village with 50 buildings")
+- ✅ Multi-step görevler ("Import models, setup materials, arrange in grid")
+- ✅ Planlama gerektiren işler ("Design a level layout with proper flow")
+- ✅ Büyük batch işlemler ("Place 100 trees with natural distribution")
+- ✅ Edge case'lerin önemli olduğu durumlar
+- ✅ İlk denemede doğru sonuç istediğinizde
 
 ### Single-Agent Yeterli:
 - âš¡ Basit sorgular ("List scene objects")
-- âš¡ Tek tool Ã§aÄŸrÄ±sÄ± ("Create a cube")
-- âš¡ HÄ±zlÄ± yanÄ±t gereken durumlar
-- âš¡ Deneme-yanÄ±lma yapÄ±labilecek iÅŸler
+- âš¡ Tek tool çağrısı ("Create a cube")
+- âš¡ Hızlı yanıt gereken durumlar
+- âš¡ Deneme-yanılma yapılabilecek işler
 
-### Master'Ä±n DeÄŸeri
+### Master'ın Değeri
 
-30-60 saniye planlama sÃ¼resi ÅŸunlarÄ± saÄŸlar:
+30-60 saniye planlama süresi şunları sağlar:
 
-1. **Derin Analiz**: "Forest oluÅŸtur" derken:
+1. **Derin Analiz**: "Forest oluştur" derken:
    - Hangi tree asset'leri var?
    - Sahne durumu ne?
-   - KaÃ§ aÄŸaÃ§ uygun?
-   - NasÄ±l daÄŸÄ±tÄ±lmalÄ±?
-   - Overlap olmamasÄ± iÃ§in min spacing ne olmalÄ±?
+   - Kaç ağaç uygun?
+   - Nasıl dağıtılmalı?
+   - Overlap olmaması için min spacing ne olmalı?
 
-2. **Hata Ã–nleme**: 
+2. **Hata Önleme**: 
    - Asset yoksa fallback plan
    - Sahne doluysa alternatif konum
-   - Tool baÅŸarÄ±sÄ±z olursa baÅŸka yÃ¶ntem
+   - Tool başarısız olursa başka yöntem
 
 3. **Optimizasyon**:
-   - Gereksiz adÄ±mlarÄ± Ã§Ä±karÄ±r
-   - Batch iÅŸlemleri birleÅŸtirir
-   - En verimli tool'u seÃ§er
+   - Gereksiz adımları çıkarır
+   - Batch işlemleri birleştirir
+   - En verimli tool'u seçer
 
-**SonuÃ§**: 1 dakika planlama + 30 saniye execution = BaÅŸarÄ±  
+**Sonuç**: 1 dakika planlama + 30 saniye execution = Başarı  
 vs.  
-5 saniye planlama + 2 dakika hata dÃ¼zeltme = Hayal kÄ±rÄ±klÄ±ÄŸÄ±
+5 saniye planlama + 2 dakika hata düzeltme = Hayal kırıklığı
 
-## ğŸ”§ YapÄ±landÄ±rma
+## 🔧 Yapılandırma
 
-### Model KombinasyonlarÄ±
+### Model Kombinasyonları
 
-| Master Model | Worker Model | KullanÄ±m Senaryosu | Planlama SÃ¼resi |
+| Master Model | Worker Model | Kullanım Senaryosu | Planlama Süresi |
 |--------------|--------------|-------------------|-----------------|
-| **qwen2.5:14b-instruct** | **qwen2.5:14b** | **En iyi kalite (Ã–NERÄ°LEN)** | **10-30s** |
-| qwen2.5:14b | qwen2.5:7b | HÄ±zlÄ± ama daha az detaylÄ± | 10-15s |
-| qwen2.5:14b | qwen2.5:14b | AynÄ± model (fallback) | 10-15s |
+| **qwen2.5:14b-instruct** | **qwen2.5:14b** | **En iyi kalite (ÖNERİLEN)** | **10-30s** |
+| qwen2.5:14b | qwen2.5:7b | Hızlı ama daha az detaylı | 10-15s |
+| qwen2.5:14b | qwen2.5:14b | Aynı model (fallback) | 10-15s |
 
-**Ã–nerilen**: Qwen 2.5:14b master kullanÄ±n. 30-60 saniye beklemeye deÄŸer Ã§Ã¼nkÃ¼:
-- Daha az hata = daha az dÃ¼zeltme = toplam daha hÄ±zlÄ±
-- Ä°lk denemede doÄŸru sonuÃ§
+**Önerilen**: Qwen 2.5:14b master kullanın. 30-60 saniye beklemeye değer çünkü:
+- Daha az hata = daha az düzeltme = toplam daha hızlı
+- İlk denemede doğru sonuç
 - Edge case'leri yakalar
-- Alternatif planlar hazÄ±rlar
+- Alternatif planlar hazırlar
 
-### Performans AyarlarÄ±
+### Performans Ayarları
 
-`.env` dosyasÄ±nda:
+`.env` dosyasında:
 
 ```env
-# Master iÃ§in daha az token (sadece planlama)
+# Master için daha az token (sadece planlama)
 UNITYTOOLS_MAX_TOKENS=4096
 
-# History limit (dual-agent daha fazla mesaj Ã¼retir)
+# History limit (dual-agent daha fazla mesaj üretir)
 UNITYTOOLS_HISTORY_LIMIT=60
 ```
 
-## ğŸ“Š Avantajlar
+## 📊 Avantajlar
 
-1. **Daha Ä°yi Planlama**: BÃ¼yÃ¼k model karmaÅŸÄ±k gÃ¶revleri daha iyi analiz eder
-2. **HÄ±zlÄ± Execution**: KÃ¼Ã§Ã¼k model tool'larÄ± hÄ±zlÄ± Ã§alÄ±ÅŸtÄ±rÄ±r
-3. **Token VerimliliÄŸi**: Master sadece plan yapar, worker Ã§alÄ±ÅŸtÄ±rÄ±r
-4. **AÃ§Ä±k Separation**: Planlama ve execution ayrÄ±, debug kolay
+1. **Daha İyi Planlama**: Büyük model karmaşık görevleri daha iyi analiz eder
+2. **Hızlı Execution**: Küçük model tool'ları hızlı çalıştırır
+3. **Token Verimliliği**: Master sadece plan yapar, worker çalıştırır
+4. **Açık Separation**: Planlama ve execution ayrı, debug kolay
 
-## ğŸ› Sorun Giderme
+## 🐛 Sorun Giderme
 
 ### "Master agent takes too long"
 - Bu NORMAL! Master 30-60 saniye planlama yapar
-- Bu sÃ¼re iyi planlama iÃ§in gerekli
-- SabÄ±rlÄ± olun - sonuÃ§ daha iyi olacak
-- EÄŸer gerÃ§ekten Ã§ok uzun sÃ¼rÃ¼yorsa (>2 dakika), Ollama'yÄ± restart edin
+- Bu süre iyi planlama için gerekli
+- Sabırlı olun - sonuç daha iyi olacak
+- Eğer gerçekten çok uzun sürüyorsa (>2 dakika), Ollama'yı restart edin
 
 ### "Master agent timeout" (>2 dakika)
 - Ollama restart: `ollama serve` (yeni terminal)
-- Model yeniden yÃ¼kle: `ollama run qwen2.5:14b-instruct` sonra Ctrl+D
-- RAM yetersizse: 32GB+ RAM Ã¶nerilir Qwen 2.5:14b iÃ§in
+- Model yeniden yükle: `ollama run qwen2.5:14b-instruct` sonra Ctrl+D
+- RAM yetersizse: 32GB+ RAM önerilir Qwen 2.5:14b için
 
 ### "Worker fails to execute"
 - Worker model tool-calling desteklemiyor olabilir
-- Minimum `qwen2.5:7b-instruct` kullanÄ±n
-- `qwen2.5:14b-instruct` Ã¶nerilir
+- Minimum `qwen2.5:7b-instruct` kullanın
+- `qwen2.5:14b-instruct` önerilir
 
 ### "Results not as expected"
-- Master'Ä±n planÄ±nÄ± kontrol edin (log'larda)
-- Worker'Ä±n raporlarÄ±nÄ± inceleyin
-- Daha spesifik istek yapÄ±n
+- Master'ın planını kontrol edin (log'larda)
+- Worker'ın raporlarını inceleyin
+- Daha spesifik istek yapın
 - Master'a daha fazla context verin
 
-## ğŸ”¬ GeliÅŸmiÅŸ: Simple Routing
+## 🔬 Gelişmiş: Simple Routing
 
-Otomatik model seÃ§imi iÃ§in:
+Otomatik model seçimi için:
 
 ```python
 from unitytools.core.simple_dual_agent import SimpleDualAgent
@@ -198,14 +198,14 @@ dual = SimpleDualAgent(
     simple_model="qwen2.5:7b-instruct",
 )
 
-# Otomatik olarak uygun modeli seÃ§er
+# Otomatik olarak uygun modeli seçer
 result = dual.chat("List scene objects")  # -> 7b model
 result = dual.chat("Create a forest with 50 trees")  # -> 14b model
 ```
 
-## ğŸ“ Ã–rnek Senaryolar
+## 📝 Örnek Senaryolar
 
-### Senaryo 1: KarmaÅŸÄ±k Sahne OluÅŸturma
+### Senaryo 1: Karmaşık Sahne Oluşturma
 
 ```
 User: Create a medieval village with houses, trees, and a central plaza
@@ -231,22 +231,22 @@ Master: Simple query, single tool call needed
 Worker: unity_list_scene_objects() -> 15 objects
 ```
 
-## ğŸ“ Best Practices
+## 🎓 Best Practices
 
-1. **Model SeÃ§imi**: BÃ¼yÃ¼k master = daha iyi plan, ama yavaÅŸ
-2. **Timeout AyarlarÄ±**: Master iÃ§in 60s, worker iÃ§in 180s
-3. **History Management**: Dual-agent daha fazla mesaj Ã¼retir, limit ayarlayÄ±n
-4. **Error Handling**: Master plan baÅŸarÄ±sÄ±z olursa fallback to single-agent
+1. **Model Seçimi**: Büyük master = daha iyi plan, ama yavaş
+2. **Timeout Ayarları**: Master için 60s, worker için 180s
+3. **History Management**: Dual-agent daha fazla mesaj üretir, limit ayarlayın
+4. **Error Handling**: Master plan başarısız olursa fallback to single-agent
 
-## ğŸ”® Gelecek GeliÅŸtirmeler
+## 🔮 Gelecek Geliştirmeler
 
 - [ ] Adaptive routing (otomatik complexity detection)
 - [ ] Multi-worker support (parallel execution)
-- [ ] Plan caching (aynÄ± gÃ¶revler iÃ§in)
+- [ ] Plan caching (aynı görevler için)
 - [ ] Visual plan viewer (Unity Editor'de)
 - [ ] Performance metrics (master vs worker timing)
 
-## ğŸ“š API Reference
+## 📚 API Reference
 
 ### DualAgentOrchestrator
 
@@ -293,17 +293,17 @@ class SimpleDualAgent:
     ) -> OrchestratorResult
 ```
 
-## ğŸ¤ KatkÄ±da Bulunma
+## 🤝 Katkıda Bulunma
 
-Dual-agent sistemi deneyseldir. Geri bildirimleriniz Ã§ok deÄŸerli:
+Dual-agent sistemi deneyseldir. Geri bildirimleriniz çok değerli:
 
-- Hangi model kombinasyonlarÄ± iyi Ã§alÄ±ÅŸÄ±yor?
-- Hangi gÃ¶revler iÃ§in dual-agent gerÃ§ekten faydalÄ±?
-- Performance sorunlarÄ±?
+- Hangi model kombinasyonları iyi çalışıyor?
+- Hangi görevler için dual-agent gerçekten faydalı?
+- Performance sorunları?
 
-GitHub Issues'da paylaÅŸÄ±n!
+GitHub Issues'da paylaşın!
 
-## ğŸ“„ Lisans
+## 📄 Lisans
 
-MIT License - Ana proje ile aynÄ±
+MIT License - Ana proje ile aynı
 

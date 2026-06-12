@@ -8,19 +8,19 @@ using UnityEngine;
 
 namespace Autopilot
 {
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    //  THORNY IVY â€” SCENE BUILDER  v4
-    //  Referans gÃ¶rseller: 816ea051, 0f1450a9, ba4ec276, fd3cd05d, HF_GAME_AI_07
+    // ─────────────────────────────────────────────────────────────────────────
+    //  THORNY IVY — SCENE BUILDER  v4
+    //  Referans görseller: 816ea051, 0f1450a9, ba4ec276, fd3cd05d, HF_GAME_AI_07
     //
-    //  Sahne dÃ¼zeni (oyuncu Z=0, kale Z=+85, kuzey yÃ¶nÃ¼ +Z):
-    //    Z=  0   Oyuncu baÅŸlangÄ±cÄ±, kamera arkada (Z=-14)
-    //    Z=+15   KÃ¶y kapÄ±sÄ± â€” sol bÃ¼yÃ¼k kulÃ¼be / saÄŸ kÃ¼Ã§Ã¼k kulÃ¼be
-    //    Z=+10   Kampfire (yol sol kenarÄ±)
-    //    Z=Â±10â€”80 Pine + Fir ormanÄ± (yolun iki yanÄ±nda ÅŸerit)
-    //    Z=+85   Gotik kale â€” karanlÄ±k taÅŸ, ince kuleler, sihirli Ä±ÅŸÄ±n
+    //  Sahne düzeni (oyuncu Z=0, kale Z=+85, kuzey yönü +Z):
+    //    Z=  0   Oyuncu başlangıcı, kamera arkada (Z=-14)
+    //    Z=+15   Köy kapısı — sol büyük kulübe / sağ küçük kulübe
+    //    Z=+10   Kampfire (yol sol kenarı)
+    //    Z=±10—80 Pine + Fir ormanı (yolun iki yanında şerit)
+    //    Z=+85   Gotik kale — karanlık taş, ince kuleler, sihirli ışın
     //
-    //  Atmosfer: koyu gotik â€” yoÄŸun mavi-gri sis, neredeyse gece ortamÄ±
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  Atmosfer: koyu gotik — yoğun mavi-gri sis, neredeyse gece ortamı
+    // ─────────────────────────────────────────────────────────────────────────
 
     [InitializeOnLoad]
     public static class SceneBuilder
@@ -54,7 +54,7 @@ namespace Autopilot
             ImportAssets();
         }
 
-        // â”€â”€ 1. Asset Import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── 1. Asset Import ──────────────────────────────────────────────────
         [MenuItem("Tools/Autopilot/1 - Import All Assets")]
         public static void ImportAssets()
         {
@@ -92,7 +92,7 @@ namespace Autopilot
         static bool IsImportable(string ext) =>
             ext is ".glb" or ".fbx" or ".obj" or ".png" or ".jpg" or ".hdr" or ".exr";
 
-        // â”€â”€ NÃ¼kleer temizlik â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Nükleer temizlik ─────────────────────────────────────────────────
         public static void NukeSceneObjects()
         {
             var all   = Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include);
@@ -127,7 +127,7 @@ namespace Autopilot
             name.StartsWith("New Game Object") ||
             name.StartsWith("AutoLight_");
 
-        // â”€â”€ 2. Sahne Kur â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── 2. Sahne Kur ─────────────────────────────────────────────────────
         [MenuItem("Tools/Autopilot/2 - Build Fantasy Scene")]
         public static void BuildScene()
         {
@@ -137,7 +137,7 @@ namespace Autopilot
             var root = new GameObject("_RPG_Scene");
             Undo.RegisterCreatedObjectUndo(root, "Build RPG Scene");
 
-            // SÄ±ralÄ± aÅŸamalar â€” Ã¶nce zemin/atmosfer, sonra nesneler
+            // Sıralı aşamalar — önce zemin/atmosfer, sonra nesneler
             BuildTerrain(root.transform);
             BuildAtmosphere();
             BuildCastle(root.transform);
@@ -155,8 +155,8 @@ namespace Autopilot
             SceneView.lastActiveSceneView?.Frame(new Bounds(new Vector3(0, 5, 40), Vector3.one * 120f), false);
         }
 
-        // â”€â”€ Atmosfer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // Referans: 816ea051 / 0f1450a9 â€” koyu gotik, yoÄŸun sis, geceye yakÄ±n
+        // ── Atmosfer ─────────────────────────────────────────────────────────
+        // Referans: 816ea051 / 0f1450a9 — koyu gotik, yoğun sis, geceye yakın
         static void BuildAtmosphere()
         {
             RenderSettings.ambientMode  = UnityEngine.Rendering.AmbientMode.Flat;
@@ -165,12 +165,12 @@ namespace Autopilot
             RenderSettings.fog        = true;
             RenderSettings.fogMode    = FogMode.ExponentialSquared;
             RenderSettings.fogColor   = new Color(0.28f, 0.30f, 0.38f);       // koyu mavi-gri sis
-            RenderSettings.fogDensity = 0.038f;                                // yoÄŸun â€” kale uzakta kaybolsun
+            RenderSettings.fogDensity = 0.038f;                                // yoğun — kale uzakta kaybolsun
 
             RenderSettings.reflectionIntensity = 0.20f;
         }
 
-        // â”€â”€ Zemin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Zemin ────────────────────────────────────────────────────────────
         [MenuItem("Tools/Autopilot/7 - Rebuild Terrain")]
         public static void RebuildTerrainTextured()
         {
@@ -189,42 +189,42 @@ namespace Autopilot
             var t = new GameObject("_RPG_Terrain").transform;
             t.SetParent(parent);
 
-            // Ana zemin â€” referans gÃ¶rsellerde: koyu gri-yeÅŸil, yoÄŸun sisli ortam
-            // 200Ã—200m merkez (0,0,0) â€” oyuncu Z=0, kale Z=85 iÃ§inde kalÄ±r
+            // Ana zemin — referans görsellerde: koyu gri-yeşil, yoğun sisli ortam
+            // 200×200m merkez (0,0,0) — oyuncu Z=0, kale Z=85 içinde kalır
             var grass = GameObject.CreatePrimitive(PrimitiveType.Plane);
             grass.name = "_RPG_GrassGround";
             grass.transform.SetParent(t);
             grass.transform.localPosition = new Vector3(0f, 0f, 45f);  // sahneyi dengele
-            grass.transform.localScale    = new Vector3(20f, 1f, 20f); // 200Ã—200m
+            grass.transform.localScale    = new Vector3(20f, 1f, 20f); // 200×200m
             ApplyPbrGroundMat(grass, "Grass007", "Ground",
                 tiling: 40f, smoothness: 0.06f,
-                fallback: new Color(0.025f, 0.065f, 0.015f)); // koyu gri-yeÅŸil (referans atmosferi)
+                fallback: new Color(0.025f, 0.065f, 0.015f)); // koyu gri-yeşil (referans atmosferi)
 
-            // Merkez yol â€” oyuncudan kaleye kadar uzanan toprak/Ã§amur yol
-            // Z=-5 â†’ Z=90, yani 95m uzunluk, 5.5m geniÅŸlik
+            // Merkez yol — oyuncudan kaleye kadar uzanan toprak/çamur yol
+            // Z=-5 → Z=90, yani 95m uzunluk, 5.5m genişlik
             var path = GameObject.CreatePrimitive(PrimitiveType.Plane);
             path.name = "_RPG_DirtPath";
             path.transform.SetParent(t);
             path.transform.localPosition = new Vector3(0f, 0.01f, 42.5f); // merkez
-            path.transform.localScale    = new Vector3(0.55f, 1f, 9.5f);  // 5.5m Ã— 95m
+            path.transform.localScale    = new Vector3(0.55f, 1f, 9.5f);  // 5.5m × 95m
             ApplyPbrGroundMat(path, "Ground054", "Ground",
                 tiling: 18f, smoothness: 0.14f,
-                fallback: new Color(0.08f, 0.062f, 0.040f)); // koyu Ã§amurlu toprak
+                fallback: new Color(0.08f, 0.062f, 0.040f)); // koyu çamurlu toprak
         }
 
-        // â”€â”€ Kale â€” Referans: koyu gotik taÅŸ, ince kuleler, sihirli Ä±ÅŸÄ±n â”€â”€â”€â”€â”€â”€
-        // Konum: Z=+85, oyuncu yolun sonunda kaleyi gÃ¶rÃ¼r
+        // ── Kale — Referans: koyu gotik taş, ince kuleler, sihirli ışın ──────
+        // Konum: Z=+85, oyuncu yolun sonunda kaleyi görür
         static void BuildCastle(Transform parent)
         {
             var t = new GameObject("_RPG_Castle").transform;
             t.SetParent(parent);
             t.localPosition = new Vector3(0f, 0f, 85f);
 
-            // ModularFort GLB â€” ana kale yapÄ±sÄ± (varsa kullan)
+            // ModularFort GLB — ana kale yapısı (varsa kullan)
             var fort = SpawnGLB(t, "ModularFort", new Vector3(0f, 0f, 0f),
                                  Vector3.zero, Vector3.one, targetMeters: 22f);
 
-            // Ana gÃ¶vde primitifi (fort yoksa)
+            // Ana gövde primitifi (fort yoksa)
             var keep = GameObject.CreatePrimitive(PrimitiveType.Cube);
             keep.name = "_RPG_CastleKeep";
             keep.transform.SetParent(t);
@@ -232,22 +232,22 @@ namespace Autopilot
             keep.transform.localScale    = new Vector3(20f, 18f, 14f);
             ApplyPbrGroundMat(keep, "Concrete042A", "Stone",
                 tiling: 3f, smoothness: 0.14f,
-                fallback: new Color(0.09f, 0.08f, 0.07f)); // siyah-koyu taÅŸ
+                fallback: new Color(0.09f, 0.08f, 0.07f)); // siyah-koyu taş
             if (fort != null) keep.GetComponent<MeshRenderer>().enabled = false;
 
-            // Ã–n duvar + beden duvarlarÄ±
+            // Ön duvar + beden duvarları
             BuildWall(t, "_RPG_Wall_S", new Vector3( 0f, 4f, -10f), new Vector3(24f, 8f, 1.0f));
             BuildWall(t, "_RPG_Wall_W", new Vector3(-12f, 4f, 0f),  new Vector3(1.0f, 8f, 20f));
             BuildWall(t, "_RPG_Wall_E", new Vector3( 12f, 4f, 0f),  new Vector3(1.0f, 8f, 20f));
 
-            // Koyu gotik kuleler â€” 4 kÃ¶ÅŸe + merkez (en yÃ¼ksek)
+            // Koyu gotik kuleler — 4 köşe + merkez (en yüksek)
             SpawnDarkTower(t, new Vector3(-12f, 0f, -10f), 26f, 2.8f);
             SpawnDarkTower(t, new Vector3( 12f, 0f, -10f), 26f, 2.8f);
             SpawnDarkTower(t, new Vector3(-12f, 0f,  10f), 22f, 2.4f);
             SpawnDarkTower(t, new Vector3( 12f, 0f,  10f), 22f, 2.4f);
             SpawnDarkTower(t, new Vector3(  0f, 0f,   0f), 34f, 3.8f); // merkez kule
 
-            // KapÄ±
+            // Kapı
             var gate = SpawnGLB(t, "IronGate",   new Vector3(0f, 0f, -10f), Vector3.zero, Vector3.one, targetMeters: 4.5f)
                     ?? SpawnGLB(t, "CastleDoor", new Vector3(0f, 0f, -10f), Vector3.zero, Vector3.one, targetMeters: 4.5f);
             if (gate == null)
@@ -257,14 +257,14 @@ namespace Autopilot
                 gb.transform.SetParent(t);
                 gb.transform.SetLocalPositionAndRotation(new Vector3(0f, 2.8f, -10f), Quaternion.identity);
                 gb.transform.localScale = new Vector3(4.5f, 5.5f, 0.5f);
-                ApplyMat(gb, new Color(0.06f, 0.05f, 0.04f)); // koyu demir kapÄ±
+                ApplyMat(gb, new Color(0.06f, 0.05f, 0.04f)); // koyu demir kapı
             }
 
-            // Sihirli Ä±ÅŸÄ±n â€” referans gÃ¶rsellerin hepsinde var (ba4ec276, 0f1450a9, 816ea051)
+            // Sihirli ışın — referans görsellerin hepsinde var (ba4ec276, 0f1450a9, 816ea051)
             BuildMagicBeam(t, new Vector3(0f, 34f, 0f));
         }
 
-        // Koyu gotik kule (referans: karanlÄ±k gotik kale silueti)
+        // Koyu gotik kule (referans: karanlık gotik kale silueti)
         static void SpawnDarkTower(Transform parent, Vector3 pos, float height, float radius)
         {
             var body = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -274,9 +274,9 @@ namespace Autopilot
             body.transform.localScale    = new Vector3(radius * 2f, height * 0.5f, radius * 2f);
             ApplyPbrGroundMat(body, "Concrete042A", "Stone",
                 tiling: 2f, smoothness: 0.12f,
-                fallback: new Color(0.08f, 0.07f, 0.06f)); // siyah taÅŸ
+                fallback: new Color(0.08f, 0.07f, 0.06f)); // siyah taş
 
-            // Sivri kule tepesi â€” koyu mor-siyah (referans: gotik spire)
+            // Sivri kule tepesi — koyu mor-siyah (referans: gotik spire)
             var spire = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             spire.name = "_RPG_TowerSpire";
             spire.transform.SetParent(parent);
@@ -294,24 +294,24 @@ namespace Autopilot
             w.transform.localScale    = scale;
             ApplyPbrGroundMat(w, "Concrete042A", "Stone",
                 tiling: 3f, smoothness: 0.12f,
-                fallback: new Color(0.09f, 0.08f, 0.07f)); // koyu kale taÅŸÄ±
+                fallback: new Color(0.09f, 0.08f, 0.07f)); // koyu kale taşı
         }
 
-        // Sihirli Ä±ÅŸÄ±n â€” kale tepesinden gÃ¶kyÃ¼zÃ¼ne (referans tÃ¼m gÃ¶rsellerde)
+        // Sihirli ışın — kale tepesinden gökyüzüne (referans tüm görsellerde)
         static void BuildMagicBeam(Transform parent, Vector3 localPos)
         {
             var beam = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             beam.name = "_RPG_MagicBeam";
             beam.transform.SetParent(parent);
             beam.transform.localPosition = localPos;
-            beam.transform.localScale    = new Vector3(0.35f, 120f, 0.35f); // ince, Ã§ok uzun
+            beam.transform.localScale    = new Vector3(0.35f, 120f, 0.35f); // ince, çok uzun
 
             var shader = Shader.Find("HDRP/Lit") ?? Shader.Find("Standard");
             var mat = new Material(shader) { name = "_RPG_Mat_MagicBeam" };
             Color beamAlbedo = new Color(0.75f, 0.55f, 1.0f); // soluk mor-beyaz
             if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", beamAlbedo);
             if (mat.HasProperty("_Color"))     mat.SetColor("_Color",     beamAlbedo);
-            Color emColor = new Color(2.2f, 1.2f, 3.0f); // yoÄŸun mor emisyon
+            Color emColor = new Color(2.2f, 1.2f, 3.0f); // yoğun mor emisyon
             if (mat.HasProperty("_EmissiveColor")) mat.SetColor("_EmissiveColor", emColor);
             if (mat.HasProperty("_EmissionColor")) mat.SetColor("_EmissionColor", emColor);
             if (mat.HasProperty("_EmissiveIntensity")) mat.SetFloat("_EmissiveIntensity", 6f);
@@ -319,16 +319,16 @@ namespace Autopilot
             beam.GetComponent<MeshRenderer>().sharedMaterial = mat;
         }
 
-        // â”€â”€ KÃ¶y KapÄ±sÄ± â€” Referans: 816ea051 / 0f1450a9 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // Yolun iki yanÄ±nda iki yapÄ±: sol bÃ¼yÃ¼k kulÃ¼be + saÄŸ kÃ¼Ã§Ã¼k kulÃ¼be
-        // Kampfire + fenerler sÄ±cak Ä±ÅŸÄ±k kaynaÄŸÄ±
+        // ── Köy Kapısı — Referans: 816ea051 / 0f1450a9 ───────────────────────
+        // Yolun iki yanında iki yapı: sol büyük kulübe + sağ küçük kulübe
+        // Kampfire + fenerler sıcak ışık kaynağı
         static void BuildVillageGateway(Transform parent)
         {
             var t = new GameObject("_RPG_Village").transform;
             t.SetParent(parent);
 
-            BuildLeftCabin(t);    // bÃ¼yÃ¼k log kulÃ¼be (referans: 816ea051 sol)
-            BuildRightOutpost(t); // kÃ¼Ã§Ã¼k kulÃ¼be/bekÃ§i kulÃ¼besi (referans: 816ea051 saÄŸ)
+            BuildLeftCabin(t);    // büyük log kulübe (referans: 816ea051 sol)
+            BuildRightOutpost(t); // küçük kulübe/bekçi kulübesi (referans: 816ea051 sağ)
         }
 
         static void BuildLeftCabin(Transform parent)
@@ -337,7 +337,7 @@ namespace Autopilot
             t.SetParent(parent);
             t.localPosition = new Vector3(-9f, 0f, 18f);
 
-            // Ana gÃ¶vde â€” bÃ¼yÃ¼k ahÅŸap kulÃ¼be
+            // Ana gövde — büyük ahşap kulübe
             var body = GameObject.CreatePrimitive(PrimitiveType.Cube);
             body.name = "_RPG_Cabin";
             body.transform.SetParent(t);
@@ -345,9 +345,9 @@ namespace Autopilot
             body.transform.localScale    = new Vector3(7f, 5.5f, 6f);
             ApplyPbrGroundMat(body, "WoodFloor025", "Wood",
                 tiling: 2f, smoothness: 0.15f,
-                fallback: new Color(0.22f, 0.14f, 0.08f)); // koyu ahÅŸap
+                fallback: new Color(0.22f, 0.14f, 0.08f)); // koyu ahşap
 
-            // Ã‡atÄ± â€” geniÅŸ, koyu
+            // Çatı — geniş, koyu
             var roof = GameObject.CreatePrimitive(PrimitiveType.Cube);
             roof.name = "_RPG_CabinRoof";
             roof.transform.SetParent(t);
@@ -355,7 +355,7 @@ namespace Autopilot
             roof.transform.localScale    = new Vector3(8.2f, 2.2f, 7.2f);
             ApplyMat(roof, new Color(0.11f, 0.09f, 0.08f));
 
-            // Baca â€” koyu taÅŸ baca
+            // Baca — koyu taş baca
             var chimney = GameObject.CreatePrimitive(PrimitiveType.Cube);
             chimney.name = "_RPG_Chimney";
             chimney.transform.SetParent(t);
@@ -379,7 +379,7 @@ namespace Autopilot
             step.transform.localScale    = new Vector3(3.5f, 0.2f, 1f);
             ApplyMat(step, new Color(0.20f, 0.17f, 0.13f));
 
-            // StoneFire â€” kulÃ¼be Ã¶nÃ¼nde, yolun sol kenarÄ±nda
+            // StoneFire — kulübe önünde, yolun sol kenarında
             var fire = SpawnGLB(t, "StoneFire", new Vector3(4f, 0f, -5.5f),
                                  Vector3.zero, Vector3.one, targetMeters: 0.85f);
             if (fire == null)
@@ -393,17 +393,17 @@ namespace Autopilot
             }
             else fire.name = "_RPG_CampFire";
 
-            // Fener â€” kapÄ± yanÄ±nda (referans: 816ea051 sol kulÃ¼bede fener)
+            // Fener — kapı yanında (referans: 816ea051 sol kulübede fener)
             SpawnGLB(t, "Lantern", new Vector3(-3.2f, 2.6f, -3.2f),
                      Vector3.zero, Vector3.one, targetMeters: 0.32f);
 
-            // KulÃ¼be yanÄ± proplar â€” fÄ±Ã§Ä±, sandÄ±k, kova
+            // Kulübe yanı proplar — fıçı, sandık, kova
             SpawnGLB(t, "Barrel1",       new Vector3(-4f, 0f, -1.5f), new Vector3(0f, 25f, 0f), Vector3.one, targetMeters: 0.80f);
             SpawnGLB(t, "WoodenCrate1",  new Vector3(-4f, 0f, -2.8f), Vector3.zero,              Vector3.one, targetMeters: 0.60f);
             SpawnGLB(t, "WoodenBucket1", new Vector3( 3f, 0f, -2.2f), Vector3.zero,              Vector3.one, targetMeters: 0.35f);
             SpawnGLB(t, "WickerBasket",  new Vector3( 3.5f, 0f, -1f), new Vector3(0f, 40f, 0f),  Vector3.one, targetMeters: 0.40f);
 
-            // Kaya â€” kulÃ¼be kÃ¶ÅŸesinde dekor
+            // Kaya — kulübe köşesinde dekor
             SpawnGLB(t, "Boulder1",   new Vector3(-4f, 0f,  2.5f), new Vector3(0f, 45f, 0f), Vector3.one, targetMeters: 0.70f);
             SpawnGLB(t, "RockMossSet",new Vector3( 4f, 0f,  2.0f), new Vector3(0f, 20f, 0f), Vector3.one, targetMeters: 0.55f);
         }
@@ -414,7 +414,7 @@ namespace Autopilot
             t.SetParent(parent);
             t.localPosition = new Vector3(10f, 0f, 22f);
 
-            // Ana gÃ¶vde â€” kÃ¼Ã§Ã¼k bekÃ§i kulÃ¼besi
+            // Ana gövde — küçük bekçi kulübesi
             var body = GameObject.CreatePrimitive(PrimitiveType.Cube);
             body.name = "_RPG_Shed";
             body.transform.SetParent(t);
@@ -424,7 +424,7 @@ namespace Autopilot
                 tiling: 1.5f, smoothness: 0.15f,
                 fallback: new Color(0.19f, 0.12f, 0.07f));
 
-            // Ã‡atÄ±
+            // Çatı
             var roof = GameObject.CreatePrimitive(PrimitiveType.Cube);
             roof.name = "_RPG_ShedRoof";
             roof.transform.SetParent(t);
@@ -432,7 +432,7 @@ namespace Autopilot
             roof.transform.localScale    = new Vector3(5.8f, 1.6f, 5.8f);
             ApplyMat(roof, new Color(0.10f, 0.09f, 0.08f));
 
-            // Fener direÄŸi â€” referans 816ea051: saÄŸda asÄ±lÄ± fener
+            // Fener direği — referans 816ea051: sağda asılı fener
             var pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             pole.name = "_RPG_LanternPole";
             pole.transform.SetParent(t);
@@ -449,9 +449,9 @@ namespace Autopilot
             SpawnGLB(t, "Rock9",         new Vector3( 2.5f, 0f,  2.0f), Vector3.zero,              Vector3.one, targetMeters: 0.50f);
         }
 
-        // â”€â”€ Orman â€” Referans: yolun iki yanÄ±nda yoÄŸun ÅŸerit orman â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // PineTree + FirTree + IslandTree + DeadTreeTrunk karÄ±ÅŸÄ±mÄ±
-        // Kayalar, stump ve kÃ¼tÃ¼kler zemin dekoru
+        // ── Orman — Referans: yolun iki yanında yoğun şerit orman ────────────
+        // PineTree + FirTree + IslandTree + DeadTreeTrunk karışımı
+        // Kayalar, stump ve kütükler zemin dekoru
         static void BuildForest(Transform parent, System.Random rng)
         {
             var t = new GameObject("_RPG_Forest").transform;
@@ -462,23 +462,23 @@ namespace Autopilot
             string[] stumps   = { "TreeStump1", "TreeStump2" };
             string[] rocks    = { "Boulder1", "Rock7", "Rock9", "RockFace1", "RockMossSet" };
 
-            // Sol orman ÅŸeridi (X: -10 â†’ -58, Z: +2 â†’ +82)
+            // Sol orman şeridi (X: -10 → -58, Z: +2 → +82)
             PlaceInStrip(t, conifers, rng, -58f, -10f, 2f,  82f, 38, 12f, 0.80f, 1.70f);
             PlaceInStrip(t, dead,     rng, -42f, -10f, 5f,  78f, 12,  8f, 0.70f, 1.25f);
             PlaceInStrip(t, stumps,   rng, -55f, -10f, 2f,  80f, 12, 0.7f,0.55f, 1.20f);
             PlaceInStrip(t, rocks,    rng, -58f,  -8f, 0f,  82f, 18, 0.9f, 0.45f, 1.50f);
 
-            // SaÄŸ orman ÅŸeridi (X: +10 â†’ +58, Z: +2 â†’ +82)
+            // Sağ orman şeridi (X: +10 → +58, Z: +2 → +82)
             PlaceInStrip(t, conifers, rng,  10f,  58f, 2f,  82f, 38, 12f, 0.80f, 1.70f);
             PlaceInStrip(t, dead,     rng,  10f,  42f, 5f,  78f, 12,  8f, 0.70f, 1.25f);
             PlaceInStrip(t, stumps,   rng,  10f,  55f, 2f,  80f, 12, 0.7f,0.55f, 1.20f);
             PlaceInStrip(t, rocks,    rng,   8f,  58f, 0f,  82f, 18, 0.9f, 0.45f, 1.50f);
 
-            // Yol kenarÄ± yakÄ±n aÄŸaÃ§lar (Z=+5 to +15 arasÄ± yoÄŸun)
+            // Yol kenarı yakın ağaçlar (Z=+5 to +15 arası yoğun)
             PlaceInStrip(t, conifers, rng, -22f, -10f,  5f, 15f, 8, 12f, 0.85f, 1.40f);
             PlaceInStrip(t, conifers, rng,  10f,  22f,  5f, 15f, 8, 12f, 0.85f, 1.40f);
 
-            // Kale yakÄ±nÄ± (Z=+68 to +82) â€” kaleyi Ã§erÃ§eveleyen aÄŸaÃ§lar
+            // Kale yakını (Z=+68 to +82) — kaleyi çerçeveleyen ağaçlar
             PlaceInStrip(t, conifers, rng, -30f, -10f, 68f, 82f, 8, 14f, 1.00f, 1.80f);
             PlaceInStrip(t, conifers, rng,  10f,  30f, 68f, 82f, 8, 14f, 1.00f, 1.80f);
             PlaceInStrip(t, dead,     rng, -25f, -10f, 65f, 82f, 4,  9f, 0.80f, 1.20f);
@@ -501,7 +501,7 @@ namespace Autopilot
             }
         }
 
-        // PlaceInRingNorm: DÃ¼ÅŸman/Ã§ember yerleÅŸimi iÃ§in hÃ¢lÃ¢ kullanÄ±lÄ±yor
+        // PlaceInRingNorm: Düşman/çember yerleşimi için hâlâ kullanılıyor
         static void PlaceInRingNorm(Transform parent, string[] hints, System.Random rng,
                                      float rMin, float rMax, int count,
                                      float targetM, float scaleMin, float scaleMax)
@@ -514,17 +514,17 @@ namespace Autopilot
                 float ry     = (float)rng.NextDouble() * 360f;
                 float mult   = scaleMin + (float)rng.NextDouble() * (scaleMax - scaleMin);
                 string hint  = hints[rng.Next(hints.Length)];
-                SpawnGLB(parent, hint, pos + new Vector3(0f, 0f, 42f), // dÃ¼ÅŸman Ã§emberi sahne ortasÄ±nda
+                SpawnGLB(parent, hint, pos + new Vector3(0f, 0f, 42f), // düşman çemberi sahne ortasında
                          new Vector3(0f, ry, 0f), Vector3.one * mult, targetMeters: targetM);
             }
         }
 
-        // â”€â”€ Dungeon â€” YeraltÄ±nda (Y=-8), avluyla Ã§akÄ±ÅŸmaz â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Dungeon — Yeraltında (Y=-8), avluyla çakışmaz ────────────────────
         static void BuildDungeonRoom(Transform parent)
         {
             var t = new GameObject("_RPG_Dungeon").transform;
             t.SetParent(parent);
-            t.localPosition = new Vector3(35f, -8f, 40f); // kale saÄŸÄ±nda, yeraltÄ±
+            t.localPosition = new Vector3(35f, -8f, 40f); // kale sağında, yeraltı
 
             var floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
             floor.name = "_RPG_DungeonFloor";
@@ -544,7 +544,7 @@ namespace Autopilot
             AddPointLight(t, new Vector3(0f, 0.8f, 8f), new Color(1f, 0.45f, 0.08f), 3f, 14f);
         }
 
-        // â”€â”€ DÃ¼ÅŸman ZonlarÄ± â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Düşman Zonları ────────────────────────────────────────────────────
         static void BuildEnemyZones(Transform parent, System.Random rng)
         {
             var t = new GameObject("_RPG_Enemies").transform;
@@ -570,7 +570,7 @@ namespace Autopilot
                 float angle  = (float)rng.NextDouble() * Mathf.PI * 2f;
                 float radius = innerR + (float)rng.NextDouble() * (outerR - innerR);
                 var   pos    = new Vector3(Mathf.Cos(angle) * radius, 0f,
-                                           42f + Mathf.Sin(angle) * radius * 0.5f); // dÃ¼ÅŸmanlar yol boyunca
+                                           42f + Mathf.Sin(angle) * radius * 0.5f); // düşmanlar yol boyunca
                 float ry = (float)rng.NextDouble() * 360f;
 
                 var existing = SpawnEnemyPrefab(parent, pos, tier);
@@ -622,40 +622,40 @@ namespace Autopilot
             return null;
         }
 
-        // â”€â”€ IÅŸÄ±k KaynaklarÄ± â€” Referans: karanlÄ±k gotik + sÄ±cak fener/kampfire â”€
+        // ── Işık Kaynakları — Referans: karanlık gotik + sıcak fener/kampfire ─
         static void BuildLights(Transform parent)
         {
             var t = new GameObject("_RPG_Lighting").transform;
             t.SetParent(parent);
 
-            // Direktional â€” bulutlu gÃ¶kyÃ¼zÃ¼, soÄŸuk mavi-gri, Ã§ok dÃ¼ÅŸÃ¼k yoÄŸunluk
+            // Direktional — bulutlu gökyüzü, soğuk mavi-gri, çok düşük yoğunluk
             var sunGo = new GameObject("_RPG_Sun");
             sunGo.transform.SetParent(t);
-            sunGo.transform.localEulerAngles = new Vector3(38f, 195f, 0f); // sol-Ã¼stten
+            sunGo.transform.localEulerAngles = new Vector3(38f, 195f, 0f); // sol-üstten
             var sun = sunGo.AddComponent<Light>();
             sun.type           = LightType.Directional;
-            sun.color          = new Color(0.58f, 0.64f, 0.78f); // soÄŸuk mavi-gri bulut Ä±ÅŸÄ±ÄŸÄ±
-            sun.intensity      = 0.28f;                           // Ã§ok dÃ¼ÅŸÃ¼k â€” gotik karanlÄ±k
+            sun.color          = new Color(0.58f, 0.64f, 0.78f); // soğuk mavi-gri bulut ışığı
+            sun.intensity      = 0.28f;                           // çok düşük — gotik karanlık
             sun.shadows        = LightShadows.Soft;
             sun.shadowStrength = 0.92f;
 
-            // Kampfire â€” sol kulÃ¼be Ã¶nÃ¼nde (sÄ±cak turuncu, referans tÃ¼m gÃ¶rsellerde)
+            // Kampfire — sol kulübe önünde (sıcak turuncu, referans tüm görsellerde)
             AddPointLight(t, new Vector3(-5f, 0.8f, 12.5f), new Color(1.0f, 0.38f, 0.05f), 3.8f, 18f);
 
-            // Sol kulÃ¼be fener Ä±ÅŸÄ±ÄŸÄ± (kulÃ¼be Z=18, X=-9, biz global)
+            // Sol kulübe fener ışığı (kulübe Z=18, X=-9, biz global)
             AddPointLight(t, new Vector3(-12f, 2.5f, 15f), new Color(1.0f, 0.60f, 0.25f), 1.6f, 12f);
 
-            // SaÄŸ kulÃ¼be fener direÄŸi (X=+10, Z=22 outpost, global offset)
+            // Sağ kulübe fener direği (X=+10, Z=22 outpost, global offset)
             AddPointLight(t, new Vector3(7f, 4.5f, 19f), new Color(1.0f, 0.62f, 0.28f), 1.4f, 10f);
 
-            // Kale sihirli Ä±ÅŸÄ±n parlamasÄ± â€” uzakta, soluk mor (Z=85)
+            // Kale sihirli ışın parlaması — uzakta, soluk mor (Z=85)
             AddPointLight(t, new Vector3(0f, 30f, 85f), new Color(0.72f, 0.48f, 1.0f), 6f, 80f);
 
-            // Kale kapÄ±sÄ± Ã¶nÃ¼ â€” faint blue-purple glow
+            // Kale kapısı önü — faint blue-purple glow
             AddPointLight(t, new Vector3(0f, 2f, 75f), new Color(0.30f, 0.18f, 0.58f), 1.8f, 25f);
         }
 
-        // â”€â”€ Kamera + Player â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Kamera + Player ──────────────────────────────────────────────────
         [MenuItem("Tools/Autopilot/6 - Ensure Camera + Player")]
         public static void EnsureCameraAndPlayer()
         {
@@ -663,7 +663,7 @@ namespace Autopilot
             {
                 var camGo = new GameObject("Main Camera");
                 camGo.tag = "MainCamera";
-                // Kamera ROOT seviyesinde â€” NukeSceneObjects tarafÄ±ndan silinmez
+                // Kamera ROOT seviyesinde — NukeSceneObjects tarafından silinmez
                 camGo.transform.SetPositionAndRotation(
                     new Vector3(0f, 5f, -14f), Quaternion.Euler(15f, 0f, 0f));
                 var cam = camGo.AddComponent<Camera>();
@@ -685,7 +685,7 @@ namespace Autopilot
                 var pg = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                 pg.name = "_RPG_Player";
                 pg.tag  = "Player";
-                pg.transform.position = new Vector3(0f, 1.1f, 0f); // yolun baÅŸÄ±
+                pg.transform.position = new Vector3(0f, 1.1f, 0f); // yolun başı
                 ApplyMat(pg, new Color(0.22f, 0.25f, 0.32f));
                 pg.AddComponent<CharacterController>();
                 var pcType = System.Type.GetType("Gameplay.PlayerController, Assembly-CSharp");
@@ -697,7 +697,7 @@ namespace Autopilot
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
         }
 
-        // â”€â”€ PBR Materyal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── PBR Materyal ─────────────────────────────────────────────────────
         static void ApplyPbrGroundMat(GameObject go, string texSet, string subFolder,
                                        float tiling, float smoothness, Color fallback)
         {
@@ -723,7 +723,7 @@ namespace Autopilot
             mr.sharedMaterial = mat;
         }
 
-        // â”€â”€ YardÄ±mcÄ±lar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Yardımcılar ──────────────────────────────────────────────────────
 
         static float GetPrefabMaxDim(GameObject prefab)
         {
@@ -819,7 +819,7 @@ namespace Autopilot
             m.SetTextureScale(prop, new Vector2(tiling, tiling));
         }
 
-        // â”€â”€ Menu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Menu ─────────────────────────────────────────────────────────────
 
         [MenuItem("Tools/Autopilot/3 - Full Setup (Import + Scene + Materials)")]
         public static void FullSetup()
@@ -843,7 +843,7 @@ namespace Autopilot
                 if (File.Exists(p)) { File.Delete(p); Debug.Log($"[SceneBuilder] Silindi: {p}"); }
         }
 
-        // AutopilotBrain iÃ§in public entry â€” tÃ¼m sahneyi temizle + yeniden kur
+        // AutopilotBrain için public entry — tüm sahneyi temizle + yeniden kur
         public static void ClearAndRebuild() => BuildScene();
     }
 }

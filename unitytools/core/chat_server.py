@@ -3,9 +3,9 @@
 Unity connects to this process on port 7778, sends newline-delimited JSON
 messages, and receives tool-call progress plus final assistant text.
 
-Ä°lk baÄŸlantÄ± kurulduÄŸunda istemciye bir `hello` mesajÄ± gÃ¶nderilir; bÃ¶ylece
-Unity tarafÄ± sÃ¼reÃ§ baÅŸarÄ±yla ayaÄŸa kalkmÄ±ÅŸ mÄ± yoksa import sÄ±rasÄ±nda Ã¶lmÃ¼ÅŸ mÃ¼
-olduÄŸunu anlayabilir.
+İlk bağlantı kurulduğunda istemciye bir `hello` mesajı gönderilir; böylece
+Unity tarafı süreç başarıyla ayağa kalkmış mı yoksa import sırasında ölmüş mü
+olduğunu anlayabilir.
 
 Supports both single-agent and dual-agent modes.
 """
@@ -377,7 +377,7 @@ class ChatServer:
         
         send = self._make_sender(client)
 
-        # Ä°lk handshake: Unity tarafÄ± sÃ¼reÃ§ saÄŸlÄ±ÄŸÄ±nÄ± bundan anlar.
+        # İlk handshake: Unity tarafı süreç sağlığını bundan anlar.
         try:
             tool_count = 0
             try:
