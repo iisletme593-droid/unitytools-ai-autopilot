@@ -195,6 +195,13 @@ def cmd_install_unity_plugin(args: argparse.Namespace) -> int:
         _copy_tree_files(autopilot_source, autopilot_target, suffixes={".cs"})
         installed_targets.append(autopilot_target)
 
+    # Autopilot script'lerinin referans verdiği Gameplay runtime bileşenleri
+    gameplay_source = plugin_root / "Scripts" / "Gameplay"
+    if gameplay_source.exists():
+        gameplay_target = assets / "Scripts" / "Gameplay"
+        _copy_tree_files(gameplay_source, gameplay_target, suffixes={".cs"})
+        installed_targets.append(gameplay_target)
+
     autopilot_editor_source = plugin_root / "Editor" / "Autopilot"
     if autopilot_editor_source.exists():
         autopilot_editor_target = assets / "Editor" / "UnityToolsAutopilot"

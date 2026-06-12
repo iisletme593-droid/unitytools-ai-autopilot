@@ -1,4 +1,7 @@
-#if UNITY_EDITOR
+// THORNY_HDRP: HDRP paketi projeye eklenince Project Settings > Player >
+// Scripting Define Symbols'a THORNY_HDRP yazilarak bu dosya devreye alinir.
+// Built-in pipeline projede HDRP tipleri derlenemez; o yuzden kapali tutulur.
+#if UNITY_EDITOR && THORNY_HDRP
 using System.IO;
 using UnityEditor;
 using UnityEditor.Rendering;
