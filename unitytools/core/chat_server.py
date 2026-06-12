@@ -512,11 +512,18 @@ class ChatServer:
             if content:
                 blocks.append({"type": "text", "text": content})
             blocks = self._apply_engine_context(blocks)
+            skipped_oversize = 0
+            attached = 0
             for img in images:
                 try:
                     mime = str(img.get("mime") or "image/png")
                     data_b64 = str(img.get("data_base64") or "")
                     if not data_b64.strip():
+                        continue
+                    # Anthropic görsel limiti 5MB; aşan görsel isteğin tamamını
+                    # 400 ile düşürür. Burada eleyip kalanıyla devam ediyoruz.
+                    if len(data_b64) > 6_800_000:  # base64 ~ 5MB ham veri
+                        skipped_oversize += 1
                         continue
                     base64.b64decode(data_b64, validate=False)
                     blocks.append(
@@ -525,8 +532,21 @@ class ChatServer:
                             "source": {"type": "base64", "media_type": mime, "data": data_b64},
                         }
                     )
+                    attached += 1
                 except Exception:
                     continue
+            if skipped_oversize:
+                send(
+                    {
+                        "type": "assistant_text",
+                        "content": f"[{skipped_oversize} görsel 5MB limitini aştığı için atlandı]",
+                        "done": False,
+                    }
+                )
+            if not content and not attached:
+                # Engine-context ipucu bloğu tek başına anlamlı içerik değil.
+                send({"type": "error", "message": "No usable content (all images skipped/invalid)."})
+                return
             self._process_user_message(blocks, orch, send)
             return
 
