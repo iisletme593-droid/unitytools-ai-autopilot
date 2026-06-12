@@ -1,69 +1,82 @@
-# THORNY IVY — Oyun Tasarım Dokümanı (v0.1 — TASLAK)
+# THORNY IVY — Oyun Tasarım Dokümanı (v1.0)
 
-> ⚠️ Bu doküman, kaybolan sohbet geçmişindeki vizyonu yeniden yakalamak için yazıldı.
-> Kaynaklar: (1) kullanıcının tarifi — "Remnant 2 + Knight Online + V-Rising + Valheim
-> karışımı, AAA kalite", (2) repodaki hayatta kalan sahne DNA'sı (`SceneBuilder.cs v4`).
-> `[ONAY?]` etiketli her madde varsayımdır; kullanıcı düzelttikçe güncellenecek.
-> **Bu dosya artık oyunun kalıcı hafızasıdır — vizyon değişiklikleri buraya işlenir.**
+> Bu doküman oyunun kalıcı hafızasıdır — vizyon değişiklikleri buraya işlenir.
+> Kaynaklar: kullanıcının tarifi + repodaki hayatta kalan sahne DNA'sı
+> (`SceneBuilder.cs v4`). Temel kararlar 2026-06-12'de kullanıcı tarafından
+> onaylandı (aşağıda KARAR olarak işaretli).
 
 ## Tek cümle
 
-Koyu gotik bir fantezi dünyasında geçen, üçüncü şahıs aksiyon-RPG: Remnant 2'nin
-dövüş hissi, Valheim'ın hayatta kalma/keşif döngüsü, V-Rising'in üs kurma sistemi
-ve Knight Online'ın PvP/clan ruhu.
+Koyu gotik bir fantezi dünyasında geçen, **tepeden bakışlı** aksiyon-RPG:
+Knight Online ruhunda yakın dövüş ve **efsane combo sistemi**, V-Rising'in
+kamera/kontrol hissi ve üs kurması, Valheim'ın keşif/hayatta kalma döngüsü.
+
+## Temel kararlar (KARAR — 2026-06-12)
+
+1. **Perspektif: tepeden** (V-Rising benzeri açılı izometrik kamera, ~50°).
+2. **Ateşli silah YOK.** Dövüş Knight Online tarzı yakın dövüş; **combo sistemi
+   oyunun kalbi** (aşağıda).
+3. **Ölüm cezası: eşya düşmez.** Oyuncu kamp ateşinden yeniden doğar
+   (kamp ateşi = checkpoint + dinlenme/craft noktası adayı).
+4. **Önce tek oyuncu.** Çok oyunculu kesin hedef ama dikey dilimler tek oyuncu
+   üstünde ilerler; mimari MP'ye hazır kurulur (deterministik dövüş, durum
+   yönetimi server-authoritative düşünülerek yazılır).
 
 ## Dört oyundan ne alıyoruz?
 
 | Kaynak | Alınan | Kapsam |
 |---|---|---|
-| **Remnant 2** | An-be-an dövüş: nişan, dodge-roll, stamina, sert ama adil boss savaşları | Çekirdek (dilim 1) |
-| **Valheim** | Biome keşfi, hafif hayatta kalma (yemek = buff), gece/gündüz tehlike ritmi | Çekirdek (dilim 2) |
-| **V-Rising** | Üs kurma, craft istasyonları, kaynak toplama → ekipman üretimi | Orta vade (dilim 3) |
-| **Knight Online** | Level/class iskeleti, clan yapısı, açık dünya PvP bölgeleri | Uzun vade [ONAY?] |
+| **Knight Online** | Yakın dövüş + combo ustalığı, level/class iskeleti, ileride clan/PvP | ÇEKİRDEK |
+| **V-Rising** | Tepeden kamera + WASD/imleç kontrol şeması, üs kurma, craft istasyonları | Çekirdek (kamera dilim 1, üs dilim 3) |
+| **Valheim** | Biome keşfi, hafif hayatta kalma (yemek = buff), gece/gündüz tehlike ritmi | Dilim 2 |
+| **Remnant 2** | Sert ama adil boss tasarımı, dodge zamanlama hissi (ilham) | Boss tasarım ilkesi |
 
-- Perspektif: **üçüncü şahıs, omuz üstü** (Remnant tarzı) `[ONAY?]`
-- Multiplayer: önce **tek oyuncu dikey dilim**; co-op/PvP mimari olarak planlanır ama
-  dilim 1'de YOK `[ONAY?]` — (MMO ölçeği tek kişilik ekip için ilk hedef olamaz;
-  KO ruhu önce sistem tasarımına, sonra netcode'a girer.)
+## Combo sistemi (oyunun kalbi — taslak v1)
 
-## Sanat yönü (sahne DNA'sından — bunlar KESİN, koddan geliyor)
+KO'daki ustalık hissinin modern hali: kolay öğrenilen, zor ustalaşılan.
+
+- **Zincirler:** Hafif (H) ve Ağır (A) saldırılar dallanan zincirler kurar:
+  `H-H-H` hızlı seri, `H-H-A` geniş alan bitirici, `H-A` guard-kırıcı,
+  `A-A` yavaş ama devirici.
+- **Zamanlama penceresi:** Her vuruşun "perfect" girdi penceresi var; tutturunca
+  zincir hızlanır ve vuruş parlar (görsel/ses ödülü).
+- **İptal (animation-cancel):** Dodge ve yetenekler belli karelerde saldırıyı
+  iptal edebilir — KO'daki skill-cancel ustalık tavanının karşılığı.
+- **Combo sayacı:** Kesintisiz vuruş serisi sayaç + hasar çarpanı yükseltir;
+  hasar yiyince sıfırlanır.
+- **Class çeşitliliği (ileride):** Aynı sistem farklı silah takımlarıyla
+  (çift kılıç / iki elli / kalkanlı) farklı zincir setleri sunar.
+
+## Sanat yönü (sahne DNA'sından — koddan geliyor, KESİN)
 
 - Atmosfer: koyu gotik; yoğun mavi-gri sis, neredeyse gece ortamı
-- İlk sahne düzeni ("Thorny Ivy" haritası):
-  - Z=0: oyuncu başlangıcı (kamera arkada)
-  - Z=+15: köy kapısı — solda büyük kulübe, sağda küçük kulübe
-  - Z=+10: yol kenarında kamp ateşi (→ checkpoint/dinlenme noktası adayı)
-  - Z=±10–80: yolun iki yanında çam + köknar ormanı
-  - Z=+85: gotik kale — karanlık taş, ince kuleler, tepesinde sihirli ışın
+- İlk sahne ("Thorny Ivy" haritası): oyuncu başlangıcı → köy kapısı (solda büyük,
+  sağda küçük kulübe) → yol kenarında kamp ateşi → çam/köknar ormanı →
+  Z=+85'te gotik kale (karanlık taş, ince kuleler, tepede sihirli ışın)
 - Render: Unity **HDRP**, linear color space
-- Asset üretimi: **Blender 5.1 ile kendi üretimimiz** (Asset Store'a bağımlılık yok),
-  dokular için HuggingFace üretim hattı (`hf_asset_generator` manifest akışı),
+- Asset üretimi: **Blender ile kendi üretimimiz** (`scripts/blender/` üretim
+  hattı, .blend kaynakları oyun reposunda versiyonlu), dokular için HF hattı,
   animasyonlar için Mixamo
 
-## Dikey dilim 1 — "Kamp ateşinden kaleye" (ilk oynanabilir hedef)
+## Dikey dilim 1 — "Kamp ateşinden kaleye"
 
-Tek sahnede tam bir oyun döngüsü:
+Tek sahnede tam oyun döngüsü (tepeden kamera ile):
 1. Oyuncu köy kapısında doğar (Mixamo rigli savaşçı)
 2. Ormandan kaleye giden yolda 1 düşman tipi: **Brute** (yakın dövüş)
-3. Dövüş: hafif/ağır saldırı + dodge-roll + stamina + kilitlenme (lock-on)
-4. Kamp ateşi: checkpoint + can yenileme (ölünce buradan doğar)
+3. Dövüş: H/A zincirleri (en az 3 zincir) + dodge-roll + stamina + combo sayacı
+4. Kamp ateşi: checkpoint + can yenileme; ölünce burada doğar, eşya düşmez
 5. Kale kapısında mini-boss → dilim biter
-- Başarı ölçütü: baştan sona 10 dakikalık, ölümün cezası olan, "bir tur daha" hissi
-  veren bir koşu. AAA *kalite hedefi* görsel tutarlılık + dövüş hissiyatında; kapsam değil.
+- Başarı ölçütü: 10 dakikalık, combo'su tatmin eden, "bir tur daha" dedirten koşu.
+  AAA *kalite hedefi* görsel tutarlılık + dövüş hissiyatında; kapsam şişirme yok.
 
 ## Teknik omurga
 
 - Unity (HDRP) + UnityTools AI Autopilot (bu repo) sahne kurulum/iterasyonunda
 - Karakter: Mixamo rig + `MixamoAnimationImporter` / `CharacterModelSwapper`
 - Düşman: `EnemyAnimatorSetup` + `EnemyMaterialSetup` hattı
-- Sahne: `SceneBuilder` (Thorny Ivy v4) — asset'ler hazır olunca sahneyi kendisi kurar
-- **Versiyonlama: oyun projesi 1. günden git'te** (`scripts/init_game_repo.ps1`);
-  .blend kaynakları dahil. Bir daha hiçbir şey kaybolmayacak.
-
-## Açık sorular (kullanıcıya)
-
-1. Perspektif onayı: omuz üstü TPS mi, yoksa V-Rising gibi tepeden mi?
-2. Dilim 1 silahlı mı? (Remnant ateşli silah ağırlıklı; KO/Valheim yakın dövüş.
-   Taslak varsayım: yakın dövüş + basit yay `[ONAY?]`)
-3. Ölüm cezası: Valheim tarzı "eşyalar cesette kalır" mı, sadece checkpoint'e dönüş mü?
-4. Multiplayer'ın gerçekçi hedefi: co-op (2-4) mü, KO tarzı sunuculu PvP mi, ikisi de mi?
+- Sahne: `SceneBuilder` (Thorny Ivy v4) — `Assets/FantasyRPG` altında GLB'leri
+  isimle arar (PineTree, FirTree, IslandTree, DeadTreeTrunk, TreeStump1/2,
+  StoneFire, Boulder1, Rock9, Barrel1, WoodenCrate1, Lantern, CastleDoor,
+  IronGate, ModularFort, ...) — üretilen asset adları bu listeyle eşleşmeli
+- Asset envanteri ve üretim sırası: `docs/ASSET_REBUILD_PLAN.md`
+- **Versiyonlama: oyun projesi 1. günden git'te** (`scripts/init_game_repo.ps1`)
