@@ -67,7 +67,7 @@ if (-not $ProjectPath) {
             }
         } catch { }
     }
-    foreach ($root in @("$env:USERPROFILE\Documents", "$env:USERPROFILE\Desktop", "$env:USERPROFILE\Documents\Unity Projects", "C:\dev", "D:\")) {
+    foreach ($root in @("$env:USERPROFILE", "$env:USERPROFILE\Documents", "$env:USERPROFILE\Desktop", "$env:USERPROFILE\Documents\Unity Projects", "C:\dev", "D:\")) {
         if (Test-Path $root) {
             Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | ForEach-Object { $candidates.Add($_.FullName) }
         }
