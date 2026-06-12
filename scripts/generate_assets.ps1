@@ -19,8 +19,18 @@ function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "    [OK] $msg" -ForegroundColor Green }
 function Write-Warn2($msg){ Write-Host "    [!] $msg" -ForegroundColor Yellow }
 
+# Once arac reposunu guncelle - uretici script son push'la gelmis olabilir.
+Write-Step "Arac reposu guncelleniyor"
+if (-not (Test-Path (Join-Path $InstallDir ".git"))) {
+    throw "Repo bulunamadi: $InstallDir. Once setup_windows.ps1 calistir."
+}
+git -C $InstallDir fetch origin
+$curBranch = git -C $InstallDir rev-parse --abbrev-ref HEAD
+git -C $InstallDir pull --ff-only origin $curBranch
+Write-Ok "Repo guncel: $(git -C $InstallDir log -1 --format='%h %s')"
+
 $genScript = Join-Path $InstallDir "scripts\blender\generate_p0_assets.py"
-if (-not (Test-Path $genScript)) { throw "Uretici script yok: $genScript. Repo guncel mi? (git pull)" }
+if (-not (Test-Path $genScript)) { throw "Uretici script hala yok: $genScript. Dal dogru mu? (beklenen: claude/beautiful-franklin-llxce2)" }
 if (-not (Test-Path (Join-Path $ProjectPath "Assets"))) {
     throw "Unity projesi bulunamadi: $ProjectPath. Once setup_unity_project.ps1 calistir."
 }
