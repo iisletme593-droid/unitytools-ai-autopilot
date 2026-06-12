@@ -47,9 +47,17 @@ makinesine** taşınıyor. Hedef motor: **Unity** (Unreal değil, şimdilik).
 - ⚠️ **AWS admin anahtarını ROTATE et:** `cboinn-temp-admin` access key'i düz metin halde
   `D:\Adnan\NewPC\D` altında onlarca `.env`/yedekte duruyor (admin = tüm hesap kontrolü). IAM'den
   sil/yenile. Genel olarak o ağaçta ciddi sır dağınıklığı var (AWS, Binance/BingX, Shopier, OpenAI).
-- Ertelendi (henüz yapılmadı): yüksek öncelikli **kararlılık hataları** — Anthropic 400 kilidi,
-  RPC yanıt korelasyonu, build-kıran `#if UNITY_EDITOR`/`GetActorLabel` guard'ları, dual_agent
-  mojibake. Tam liste için ilk denetim raporuna bak.
+- ✅ (2026-06-12) Yüksek öncelikli **kararlılık hataları düzeltildi**:
+  - **Anthropic 400 kilidi**: 400 gelince history onarılıyor (yetim tool_use/tool_result,
+    boş content) ve istek bir kez tekrarlanıyor; hâlâ 400 ise bozuk tur geçmişten geri
+    alınıyor — sohbet artık kalıcı kilitlenmiyor (`orchestrator.py`).
+  - **RPC yanıt korelasyonu**: Unity/Unreal bridge'leri yanıtları artık `id` ile eşliyor;
+    timeout sonrası geç gelen yanıtlar atılıyor, buffer bağlantılar arası sızmıyor.
+  - **Build kıran guard'lar**: Unreal runtime'da `GetActorLabel` → `GetName`;
+    `GeneratedAssetLoader.cs` `#if UNITY_EDITOR` ile sarıldı.
+  - **Mojibake**: repo genelinde (Python/C#/MD, 25+ dosya) bozuk Türkçe + ok/emoji
+    karakterleri onarıldı.
+  - Testler: 41/41 geçiyor (bridge korelasyonu ve 400 kilidi için yeni regresyon testleri).
 
 ## Test çalıştırma
 Repo `.venv` bozuk. Geçici ortamla:
