@@ -24,6 +24,9 @@ makinesine** taşınıyor. Hedef motor: **Unity** (Unreal değil, şimdilik).
 - Onaylanınca (aktif kota 8 olunca) launch çalışır, kuruluma geçilir.
 
 ## Makinede kurulum sırası (kota onaylanınca)
+> Kestirme: aşağıdaki 2-5 adımlarını `scripts/setup_windows.ps1` otomatik yapar:
+> `irm https://raw.githubusercontent.com/iisletme593-droid/unitytools-ai-autopilot/<dal>/scripts/setup_windows.ps1 | iex`
+
 1. NVIDIA sürücü → NICE DCV veya Parsec ile bağlan.
 2. Python 3.11 + Unity Hub/Editor (LTS).
 3. `git clone https://github.com/iisletme593-droid/unitytools-ai-autopilot.git` →
