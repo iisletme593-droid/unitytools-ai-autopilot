@@ -22,7 +22,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
-from anthropic import Anthropic
+from anthropic import Anthropic, BadRequestError
 
 from .config import Config
 from .tool_registry import get_all_tools, get_tool, to_anthropic_format
@@ -231,7 +231,8 @@ class Orchestrator:
         if self.client is None:
             raise RuntimeError("Anthropic client is not initialized (set ANTHROPIC_API_KEY).")
 
-        self.history.append(ChatMessage(role="user", content=user_message))
+        turn_user_msg = ChatMessage(role="user", content=user_message)
+        self.history.append(turn_user_msg)
         tools = to_anthropic_format()
         if not get_all_tools():
             logger.warning("Tool registry bos - LLM tool cagiramayacak.")
@@ -239,15 +240,46 @@ class Orchestrator:
         final_text = ""
         tool_calls_log: list[dict[str, Any]] = []
 
+        try:
+            return self._run_anthropic_loop(
+                turn_user_msg, tools, final_text, tool_calls_log,
+                on_tool_call, on_tool_result, max_iterations,
+            )
+        except BadRequestError as exc:
+            # 400 genelde geçmişteki bozuk içerikten gelir (yetim tool_use, boş
+            # content, aşırı büyük blok). Bozuk turu geçmişte bırakmak her
+            # sonraki isteği de 400'e mahkum eder; turu geri alıp sohbeti
+            # kullanılabilir bırakıyoruz.
+            self._rollback_turn(turn_user_msg)
+            raise RuntimeError(
+                "Anthropic isteği reddetti (400). Bu turun mesajları geçmişten "
+                f"çıkarıldı; sohbete devam edebilirsin. Ayrıntı: {exc.message if hasattr(exc, 'message') else exc}"
+            ) from exc
+
+    def _run_anthropic_loop(
+        self,
+        turn_user_msg: "ChatMessage",
+        tools: list[dict[str, Any]],
+        final_text: str,
+        tool_calls_log: list[dict[str, Any]],
+        on_tool_call: Optional[Callable[[str, dict], None]],
+        on_tool_result: Optional[Callable[[str, Any], None]],
+        max_iterations: int,
+    ) -> OrchestratorResult:
+        user_message = turn_user_msg.content
         for _ in range(max_iterations):
             self._trim_history()
-            response = self.client.messages.create(
-                model=self.config.model,
-                max_tokens=self.max_tokens,
-                system=SYSTEM_PROMPT,
-                tools=tools,
-                messages=self._build_anthropic_messages(),
-            )
+            response = self._create_anthropic_message(tools)
+
+            if not response.content:
+                # Boş assistant content'i geçmişe yazmak sonraki istekleri 400'e
+                # kilitler; bu yanıtı geçmişe almadan turu bitir.
+                return OrchestratorResult(
+                    text=_guard_final_text(user_message, final_text.strip(), tool_calls_log),
+                    tool_calls=tool_calls_log,
+                    stop_reason=response.stop_reason or "end_turn",
+                )
+
             self.history.append(ChatMessage(role="assistant", content=response.content))
 
             tool_use_blocks = [b for b in response.content if getattr(b, "type", None) == "tool_use"]
@@ -263,7 +295,63 @@ class Orchestrator:
                 )
 
             tool_results: list[dict[str, Any]] = []
-            for block in tool_use_blocks:
+            try:
+                self._execute_tool_blocks(
+                    tool_use_blocks, tool_results, tool_calls_log, on_tool_call, on_tool_result
+                )
+            finally:
+                # Yarıda kesilse bile (ör. KeyboardInterrupt) her tool_use'a bir
+                # tool_result eşlenmeli; yoksa geçmiş kalıcı 400'e kilitlenir.
+                answered = {tr.get("tool_use_id") for tr in tool_results}
+                for block in tool_use_blocks:
+                    if block.id not in answered:
+                        tool_results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": "[tool execution interrupted]",
+                                "is_error": True,
+                            }
+                        )
+                self.history.append(ChatMessage(role="user", content=tool_results))
+
+        return OrchestratorResult(
+            text=_guard_final_text(user_message, (final_text + "\n[Warning: max iterations reached]").strip(), tool_calls_log),
+            tool_calls=tool_calls_log,
+            stop_reason="max_iterations",
+        )
+
+    def _create_anthropic_message(self, tools: list[dict[str, Any]]) -> Any:
+        assert self.client is not None
+        try:
+            return self.client.messages.create(
+                model=self.config.model,
+                max_tokens=self.max_tokens,
+                system=SYSTEM_PROMPT,
+                tools=tools,
+                messages=self._build_anthropic_messages(),
+            )
+        except BadRequestError:
+            if not self._repair_anthropic_history():
+                raise
+            logger.warning("Anthropic 400 dondu; history onarildi, istek tekrarlaniyor.")
+            return self.client.messages.create(
+                model=self.config.model,
+                max_tokens=self.max_tokens,
+                system=SYSTEM_PROMPT,
+                tools=tools,
+                messages=self._build_anthropic_messages(),
+            )
+
+    def _execute_tool_blocks(
+        self,
+        tool_use_blocks: list[Any],
+        tool_results: list[dict[str, Any]],
+        tool_calls_log: list[dict[str, Any]],
+        on_tool_call: Optional[Callable[[str, dict], None]],
+        on_tool_result: Optional[Callable[[str, Any], None]],
+    ) -> None:
+        for block in tool_use_blocks:
                 tool_name = block.name
                 tool_input = block.input or {}
                 if on_tool_call:
@@ -317,14 +405,6 @@ class Orchestrator:
                             on_tool_result(tool_name, err_payload)
                         except Exception:
                             logger.exception("on_tool_result callback failed")
-
-            self.history.append(ChatMessage(role="user", content=tool_results))
-
-        return OrchestratorResult(
-            text=_guard_final_text(user_message, (final_text + "\n[Warning: max iterations reached]").strip(), tool_calls_log),
-            tool_calls=tool_calls_log,
-            stop_reason="max_iterations",
-        )
 
     # -------------------------------------------------------------- ollama
 
@@ -909,6 +989,98 @@ class Orchestrator:
             if parts:
                 return "\n".join(parts)
         return "[Non-text user content received]"
+
+    def _rollback_turn(self, turn_user_msg: "ChatMessage") -> None:
+        """Bu tura ait mesajları geçmişten çıkar (400 kilidini kırmak için)."""
+        for i, msg in enumerate(self.history):
+            if msg is turn_user_msg:
+                del self.history[i:]
+                return
+        # Tur kırpmayla gitmiş olabilir; kilidi kırmak için geçmişi sıfırla.
+        logger.warning("Rollback noktası bulunamadı; Anthropic geçmişi sıfırlanıyor.")
+        self.history = []
+
+    def _repair_anthropic_history(self) -> bool:
+        """Anthropic'in 400 ile reddettiği tipik geçmiş bozukluklarını onar.
+
+        - Boş content'li mesajlar atılır.
+        - tool_result'sız kalmış (yetim) tool_use bloklarına sentetik sonuç eklenir.
+        - Eşleşen tool_use'u olmayan tool_result blokları atılır.
+        Değişiklik yapıldıysa True döner.
+        """
+        changed = False
+        repaired: list[ChatMessage] = []
+        pending_ids: list[str] = []  # yanıtsız tool_use id'leri
+
+        def flush_pending() -> None:
+            nonlocal changed
+            if pending_ids:
+                repaired.append(
+                    ChatMessage(role="user", content=self._synthetic_tool_results(pending_ids))
+                )
+                changed = True
+
+        for msg in self.history:
+            content = msg.content
+            if content is None or (isinstance(content, (str, list)) and not content):
+                changed = True
+                continue
+            if msg.role == "assistant":
+                flush_pending()
+                pending_ids = [
+                    self._block_id(b)
+                    for b in (content if isinstance(content, list) else [])
+                    if self._block_type(b) == "tool_use" and self._block_id(b)
+                ]
+                repaired.append(msg)
+                continue
+            if _is_tool_results(content):
+                kept = [
+                    b for b in content
+                    if isinstance(b, dict) and b.get("tool_use_id") in pending_ids
+                ]
+                answered = {b.get("tool_use_id") for b in kept}
+                missing = [tid for tid in pending_ids if tid not in answered]
+                if missing:
+                    kept = kept + self._synthetic_tool_results(missing)
+                if len(kept) != len(content) or missing:
+                    changed = True
+                pending_ids = []
+                if kept:
+                    repaired.append(ChatMessage(role="user", content=kept))
+                continue
+            flush_pending()
+            pending_ids = []
+            repaired.append(msg)
+
+        flush_pending()
+        if changed:
+            self.history = repaired
+        return changed
+
+    @staticmethod
+    def _synthetic_tool_results(ids: list[str]) -> list[dict[str, Any]]:
+        return [
+            {
+                "type": "tool_result",
+                "tool_use_id": tid,
+                "content": "[tool result lost: interrupted]",
+                "is_error": True,
+            }
+            for tid in ids
+        ]
+
+    @staticmethod
+    def _block_type(block: Any) -> Optional[str]:
+        if isinstance(block, dict):
+            return block.get("type")
+        return getattr(block, "type", None)
+
+    @staticmethod
+    def _block_id(block: Any) -> Optional[str]:
+        if isinstance(block, dict):
+            return block.get("id")
+        return getattr(block, "id", None)
 
     def _trim_history(self) -> None:
         """Anthropic history'sini son N turn'a kirp.
