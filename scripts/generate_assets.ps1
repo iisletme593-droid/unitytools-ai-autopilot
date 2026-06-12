@@ -52,12 +52,18 @@ Write-Ok "Blender: $($blender.FullName)"
 Write-Step "P0 asset'leri uretiliyor (12 adet, ~1 dk)"
 $outDir   = Join-Path $ProjectPath "Assets\FantasyRPG"
 $blendOut = Join-Path $ProjectPath "BlenderAssets\p0_assets.blend"
+
+# Eski GLB denemesi kalmissa temizle: Unity GLB'yi paketsiz okuyamiyor ve
+# ayni isimli GLB+FBX isim aramasini karistirir.
+Get-ChildItem (Join-Path $outDir "*.glb") -ErrorAction SilentlyContinue | Remove-Item -Force
+Get-ChildItem (Join-Path $outDir "*.glb.meta") -ErrorAction SilentlyContinue | Remove-Item -Force
+
 & $blender.FullName --background --factory-startup --python $genScript -- --out "$outDir" --blend "$blendOut"
 if ($LASTEXITCODE -ne 0) { throw "Blender uretimi basarisiz (exit $LASTEXITCODE); cikti yukarida." }
 
-$glbs = Get-ChildItem (Join-Path $outDir "*.glb") -ErrorAction SilentlyContinue
-Write-Ok "$($glbs.Count) GLB uretildi -> $outDir"
-$glbs | ForEach-Object { Write-Host "      $($_.Name)" }
+$fbxs = Get-ChildItem (Join-Path $outDir "*.fbx") -ErrorAction SilentlyContinue
+Write-Ok "$($fbxs.Count) FBX uretildi -> $outDir"
+$fbxs | ForEach-Object { Write-Host "      $($_.Name)" }
 
 # ---------------------------------------------------------------- 3. commit
 if (Test-Path (Join-Path $ProjectPath ".git")) {

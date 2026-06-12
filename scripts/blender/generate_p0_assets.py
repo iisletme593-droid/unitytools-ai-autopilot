@@ -263,8 +263,10 @@ BUILDERS = [
 ]
 
 
-def export_scene_glb(filepath):
-    bpy.ops.export_scene.gltf(filepath=filepath, export_format="GLB", export_apply=True)
+def export_scene_fbx(filepath):
+    # FBX: Unity'nin paketsiz, dogal okudugu format (GLB icin glTFast gerekirdi).
+    # SceneBuilder boyutlari targetMeters ile normalize ettigi icin olcek ayari kritik degil.
+    bpy.ops.export_scene.fbx(filepath=filepath, use_selection=False, add_leaf_bones=False)
 
 
 def main():
@@ -272,16 +274,15 @@ def main():
     out_dir = os.path.abspath(args.out)
     os.makedirs(out_dir, exist_ok=True)
 
-    # Geçiş A: her asset'i BOŞ sahnede kur ve tek başına GLB'ye ver.
-    # (Seçime dayalı export parametreleri Blender sürümleri arasında değiştiği
-    # için tüm-sahne exportu en taşınabilir yol.)
+    # Geçiş A: her asset'i BOŞ sahnede kur ve tek başına FBX'e ver.
+    # (Tüm-sahne exportu, sürümler arası en taşınabilir yol.)
     produced = []
     for name, builder in BUILDERS:
         clean_scene()
         _MATS.clear()
         builder(pal())
-        fp = os.path.join(out_dir, name + ".glb")
-        export_scene_glb(fp)
+        fp = os.path.join(out_dir, name + ".fbx")
+        export_scene_fbx(fp)
         produced.append(fp)
         print(f"[p0] uretildi: {fp}")
 
