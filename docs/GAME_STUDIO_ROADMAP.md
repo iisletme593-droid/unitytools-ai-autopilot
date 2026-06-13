@@ -18,9 +18,10 @@ incremental capability gains.
 ## Backlog (priority order)
 
 ### P0 — Autopilot reliability (fix what we just saw)
-- [ ] **Stop over-creation / max-iterations.** A "create one sphere" request produced ~10 spheres
-  and hit max iterations. Add: (a) detect repeated identical tool calls and stop; (b) system-prompt
-  rule "perform the requested action once, then summarize and STOP"; (c) honor explicit counts.
+- [x] **Stop over-creation / max-iterations.** (cycle 1) Added a repeated-tool-call guard in the
+  ollama/cloudflare tool loops: if the model requests the same tool-call set twice in a row, stop
+  with `stop_reason=repeated_tool_calls`. Verified: identical calls run once then stop; distinct
+  calls still work. Follow-ups (b) prompt rule + (c) honor explicit counts remain.
 - [ ] **Single vs batch intent.** Parse "bir/tek/one" vs "N tane/birçok/many" → set creation count;
   default to 1 when unspecified.
 - [ ] **Completion detection.** After a successful mutating tool, prefer ending the turn unless the

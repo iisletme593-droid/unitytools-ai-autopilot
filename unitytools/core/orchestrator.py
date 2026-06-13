@@ -348,6 +348,7 @@ class Orchestrator:
         tools = self._select_ollama_tools(user_message)
         if not tools:
             logger.warning("Tool registry bos - LLM tool cagiramayacak.")
+        _last_calls_sig: str | None = None
 
         for _ in range(max_iterations):
             self._trim_ollama_history()
@@ -377,6 +378,33 @@ class Orchestrator:
                     tool_calls=tool_calls_log,
                     stop_reason="stop",
                 )
+
+            # Over-creation / sonsuz dongu korumasi (P0): model ayni tool cagri
+            # kumesini ardisik tekrar ederse (or. ayni nesneyi defalarca olusturma),
+            # eylem yapildi say ve dur.
+            _calls_sig = json.dumps(
+                [
+                    {
+                        "n": (c.get("function") or {}).get("name") or c.get("name"),
+                        "a": (c.get("function") or {}).get("arguments") or c.get("arguments"),
+                    }
+                    for c in tool_calls
+                ],
+                sort_keys=True,
+                ensure_ascii=False,
+                default=str,
+            )
+            if _calls_sig == _last_calls_sig:
+                return OrchestratorResult(
+                    text=_guard_final_text(
+                        user_message,
+                        (final_text + "\n(Ayni tool cagrilari tekrarlandi; durduruldu.)").strip(),
+                        tool_calls_log,
+                    ),
+                    tool_calls=tool_calls_log,
+                    stop_reason="repeated_tool_calls",
+                )
+            _last_calls_sig = _calls_sig
 
             for call in tool_calls:
                 function = call.get("function") or {}
@@ -500,6 +528,7 @@ class Orchestrator:
         final_text = ""
         tool_calls_log: list[dict[str, Any]] = []
         tools = self._select_ollama_tools(user_message)
+        _last_calls_sig: str | None = None
 
         for _ in range(max_iterations):
             self._trim_ollama_history()
@@ -529,6 +558,33 @@ class Orchestrator:
                     tool_calls=tool_calls_log,
                     stop_reason="stop",
                 )
+
+            # Over-creation / sonsuz dongu korumasi (P0): model ayni tool cagri
+            # kumesini ardisik tekrar ederse (or. ayni nesneyi defalarca olusturma),
+            # eylem yapildi say ve dur.
+            _calls_sig = json.dumps(
+                [
+                    {
+                        "n": (c.get("function") or {}).get("name") or c.get("name"),
+                        "a": (c.get("function") or {}).get("arguments") or c.get("arguments"),
+                    }
+                    for c in tool_calls
+                ],
+                sort_keys=True,
+                ensure_ascii=False,
+                default=str,
+            )
+            if _calls_sig == _last_calls_sig:
+                return OrchestratorResult(
+                    text=_guard_final_text(
+                        user_message,
+                        (final_text + "\n(Ayni tool cagrilari tekrarlandi; durduruldu.)").strip(),
+                        tool_calls_log,
+                    ),
+                    tool_calls=tool_calls_log,
+                    stop_reason="repeated_tool_calls",
+                )
+            _last_calls_sig = _calls_sig
 
             for call in tool_calls:
                 function = call.get("function") or {}
