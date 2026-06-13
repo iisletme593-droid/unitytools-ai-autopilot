@@ -392,7 +392,7 @@ class ChatServer:
                     "version": self.SERVER_VERSION,
                     "mode": mode,
                     "provider": self.config.provider,
-                    "model": self.config.model if self.config.provider == "anthropic" else self.config.ollama_model,
+                    "model": self.config.active_model(),
                     "master_model": self.master_model if self.use_dual_agent else None,
                     "worker_model": self.worker_model if self.use_dual_agent else None,
                     "reader_model": self.reader_model if self.use_dual_agent else None,
