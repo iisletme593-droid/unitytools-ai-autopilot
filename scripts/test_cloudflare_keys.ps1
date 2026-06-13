@@ -73,8 +73,9 @@ foreach ($k in $map.Keys) {
     $looksToken = $v -match '^[A-Za-z0-9_-]{40}$'
     $nameToken  = (
         $ku -like '*CLOUDFLARE*' -or $ku -like 'CF*' -or $ku -like '*WORKERS*' -or
-        $ku -like '*TOKEN*' -or $ku -like '*CRON*' -or ($ku -like '*API*' -and $ku -like '*KEY*')
-    ) -and $v.Length -ge 30
+        $ku -like '*TOKEN*' -or $ku -like '*CRON*' -or $ku -like '*CLOUD*' -or
+        $ku -like '*FIRE*' -or $ku -like '*GLOBAL*' -or $ku -like '*API*'
+    ) -and $v.Length -ge 20
     if ($looksToken -or $nameToken) { $tokens.Add($v) }
 }
 $accounts = @($accounts | Select-Object -Unique)
