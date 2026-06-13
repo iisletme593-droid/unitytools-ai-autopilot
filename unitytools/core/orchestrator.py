@@ -647,6 +647,37 @@ class Orchestrator:
             }
         }
 
+    def _complete_no_tools(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
+        """Provider-bagimsiz, arac-suz tek seferlik tamamlama.
+
+        Donus sekli Ollama/Cloudflare ile ayni: {"message": {"content": ...}}.
+        dual_agent.py'deki Master/Reader bunu kullanir; boylece provider'a gore
+        (ollama / cloudflare / anthropic) dogru backend'e yonlenir, _ollama_chat'e
+        sabit bagli kalmaz.
+        """
+        provider = (self.config.provider or "ollama").lower()
+        if provider == "cloudflare":
+            return self._cloudflare_chat(messages, tools=[])
+        if provider == "anthropic":
+            if self.client is None:
+                raise RuntimeError("Anthropic client is not initialized (set ANTHROPIC_API_KEY).")
+            system_parts = [str(m.get("content", "")) for m in messages if m.get("role") == "system"]
+            convo = [m for m in messages if m.get("role") != "system"]
+            kwargs: dict[str, Any] = {
+                "model": self.config.model,
+                "max_tokens": self.max_tokens,
+                "messages": convo,
+            }
+            sys_text = "\n\n".join(p for p in system_parts if p)
+            if sys_text:
+                kwargs["system"] = sys_text
+            resp = self.client.messages.create(**kwargs)
+            text = "".join(
+                getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text"
+            )
+            return {"message": {"content": text, "tool_calls": []}}
+        return self._ollama_chat(messages, tools=[])
+
     def _select_ollama_tools(self, user_message: str) -> list[dict[str, Any]]:
         """Send Ollama only the tools that are relevant to the current request.
 

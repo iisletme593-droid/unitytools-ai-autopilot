@@ -502,17 +502,18 @@ def cmd_chat(args: argparse.Namespace) -> int:
 
 def cmd_dual_chat(args: argparse.Namespace) -> int:
     config, blender, unity = _bootstrap()
-    # Dual-agent only works with Ollama
-    if config.provider != "ollama":
-        console.print("[red]Dual-agent mode requires UNITYTOOLS_PROVIDER=ollama[/red]")
+    # Dual-agent yerel (ollama) ya da Cloudflare 70B ile calisir.
+    if config.provider not in {"ollama", "cloudflare"}:
+        console.print("[red]Dual-agent mode requires UNITYTOOLS_PROVIDER=ollama veya cloudflare[/red]")
         return 1
     from .dual_chat import run_dual_chat
     master = args.master or "qwen3.6:latest"
     worker = args.worker or "qwen2.5:14b-instruct"
     reader = getattr(args, "reader", None) or "qwen2.5:14b-instruct"
-    master = _resolve_ollama_model(config, master, config.ollama_model)
-    worker = _resolve_ollama_model(config, worker, config.ollama_model)
-    reader = _resolve_ollama_model(config, reader, config.ollama_model)
+    if config.provider == "ollama":
+        master = _resolve_ollama_model(config, master, config.ollama_model)
+        worker = _resolve_ollama_model(config, worker, config.ollama_model)
+        reader = _resolve_ollama_model(config, reader, config.ollama_model)
     return run_dual_chat(config, master, worker, reader)
 
 

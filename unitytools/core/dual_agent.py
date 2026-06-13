@@ -630,12 +630,11 @@ EÄŸer hata varsa, ne olduÄŸunu aÃ§Ä±kla.
     def _master_plan(self, prompt: str) -> Any:
         """Master agent thinks and plans (no tool access)."""
         # Master uses simple chat without tools
-        response = self.master._ollama_chat(
+        response = self.master._complete_no_tools(
             [
                 {"role": "system", "content": MASTER_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt}
-            ],
-            tools=[]
+            ]
         )
 
         message = response.get("message", {})
@@ -820,12 +819,11 @@ Canli okuma sonuclari:
 
 Planner icin kisa Turkce briefing yaz. JSON yazma. Sadece ne var, ne yapilmali, hangi riskler var."""
         try:
-            response = self.reader._ollama_chat(
+            response = self.reader._complete_no_tools(
                 [
                     {"role": "system", "content": READER_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
-                ],
-                tools=[],
+                ]
             )
             return (response.get("message", {}) or {}).get("content", "").strip()
         except Exception as exc:
