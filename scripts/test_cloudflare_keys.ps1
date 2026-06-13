@@ -2,7 +2,8 @@ param(
     [string]$EnvFile    = "D:\Adnan\NewPC\D\UnityToolsV2\.env",
     [string]$Model      = "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     [string]$InstallEnv = "C:\dev\unitytools-ai-autopilot\.env",
-    [string]$AccountId  = ""   # .env'de account id yoksa elle ver
+    [string]$AccountId  = "",   # .env'de account id yoksa elle ver
+    [string]$Token      = ""    # yeni olusturulan token'i .env'e dokunmadan dene
 )
 
 # Cloudflare anahtarlarini 70B modeline karsi tek tek dener, calismani bulur.
@@ -80,6 +81,8 @@ foreach ($k in $map.Keys) {
 }
 $accounts = @($accounts | Select-Object -Unique)
 $tokens   = @($tokens   | Select-Object -Unique)
+# Komut satirindan -Token verildiyse en basa koy (yeni token'i hizlica dene).
+if ($Token) { $tokens = @($Token) + @($tokens | Where-Object { $_ -ne $Token }) }
 Write-Host "    -> account id: $($accounts.Count), token adayi: $($tokens.Count)"
 
 if ($accounts.Count -eq 0) {
@@ -110,9 +113,26 @@ function Test-Combo($acct, $token, $model){
     }
 }
 
+# Token gercekten gecerli bir Cloudflare token'i mi? (izinden bagimsiz dogrulama)
+function Test-Verify($token){
+    try {
+        $resp = Invoke-WebRequest -Uri "https://api.cloudflare.com/client/v4/user/tokens/verify" `
+            -Method Get -Headers @{ Authorization = "Bearer $token" } -UseBasicParsing -TimeoutSec 20
+        $j = $null; try { $j = $resp.Content | ConvertFrom-Json } catch {}
+        $status = if ($j -and $j.result) { $j.result.status } else { "?" }
+        return "gecerli CF token (status: $status)"
+    } catch {
+        $code = -1
+        if ($_.Exception.Response) { try { $code = [int]$_.Exception.Response.StatusCode } catch {} }
+        if ($code -eq 401) { return "CF token DEGIL (verify 401)" }
+        return "verify HTTP $code"
+    }
+}
+
 Write-Step "70B modeline erisim deneniyor ($Model)"
 $winner = $null
 foreach ($token in $tokens) {
+    Write-Host "  token $(Mask $token): $(Test-Verify $token)" -ForegroundColor DarkGray
     foreach ($acct in $accounts) {
         Write-Host "  -> account $(Mask $acct) + token $(Mask $token) ... " -NoNewline
         $r = Test-Combo $acct $token $Model
@@ -136,8 +156,15 @@ foreach ($token in $tokens) {
 if (-not $winner) {
     Write-Host ""
     Write-Bad "Hicbir kombinasyon 70B modeline ulasamadi."
-    Write-Host "  En olasi sebep: token'da 'Workers AI' izni yok ya da account id eslesmedi." -ForegroundColor Yellow
-    Write-Host "  Cozum: dash.cloudflare.com/profile/api-tokens > Create Token > 'Workers AI' template." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  Yukaridaki 'verify' satirlarina bak:" -ForegroundColor Yellow
+    Write-Host "   - 'CF token DEGIL' => o deger Cloudflare token'i degil (baska servis/sir)." -ForegroundColor Yellow
+    Write-Host "   - 'gecerli CF token' ama 70B 403 => token'da Workers AI izni yok." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  KESIN COZUM (2 dk): dash.cloudflare.com/profile/api-tokens >" -ForegroundColor Cyan
+    Write-Host "    Create Token > 'Workers AI' template > Continue > Create Token > kopyala." -ForegroundColor Cyan
+    Write-Host "  Sonra .env'e dokunmadan dogrudan dene:" -ForegroundColor Cyan
+    Write-Host "    powershell -ExecutionPolicy Bypass -File $PSCommandPath -Token `"YENI_TOKEN`"" -ForegroundColor Cyan
     exit 1
 }
 
