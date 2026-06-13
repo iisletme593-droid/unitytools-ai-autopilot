@@ -24,6 +24,9 @@ makinesine** taşınıyor. Hedef motor: **Unity** (Unreal değil, şimdilik).
 - Onaylanınca (aktif kota 8 olunca) launch çalışır, kuruluma geçilir.
 
 ## Makinede kurulum sırası (kota onaylanınca)
+> Kestirme: aşağıdaki 2-5 adımlarını `scripts/setup_windows.ps1` otomatik yapar:
+> `irm https://raw.githubusercontent.com/iisletme593-droid/unitytools-ai-autopilot/<dal>/scripts/setup_windows.ps1 | iex`
+
 1. NVIDIA sürücü → NICE DCV veya Parsec ile bağlan.
 2. Python 3.11 + Unity Hub/Editor (LTS).
 3. `git clone https://github.com/iisletme593-droid/unitytools-ai-autopilot.git` →
@@ -47,9 +50,17 @@ makinesine** taşınıyor. Hedef motor: **Unity** (Unreal değil, şimdilik).
 - ⚠️ **AWS admin anahtarını ROTATE et:** `cboinn-temp-admin` access key'i düz metin halde
   `D:\Adnan\NewPC\D` altında onlarca `.env`/yedekte duruyor (admin = tüm hesap kontrolü). IAM'den
   sil/yenile. Genel olarak o ağaçta ciddi sır dağınıklığı var (AWS, Binance/BingX, Shopier, OpenAI).
-- Ertelendi (henüz yapılmadı): yüksek öncelikli **kararlılık hataları** — Anthropic 400 kilidi,
-  RPC yanıt korelasyonu, build-kıran `#if UNITY_EDITOR`/`GetActorLabel` guard'ları, dual_agent
-  mojibake. Tam liste için ilk denetim raporuna bak.
+- ✅ (2026-06-12) Yüksek öncelikli **kararlılık hataları düzeltildi**:
+  - **Anthropic 400 kilidi**: 400 gelince history onarılıyor (yetim tool_use/tool_result,
+    boş content) ve istek bir kez tekrarlanıyor; hâlâ 400 ise bozuk tur geçmişten geri
+    alınıyor — sohbet artık kalıcı kilitlenmiyor (`orchestrator.py`).
+  - **RPC yanıt korelasyonu**: Unity/Unreal bridge'leri yanıtları artık `id` ile eşliyor;
+    timeout sonrası geç gelen yanıtlar atılıyor, buffer bağlantılar arası sızmıyor.
+  - **Build kıran guard'lar**: Unreal runtime'da `GetActorLabel` → `GetName`;
+    `GeneratedAssetLoader.cs` `#if UNITY_EDITOR` ile sarıldı.
+  - **Mojibake**: repo genelinde (Python/C#/MD, 25+ dosya) bozuk Türkçe + ok/emoji
+    karakterleri onarıldı.
+  - Testler: 41/41 geçiyor (bridge korelasyonu ve 400 kilidi için yeni regresyon testleri).
 
 ## Test çalıştırma
 Repo `.venv` bozuk. Geçici ortamla:

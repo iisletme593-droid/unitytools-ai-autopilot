@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -65,9 +66,24 @@ def _bootstrap() -> tuple[Config, BlenderBridge, UnityBridge]:
     return config, blender, unity
 
 
+def _dual_agent_allowed(provider: str) -> bool:
+    """Dual-agent yalnizca Ollama icin gecerli (master/worker/reader yerel modeller).
+
+    Bulut saglayicilar (anthropic, cloudflare) tek-agent Orchestrator kullanmali;
+    DualAgentOrchestrator dogrudan Ollama'ya gider ve onlarda calismaz.
+    """
+    return provider == "ollama"
+
+
 def _api_key_label(config: Config) -> str:
     if config.provider == "ollama":
         return "[dim]not needed for Ollama[/dim]"
+    if config.provider == "cloudflare":
+        if not config.cloudflare_api_token:
+            return "[red][ERR] CLOUDFLARE_API_TOKEN missing[/red]"
+        if not config.cloudflare_account_id:
+            return "[yellow][WARN] token present, CLOUDFLARE_ACCOUNT_ID missing[/yellow]"
+        return "[green][OK] token + account present[/green]"
     if not config.api_key:
         return "[red][ERR] missing[/red]"
     if not config.api_key.startswith("sk-ant-"):
@@ -81,10 +97,13 @@ def cmd_status(args: argparse.Namespace) -> int:
     console.print("[bold cyan]UnityTools Status[/bold cyan]")
     console.print(f"  Project root: {config.project_root}")
     console.print(f"  Provider:     {config.provider}")
-    model_label = config.ollama_model if config.provider == "ollama" else config.model
-    console.print(f"  Model:        {model_label}")
+    console.print(f"  Model:        {config.active_model()}")
     if config.provider == "ollama":
         console.print(f"  Ollama host:  {config.ollama_host}")
+    if config.provider == "cloudflare":
+        acct = config.cloudflare_account_id
+        acct_masked = (acct[:4] + "…" + acct[-4:]) if len(acct) > 8 else (acct or "[unset]")
+        console.print(f"  CF account:   {acct_masked}")
     console.print(f"  API key:      {_api_key_label(config)}")
     console.print(
         f"  Blender:      {'[green][OK] ' + (config.blender_executable or '') + '[/green]' if blender.is_available() else '[red][ERR] not found[/red]'}"
@@ -124,6 +143,33 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                 console.print(f"  Hint:         ollama pull {config.ollama_model}")
         except Exception as exc:
             console.print(f"  Ollama API:   [red][ERR] {exc}[/red]")
+    if config.provider == "cloudflare":
+        try:
+            payload = json.dumps(
+                {
+                    "model": config.cloudflare_model,
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "max_tokens": 1,
+                }
+            ).encode("utf-8")
+            req = urllib.request.Request(
+                config.cloudflare_chat_url(),
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {config.cloudflare_api_token}",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                resp.read()
+            console.print("  Cloudflare:   [green][OK] reachable + authorized[/green]")
+            console.print(f"  CF model:     {config.cloudflare_model}")
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")[:200]
+            console.print(f"  Cloudflare:   [red][ERR] HTTP {exc.code}: {body}[/red]")
+        except Exception as exc:
+            console.print(f"  Cloudflare:   [red][ERR] {exc}[/red]")
     console.print(
         f"  Unity ping:   {'[green][OK] responded[/green]' if unity.ping() else '[yellow][WAIT] not responding[/yellow]'}"
     )
@@ -194,6 +240,13 @@ def cmd_install_unity_plugin(args: argparse.Namespace) -> int:
         autopilot_target = assets / "Scripts" / "Autopilot"
         _copy_tree_files(autopilot_source, autopilot_target, suffixes={".cs"})
         installed_targets.append(autopilot_target)
+
+    # Autopilot script'lerinin referans verdiği Gameplay runtime bileşenleri
+    gameplay_source = plugin_root / "Scripts" / "Gameplay"
+    if gameplay_source.exists():
+        gameplay_target = assets / "Scripts" / "Gameplay"
+        _copy_tree_files(gameplay_source, gameplay_target, suffixes={".cs"})
+        installed_targets.append(gameplay_target)
 
     autopilot_editor_source = plugin_root / "Editor" / "Autopilot"
     if autopilot_editor_source.exists():
@@ -580,6 +633,16 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
         master_model = _resolve_ollama_model(config, master_model, config.ollama_model)
         worker_model = _resolve_ollama_model(config, worker_model, config.ollama_model)
         reader_model = _resolve_ollama_model(config, reader_model, config.ollama_model)
+    elif use_dual and not _dual_agent_allowed(config.provider):
+        # Dual-agent Ollama-ozeldir: master/worker/reader yerel Ollama modelleridir ve
+        # DualAgentOrchestrator dogrudan _ollama_chat cagirir. Bulut saglayicilarda
+        # (cloudflare/anthropic) tek-agent Orchestrator kullan; o, provider'i dogru
+        # yonlendirir (ornegin Cloudflare 70B). Aksi halde panel Ollama'yi arar ve patlar.
+        console.print(
+            f"[yellow]Dual-agent yalnizca Ollama ile calisir; provider={config.provider} "
+            "icin tek-agent moduna gecildi (bulut model dogrudan kullanilir).[/yellow]"
+        )
+        use_dual = False
 
     # Guvenlik: loopback disi --host yalnizca acik izin + token ile.
     from ..core.security import is_loopback_host

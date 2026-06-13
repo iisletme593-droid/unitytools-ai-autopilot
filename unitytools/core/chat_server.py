@@ -3,9 +3,9 @@
 Unity connects to this process on port 7778, sends newline-delimited JSON
 messages, and receives tool-call progress plus final assistant text.
 
-Ä°lk baÄŸlantÄ± kurulduÄŸunda istemciye bir `hello` mesajÄ± gÃ¶nderilir; bÃ¶ylece
-Unity tarafÄ± sÃ¼reÃ§ baÅŸarÄ±yla ayaÄŸa kalkmÄ±ÅŸ mÄ± yoksa import sÄ±rasÄ±nda Ã¶lmÃ¼ÅŸ mÃ¼
-olduÄŸunu anlayabilir.
+İlk bağlantı kurulduğunda istemciye bir `hello` mesajı gönderilir; böylece
+Unity tarafı süreç başarıyla ayağa kalkmış mı yoksa import sırasında ölmüş mü
+olduğunu anlayabilir.
 
 Supports both single-agent and dual-agent modes.
 """
@@ -377,7 +377,7 @@ class ChatServer:
         
         send = self._make_sender(client)
 
-        # Ä°lk handshake: Unity tarafÄ± sÃ¼reÃ§ saÄŸlÄ±ÄŸÄ±nÄ± bundan anlar.
+        # İlk handshake: Unity tarafı süreç sağlığını bundan anlar.
         try:
             tool_count = 0
             try:
@@ -392,7 +392,7 @@ class ChatServer:
                     "version": self.SERVER_VERSION,
                     "mode": mode,
                     "provider": self.config.provider,
-                    "model": self.config.model if self.config.provider == "anthropic" else self.config.ollama_model,
+                    "model": self.config.active_model(),
                     "master_model": self.master_model if self.use_dual_agent else None,
                     "worker_model": self.worker_model if self.use_dual_agent else None,
                     "reader_model": self.reader_model if self.use_dual_agent else None,
@@ -512,11 +512,18 @@ class ChatServer:
             if content:
                 blocks.append({"type": "text", "text": content})
             blocks = self._apply_engine_context(blocks)
+            skipped_oversize = 0
+            attached = 0
             for img in images:
                 try:
                     mime = str(img.get("mime") or "image/png")
                     data_b64 = str(img.get("data_base64") or "")
                     if not data_b64.strip():
+                        continue
+                    # Anthropic görsel limiti 5MB; aşan görsel isteğin tamamını
+                    # 400 ile düşürür. Burada eleyip kalanıyla devam ediyoruz.
+                    if len(data_b64) > 6_800_000:  # base64 ~ 5MB ham veri
+                        skipped_oversize += 1
                         continue
                     base64.b64decode(data_b64, validate=False)
                     blocks.append(
@@ -525,8 +532,21 @@ class ChatServer:
                             "source": {"type": "base64", "media_type": mime, "data": data_b64},
                         }
                     )
+                    attached += 1
                 except Exception:
                     continue
+            if skipped_oversize:
+                send(
+                    {
+                        "type": "assistant_text",
+                        "content": f"[{skipped_oversize} görsel 5MB limitini aştığı için atlandı]",
+                        "done": False,
+                    }
+                )
+            if not content and not attached:
+                # Engine-context ipucu bloğu tek başına anlamlı içerik değil.
+                send({"type": "error", "message": "No usable content (all images skipped/invalid)."})
+                return
             self._process_user_message(blocks, orch, send)
             return
 

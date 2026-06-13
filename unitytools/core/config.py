@@ -19,9 +19,15 @@ class Config:
     # LLM provider
     api_key: str = ""
     model: str = "claude-sonnet-4-20250514"
-    provider: str = "ollama"  # "anthropic" | "ollama"
+    provider: str = "ollama"  # "anthropic" | "ollama" | "cloudflare"
     ollama_host: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen2.5:14b-instruct"
+
+    # Cloudflare Workers AI (OpenAI uyumlu, tool-calling; varsayilan 70B Llama)
+    cloudflare_account_id: str = ""
+    cloudflare_api_token: str = ""
+    cloudflare_model: str = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+    cloudflare_base_url: str = ""  # opsiyonel override (AI Gateway vb.)
 
     # Güvenlik: kopru/chat-server paylasilan token + uzak baglanti izni
     bridge_token: str = ""
@@ -64,9 +70,17 @@ class Config:
         cfg = cls(
             api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             model=os.getenv("UNITYTOOLS_MODEL", "claude-sonnet-4-20250514"),
-            provider=os.getenv("UNITYTOOLS_PROVIDER", "ollama").lower(),
+            provider=os.getenv("UNITYTOOLS_PROVIDER", "ollama").strip().lower(),
             ollama_host=os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434"),
             ollama_model=os.getenv("OLLAMA_MODEL", "qwen2.5:14b-instruct"),
+            cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID", ""),
+            cloudflare_api_token=(
+                os.getenv("CLOUDFLARE_API_TOKEN", "") or os.getenv("CLOUDFLARE_API_KEY", "")
+            ),
+            cloudflare_model=os.getenv(
+                "CLOUDFLARE_MODEL", "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+            ),
+            cloudflare_base_url=os.getenv("CLOUDFLARE_BASE_URL", ""),
             max_tokens=_int_env("UNITYTOOLS_MAX_TOKENS", 8192),
             history_turn_limit=_int_env("UNITYTOOLS_HISTORY_LIMIT", 40),
             unity_bridge_port=_int_env("UNITY_BRIDGE_PORT", 7777),
@@ -85,12 +99,38 @@ class Config:
         )
         return cfg
 
+    def active_model(self) -> str:
+        """Aktif provider'a gore kullanilan model adi."""
+        if self.provider == "ollama":
+            return self.ollama_model
+        if self.provider == "cloudflare":
+            return self.cloudflare_model
+        return self.model
+
+    def cloudflare_chat_url(self) -> str:
+        """Cloudflare Workers AI OpenAI-uyumlu chat/completions URL'i."""
+        if self.cloudflare_base_url:
+            base = self.cloudflare_base_url.rstrip("/")
+        else:
+            base = (
+                "https://api.cloudflare.com/client/v4/accounts/"
+                f"{self.cloudflare_account_id}/ai/v1"
+            )
+        return f"{base}/chat/completions"
+
     def validate(self) -> list[str]:
         """Eksik/hatalı ayarları liste olarak döndür."""
         problems: list[str] = []
-        if self.provider not in {"anthropic", "ollama"}:
+        if self.provider not in {"anthropic", "ollama", "cloudflare"}:
+            hint = ""
+            if "=" in self.provider or len(self.provider) > 24:
+                hint = (
+                    " — .env satirlari birbirine yapismis gorunuyor. Her ayar AYRI bir "
+                    "satirda olmali (or. UNITYTOOLS_PROVIDER=cloudflare). Dosyayi duzelt."
+                )
             problems.append(
-                f"UNITYTOOLS_PROVIDER 'anthropic' veya 'ollama' olmali (suanki: {self.provider!r})."
+                "UNITYTOOLS_PROVIDER 'anthropic', 'ollama' veya 'cloudflare' olmali "
+                f"(suanki: {self.provider!r})." + hint
             )
         if self.provider == "anthropic":
             if not self.api_key:
@@ -102,6 +142,19 @@ class Config:
                     "ANTHROPIC_API_KEY mevcut ama Anthropic API anahtari gibi gorunmuyor "
                     "(beklenen prefix: sk-ant-)."
                 )
+        if self.provider == "cloudflare":
+            if not self.cloudflare_account_id:
+                problems.append(
+                    "CLOUDFLARE_ACCOUNT_ID .env dosyasinda veya environment'ta yok "
+                    "(Cloudflare dashboard > sag ust hesap kimligi)."
+                )
+            if not self.cloudflare_api_token:
+                problems.append(
+                    "CLOUDFLARE_API_TOKEN yok. dash.cloudflare.com/profile/api-tokens "
+                    "uzerinden 'Workers AI' yetkili bir token olustur."
+                )
+            if not self.cloudflare_model:
+                problems.append("CLOUDFLARE_MODEL bos olamaz.")
         if self.provider == "ollama" and not self.ollama_model:
             problems.append("OLLAMA_MODEL bos olamaz.")
         if self.provider == "ollama":

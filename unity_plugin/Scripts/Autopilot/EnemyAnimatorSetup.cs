@@ -35,10 +35,10 @@ namespace Autopilot
             AssignToEnemies(ctrl);
             EditorSceneManager.MarkAllScenesDirty();
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
-            Debug.Log("[EnemyAnimatorSetup] TamamlandÄ±.");
+            Debug.Log("[EnemyAnimatorSetup] Tamamlandı.");
         }
 
-        // â”€â”€ AnimatorController â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── AnimatorController ────────────────────────────────────────────────
         private static AnimatorController BuildController()
         {
             if (AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath) != null)
@@ -86,15 +86,15 @@ namespace Autopilot
             Tr(walk, run ).AddCondition(AnimatorConditionMode.Greater, 3.0f,  "Speed");
             Tr(run,  walk).AddCondition(AnimatorConditionMode.Less,    2.5f,  "Speed");
 
-            // Any â†’ Attack1
+            // Any → Attack1
             AnyTrigger(sm, attack1, "Attack",  false);
-            // Any â†’ Charge
+            // Any → Charge
             AnyTrigger(sm, charge,  "Attack2", false);
-            // Any â†’ Alert
+            // Any → Alert
             AnyTrigger(sm, alert,   "Alert",   false);
-            // Any â†’ Hit (stun)
+            // Any → Hit (stun)
             AnyBool(sm, hit, "IsStunned", true);
-            // Any â†’ Die (highest priority)
+            // Any → Die (highest priority)
             AnyBool(sm, die, "IsDead",    true);
 
             // Return to idle after attacks/alert (via exit time)
@@ -102,12 +102,12 @@ namespace Autopilot
             ExitTr(charge,  idle, 0.90f);
             ExitTr(alert,   idle, 0.95f);
 
-            // Hit â†’ idle when stun clears
+            // Hit → idle when stun clears
             var unstun = hit.AddTransition(idle);
             unstun.AddCondition(AnimatorConditionMode.IfNot, 0, "IsStunned");
             unstun.hasExitTime = false; unstun.duration = 0.15f;
 
-            // Idle/Walk â†’ Retreat
+            // Idle/Walk → Retreat
             var r1 = idle.AddTransition(retreat);
             r1.AddCondition(AnimatorConditionMode.If, 0, "IsRetreating");
             r1.hasExitTime = false; r1.duration = 0.2f;
@@ -120,7 +120,7 @@ namespace Autopilot
             r3.AddCondition(AnimatorConditionMode.If, 0, "IsRetreating");
             r3.hasExitTime = false; r3.duration = 0.2f;
 
-            // Retreat â†’ idle
+            // Retreat → idle
             var rOff = retreat.AddTransition(idle);
             rOff.AddCondition(AnimatorConditionMode.IfNot, 0, "IsRetreating");
             rOff.hasExitTime = false; rOff.duration = 0.2f;
@@ -131,7 +131,7 @@ namespace Autopilot
             return ctrl;
         }
 
-        // â”€â”€ Transition helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Transition helpers ────────────────────────────────────────────────
         private static AnimatorStateTransition Tr(AnimatorState from, AnimatorState to)
         {
             var t = from.AddTransition(to);
@@ -168,7 +168,7 @@ namespace Autopilot
             t.AddCondition(value ? AnimatorConditionMode.If : AnimatorConditionMode.IfNot, 0, param);
         }
 
-        // â”€â”€ Clip search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Clip search ───────────────────────────────────────────────────────
         private static AnimationClip FindClip(params string[] keywords)
         {
             foreach (string kw in keywords)
@@ -199,7 +199,7 @@ namespace Autopilot
             return null;
         }
 
-        // â”€â”€ Assign to scene enemies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Assign to scene enemies ───────────────────────────────────────────
         private static void AssignToEnemies(AnimatorController ctrl)
         {
             var enemies = UnityEngine.Object.FindObjectsByType<Gameplay.EnemyAIController>(
@@ -214,10 +214,10 @@ namespace Autopilot
                 EditorUtility.SetDirty(anim);
                 assigned++;
             }
-            Debug.Log($"[EnemyAnimatorSetup] {assigned}/{enemies.Length} dÃ¼ÅŸmana animator atandÄ±.");
+            Debug.Log($"[EnemyAnimatorSetup] {assigned}/{enemies.Length} düşmana animator atandı.");
         }
 
-        // â”€â”€ Folder helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Folder helper ─────────────────────────────────────────────────────
         private static void EnsureDir(string path)
         {
             if (AssetDatabase.IsValidFolder(path)) return;

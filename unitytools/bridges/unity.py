@@ -14,6 +14,7 @@ import json
 import logging
 import socket
 import threading
+import time
 import uuid
 from typing import Any, Optional
 
@@ -68,6 +69,7 @@ class UnityBridge:
                         continue
                     s.settimeout(None)  # blocking after handshake
                     self._sock = s
+                    self._buffer = b""  # eski bağlantıdan yarım satır taşmasın
                     self.config.unity_bridge_port = port
                     logger.info(
                         "Unity bridge bağlandı: %s:%d",
@@ -86,12 +88,16 @@ class UnityBridge:
             return False
     def disconnect(self) -> None:
         with self._lock:
-            if self._sock is not None:
-                try:
-                    self._sock.close()
-                except Exception:
-                    pass
-                self._sock = None
+            self._drop_connection_locked()
+    def _drop_connection_locked(self) -> None:
+        """Soketi kapat ve buffer'ı sıfırla. self._lock tutulurken çağrılmalı."""
+        if self._sock is not None:
+            try:
+                self._sock.close()
+            except Exception:
+                pass
+            self._sock = None
+        self._buffer = b""
     def is_connected(self) -> bool:
         if self._sock is not None:
             return True
@@ -119,22 +125,40 @@ class UnityBridge:
         with self._lock:
             assert self._sock is not None
             payload = request.model_dump_json(exclude_none=True).encode("utf-8") + b"\n"
+            deadline = time.monotonic() + timeout
             try:
                 self._sock.sendall(payload)
-                self._sock.settimeout(timeout)
-                line = self._read_line()
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise socket.timeout()
+                    self._sock.settimeout(remaining)
+                    line = self._read_line()
+                    try:
+                        data = json.loads(line.decode("utf-8"))
+                    except (UnicodeDecodeError, json.JSONDecodeError) as e:
+                        self._drop_connection_locked()
+                        raise UnityNotConnectedError(
+                            f"Bozuk RPC yanıtı alındı, bağlantı sıfırlandı: {e}"
+                        ) from e
+                    if data.get("id") == request.id:
+                        return RpcResponse.model_validate(data)
+                    # Zaman aşımına uğramış önceki bir çağrının geç gelen yanıtı;
+                    # yeni isteğin sonucu sanılmasın diye atılıyor.
+                    logger.warning(
+                        "Eşleşmeyen RPC yanıtı atıldı (gelen id=%s, beklenen=%s, method=%s)",
+                        data.get("id"), request.id, request.method,
+                    )
             except socket.timeout as e:
                 raise TimeoutError(
                     f"Unity RPC zaman aşımı ({timeout:.1f}s). Unity Editor muhtemelen meşgul (compile/import/playmode)."
                 ) from e
             except (BrokenPipeError, ConnectionResetError) as e:
-                self._sock = None
+                self._drop_connection_locked()
                 raise UnityNotConnectedError(f"Bağlantı koptu: {e}") from e
             finally:
                 if self._sock is not None:
                     self._sock.settimeout(None)
-        data = json.loads(line.decode("utf-8"))
-        return RpcResponse.model_validate(data)
     def _read_line(self) -> bytes:
         """Newline'a kadar oku. Buffer'ı state olarak tut."""
         assert self._sock is not None

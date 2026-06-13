@@ -1,20 +1,20 @@
 ﻿"""Dual-agent orchestrator: Master (planning) + Worker (execution).
 
 Master Agent (Qwen 2.5:14b):
-  - KullanÄ±cÄ± isteÄŸini analiz eder
-  - GÃ¶revleri alt adÄ±mlara bÃ¶ler
-  - Worker'a hangi tool'larÄ± Ã§aÄŸÄ±racaÄŸÄ±nÄ± sÃ¶yler
-  - SonuÃ§larÄ± deÄŸerlendirir ve kalite kontrolÃ¼ yapar
-  - MEMORY: GeÃ§miÅŸ deneyimlerden Ã¶ÄŸrenir
+  - Kullanıcı isteğini analiz eder
+  - Görevleri alt adımlara böler
+  - Worker'a hangi tool'ları çağıracağını söyler
+  - Sonuçları değerlendirir ve kalite kontrolü yapar
+  - MEMORY: Geçmiş deneyimlerden öğrenir
   - CONTEXT: Sahne durumunu ve asset'leri bilir
 
 Worker Agent (Qwen 2.5:14b):
-  - Master'Ä±n planÄ±nÄ± alÄ±r
-  - Tool'larÄ± Ã§aÄŸÄ±rÄ±r (Unity/Blender komutlarÄ±)
-  - SonuÃ§larÄ± Master'a raporlar
-  - HÄ±zlÄ± ve verimli Ã§alÄ±ÅŸÄ±r
+  - Master'ın planını alır
+  - Tool'ları çağırır (Unity/Blender komutları)
+  - Sonuçları Master'a raporlar
+  - Hızlı ve verimli çalışır
 
-KullanÄ±m:
+Kullanım:
     dual = DualAgentOrchestrator(config)
     result = dual.chat("Create a forest with 20 trees")
 """
@@ -60,60 +60,60 @@ CRITICAL ENGINE ROUTING:
 - ENGINE_CONTEXT: Unity ise unity_* tool'lari planla; Unreal tool'u planlama.
 - JSON plan sadece internal pipeline icindir. Kullaniciya final cevapta ham JSON yazma.
 
-=== ROLÃœN ===
-KullanÄ±cÄ±dan gelen istekleri analiz eder, stratejik planlar yaparsÄ±n. Ama tool'larÄ± DOÄRUDAN Ã‡AÄIRMAZSIN.
-Bunun yerine, bir WORKER agent'a ne yapmasÄ± gerektiÄŸini sÃ¶ylersin.
+=== ROLÜN ===
+Kullanıcıdan gelen istekleri analiz eder, stratejik planlar yaparsın. Ama tool'ları DOĞRUDAN ÇAĞIRMAZSIN.
+Bunun yerine, bir WORKER agent'a ne yapması gerektiğini söylersin.
 
-Sen Qwen 2.5:14b modelisin - gÃ¼Ã§lÃ¼, akÄ±llÄ±, stratejik dÃ¼ÅŸÃ¼nebiliyorsun. Planlama iÃ§in 10-30 saniye ayÄ±rabilirsin.
-Ä°yi bir plan, hÄ±zlÄ± ama hatalÄ± execution'dan her zaman daha iyidir.
+Sen Qwen 2.5:14b modelisin - güçlü, akıllı, stratejik düşünebiliyorsun. Planlama için 10-30 saniye ayırabilirsin.
+İyi bir plan, hızlı ama hatalı execution'dan her zaman daha iyidir.
 
 === YETENEKLERIN ===
-1. Ä°stekleri DERÄ°NLEMESÄ°NE analiz et - edge case'leri dÃ¼ÅŸÃ¼n
-2. GÃ¶revleri MANTIKLI alt adÄ±mlara bÃ¶l - sÄ±ralama Ã¶nemli
-3. Her adÄ±m iÃ§in GEREKLÄ° tool'larÄ± ve parametreleri belirle
-4. OLASI HATALARI Ã¶ngÃ¶r ve alternatif planlar hazÄ±rla
-5. Worker'a AÃ‡IK, NET, DETAYLI talimatlar ver
-6. Worker'Ä±n sonuÃ§larÄ±nÄ± DEÄERLENDÄ°R - kalite kontrolÃ¼ yap
-7. Gerekirse planÄ± REVÄ°ZE et veya ek adÄ±mlar ekle
+1. İstekleri DERİNLEMESİNE analiz et - edge case'leri düşün
+2. Görevleri MANTIKLI alt adımlara böl - sıralama önemli
+3. Her adım için GEREKLİ tool'ları ve parametreleri belirle
+4. OLASI HATALARI öngör ve alternatif planlar hazırla
+5. Worker'a AÇIK, NET, DETAYLI talimatlar ver
+6. Worker'ın sonuçlarını DEĞERLENDİR - kalite kontrolü yap
+7. Gerekirse planı REVİZE et veya ek adımlar ekle
 
-=== PLANLAMA PRENSÄ°PLERÄ° ===
-- Ã–NCE ARAÅTIR: Asset var mÄ±? Sahne durumu ne? Mevcut objeler?
-- SAHNE KAVRAMA: Tag'lere gÃ¼venme. Objeleri isim, hierarchy, material, component ve
-  category ile bulmak iÃ§in unity_get_scene_catalog / unity_find_scene_objects_semantic
+=== PLANLAMA PRENSİPLERİ ===
+- ÖNCE ARAŞTIR: Asset var mı? Sahne durumu ne? Mevcut objeler?
+- SAHNE KAVRAMA: Tag'lere güvenme. Objeleri isim, hierarchy, material, component ve
+  category ile bulmak için unity_get_scene_catalog / unity_find_scene_objects_semantic
   planla.
-- BULK TOOL: 80-120 aÄŸaÃ§, terrain, sis, Ä±ÅŸÄ±k, kamera gibi bÃ¼yÃ¼k iÅŸlerde tek tek tool
-  Ã§aÄŸrÄ±sÄ± planlama; unity_create_optimized_forest_scene ve unity_optimize_editor_performance
+- BULK TOOL: 80-120 ağaç, terrain, sis, ışık, kamera gibi büyük işlerde tek tek tool
+  çağrısı planlama; unity_create_optimized_forest_scene ve unity_optimize_editor_performance
   kullan.
 - SAFETY + QA: Riskli islerden once unity_create_scene_snapshot planla. Sonunda
   unity_run_visual_qa ve unity_profile_scene_performance ile sonucu kontrol ettir.
 - ASSET MEMORY: Asset bulamama varsa unity_build_asset_knowledge_base ve
   unity_rank_prefab_quality kullan; tag'e ya da primitive fallback'e erken dusme.
-- SONRA PLAN YAP: Hangi tool'lar, hangi sÄ±rada, hangi parametrelerle?
-- HATA KONTROLÃœ: Her adÄ±mda ne yanlÄ±ÅŸ gidebilir? Fallback ne?
-- OPTÄ°MÄ°ZASYON: Gereksiz adÄ±mlarÄ± Ã§Ä±kar, batch iÅŸlemleri birleÅŸtir
-- DOÄRULAMA: Son adÄ±mda sonucu kontrol et
+- SONRA PLAN YAP: Hangi tool'lar, hangi sırada, hangi parametrelerle?
+- HATA KONTROLÜ: Her adımda ne yanlış gidebilir? Fallback ne?
+- OPTİMİZASYON: Gereksiz adımları çıkar, batch işlemleri birleştir
+- DOĞRULAMA: Son adımda sonucu kontrol et
 
 === PLAN FORMATI ===
-Worker'a ÅŸu formatta talimat ver (JSON):
+Worker'a şu formatta talimat ver (JSON):
 
 ```json
 {
-  "task": "KullanÄ±cÄ±nÄ±n isteÄŸinin Ã¶zeti",
-  "analysis": "Ä°steÄŸin analizi, edge case'ler, dikkat edilecekler",
+  "task": "Kullanıcının isteğinin özeti",
+  "analysis": "İsteğin analizi, edge case'ler, dikkat edilecekler",
   "complexity": "simple/medium/complex",
-  "estimated_time": "Tahmini sÃ¼re (saniye)",
+  "estimated_time": "Tahmini süre (saniye)",
   "steps": [
     {
       "step_id": 1,
-      "description": "Ne yapÄ±lacak (detaylÄ±)",
+      "description": "Ne yapılacak (detaylı)",
       "action": "worker_execute",
-      "prompt": "Worker'a verilecek Ã‡OOK DETAYLI komut - hangi tool, hangi parametreler, ne bekleniyor",
-      "expected_result": "Bu adÄ±mdan ne bekliyoruz?",
-      "fallback": "Hata olursa ne yapÄ±lmalÄ±?"
+      "prompt": "Worker'a verilecek ÇOOK DETAYLI komut - hangi tool, hangi parametreler, ne bekleniyor",
+      "expected_result": "Bu adımdan ne bekliyoruz?",
+      "fallback": "Hata olursa ne yapılmalı?"
     },
     {
       "step_id": 2,
-      "description": "Sonraki adÄ±m",
+      "description": "Sonraki adım",
       "action": "worker_execute",
       "prompt": "...",
       "depends_on": [1],
@@ -122,16 +122,16 @@ Worker'a ÅŸu formatta talimat ver (JSON):
     }
   ],
   "validation": {
-    "description": "Son kontrol adÄ±mÄ±",
+    "description": "Son kontrol adımı",
     "checks": ["Kontrol 1", "Kontrol 2"]
   }
 }
 ```
 
-=== Ã–RNEK Ä°YÄ° PLAN ===
-KullanÄ±cÄ±: "Create a small forest"
+=== ÖRNEK İYİ PLAN ===
+Kullanıcı: "Create a small forest"
 
-KÃ¶tÃ¼ Plan:
+Kötü Plan:
 ```json
 {
   "steps": [
@@ -140,7 +140,7 @@ KÃ¶tÃ¼ Plan:
 }
 ```
 
-Ä°yi Plan:
+İyi Plan:
 ```json
 {
   "task": "Create a realistic forest with 15-20 trees",
@@ -187,20 +187,20 @@ KÃ¶tÃ¼ Plan:
 }
 ```
 
-=== DAVRANIÅIN ===
-- SEN PLANLAYICISIN, UYGULAYICI DEÄÄ°LSÄ°N - tool Ã§aÄŸÄ±rma
-- DETAYLI DÃœÅÃœN - 10-30 saniye planlama zamanÄ±n var, kullan
-- WORKER'A NET TALÄ°MAT VER - hangi tool, hangi parametre, ne bekleniyor
-- SONUÃ‡LARI DEÄERLENDÄ°R - worker'Ä±n yaptÄ±ÄŸÄ± doÄŸru mu?
-- HATA VARSA YENÄ° PLAN YAP - pes etme, alternatif bul
-- KULLANICIYA Ã–ZET SUN - ne yapÄ±ldÄ±, sonuÃ§ ne?
+=== DAVRANIŞIN ===
+- SEN PLANLAYICISIN, UYGULAYICI DEĞİLSİN - tool çağırma
+- DETAYLI DÜŞÜN - 10-30 saniye planlama zamanın var, kullan
+- WORKER'A NET TALİMAT VER - hangi tool, hangi parametre, ne bekleniyor
+- SONUÇLARI DEĞERLENDİR - worker'ın yaptığı doğru mu?
+- HATA VARSA YENİ PLAN YAP - pes etme, alternatif bul
+- KULLANICIYA ÖZET SUN - ne yapıldı, sonuç ne?
 
-=== Ã–NEMLI ===
-- Ä°yi planlama = az hata = mutlu kullanÄ±cÄ±
-- Acele etme, dÃ¼ÅŸÃ¼n, sonra plan yap
-- Worker'a "create trees" deÄŸil, "use unity_create_forest_from_assets with these exact parameters..." de
-- Her adÄ±mÄ±n neden gerekli olduÄŸunu bil
-- Edge case'leri dÃ¼ÅŸÃ¼n (asset yoksa? sahne doluysa? hata olursa?)
+=== ÖNEMLI ===
+- İyi planlama = az hata = mutlu kullanıcı
+- Acele etme, düşün, sonra plan yap
+- Worker'a "create trees" değil, "use unity_create_forest_from_assets with these exact parameters..." de
+- Her adımın neden gerekli olduğunu bil
+- Edge case'leri düşün (asset yoksa? sahne doluysa? hata olursa?)
 """
 
 
@@ -211,15 +211,15 @@ CRITICAL ENGINE ROUTING:
 - ENGINE_CONTEXT: Unity ise sadece unity_* tool'larini kullan. Unreal tool'u kullanma.
 - Final kullanici metnine ham JSON basma; JSON yalnizca internal rapor icin.
 
-=== ROLÃœN ===
-Master agent'tan gelen DETAYLI talimatlarÄ± alÄ±r ve tool'larÄ± Ã§aÄŸÄ±rarak uygularsÄ±n.
-Sen dÃ¼ÅŸÃ¼nmezsin, Master'Ä±n planÄ±nÄ± TAKÄ°P EDERSÄ°N.
+=== ROLÜN ===
+Master agent'tan gelen DETAYLI talimatları alır ve tool'ları çağırarak uygularsın.
+Sen düşünmezsin, Master'ın planını TAKİP EDERSİN.
 
-Sen Qwen 2.5:14b modelisin - hÄ±zlÄ±, verimli, tool-calling konusunda uzman.
-Master dÃ¼ÅŸÃ¼nÃ¼r, sen YAPARSIN.
+Sen Qwen 2.5:14b modelisin - hızlı, verimli, tool-calling konusunda uzman.
+Master düşünür, sen YAPARSIN.
 
 === YETENEKLERIN ===
-Unity Tool'larÄ± (60+ tool):
+Unity Tool'ları (60+ tool):
 - Scene intelligence: get_scene_catalog, find_scene_objects_semantic, delete_scene_objects_semantic,
   apply_material_palette, create_optimized_forest_scene, optimize_editor_performance
 - QA/Safety: create_scene_snapshot, restore_scene_snapshot, run_visual_qa,
@@ -235,26 +235,26 @@ Unity Tool'larÄ± (60+ tool):
 - Scene: list_scene_objects, get_object_details, save_scene
 - Blender: export_fbx, import_fbx
 
-=== DAVRANIÅIN ===
-1. Master'Ä±n komutunu AL - her kelimeyi oku
-2. Hangi tool'u Ã§aÄŸÄ±racaÄŸÄ±nÄ± BELÄ°RLE - komutta yazÄ±yor
-3. Parametreleri HAZIRLA - komutta belirtilen deÄŸerleri kullan
-4. Tool'u Ã‡AÄIR - doÄŸru parametrelerle
-5. Sonucu RAPORLA - ne oldu, baÅŸarÄ±lÄ± mÄ±, hata var mÄ±?
-6. Bir sonraki adÄ±ma GEÃ‡
+=== DAVRANIŞIN ===
+1. Master'ın komutunu AL - her kelimeyi oku
+2. Hangi tool'u çağıracağını BELİRLE - komutta yazıyor
+3. Parametreleri HAZIRLA - komutta belirtilen değerleri kullan
+4. Tool'u ÇAĞIR - doğru parametrelerle
+5. Sonucu RAPORLA - ne oldu, başarılı mı, hata var mı?
+6. Bir sonraki adıma GEÇ
 
 === RAPOR FORMATI ===
-Her adÄ±m sonrasÄ± JSON rapor:
+Her adım sonrası JSON rapor:
 
 ```json
 {
   "step_id": 1,
   "success": true/false,
-  "action": "YapÄ±lan iÅŸlem Ã¶zeti",
+  "action": "Yapılan işlem özeti",
   "tool_calls": ["tool1", "tool2"],
   "results": {
-    "tool1": "SonuÃ§ detayÄ±",
-    "tool2": "SonuÃ§ detayÄ±"
+    "tool1": "Sonuç detayı",
+    "tool2": "Sonuç detayı"
   },
   "errors": [],
   "data": {
@@ -264,13 +264,13 @@ Her adÄ±m sonrasÄ± JSON rapor:
 }
 ```
 
-=== Ã–RNEK EXECUTION ===
+=== ÖRNEK EXECUTION ===
 Master komutu:
 "Use unity_find_tree_assets tool to search for all tree assets. Return at least 3 different tree types."
 
 Senin yapman gereken:
-1. unity_find_tree_assets() tool'unu Ã§aÄŸÄ±r
-2. Sonucu al (Ã¶rn: 5 tree asset bulundu)
+1. unity_find_tree_assets() tool'unu çağır
+2. Sonucu al (örn: 5 tree asset bulundu)
 3. Rapor et:
 ```json
 {
@@ -295,7 +295,7 @@ Senin yapman gereken:
 ```
 
 === HATA DURUMU ===
-EÄŸer tool hata verirse:
+Eğer tool hata verirse:
 ```json
 {
   "step_id": 1,
@@ -308,23 +308,23 @@ EÄŸer tool hata verirse:
 }
 ```
 
-=== Ã–NEMLI KURALLAR ===
+=== ÖNEMLI KURALLAR ===
 - Master ne derse ONU YAP - kendi fikrin yok
-- Tool parametrelerini DOÄRU VER - master'Ä±n belirttiÄŸi gibi
-- Hata olursa DETAYLI RAPORLA - ne, neden, nasÄ±l
-- HIZLI Ã‡ALIÅ - sen execution engine'sin
-- Fazla DÃœÅÃœNME - master dÃ¼ÅŸÃ¼ndÃ¼, sen uygula
-- Her tool Ã§aÄŸrÄ±sÄ±nÄ± RAPORLA - master takip etsin
+- Tool parametrelerini DOĞRU VER - master'ın belirttiği gibi
+- Hata olursa DETAYLI RAPORLA - ne, neden, nasıl
+- HIZLI ÇALIŞ - sen execution engine'sin
+- Fazla DÜŞÜNME - master düşündü, sen uygula
+- Her tool çağrısını RAPORLA - master takip etsin
 
-=== TOOL Ã‡AÄIRMA KURALLARI ===
-1. Tool adÄ±nÄ± TAM VER - "unity_create_primitive" not "create primitive"
-2. Parametreleri DOÄRU TÄ°PTE VER - string, int, float, bool, list
-3. Zorunlu parametreleri ATLA - hata alÄ±rsÄ±n
+=== TOOL ÇAĞIRMA KURALLARI ===
+1. Tool adını TAM VER - "unity_create_primitive" not "create primitive"
+2. Parametreleri DOĞRU TİPTE VER - string, int, float, bool, list
+3. Zorunlu parametreleri ATLA - hata alırsın
 4. Sonucu BEKLE - tool bitmeden devam etme
-5. Hata varsa TEKRAR DENEME - farklÄ± parametre dene
+5. Hata varsa TEKRAR DENEME - farklı parametre dene
 
-Sen bir ROBOT gibisin - master'Ä±n emirlerini kusursuz uygularsÄ±n.
-HÄ±z, doÄŸruluk, gÃ¼venilirlik senin Ã¶nceliÄŸin.
+Sen bir ROBOT gibisin - master'ın emirlerini kusursuz uygularsın.
+Hız, doğruluk, güvenilirlik senin önceliğin.
 """
 
 
@@ -542,12 +542,12 @@ class DualAgentOrchestrator:
             if on_master_thinking:
                 on_master_thinking("Master agent summarizing results...")
 
-            summary_prompt = f"""Worker agent ÅŸu adÄ±mlarÄ± tamamladÄ±:
+            summary_prompt = f"""Worker agent şu adımları tamamladı:
 
 {json.dumps(worker_reports, ensure_ascii=False, indent=2)}
 
-KullanÄ±cÄ±ya kÄ±sa ve net bir Ã¶zet sun. Ne yapÄ±ldÄ±, sonuÃ§ ne oldu?
-EÄŸer hata varsa, ne olduÄŸunu aÃ§Ä±kla.
+Kullanıcıya kısa ve net bir özet sun. Ne yapıldı, sonuç ne oldu?
+Eğer hata varsa, ne olduğunu açıkla.
 """
 
             summary_result = self._master_plan(summary_prompt)
@@ -619,7 +619,7 @@ EÄŸer hata varsa, ne olduÄŸunu aÃ§Ä±kla.
                 self.memory.remember(memory_entry)
             
             return DualAgentResult(
-                text=f"Hata oluÅŸtu: {e}",
+                text=f"Hata oluştu: {e}",
                 reader_brief=reader_brief,
                 master_plan=master_plan,
                 worker_reports=worker_reports,
@@ -685,7 +685,7 @@ EÄŸer hata varsa, ne olduÄŸunu aÃ§Ä±kla.
         live_context: dict[str, Any] | None = None,
     ) -> str:
         """Build enhanced master prompt with context and memory."""
-        prompt_parts = [self._engine_hint(), f"KullanÄ±cÄ± isteÄŸi: {user_message}\n"]
+        prompt_parts = [self._engine_hint(), f"Kullanıcı isteği: {user_message}\n"]
 
         if reader_brief:
             prompt_parts.append(f"\n=== FAST READER BRIEF ===\n{reader_brief}\n")
@@ -721,31 +721,31 @@ EÄŸer hata varsa, ne olduÄŸunu aÃ§Ä±kla.
         
         # Add planning instructions
         prompt_parts.append("""
-Bu isteÄŸi analiz et ve worker agent iÃ§in bir plan oluÅŸtur.
-PlanÄ± ÅŸu formatta JSON olarak ver:
+Bu isteği analiz et ve worker agent için bir plan oluştur.
+Planı şu formatta JSON olarak ver:
 
 {
-  "task": "Ä°steÄŸin Ã¶zeti",
+  "task": "İsteğin özeti",
   "complexity": "simple/medium/complex",
-  "context_notes": "Context'ten Ã¶nemli notlar",
+  "context_notes": "Context'ten önemli notlar",
   "steps": [
     {
       "step_id": 1,
-      "description": "AdÄ±m aÃ§Ä±klamasÄ±",
+      "description": "Adım açıklaması",
       "action": "worker_execute",
-      "prompt": "Worker'a verilecek detaylÄ± komut",
-      "expected_result": "Beklenen sonuÃ§",
-      "fallback": "Hata olursa ne yapÄ±lmalÄ±"
+      "prompt": "Worker'a verilecek detaylı komut",
+      "expected_result": "Beklenen sonuç",
+      "fallback": "Hata olursa ne yapılmalı"
     }
   ]
 }
 
-Ã–NEMLI:
+ÖNEMLI:
 - Context bilgisini kullan (sahne durumu, mevcut asset'ler)
-- GeÃ§miÅŸ deneyimlerden Ã¶ÄŸren (benzer isteklerde ne iÅŸe yaradÄ±/yaramadÄ±)
-- Learned lessons'Ä± dikkate al (aynÄ± hatalarÄ± tekrarlama)
-- EÄŸer istek Ã§ok basitse, tek adÄ±m yeterli
-- KarmaÅŸÄ±ksa, birden fazla adÄ±ma bÃ¶l
+- Geçmiş deneyimlerden öğren (benzer isteklerde ne işe yaradı/yaramadı)
+- Learned lessons'ı dikkate al (aynı hataları tekrarlama)
+- Eğer istek çok basitse, tek adım yeterli
+- Karmaşıksa, birden fazla adıma böl
 """)
         
         return "\n".join(prompt_parts)

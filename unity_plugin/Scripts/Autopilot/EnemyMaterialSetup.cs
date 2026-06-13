@@ -33,9 +33,9 @@ namespace Autopilot
             EnsureDir(MatDir);
 
             var brute  = GetOrCreateMaterial("M_Enemy_Brute",
-                new Color(0.09f, 0.05f, 0.04f),   // Ã§ok koyu kahve deri
+                new Color(0.09f, 0.05f, 0.04f),   // çok koyu kahve deri
                 metallic: 0.04f, smoothness: 0.18f,
-                emissive: new Color(2.5f, 0.08f, 0.02f));   // kÄ±zÄ±l parÄ±ltÄ±
+                emissive: new Color(2.5f, 0.08f, 0.02f));   // kızıl parıltı
 
             var shadow = GetOrCreateMaterial("M_Enemy_Shadow",
                 new Color(0.04f, 0.03f, 0.10f),   // koyu indigo
@@ -43,17 +43,17 @@ namespace Autopilot
                 emissive: new Color(0.4f, 0.1f, 2.8f));     // mor hayalet aura
 
             var beast  = GetOrCreateMaterial("M_Enemy_Beast",
-                new Color(0.08f, 0.11f, 0.06f),   // gri-yeÅŸil organik
+                new Color(0.08f, 0.11f, 0.06f),   // gri-yeşil organik
                 metallic: 0.01f, smoothness: 0.12f,
-                emissive: new Color(0.1f, 1.8f, 0.05f));    // zehir yeÅŸili
+                emissive: new Color(0.1f, 1.8f, 0.05f));    // zehir yeşili
 
             AssignToEnemies(brute, shadow, beast);
             EditorSceneManager.MarkAllScenesDirty();
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
-            Debug.Log("[EnemyMaterialSetup] Dark-fantasy malzemeler uygulandÄ±.");
+            Debug.Log("[EnemyMaterialSetup] Dark-fantasy malzemeler uygulandı.");
         }
 
-        // â”€â”€ Material factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Material factory ──────────────────────────────────────────────────
         private static Material GetOrCreateMaterial(string name, Color baseColor,
             float metallic, float smoothness, Color emissive)
         {
@@ -108,7 +108,7 @@ namespace Autopilot
             }
         }
 
-        // â”€â”€ Round-robin assignment to enemies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Round-robin assignment to enemies ─────────────────────────────────
         private static void AssignToEnemies(Material brute, Material shadow, Material beast)
         {
             var enemies = UnityEngine.Object.FindObjectsByType<Gameplay.EnemyAIController>(
@@ -121,7 +121,7 @@ namespace Autopilot
                 i++;
             }
             AssetDatabase.SaveAssets();
-            Debug.Log($"[EnemyMaterialSetup] {i} dÃ¼ÅŸmana malzeme atandÄ±.");
+            Debug.Log($"[EnemyMaterialSetup] {i} düşmana malzeme atandı.");
         }
 
         private static void ApplyToRenderers(Transform root, Material mat)
@@ -136,7 +136,7 @@ namespace Autopilot
             }
         }
 
-        // â”€â”€ Folder helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Folder helper ─────────────────────────────────────────────────────
         private static void EnsureDir(string path)
         {
             if (AssetDatabase.IsValidFolder(path)) return;

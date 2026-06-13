@@ -56,8 +56,9 @@ void AASVPlaceholderEnemy::ApplyArenaDamage(float DamageAmount, AActor* DamageIn
     }
 
     Health -= FMath::Max(0.0f, DamageAmount);
+    // GetActorLabel editor-only; GetName paketlenmiş build'de de çalışır.
     UE_LOG(LogTemp, Log, TEXT("[ArenaSurvivor] Enemy damaged: %s damage=%.1f health=%.1f instigator=%s"),
-        *GetActorLabel(),
+        *GetName(),
         DamageAmount,
         Health,
         DamageInstigator ? *DamageInstigator->GetName() : TEXT("Unknown"));
@@ -84,6 +85,6 @@ void AASVPlaceholderEnemy::Defeat()
         Manager->RegisterEnemyDefeated();
     }
 
-    UE_LOG(LogTemp, Log, TEXT("[ArenaSurvivor] Enemy defeated: %s"), *GetActorLabel());
+    UE_LOG(LogTemp, Log, TEXT("[ArenaSurvivor] Enemy defeated: %s"), *GetName());
     Destroy();
 }

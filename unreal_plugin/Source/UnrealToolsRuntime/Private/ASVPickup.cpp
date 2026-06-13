@@ -47,8 +47,9 @@ void AASVPickup::Collect(AActor* Collector)
     SetActorHiddenInGame(true);
     SetActorEnableCollision(false);
 
+    // GetActorLabel editor-only; GetName paketlenmiş build'de de çalışır.
     UE_LOG(LogTemp, Log, TEXT("[ArenaSurvivor] Pickup collected: %s by %s type=%s amount=%.1f"),
-        *GetActorLabel(),
+        *GetName(),
         Collector ? *Collector->GetName() : TEXT("Unknown"),
         *PickupType.ToString(),
         Amount);

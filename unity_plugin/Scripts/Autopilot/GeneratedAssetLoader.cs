@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿// Editor-only araç: player build'de derlenmemeli, yoksa build kırılır.
+#if UNITY_EDITOR
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -62,12 +64,12 @@ namespace Autopilot
 
                 ApplyTextureToScene(entry.id, tex);
                 imported++;
-                Debug.Log($"[GeneratedAssetLoader] Imported {entry.id} â†’ {destRelative} (score:{entry.score:F3})");
+                Debug.Log($"[GeneratedAssetLoader] Imported {entry.id} → {destRelative} (score:{entry.score:F3})");
             }
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log($"[GeneratedAssetLoader] Done â€” {imported} asset(s) imported.");
+            Debug.Log($"[GeneratedAssetLoader] Done — {imported} asset(s) imported.");
         }
 
         private static void ApplyTextureToScene(string assetId, Texture2D tex)
@@ -115,7 +117,7 @@ namespace Autopilot
             };
         }
 
-        // â”€â”€ JSON data model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── JSON data model ────────────────────────────────────────────────────
 
         [System.Serializable]
         private class AssetsManifest
@@ -141,3 +143,4 @@ namespace Autopilot
     }
 }
 
+#endif

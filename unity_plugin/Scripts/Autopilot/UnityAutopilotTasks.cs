@@ -412,7 +412,7 @@ namespace Autopilot
 
             int staged = 0;
 
-            // â”€â”€ Hero â€” prefer Female Dark Knight, fallback to biped â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Hero — prefer Female Dark Knight, fallback to biped ─────────────
             staged += CopyCharacterAsset(repoRoot,
                 "Assests/female_dark_knight_character_fbx/Female_Dark_Knight.fbx",
                 "Assets/Art/Characters/Imported/Hero/SK_Hero.fbx") ? 1 : 0;
@@ -421,12 +421,12 @@ namespace Autopilot
                     "Assests/biped/Character_output.fbx",
                     "Assets/Art/Characters/Imported/Hero/SK_Hero.fbx") ? 1 : 0;
 
-            // â”€â”€ Enemy 0 (brute) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Enemy 0 (brute) ──────────────────────────────────────────────────
             staged += CopyCharacterAsset(repoRoot,
                 "Assests/Rampaging_Behemoth_0124122908_texture_fbx/Rampaging_Behemoth_0124122908_texture.fbx",
                 "Assets/Art/Characters/Imported/Enemy/SK_Enemy0.fbx") ? 1 : 0;
 
-            // â”€â”€ Enemy 1 (demon) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Enemy 1 (demon) ──────────────────────────────────────────────────
             staged += CopyCharacterAsset(repoRoot,
                 "Assests/Enemy_Entity_from_Spa_0121043824_texture_fbx/Enemy_Entity_from_Spa_0121043824_texture.fbx",
                 "Assets/Art/Characters/Imported/Enemy/SK_Enemy1.fbx") ? 1 : 0;
@@ -435,11 +435,11 @@ namespace Autopilot
                     "Assests/King_Demon_Vulture_0120150621_texture.fbx",
                     "Assets/Art/Characters/Imported/Enemy/SK_Enemy1.fbx");
 
-            // â”€â”€ Weapon â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Weapon ───────────────────────────────────────────────────────────
             CopyCharacterAsset(repoRoot, "Assests/Sword/sword.fbx",        "Assets/Art/Characters/Imported/Equipment/SM_Sword.fbx");
             CopyCharacterAsset(repoRoot, "Assests/source/Katana_BlueMoon.fbx", "Assets/Art/Characters/Imported/Equipment/SM_Katana.fbx");
 
-            // â”€â”€ Import & configure all FBX files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Import & configure all FBX files ─────────────────────────────────
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
             foreach (string fbxAsset in new[]
             {
@@ -573,7 +573,7 @@ namespace Autopilot
             return false;
         }
 
-        // â”€â”€ FBX Auto-Import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── FBX Auto-Import ────────────────────────────────────────────────────
 
         private static bool ScanAndImportAllFbx(out string reason)
         {
@@ -582,7 +582,7 @@ namespace Autopilot
 
             if (!File.Exists(manifestPath))
             {
-                reason = "FBX scan manifest not found â€” run fbx_asset_scanner.py first.";
+                reason = "FBX scan manifest not found — run fbx_asset_scanner.py first.";
                 return false;
             }
 
@@ -641,7 +641,7 @@ namespace Autopilot
 
             int swapped = 0;
 
-            // â”€â”€ Player â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Player ────────────────────────────────────────────────────────
             var player = GameObject.FindWithTag("Player");
             if (player != null)
             {
@@ -660,7 +660,7 @@ namespace Autopilot
                 }
             }
 
-            // â”€â”€ Enemies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Enemies ───────────────────────────────────────────────────────
             var enemies = UnityEngine.Object.FindObjectsByType<Gameplay.EnemyAIController>(
                 FindObjectsInactive.Exclude);
             string[] enemyPaths = new[]
@@ -783,7 +783,7 @@ namespace Autopilot
             public bool   copied;
         }
 
-        // â”€â”€ DeleteGeneratedImportedFbxAssets (legacy â€” kept for reference) â”€â”€â”€
+        // ── DeleteGeneratedImportedFbxAssets (legacy — kept for reference) ───
 
         private static void DeleteGeneratedImportedFbxAssets()
         {
@@ -958,12 +958,12 @@ namespace Autopilot
         private static void ConfigureBuiltInPipeline()
         {
             EnsureFolder("Assets/Settings");
-            // Unity 6 hedefimiz HDRP. Eski gÃ¶rev adÄ± geriye uyumluluk iÃ§in duruyor,
-            // ama artÄ±k render pipeline'Ä± sÄ±fÄ±rlamÄ±yor; aksi halde sahne kararÄ±p bozuluyor.
+            // Unity 6 hedefimiz HDRP. Eski görev adı geriye uyumluluk için duruyor,
+            // ama artık render pipeline'ı sıfırlamıyor; aksi halde sahne kararıp bozuluyor.
             AssetDatabase.SaveAssets();
         }
 
-        // â”€â”€ Yeni SceneBuilder'a yonlendir â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Yeni SceneBuilder'a yonlendir ────────────────────────────────────
         private static bool RunSceneBuilderTask(out string reason)
         {
             return HdrpCleanSceneBuilder.Run(out reason);
@@ -974,7 +974,7 @@ namespace Autopilot
             try
             {
                 AutopilotBrain.RunHeadless();
-                reason = "Brain cycle tamamlandÄ±.";
+                reason = "Brain cycle tamamlandı.";
                 return true;
             }
             catch (System.Exception ex)

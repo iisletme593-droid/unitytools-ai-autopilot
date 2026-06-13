@@ -10,14 +10,14 @@ using UnityEngine.Rendering;
 
 namespace Autopilot
 {
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    //  THORNY IVY â€” SMART AUTOPILOT BRAIN
+    // ─────────────────────────────────────────────────────────────────────────
+    //  THORNY IVY — SMART AUTOPILOT BRAIN
     //  Sahneyi analiz eder, nelerin eksik/bozuk oldugunu tespit eder ve
     //  onceliklere gore otomatik olarak duzeltir.
-    //  Acilis: Tools > Autopilot > â˜… Smart Autopilot Brain
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  Acilis: Tools > Autopilot > ★ Smart Autopilot Brain
+    // ─────────────────────────────────────────────────────────────────────────
 
-    // â”€â”€ Ogrenme kayitlari â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Ogrenme kayitlari ─────────────────────────────────────────────────────
     [Serializable] class FixRecord  { public string fixId; public float scoreBefore; public float scoreAfter; public string timestamp; }
     [Serializable] class LearningData
     {
@@ -27,8 +27,8 @@ namespace Autopilot
         public List<string>   exhaustedFixes = new List<string>();
     }
 
-    // â”€â”€ Otomatik dÃ¶ngÃ¼ yÃ¶neticisi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Unity baÅŸladÄ±ÄŸÄ±nda veya domain reload sonrasÄ± otomatik devreye girer.
+    // ── Otomatik döngü yöneticisi ─────────────────────────────────────────────
+    // Unity başladığında veya domain reload sonrası otomatik devreye girer.
     [InitializeOnLoad]
     internal static class AutopilotBrainLoop
     {
@@ -49,7 +49,7 @@ namespace Autopilot
                 return;
             }
             EditorApplication.update += Tick;
-            // Ä°lk aÃ§Ä±lÄ±ÅŸta otomatik baÅŸlat (session baÅŸÄ±na bir kez)
+            // İlk açılışta otomatik başlat (session başına bir kez)
             if (!SessionState.GetBool(KeyAutoStart, false))
             {
                 SessionState.SetBool(KeyAutoStart, true);
@@ -69,30 +69,30 @@ namespace Autopilot
             SessionState.SetFloat(KeyInterval, intervalMinutes);
             if (on)
                 SessionState.SetFloat(KeyNextRun, (float)(EditorApplication.timeSinceStartup + intervalMinutes * 60.0));
-            Debug.Log($"[BrainLoop] Otomatik dÃ¶ngÃ¼ {(on ? "AÃ‡ILDI" : "KAPATILDI")}" +
-                      (on ? $" â€” her {intervalMinutes:F0} dakikada bir Ã§alÄ±ÅŸacak." : "."));
+            Debug.Log($"[BrainLoop] Otomatik döngü {(on ? "AÇILDI" : "KAPATILDI")}" +
+                      (on ? $" — her {intervalMinutes:F0} dakikada bir çalışacak." : "."));
         }
 
         static void Tick()
         {
             if (!IsEnabled) return;
-            if (EditorApplication.isPlaying) return;           // play mode'da Ã§alÄ±ÅŸtÄ±rma
-            if (EditorApplication.isCompiling) return;         // derleme sÄ±rasÄ±nda Ã§alÄ±ÅŸtÄ±rma
+            if (EditorApplication.isPlaying) return;           // play mode'da çalıştırma
+            if (EditorApplication.isCompiling) return;         // derleme sırasında çalıştırma
             if (EditorApplication.timeSinceStartup < NextRun) return;
 
-            // ZamanlayÄ±cÄ±yÄ± hemen gÃ¼ncelle (Ã§ift tetiklenmeyi Ã¶nle)
+            // Zamanlayıcıyı hemen güncelle (çift tetiklenmeyi önle)
             SessionState.SetFloat(KeyNextRun, (float)(EditorApplication.timeSinceStartup + Interval * 60.0));
 
-            Debug.Log($"[BrainLoop] Otomatik dÃ¶ngÃ¼ baÅŸlÄ±yor... ({DateTime.Now:HH:mm:ss})");
+            Debug.Log($"[BrainLoop] Otomatik döngü başlıyor... ({DateTime.Now:HH:mm:ss})");
             try
             {
                 if (EditorWindow.HasOpenInstances<AutopilotBrain>())
                 {
-                    // Pencere zaten aÃ§Ä±k â€” var olan instance Ã¼zerinde Ã§alÄ±ÅŸ
-                    var w = EditorWindow.GetWindow<AutopilotBrain>(false, "â˜… Autopilot Brain", false);
+                    // Pencere zaten açık — var olan instance üzerinde çalış
+                    var w = EditorWindow.GetWindow<AutopilotBrain>(false, "★ Autopilot Brain", false);
                     if (w != null) { w.AutoRun(); return; }
                 }
-                // Headless: pencere aÃ§madan direkt logic Ã§alÄ±ÅŸtÄ±r
+                // Headless: pencere açmadan direkt logic çalıştır
                 AutopilotBrain.RunHeadless();
             }
             catch (Exception ex)
@@ -103,9 +103,9 @@ namespace Autopilot
 
         internal static string CountdownText()
         {
-            if (!IsEnabled) return "KapalÄ±";
+            if (!IsEnabled) return "Kapalı";
             double remaining = NextRun - EditorApplication.timeSinceStartup;
-            if (remaining <= 0) return "Åimdi Ã§alÄ±ÅŸÄ±yor...";
+            if (remaining <= 0) return "Şimdi çalışıyor...";
             int m = (int)(remaining / 60); int s = (int)(remaining % 60);
             return $"{m:D2}:{s:D2} sonra";
         }
@@ -113,7 +113,7 @@ namespace Autopilot
 
     public class AutopilotBrain : EditorWindow
     {
-        // â”€â”€ Istatistik snapshot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Istatistik snapshot ──────────────────────────────────────────────
         struct Snap
         {
             public int   glbTotal;          // Assets/FantasyRPG'deki toplam model
@@ -138,11 +138,11 @@ namespace Autopilot
             public bool  cameraClean;          // kamera _RPG_ hiyerarsisi disinda mi?
             public bool  dungeonUnderground;   // dungeon Y<-5 mi? (kaleyle cakismiyor mu?)
             public int   islandTreeCount;      // sahnedeki IslandTree nesnesi sayisi
-            public int   islandTreePainted;    // arborikultÃ¼r boyasi uygulanan IslandTree sayisi
-            public float visionScore;          // referans gÃ¶rsellerle gÃ¶rsel eÅŸleÅŸme skoru (0-100)
+            public int   islandTreePainted;    // arborikultür boyasi uygulanan IslandTree sayisi
+            public float visionScore;          // referans görsellerle görsel eşleşme skoru (0-100)
         }
 
-        // â”€â”€ Kalite kontrol maddesi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Kalite kontrol maddesi ────────────────────────────────────────────
         struct Check
         {
             public string label;
@@ -154,7 +154,7 @@ namespace Autopilot
             public bool Partial => score > 0 && score < max;
         }
 
-        // â”€â”€ Fix tanimi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Fix tanimi ────────────────────────────────────────────────────────
         struct Fix
         {
             public string id;
@@ -163,7 +163,7 @@ namespace Autopilot
             public Func<bool> run;
         }
 
-        // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── State ─────────────────────────────────────────────────────────────
         Snap           snap;
         List<Check>    checks    = new List<Check>();
         List<Fix>      fixPlan   = new List<Fix>();
@@ -173,10 +173,10 @@ namespace Autopilot
         const float    MaxScore  = 100f;
         bool           autoMode;
         GUIStyle       _h1, _h2, _mono, _icon;
-        float          _intervalMin = 10f;  // UI slider deÄŸeri
-        LearningData   learning;            // Ã¶ÄŸrenme verileri
+        float          _intervalMin = 10f;  // UI slider değeri
+        LearningData   learning;            // öğrenme verileri
 
-        // â”€â”€ Renkler (dark fantasy palette) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Renkler (dark fantasy palette) ───────────────────────────────────
         static readonly Color CRed    = new Color(0.80f, 0.18f, 0.10f);
         static readonly Color COrange = new Color(0.88f, 0.55f, 0.10f);
         static readonly Color CGreen  = new Color(0.15f, 0.75f, 0.28f);
@@ -185,17 +185,17 @@ namespace Autopilot
         static readonly Color CDark   = new Color(0.10f, 0.10f, 0.12f);
         static readonly Color CPurple = new Color(0.55f, 0.20f, 0.90f);
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        [MenuItem("Tools/Autopilot/â˜… Smart Autopilot Brain", priority = 0)]
+        // ─────────────────────────────────────────────────────────────────────
+        [MenuItem("Tools/Autopilot/★ Smart Autopilot Brain", priority = 0)]
         public static void Open() =>
-            GetWindow<AutopilotBrain>(false, "â˜… Autopilot Brain", true);
+            GetWindow<AutopilotBrain>(false, "★ Autopilot Brain", true);
 
         void OnEnable()
         {
             minSize      = new Vector2(440, 680);
             _intervalMin = AutopilotBrainLoop.Interval;
             Analyze();
-            // Pencere aÃ§Ä±kken her 5 saniyede geri sayÄ±mÄ± gÃ¼ncelle
+            // Pencere açıkken her 5 saniyede geri sayımı güncelle
             EditorApplication.update += OnEditorUpdate;
         }
 
@@ -212,22 +212,22 @@ namespace Autopilot
             }
         }
 
-        // DÃ¶ngÃ¼ tarafÄ±ndan kod Ã¼zerinden Ã§aÄŸrÄ±lÄ±r (pencere aÃ§Ä±k olmak zorunda deÄŸil)
+        // Döngü tarafından kod üzerinden çağrılır (pencere açık olmak zorunda değil)
         internal void AutoRun()
         {
             Analyze();
             if (score < MaxScore && fixPlan.Count > 0)
             {
-                Log($"[AUTO] DÃ¶ngÃ¼: skor={score:F0}/100, {fixPlan.Count} fix kuyruÄŸu");
+                Log($"[AUTO] Döngü: skor={score:F0}/100, {fixPlan.Count} fix kuyruğu");
                 RunAllFixes();
             }
             else
             {
-                Log($"[AUTO] DÃ¶ngÃ¼: skor={score:F0}/100 â€” dÃ¼zeltme gerekmedi.");
+                Log($"[AUTO] Döngü: skor={score:F0}/100 — düzeltme gerekmedi.");
             }
         }
 
-        // Pencere aÃ§Ä±k deÄŸilken dÃ¶ngÃ¼den headless Ã§aÄŸrÄ±lÄ±r
+        // Pencere açık değilken döngüden headless çağrılır
         internal static void RunHeadless()
         {
             var tmp = ScriptableObject.CreateInstance<AutopilotBrain>();
@@ -235,7 +235,7 @@ namespace Autopilot
             finally { ScriptableObject.DestroyImmediate(tmp); }
         }
 
-        // â”€â”€ Sahne Analizi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Sahne Analizi ─────────────────────────────────────────────────────
         void Analyze()
         {
             snap = default;
@@ -254,7 +254,7 @@ namespace Autopilot
 
         void DoAnalyze()
         {
-            // â”€â”€ GLB sayimi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── GLB sayimi ───────────────────────────────────────────────────
             snap.glbTotal = AssetDatabase.FindAssets("t:GameObject",
                 new[] { "Assets/FantasyRPG" }).Length;
 
@@ -269,7 +269,7 @@ namespace Autopilot
             }
             snap.gltfastActive = miCount > 5;
 
-            // â”€â”€ Sahne objeleri â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Sahne objeleri ───────────────────────────────────────────────
             snap.rpgSceneExists = GameObject.Find("_RPG_Scene") != null
                                || GameObject.Find("_RPG_Forest") != null
                                || GameObject.Find("_RPG_Castle") != null;
@@ -279,18 +279,18 @@ namespace Autopilot
             var rocksRoot   = GameObject.Find("_RPG_Rocks");
             snap.rockCount  = rocksRoot   != null ? rocksRoot.transform.childCount   : 0;
 
-            // â”€â”€ Dusman / tier analizi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Dusman / tier analizi ────────────────────────────────────────
             var enemies = UnityEngine.Object.FindObjectsByType<Gameplay.EnemyAIController>(
                 FindObjectsInactive.Include);
             snap.enemyCount = enemies.Length;
             snap.tiersFound = enemies.Select(e => e.enemyTier).Distinct().OrderBy(x => x).ToArray();
 
-            // â”€â”€ Oyuncu / kamera / HUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Oyuncu / kamera / HUD ────────────────────────────────────────
             snap.hasPlayer = GameObject.FindGameObjectWithTag("Player") != null;
             snap.hasCamera = Camera.main != null;
             snap.hasHud    = UnityEngine.Object.FindAnyObjectByType<Gameplay.RpgHudController>() != null;
 
-            // â”€â”€ Materyal durumu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Materyal durumu ──────────────────────────────────────────────
             var renderers = UnityEngine.Object.FindObjectsByType<MeshRenderer>(
                 FindObjectsInactive.Include);
             snap.rendererCount = renderers.Length;
@@ -298,21 +298,21 @@ namespace Autopilot
                 r.sharedMaterial != null &&
                 r.sharedMaterial.name.StartsWith("_RPG_Mat_"));
 
-            // â”€â”€ Karakter modeli â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Karakter modeli ──────────────────────────────────────────────
             snap.heroSwapped = GameObject.Find("SK_Hero_Visual") != null
                             || GameObject.Find("SK_Model_Visual") != null;
 
-            // â”€â”€ Isik + sis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Isik + sis ───────────────────────────────────────────────────
             snap.lightCount = UnityEngine.Object.FindObjectsByType<Light>(
                 FindObjectsInactive.Include).Length;
             snap.fogOn = RenderSettings.fog;
 
-            // â”€â”€ Sahne meta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Sahne meta ───────────────────────────────────────────────────
             var active   = EditorSceneManager.GetActiveScene();
             snap.sceneDirty = active.isDirty;
             snap.scenePath  = active.path;
 
-            // â”€â”€ Temizlik analizi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Temizlik analizi ─────────────────────────────────────────────
             // Eski autopilot cikintisi: "Cube", "Cylinder" gibi default isimli root primitifler
             string[] strayNames = { "Cube", "Cylinder", "Plane", "Sphere", "Capsule", "Quad" };
             snap.strayPrimitives = UnityEngine.Object.FindObjectsByType<GameObject>(
@@ -329,7 +329,7 @@ namespace Autopilot
             var dungeonGo = GameObject.Find("_RPG_Dungeon");
             snap.dungeonUnderground = dungeonGo == null || dungeonGo.transform.position.y < -5f;
 
-            // IslandTree arborikÃ¼ltÃ¼r boyama durumu
+            // IslandTree arborikültür boyama durumu
             var allGo = UnityEngine.Object.FindObjectsByType<GameObject>(
                 FindObjectsInactive.Include);
             foreach (var go in allGo)
@@ -344,11 +344,11 @@ namespace Autopilot
                 if (painted) snap.islandTreePainted++;
             }
 
-            // GÃ¶rsel eÅŸleÅŸme skoru (Vision Learner)
+            // Görsel eşleşme skoru (Vision Learner)
             snap.visionScore = AutopilotVisionLearner.GetCurrentScore();
         }
 
-        // â”€â”€ Kalite kontrolleri olustur â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Kalite kontrolleri olustur ────────────────────────────────────────
         void BuildChecks()
         {
             checks.Clear();
@@ -360,7 +360,7 @@ namespace Autopilot
 
             // 2. glTFast aktif mi?
             int gf = snap.gltfastActive ? 8 : 0;
-            Add("glTFast Importer", snap.gltfastActive ? "Aktif â€” 3D import dogru" : "! GLB'ler binary blob olarak gorÃ¼nÃ¼yor", gf, 8, "fix_gltfast");
+            Add("glTFast Importer", snap.gltfastActive ? "Aktif — 3D import dogru" : "! GLB'ler binary blob olarak gorünüyor", gf, 8, "fix_gltfast");
 
             // 3. RPG sahne yapisi
             int rs = snap.rpgSceneExists ? 7 : 0;
@@ -377,7 +377,7 @@ namespace Autopilot
             Add("Kaya Formasyonlari", $"{snap.rockCount} kaya / kayalik", rf, 7, "build_scene");
 
             // 6. Oyuncu spawni (fix_player ile duzeltilir)
-            Add("Oyuncu Spawni", snap.hasPlayer ? "Player tag bulundu" : "Player yok â€” kritik!", snap.hasPlayer ? 8 : 0, 8, "fix_player");
+            Add("Oyuncu Spawni", snap.hasPlayer ? "Player tag bulundu" : "Player yok — kritik!", snap.hasPlayer ? 8 : 0, 8, "fix_player");
 
             // 7. Kamera (fix_camera ile duzeltilir)
             Add("3P Kamera", snap.hasCamera ? "Camera.main aktif" : "Kamera bulunamadi", snap.hasCamera ? 5 : 0, 5, "fix_camera");
@@ -412,37 +412,37 @@ namespace Autopilot
 
             // 14. Sahne temizligi (stray primitif / kamera hiyerarsisi / dungeon konumu)
             bool sceneClean = snap.strayPrimitives == 0 && snap.cameraClean && snap.dungeonUnderground;
-            string cleanDetail = sceneClean ? "Temiz â€” cakisma yok"
+            string cleanDetail = sceneClean ? "Temiz — cakisma yok"
                 : $"Sorun: {snap.strayPrimitives} stray prim" +
                   (!snap.cameraClean ? " + kamera _RPG_ icinde" : "") +
                   (!snap.dungeonUnderground ? " + dungeon kaledeki konumda" : "");
             Add("Sahne Duzen Temizligi", cleanDetail, sceneClean ? 6 : 0, 6, "nuke_rebuild");
 
-            // 15. IslandTree arborikÃ¼ltÃ¼r boyama
+            // 15. IslandTree arborikültür boyama
             if (snap.islandTreeCount > 0)
             {
                 bool treePainted = snap.islandTreePainted >= snap.islandTreeCount;
                 string treeDetail = treePainted
-                    ? $"Boyali â€” {snap.islandTreePainted}/{snap.islandTreeCount} agac"
-                    : $"Boyanmamis â€” {snap.islandTreeCount - snap.islandTreePainted}/{snap.islandTreeCount} agac bekleniyor";
+                    ? $"Boyali — {snap.islandTreePainted}/{snap.islandTreeCount} agac"
+                    : $"Boyanmamis — {snap.islandTreeCount - snap.islandTreePainted}/{snap.islandTreeCount} agac bekleniyor";
                 Add("IslandTree Materyal Boyama", treeDetail, treePainted ? 4 : 0, 4, "paint_island_trees");
             }
 
-            // 16. GÃ¶rsel eÅŸleÅŸme (Vision Learner â€” referans gÃ¶rsellere ne kadar yakÄ±n?)
+            // 16. Görsel eşleşme (Vision Learner — referans görsellere ne kadar yakın?)
             if (snap.visionScore >= 0f)
             {
                 int vScore  = Mathf.RoundToInt(snap.visionScore / 100f * 10f);
                 string vDetail = snap.visionScore >= 78f
-                    ? $"Referans eÅŸleÅŸiyor â€” {snap.visionScore:F1}/100"
-                    : $"Referanstan uzak â€” {snap.visionScore:F1}/100 (hedef â‰¥78)";
-                Add("Referans GÃ¶rsel EÅŸleÅŸmesi", vDetail, Mathf.Clamp(vScore, 0, 10), 10, "vision_learn");
+                    ? $"Referans eşleşiyor — {snap.visionScore:F1}/100"
+                    : $"Referanstan uzak — {snap.visionScore:F1}/100 (hedef ≥78)";
+                Add("Referans Görsel Eşleşmesi", vDetail, Mathf.Clamp(vScore, 0, 10), 10, "vision_learn");
             }
         }
 
         void Add(string label, string detail, int sc, int max, string fixId) =>
             checks.Add(new Check { label = label, detail = detail, score = sc, max = max, fixId = fixId });
 
-        // â”€â”€ Fix plani: hangi duzeltme oncelikli? â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Fix plani: hangi duzeltme oncelikli? ────────────────────────────
         void BuildFixPlan()
         {
             fixPlan.Clear();
@@ -477,13 +477,13 @@ namespace Autopilot
 
                     case "build_scene":
                         fixPlan.Add(new Fix { id = "build_scene", name = "Sahneyi Kur / Yenile",
-                            description = "SceneBuilder.BuildScene() â€” orman, kayalik, kale, dusman",
+                            description = "SceneBuilder.BuildScene() — orman, kayalik, kale, dusman",
                             run = () => { SceneBuilder.BuildScene(); return true; } });
                         break;
 
                     case "fix_camera":
                         fixPlan.Add(new Fix { id = "fix_camera", name = "Kamera Ekle",
-                            description = "Camera.main + AudioListener yerleÅŸtirir",
+                            description = "Camera.main + AudioListener yerleştirir",
                             run = () => { SceneBuilder.EnsureCameraAndPlayer(); return Camera.main != null; } });
                         break;
 
@@ -495,13 +495,13 @@ namespace Autopilot
 
                     case "paint":
                         fixPlan.Add(new Fix { id = "paint", name = "Materyalleri Boya",
-                            description = "Dark fantasy paleti â€” yaprak/kabuk/tas/metal/emissive",
+                            description = "Dark fantasy paleti — yaprak/kabuk/tas/metal/emissive",
                             run = () => { SceneMaterialPainter.PaintAll(); return true; } });
                         break;
 
                     case "swap_chars":
                         fixPlan.Add(new Fix { id = "swap_chars", name = "Karakterleri Degistir",
-                            description = "Placeholder â†’ gercek FBX (auto weapon sizing)",
+                            description = "Placeholder → gercek FBX (auto weapon sizing)",
                             run = () => { CharacterModelSwapper.SwapAll(); return true; } });
                         break;
 
@@ -524,32 +524,32 @@ namespace Autopilot
                         break;
 
                     case "paint_island_trees":
-                        fixPlan.Add(new Fix { id = "paint_island_trees", name = "IslandTree ArborikÃ¼ltÃ¼r Boyama",
-                            description = "Broadleaf deciduous palet: kanopi yeÅŸili + kabuk kahvesi, double-sided foliage, subsurface translucency",
+                        fixPlan.Add(new Fix { id = "paint_island_trees", name = "IslandTree Arborikültür Boyama",
+                            description = "Broadleaf deciduous palet: kanopi yeşili + kabuk kahvesi, double-sided foliage, subsurface translucency",
                             run = () => IslandTreePainter.RunAsTask(out _) });
                         break;
 
                     case "vision_learn":
-                        fixPlan.Add(new Fix { id = "vision_learn", name = "Vision Learner â€” Referans GÃ¶rsel Ã–ÄŸrenmesi",
-                            description = "Referans gÃ¶rselleri analiz eder, screenshot karÅŸÄ±laÅŸtÄ±rÄ±r, sis/Ä±ÅŸÄ±k/renk/Ã¶lÃ§ek parametrelerini iteratif optimize eder",
+                        fixPlan.Add(new Fix { id = "vision_learn", name = "Vision Learner — Referans Görsel Öğrenmesi",
+                            description = "Referans görselleri analiz eder, screenshot karşılaştırır, sis/ışık/renk/ölçek parametrelerini iteratif optimize eder",
                             run = () => AutopilotVisionLearner.RunAsTask(out _) });
                         break;
                 }
             }
         }
 
-        // â”€â”€ Tek adim calistir â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Tek adim calistir ─────────────────────────────────────────────────
         void RunNextFix()
         {
-            if (fixPlan.Count == 0) { Log("âœ“ Tum duzeltmeler tamamlandi!"); Analyze(); return; }
+            if (fixPlan.Count == 0) { Log("✓ Tum duzeltmeler tamamlandi!"); Analyze(); return; }
             var fix = fixPlan[0];
             ExecFix(fix);
         }
 
-        // â”€â”€ Tum duzeltmeleri calistir â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Tum duzeltmeleri calistir ─────────────────────────────────────────
         void RunAllFixes()
         {
-            Log("â”â”â” TAM OTOMATÄ°K DÃœZENLEME BAÅLADI â”â”â”");
+            Log("━━━ TAM OTOMATİK DÜZENLEME BAŞLADI ━━━");
             learning = LoadLearning();
             learning.totalCycles++;
             float prevScore = -99f;
@@ -561,7 +561,7 @@ namespace Autopilot
                 if (fixPlan.Count == 0 || score >= MaxScore) break;
                 if (score - prevScore < 1.0f) stagnant++;
                 else stagnant = 0;
-                if (stagnant >= 3) { Log("âš  Skor artmÄ±yor, dÃ¶ngÃ¼ durduruluyor."); break; }
+                if (stagnant >= 3) { Log("⚠ Skor artmıyor, döngü durduruluyor."); break; }
                 prevScore = score;
                 var fix = fixPlan[0];
                 float before = score;
@@ -572,7 +572,7 @@ namespace Autopilot
             }
             if (score > learning.peakScore) learning.peakScore = score;
             SaveLearning(learning);
-            Log($"â”â”â” TAMAMLANDI  Skor:{score:F0}/100  Zirve:{learning.peakScore:F0}  DÃ¶ngÃ¼:{learning.totalCycles} â”â”â”");
+            Log($"━━━ TAMAMLANDI  Skor:{score:F0}/100  Zirve:{learning.peakScore:F0}  Döngü:{learning.totalCycles} ━━━");
         }
 
         void ExecFix(Fix fix)
@@ -581,12 +581,12 @@ namespace Autopilot
             try
             {
                 bool ok = fix.run();
-                Log(ok ? $"âœ“ {fix.name} tamam." : $"âœ— {fix.name} basarisiz.");
+                Log(ok ? $"✓ {fix.name} tamam." : $"✗ {fix.name} basarisiz.");
             }
-            catch (Exception ex) { Log($"âœ— {fix.name}: {ex.Message}"); }
+            catch (Exception ex) { Log($"✗ {fix.name}: {ex.Message}"); }
         }
 
-        // â”€â”€ Fix kaydÄ± ve tÃ¼kenme tespiti â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Fix kaydı ve tükenme tespiti ─────────────────────────────────────
         void RecordFix(string fixId, float before, float after)
         {
             if (learning.history == null) learning.history = new List<FixRecord>();
@@ -605,21 +605,21 @@ namespace Autopilot
             if (weakRuns >= 3 && !learning.exhaustedFixes.Contains(fixId))
             {
                 learning.exhaustedFixes.Add(fixId);
-                Log($"âš  [{fixId}] 3 kez denendi, sonuÃ§ yok â†’ kalÄ±cÄ± olarak atlandÄ±.");
+                Log($"⚠ [{fixId}] 3 kez denendi, sonuç yok → kalıcı olarak atlandı.");
             }
         }
 
-        // â”€â”€ Temizle + yeniden kur â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Temizle + yeniden kur ─────────────────────────────────────────────
         void ClearAndRebuild()
         {
             SceneBuilder.NukeSceneObjects();
-            Log("TÃ¼m _RPG_ nesneleri silindi (nÃ¼kleer temizlik).");
+            Log("Tüm _RPG_ nesneleri silindi (nükleer temizlik).");
             SceneBuilder.BuildScene();
             SceneMaterialPainter.PaintAll();
             Analyze();
         }
 
-        // â”€â”€ Fix fonksiyonlari â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Fix fonksiyonlari ─────────────────────────────────────────────────
         bool FixGltfast()
         {
             string manifestPath = Path.Combine(
@@ -638,7 +638,7 @@ namespace Autopilot
                 "\"dependencies\": {\n    \"com.unity.cloud.gltfast\": \"6.10.0\",");
             File.WriteAllText(manifestPath, content);
             AssetDatabase.Refresh();
-            Log("glTFast eklendi â€” Unity paketi yukleyecek.");
+            Log("glTFast eklendi — Unity paketi yukleyecek.");
             return true;
         }
 
@@ -676,7 +676,7 @@ namespace Autopilot
         void Log(string msg) =>
             log.Add($"[{DateTime.Now:HH:mm:ss}]  {msg}");
 
-        // â”€â”€ Ã–ÄŸrenme JSON yardÄ±mcÄ±larÄ± â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Öğrenme JSON yardımcıları ─────────────────────────────────────────
         static LearningData LoadLearning()
         {
             string path = LearningPath();
@@ -706,29 +706,29 @@ namespace Autopilot
         static string LearningPath() =>
             Path.Combine(Application.dataPath, "..", "AutopilotData", "brain_learning.json");
 
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-        //  UI â€” Editor Window Cizim
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // ═════════════════════════════════════════════════════════════════════
+        //  UI — Editor Window Cizim
+        // ═════════════════════════════════════════════════════════════════════
         void OnGUI()
         {
             InitStyles();
 
-            // â”€â”€ Baslik â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Baslik ─────────────────────────────────────────────────────
             DrawHeader();
 
-            // â”€â”€ Skor cemberi + progress bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Skor cemberi + progress bar ────────────────────────────────
             DrawScoreSection();
 
-            // â”€â”€ Kontroller listesi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Kontroller listesi ─────────────────────────────────────────
             DrawCheckList();
 
-            // â”€â”€ Sonraki islemler (fix plan) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Sonraki islemler (fix plan) ────────────────────────────────
             if (fixPlan.Count > 0) DrawFixPlan();
 
-            // â”€â”€ Butonlar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Butonlar ───────────────────────────────────────────────────
             DrawButtons();
 
-            // â”€â”€ Log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Log ────────────────────────────────────────────────────────
             DrawLog();
         }
 
@@ -736,7 +736,7 @@ namespace Autopilot
         {
             EditorGUI.DrawRect(new Rect(0, 0, position.width, 46), CDark);
             GUILayout.Space(6);
-            EditorGUILayout.LabelField("â˜…  THORNY IVY â€” SMART AUTOPILOT  â˜…", _h1, GUILayout.Height(28));
+            EditorGUILayout.LabelField("★  THORNY IVY — SMART AUTOPILOT  ★", _h1, GUILayout.Height(28));
             EditorGUILayout.LabelField(
                 string.IsNullOrEmpty(snap.scenePath) ? "sahne yok" : snap.scenePath,
                 EditorStyles.centeredGreyMiniLabel);
@@ -756,22 +756,22 @@ namespace Autopilot
                 fontSize = 40,
                 normal   = { textColor = barCol }
             };
-            string quality = pct >= 0.90f ? "MUHTEÅEM" : pct >= 0.75f ? "Ä°YÄ°" :
-                             pct >= 0.45f ? "GELÄ°ÅTÄ°RÄ°LEBÄ°LÄ°R" : "KRÄ°TÄ°K";
+            string quality = pct >= 0.90f ? "MUHTEŞEM" : pct >= 0.75f ? "İYİ" :
+                             pct >= 0.45f ? "GELİŞTİRİLEBİLİR" : "KRİTİK";
             EditorGUILayout.LabelField($"{score:F0}", bigStyle, GUILayout.Height(50));
 
             var qualStyle = new GUIStyle(EditorStyles.centeredGreyMiniLabel)
                 { normal = { textColor = barCol }, fontStyle = FontStyle.Bold };
-            EditorGUILayout.LabelField($"{quality}  â€”  {score:F0} / {MaxScore:F0} puan", qualStyle);
+            EditorGUILayout.LabelField($"{quality}  —  {score:F0} / {MaxScore:F0} puan", qualStyle);
 
-            // Ã–ÄŸrenme Ã¶zeti
+            // Öğrenme özeti
             if (learning != null)
             {
                 int exhaustedCount = learning.exhaustedFixes != null ? learning.exhaustedFixes.Count : 0;
                 var learnStyle = new GUIStyle(EditorStyles.centeredGreyMiniLabel)
                     { normal = { textColor = new Color(0.6f, 0.6f, 0.8f) } };
                 EditorGUILayout.LabelField(
-                    $"Zirve: {learning.peakScore:F0}  |  DÃ¶ngÃ¼: {learning.totalCycles}  |  TÃ¼kenmiÅŸ: {exhaustedCount} fix",
+                    $"Zirve: {learning.peakScore:F0}  |  Döngü: {learning.totalCycles}  |  Tükenmiş: {exhaustedCount} fix",
                     learnStyle);
             }
 
@@ -795,7 +795,7 @@ namespace Autopilot
                 EditorGUILayout.BeginHorizontal();
 
                 // ikon
-                string icon = c.OK ? "âœ“" : c.Partial ? "!" : "âœ—";
+                string icon = c.OK ? "✓" : c.Partial ? "!" : "✗";
                 Color  icol = c.OK ? CGreen : c.Partial ? COrange : CRed;
                 EditorGUILayout.LabelField(icon,
                     new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = icol }, fixedWidth = 16 },
@@ -830,10 +830,10 @@ namespace Autopilot
             foreach (var f in fixPlan.Take(4))
             {
                 EditorGUILayout.BeginHorizontal();
-                // TÃ¼kenmiÅŸ gÃ¶sterimi
+                // Tükenmiş gösterimi
                 bool exhausted = learning != null && learning.exhaustedFixes != null &&
                                  learning.exhaustedFixes.Contains(f.id);
-                EditorGUILayout.LabelField(exhausted ? "âš " : "â†’", GUILayout.Width(14));
+                EditorGUILayout.LabelField(exhausted ? "⚠" : "→", GUILayout.Width(14));
                 EditorGUILayout.LabelField(f.name, EditorStyles.miniLabel, GUILayout.Width(180));
                 EditorGUILayout.LabelField(f.description, EditorStyles.miniLabel, GUILayout.ExpandWidth(true));
                 EditorGUILayout.EndHorizontal();
@@ -848,20 +848,20 @@ namespace Autopilot
         {
             GUILayout.Space(4);
 
-            // â”€â”€ Ana iÅŸlem butonlarÄ± â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Ana işlem butonları ─────────────────────────────────────────
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("ğŸ”  Analiz", GUILayout.Height(32)))
+            if (GUILayout.Button("🔍  Analiz", GUILayout.Height(32)))
                 Analyze();
-            if (GUILayout.Button("â–¶  Bir AdÄ±m", GUILayout.Height(32)))
+            if (GUILayout.Button("â–¶  Bir Adım", GUILayout.Height(32)))
                 RunNextFix();
 
             var allStyle = new GUIStyle(GUI.skin.button)
                 { fontStyle = FontStyle.Bold, normal = { textColor = CGold } };
-            if (GUILayout.Button("âš¡  TÃœMÃœNÃœ Ã‡ALIÅTIR", allStyle, GUILayout.Height(32)))
+            if (GUILayout.Button("⚡  TÜMÜNÜ ÇALIŞTIR", allStyle, GUILayout.Height(32)))
                 RunAllFixes();
             EditorGUILayout.EndHorizontal();
 
-            // â”€â”€ YardÄ±mcÄ± butonlar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Yardımcı butonlar ───────────────────────────────────────────
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("â™»  Temizle + Yeniden Kur", GUILayout.Height(26)))
             {
@@ -869,17 +869,17 @@ namespace Autopilot
                     "Tum _RPG_ objeleri silinecek ve sahne sifirdan kurulacak.", "Evet", "Iptal"))
                     ClearAndRebuild();
             }
-            if (GUILayout.Button("ğŸ’¾  Kaydet", GUILayout.Height(26)))
+            if (GUILayout.Button("💾  Kaydet", GUILayout.Height(26)))
             {
                 EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
                 Log("Sahne kaydedildi.");
                 Analyze();
             }
-            if (GUILayout.Button("ğŸ“‹  Rapor", GUILayout.Height(26)))
+            if (GUILayout.Button("📋  Rapor", GUILayout.Height(26)))
                 WriteReport();
             EditorGUILayout.EndHorizontal();
 
-            // â”€â”€ Otomatik DÃ¶ngÃ¼ Paneli â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Otomatik Döngü Paneli ───────────────────────────────────────
             GUILayout.Space(6);
             bool loopOn = AutopilotBrainLoop.IsEnabled;
             EditorGUI.DrawRect(GUILayoutUtility.GetRect(0, 2, GUILayout.ExpandWidth(true)),
@@ -889,11 +889,11 @@ namespace Autopilot
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
             EditorGUILayout.BeginHorizontal();
-            // Durum ikonu + baÅŸlÄ±k
-            string loopIcon  = loopOn ? "ğŸŸ¢" : "âšª";
+            // Durum ikonu + başlık
+            string loopIcon  = loopOn ? "🟢" : "⚪";
             string loopLabel = loopOn
-                ? $"OTOMATÄ°K DÃ–NGÃœ AKTÄ°F  Â·  Sonraki: {AutopilotBrainLoop.CountdownText()}"
-                : "OTOMATÄ°K DÃ–NGÃœ KAPALI";
+                ? $"OTOMATİK DÖNGÜ AKTİF  ·  Sonraki: {AutopilotBrainLoop.CountdownText()}"
+                : "OTOMATİK DÖNGÜ KAPALI";
             var loopStyle = new GUIStyle(EditorStyles.boldLabel)
                 { normal = { textColor = loopOn ? CGreen : Color.gray }, fontSize = 10 };
             EditorGUILayout.LabelField($"{loopIcon}  {loopLabel}", loopStyle, GUILayout.ExpandWidth(true));
@@ -901,35 +901,35 @@ namespace Autopilot
 
             // Slider: interval dakika
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("AralÄ±k:", GUILayout.Width(40));
+            EditorGUILayout.LabelField("Aralık:", GUILayout.Width(40));
             _intervalMin = EditorGUILayout.Slider(_intervalMin, 5f, 120f, GUILayout.ExpandWidth(true));
             EditorGUILayout.LabelField($"{_intervalMin:F0} dk", GUILayout.Width(42));
             EditorGUILayout.EndHorizontal();
 
-            // AÃ§/Kapat + Manuel tetikle
+            // Aç/Kapat + Manuel tetikle
             EditorGUILayout.BeginHorizontal();
             if (loopOn)
             {
                 var offStyle = new GUIStyle(GUI.skin.button) { normal = { textColor = CRed }, fontStyle = FontStyle.Bold };
-                if (GUILayout.Button("â¹  DÃ–NGÃœYÃœ DURDUR", offStyle, GUILayout.Height(28)))
+                if (GUILayout.Button("⏹  DÖNGÜYÜ DURDUR", offStyle, GUILayout.Height(28)))
                 {
                     AutopilotBrainLoop.SetEnabled(false);
-                    Log("Otomatik dÃ¶ngÃ¼ durduruldu.");
+                    Log("Otomatik döngü durduruldu.");
                 }
             }
             else
             {
                 var onStyle = new GUIStyle(GUI.skin.button) { normal = { textColor = CPurple }, fontStyle = FontStyle.Bold };
-                if (GUILayout.Button($"â–¶  DÃ–NGÃœYÃœ BAÅLAT  ({_intervalMin:F0} dk)", onStyle, GUILayout.Height(28)))
+                if (GUILayout.Button($"â–¶  DÖNGÜYÜ BAŞLAT  ({_intervalMin:F0} dk)", onStyle, GUILayout.Height(28)))
                 {
                     AutopilotBrainLoop.SetEnabled(true, _intervalMin);
-                    Log($"Otomatik dÃ¶ngÃ¼ baÅŸlatÄ±ldÄ± â€” her {_intervalMin:F0} dakikada bir Ã§alÄ±ÅŸacak.");
+                    Log($"Otomatik döngü başlatıldı — her {_intervalMin:F0} dakikada bir çalışacak.");
                 }
             }
 
-            if (GUILayout.Button("â–¶ Åimdi Ã‡alÄ±ÅŸtÄ±r", GUILayout.Height(28), GUILayout.Width(120)))
+            if (GUILayout.Button("â–¶ Şimdi Çalıştır", GUILayout.Height(28), GUILayout.Width(120)))
             {
-                Log("[MANUAL] Manuel dÃ¶ngÃ¼ tetiklendi.");
+                Log("[MANUAL] Manuel döngü tetiklendi.");
                 AutoRun();
             }
             EditorGUILayout.EndHorizontal();
@@ -944,12 +944,12 @@ namespace Autopilot
             logScroll = EditorGUILayout.BeginScrollView(logScroll, GUILayout.ExpandHeight(true));
             foreach (var line in Enumerable.Reverse(log).Take(60))
             {
-                Color lc = line.Contains("âœ“") ? CGreen
-                         : line.Contains("âœ—") ? CRed
+                Color lc = line.Contains("✓") ? CGreen
+                         : line.Contains("✗") ? CRed
                          : line.Contains("[AUTO]")  ? CPurple
                          : line.Contains("[MANUAL]") ? CBlue
                          : line.Contains("â–¶") ? CBlue
-                         : line.Contains("â”")  ? CGold
+                         : line.Contains("━")  ? CGold
                          : Color.gray;
                 EditorGUILayout.LabelField(line,
                     new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = lc } });
@@ -957,7 +957,7 @@ namespace Autopilot
             EditorGUILayout.EndScrollView();
         }
 
-        // â”€â”€ Rapor yaz â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Rapor yaz ─────────────────────────────────────────────────────────
         void WriteReport()
         {
             string dir = Path.Combine(Application.dataPath, "..", "AutopilotData");
@@ -965,21 +965,21 @@ namespace Autopilot
             string path = Path.Combine(dir, "brain_report.md");
 
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine("# Thorny Ivy â€” Autopilot Brain Raporu");
+            sb.AppendLine("# Thorny Ivy — Autopilot Brain Raporu");
             sb.AppendLine($"Tarih: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             sb.AppendLine($"**Toplam Skor: {score:F0}/100**");
             if (learning != null)
             {
-                sb.AppendLine($"**Zirve Skor: {learning.peakScore:F0}  |  Toplam DÃ¶ngÃ¼: {learning.totalCycles}**");
+                sb.AppendLine($"**Zirve Skor: {learning.peakScore:F0}  |  Toplam Döngü: {learning.totalCycles}**");
                 if (learning.exhaustedFixes != null && learning.exhaustedFixes.Count > 0)
-                    sb.AppendLine($"**TÃ¼kenmiÅŸ Fixler:** {string.Join(", ", learning.exhaustedFixes)}");
+                    sb.AppendLine($"**Tükenmiş Fixler:** {string.Join(", ", learning.exhaustedFixes)}");
             }
             sb.AppendLine();
             sb.AppendLine("## Durum Analizi");
             foreach (var c in checks)
             {
-                string bullet = c.OK ? "âœ…" : c.Partial ? "âš ï¸" : "âŒ";
-                sb.AppendLine($"{bullet} **{c.label}** â€” {c.detail} ({c.score}/{c.max})");
+                string bullet = c.OK ? "✅" : c.Partial ? "⚠️" : "❌";
+                sb.AppendLine($"{bullet} **{c.label}** — {c.detail} ({c.score}/{c.max})");
             }
             sb.AppendLine();
             sb.AppendLine("## Gereken Duzeltmeler");
@@ -991,7 +991,7 @@ namespace Autopilot
             AssetDatabase.Refresh();
         }
 
-        // â”€â”€ GUIStyle init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── GUIStyle init ─────────────────────────────────────────────────────
         void InitStyles()
         {
             if (_h1 != null) return;

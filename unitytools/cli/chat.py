@@ -127,7 +127,7 @@ def _send_to_llm(orch: Orchestrator, message: str) -> None:
 def _print_welcome(config: Config, blender: BlenderBridge, unity: UnityBridge) -> None:
     blender_ok = "[OK]" if blender.is_available() else "[ERR]"
     unity_ok = "[OK] connected" if unity.connect(timeout=1.0) else "[WAIT] offline"
-    model_label = config.ollama_model if config.provider == "ollama" else config.model
+    model_label = config.active_model()
     console.print(
         Panel(
             f"[bold]UnityTools Chat[/bold]\n"
