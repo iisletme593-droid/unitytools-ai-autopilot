@@ -70,7 +70,7 @@ class Config:
         cfg = cls(
             api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             model=os.getenv("UNITYTOOLS_MODEL", "claude-sonnet-4-20250514"),
-            provider=os.getenv("UNITYTOOLS_PROVIDER", "ollama").lower(),
+            provider=os.getenv("UNITYTOOLS_PROVIDER", "ollama").strip().lower(),
             ollama_host=os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434"),
             ollama_model=os.getenv("OLLAMA_MODEL", "qwen2.5:14b-instruct"),
             cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID", ""),
@@ -122,9 +122,15 @@ class Config:
         """Eksik/hatalı ayarları liste olarak döndür."""
         problems: list[str] = []
         if self.provider not in {"anthropic", "ollama", "cloudflare"}:
+            hint = ""
+            if "=" in self.provider or len(self.provider) > 24:
+                hint = (
+                    " — .env satirlari birbirine yapismis gorunuyor. Her ayar AYRI bir "
+                    "satirda olmali (or. UNITYTOOLS_PROVIDER=cloudflare). Dosyayi duzelt."
+                )
             problems.append(
                 "UNITYTOOLS_PROVIDER 'anthropic', 'ollama' veya 'cloudflare' olmali "
-                f"(suanki: {self.provider!r})."
+                f"(suanki: {self.provider!r})." + hint
             )
         if self.provider == "anthropic":
             if not self.api_key:

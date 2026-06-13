@@ -38,6 +38,13 @@ def test_validation_requires_account_and_token():
     assert not any("CLOUDFLARE" in p for p in ok.validate())
 
 
+def test_malformed_provider_gives_concatenation_hint():
+    # .env satirlari yapisinca provider degeri butun blogu yutar.
+    bad = Config(provider="cloudflarecloudflare_account_id=d34cloudflare_api_token=cfut_x")
+    problems = bad.validate()
+    assert any("yapismis" in p for p in problems)
+
+
 def test_active_model_and_url():
     cfg = _cf_config()
     assert cfg.active_model() == "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
