@@ -23,6 +23,11 @@ class Config:
     ollama_host: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen2.5:14b-instruct"
 
+    # Cloudflare Workers AI (bulut LLM — yerel GPU gerektirmez)
+    cloudflare_account_id: str = ""
+    cloudflare_api_token: str = ""
+    cloudflare_model: str = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+
     # Güvenlik: kopru/chat-server paylasilan token + uzak baglanti izni
     bridge_token: str = ""
     allow_remote: bool = False
@@ -67,6 +72,9 @@ class Config:
             provider=os.getenv("UNITYTOOLS_PROVIDER", "ollama").lower(),
             ollama_host=os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434"),
             ollama_model=os.getenv("OLLAMA_MODEL", "qwen2.5:14b-instruct"),
+            cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID", ""),
+            cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN", ""),
+            cloudflare_model=os.getenv("CLOUDFLARE_MODEL", "@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
             max_tokens=_int_env("UNITYTOOLS_MAX_TOKENS", 8192),
             history_turn_limit=_int_env("UNITYTOOLS_HISTORY_LIMIT", 40),
             unity_bridge_port=_int_env("UNITY_BRIDGE_PORT", 7777),
@@ -88,10 +96,17 @@ class Config:
     def validate(self) -> list[str]:
         """Eksik/hatalı ayarları liste olarak döndür."""
         problems: list[str] = []
-        if self.provider not in {"anthropic", "ollama"}:
+        if self.provider not in {"anthropic", "ollama", "cloudflare"}:
             problems.append(
-                f"UNITYTOOLS_PROVIDER 'anthropic' veya 'ollama' olmali (suanki: {self.provider!r})."
+                f"UNITYTOOLS_PROVIDER 'anthropic', 'ollama' veya 'cloudflare' olmali (suanki: {self.provider!r})."
             )
+        if self.provider == "cloudflare":
+            if not self.cloudflare_account_id:
+                problems.append("CLOUDFLARE_ACCOUNT_ID .env dosyasinda yok (provider=cloudflare icin gerekli).")
+            if not self.cloudflare_api_token:
+                problems.append("CLOUDFLARE_API_TOKEN .env dosyasinda yok (provider=cloudflare icin gerekli).")
+            if not self.cloudflare_model:
+                problems.append("CLOUDFLARE_MODEL bos olamaz.")
         if self.provider == "anthropic":
             if not self.api_key:
                 problems.append(

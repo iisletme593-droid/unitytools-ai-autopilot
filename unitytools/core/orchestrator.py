@@ -217,6 +217,10 @@ class Orchestrator:
             # Ollama yalnızca düz string user content'i sorunsuz kabul eder.
             user_message = self._flatten_to_text(user_message)
             return self._chat_ollama(user_message, on_tool_call, on_tool_result, max_iterations)
+        if self.config.provider == "cloudflare":
+            # Cloudflare Workers AI da Ollama gibi düz string content bekler.
+            user_message = self._flatten_to_text(user_message)
+            return self._chat_cloudflare(user_message, on_tool_call, on_tool_result, max_iterations)
         return self._chat_anthropic(user_message, on_tool_call, on_tool_result, max_iterations)
 
     # ----------------------------------------------------------- anthropic
@@ -473,6 +477,175 @@ class Orchestrator:
                 f"Ollama'ya baglanilamadi: {exc}. Ollama kurulu ve calisir durumda mi? "
                 f"Beklenen adres: {host}"
             ) from exc
+
+    # ----------------------------------------------------------- cloudflare
+
+    def _chat_cloudflare(
+        self,
+        user_message: str,
+        on_tool_call: Optional[Callable[[str, dict], None]],
+        on_tool_result: Optional[Callable[[str, Any], None]],
+        max_iterations: int,
+    ) -> OrchestratorResult:
+        """Cloudflare Workers AI tool-calling dongusu.
+
+        Yapisi _chat_ollama ile ayni; tek fark backend cagrisi (_cloudflare_chat).
+        Ortak mesaj tamponu (self.ollama_messages) yeniden kullanilir — bir
+        Orchestrator ornegi tek provider'a baglidir, cakisma olmaz.
+        """
+        if not self.ollama_messages:
+            self.ollama_messages.append({"role": "system", "content": SYSTEM_PROMPT})
+        self.ollama_messages.append({"role": "user", "content": user_message})
+
+        final_text = ""
+        tool_calls_log: list[dict[str, Any]] = []
+        tools = self._select_ollama_tools(user_message)
+
+        for _ in range(max_iterations):
+            self._trim_ollama_history()
+            response = self._cloudflare_chat(self.ollama_messages, tools=tools)
+            message = response.get("message") or {}
+            content = message.get("content") or ""
+            tool_calls = message.get("tool_calls") or []
+            synthetic_tool_calls = False
+            if not tool_calls:
+                tool_calls = _extract_text_tool_calls(content)
+                synthetic_tool_calls = bool(tool_calls)
+
+            assistant_message: dict[str, Any] = {
+                "role": "assistant",
+                "content": "" if synthetic_tool_calls else content,
+            }
+            if tool_calls:
+                assistant_message["tool_calls"] = tool_calls
+            self.ollama_messages.append(assistant_message)
+
+            if content and not synthetic_tool_calls:
+                final_text += content + "\n"
+
+            if not tool_calls:
+                return OrchestratorResult(
+                    text=_guard_final_text(user_message, final_text.strip(), tool_calls_log),
+                    tool_calls=tool_calls_log,
+                    stop_reason="stop",
+                )
+
+            for call in tool_calls:
+                function = call.get("function") or {}
+                tool_name = function.get("name") or call.get("name")
+                tool_input = function.get("arguments") or call.get("arguments") or {}
+                if isinstance(tool_input, str):
+                    try:
+                        tool_input = json.loads(tool_input) if tool_input.strip() else {}
+                    except json.JSONDecodeError:
+                        tool_input = {}
+                if not isinstance(tool_input, dict):
+                    tool_input = {}
+
+                if on_tool_call:
+                    try:
+                        on_tool_call(tool_name, tool_input)
+                    except Exception:
+                        logger.exception("on_tool_call callback failed")
+
+                try:
+                    result = self._execute_tool(tool_name, tool_input)
+                    ok = not (isinstance(result, dict) and result.get("ok") is False)
+                    tool_calls_log.append(
+                        {"name": tool_name, "input": tool_input, "result": result, "ok": ok}
+                    )
+                    if on_tool_result:
+                        try:
+                            on_tool_result(tool_name, result)
+                        except Exception:
+                            logger.exception("on_tool_result callback failed")
+                except Exception as exc:
+                    logger.exception("Tool error: %s", tool_name)
+                    result = {
+                        "ok": False,
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                    }
+                    tool_calls_log.append(
+                        {
+                            "name": tool_name,
+                            "input": tool_input,
+                            "error": str(exc),
+                            "error_type": type(exc).__name__,
+                            "ok": False,
+                        }
+                    )
+                    if on_tool_result:
+                        try:
+                            on_tool_result(tool_name, result)
+                        except Exception:
+                            logger.exception("on_tool_result callback failed")
+
+                self.ollama_messages.append(
+                    {
+                        "role": "tool",
+                        "content": _serialize_for_llm(result),
+                        "name": tool_name,
+                    }
+                )
+
+        return OrchestratorResult(
+            text=_guard_final_text(user_message, (final_text + "\n[Warning: max iterations reached]").strip(), tool_calls_log),
+            tool_calls=tool_calls_log,
+            stop_reason="max_iterations",
+        )
+
+    def _cloudflare_chat(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Cloudflare Workers AI native /ai/run endpoint cagrisi.
+
+        Yaniti Ollama benzeri {"message": {"content", "tool_calls"}} sekline
+        normalize eder; boylece _chat_cloudflare dongusu degismeden calisir.
+        CF tool_calls formati: [{"name": ..., "arguments": {...}}].
+        """
+        account = (getattr(self.config, "cloudflare_account_id", "") or "").strip()
+        token = (getattr(self.config, "cloudflare_api_token", "") or "").strip()
+        model = (getattr(self.config, "cloudflare_model", "") or "@cf/meta/llama-3.3-70b-instruct-fp8-fast").strip()
+        if not account or not token:
+            raise RuntimeError(
+                "Cloudflare ayarlari eksik: CLOUDFLARE_ACCOUNT_ID ve CLOUDFLARE_API_TOKEN .env'de olmali."
+            )
+        url = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/{model}"
+        payload: dict[str, Any] = {
+            "messages": messages,
+            "max_tokens": max(256, int(self.max_tokens)),
+            "temperature": 0.4,
+        }
+        if tools:
+            payload["tools"] = tools
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=180) as resp:
+                body = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            errbody = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"Cloudflare AI HTTP {exc.code}: {errbody[:500]}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"Cloudflare AI'ya baglanilamadi: {exc}") from exc
+        if not body.get("success", True):
+            raise RuntimeError(f"Cloudflare AI hata: {body.get('errors')}")
+        result = body.get("result") or {}
+        return {
+            "message": {
+                "content": result.get("response") or "",
+                "tool_calls": result.get("tool_calls") or [],
+            }
+        }
 
     def _select_ollama_tools(self, user_message: str) -> list[dict[str, Any]]:
         """Send Ollama only the tools that are relevant to the current request.
