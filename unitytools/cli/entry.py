@@ -66,6 +66,15 @@ def _bootstrap() -> tuple[Config, BlenderBridge, UnityBridge]:
     return config, blender, unity
 
 
+def _dual_agent_allowed(provider: str) -> bool:
+    """Dual-agent yalnizca Ollama icin gecerli (master/worker/reader yerel modeller).
+
+    Bulut saglayicilar (anthropic, cloudflare) tek-agent Orchestrator kullanmali;
+    DualAgentOrchestrator dogrudan Ollama'ya gider ve onlarda calismaz.
+    """
+    return provider == "ollama"
+
+
 def _api_key_label(config: Config) -> str:
     if config.provider == "ollama":
         return "[dim]not needed for Ollama[/dim]"
@@ -624,6 +633,16 @@ def cmd_chat_server(args: argparse.Namespace) -> int:
         master_model = _resolve_ollama_model(config, master_model, config.ollama_model)
         worker_model = _resolve_ollama_model(config, worker_model, config.ollama_model)
         reader_model = _resolve_ollama_model(config, reader_model, config.ollama_model)
+    elif use_dual and not _dual_agent_allowed(config.provider):
+        # Dual-agent Ollama-ozeldir: master/worker/reader yerel Ollama modelleridir ve
+        # DualAgentOrchestrator dogrudan _ollama_chat cagirir. Bulut saglayicilarda
+        # (cloudflare/anthropic) tek-agent Orchestrator kullan; o, provider'i dogru
+        # yonlendirir (ornegin Cloudflare 70B). Aksi halde panel Ollama'yi arar ve patlar.
+        console.print(
+            f"[yellow]Dual-agent yalnizca Ollama ile calisir; provider={config.provider} "
+            "icin tek-agent moduna gecildi (bulut model dogrudan kullanilir).[/yellow]"
+        )
+        use_dual = False
 
     # Guvenlik: loopback disi --host yalnizca acik izin + token ile.
     from ..core.security import is_loopback_host
