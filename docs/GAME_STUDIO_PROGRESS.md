@@ -16,3 +16,6 @@ Format: `- [cycle N] <what changed> — tests: <pass/fail> — commit <hash>`
 - [cycle 2] P1 layout math: `core/layout.py` `compute_layout_positions` (grid/circle/line/scatter
   + deterministic, GPU-free jitter) — reusable building block for placement/level-building tools.
   8 tests. Next: wire a `unity_place_*` tool on top of it. — tests: 42 passed
+- [cycle 3] P1 placement tool: `unity_place_primitives` — places N primitives in a chosen layout
+  via the bridge, with a 500-object safety cap (also guards against scene-flooding). Builds on
+  cycle 2's layout math. 3 tests. — tests: 45 passed

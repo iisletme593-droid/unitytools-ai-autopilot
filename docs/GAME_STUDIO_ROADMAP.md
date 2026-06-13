@@ -29,8 +29,8 @@ incremental capability gains.
 
 ### P1 — Level / scene building (toward "placement")
 - [x] Layout math (cycle 2): `core/layout.py` `compute_layout_positions` — grid/circle/line/scatter
-  + deterministic jitter, 8 tests. **Follow-up:** wire a `unity_place_*` tool that calls the bridge
-  `create_primitive`+`set_transform` per computed position (uses this math).
+  + deterministic jitter, 8 tests. Tool wired (cycle 3): `unity_place_primitives`
+  (grid/circle/line/scatter, 500-object safety cap, 3 tests).
 - [ ] Structure composition: build simple structures (wall, room, tower) from primitives.
 - [ ] Camera/lighting presets for a presentable scene.
 

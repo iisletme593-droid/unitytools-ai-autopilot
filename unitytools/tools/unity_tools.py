@@ -3,6 +3,7 @@ from __future__ import annotations
 
 
 from ..core.tool_registry import tool
+from ..core.layout import compute_layout_positions
 
 
 _UNITY = None  # type: ignore
@@ -82,6 +83,51 @@ def unity_create_primitive(
         return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+@tool(description="Place N primitives in a layout (pattern: grid/circle/line/scatter) to quickly block out a scene/level. type is Cube/Sphere/Cylinder/Capsule/Plane/Quad.")
+def unity_place_primitives(
+    type: str,
+    count: int,
+    pattern: str = "grid",
+    spacing: float = 2.0,
+    origin_x: float = 0.0,
+    origin_y: float = 0.0,
+    origin_z: float = 0.0,
+    jitter: float = 0.0,
+    name_prefix: str = "",
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    count = max(0, min(int(count), 500))  # guvenlik tavani: asiri nesne olusturmayi engelle
+    if count == 0:
+        return {"ok": False, "error": "count >= 1 olmali"}
+    positions = compute_layout_positions(
+        count,
+        pattern=pattern,
+        spacing=spacing,
+        origin=(origin_x, origin_y, origin_z),
+        jitter=jitter,
+    )
+    prefix = name_prefix or type
+    created: list[str] = []
+    errors: list[str] = []
+    for i, (x, y, z) in enumerate(positions):
+        try:
+            res = _UNITY.call(
+                "create_primitive",
+                {"type": type, "name": f"{prefix}_{i}", "position": {"x": x, "y": y, "z": z}},
+            )
+            created.append(res.get("name", f"{prefix}_{i}") if isinstance(res, dict) else f"{prefix}_{i}")
+        except Exception as e:
+            errors.append(str(e))
+    return {
+        "ok": len(errors) == 0,
+        "created_count": len(created),
+        "requested_count": count,
+        "pattern": pattern,
+        "errors": errors[:5],
+    }
 
 
 @tool(description="Copy an asset into the Unity project's Assets folder and refresh AssetDatabase.")
