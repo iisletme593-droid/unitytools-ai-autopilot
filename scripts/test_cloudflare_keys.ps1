@@ -55,27 +55,31 @@ $accounts = New-Object System.Collections.Generic.List[string]
 $tokens   = New-Object System.Collections.Generic.List[string]
 if ($AccountId) { $accounts.Add($AccountId) }
 
+# Once .env'deki TUM anahtarlari maskeli listele (teshis) - hangisi token gorelim.
+Write-Host "    .env icindeki anahtarlar:"
+foreach ($k in $map.Keys) {
+    $v = $map[$k]
+    $kind = "diger"
+    if     ($v -match '^[0-9a-fA-F]{32}$')   { $kind = "account?" }
+    elseif ($v -match '^[A-Za-z0-9_-]{40}$') { $kind = "token?  " }
+    Write-Host ("      {0,-30} = {1}  (len {2}, {3})" -f $k, (Mask $v), $v.Length, $kind)
+}
+
 foreach ($k in $map.Keys) {
     $v = $map[$k]; $ku = $k.ToUpperInvariant()
-    if ($v -match '^[0-9a-fA-F]{32}$') { $accounts.Add($v); continue }   # account id = 32 hex
-    if ($ku -like '*ACCOUNT*') { $accounts.Add($v); continue }
-    # Token: yalnizca cloudflare/cf adli anahtarlardan (cron/borsa anahtarlari haric)
-    if ($ku -like '*CLOUDFLARE*' -or $ku -like 'CF_*' -or $ku -like '*WORKERS*AI*') {
-        if ($ku -like '*TOKEN*' -or $ku -like '*KEY*' -or $ku -like '*API*' -or $v.Length -ge 20) {
-            $tokens.Add($v)
-        }
-    }
+    $isAccount = ($v -match '^[0-9a-fA-F]{32}$') -or ($ku -like '*ACCOUNT*')
+    if ($isAccount) { $accounts.Add($v); continue }
+    # Token adayi: Cloudflare token formati (tam 40 karakter) VEYA cloudflare-ish isim.
+    $looksToken = $v -match '^[A-Za-z0-9_-]{40}$'
+    $nameToken  = (
+        $ku -like '*CLOUDFLARE*' -or $ku -like 'CF*' -or $ku -like '*WORKERS*' -or
+        $ku -like '*TOKEN*' -or $ku -like '*CRON*' -or ($ku -like '*API*' -and $ku -like '*KEY*')
+    ) -and $v.Length -ge 30
+    if ($looksToken -or $nameToken) { $tokens.Add($v) }
 }
 $accounts = @($accounts | Select-Object -Unique)
 $tokens   = @($tokens   | Select-Object -Unique)
-
-Write-Host "    Bulunan account id: $($accounts.Count), token: $($tokens.Count)"
-foreach ($k in $map.Keys) {
-    $ku = $k.ToUpperInvariant()
-    if ($ku -like '*CLOUDFLARE*' -or $ku -like 'CF_*' -or $ku -like '*WORKERS*AI*' -or $ku -like '*ACCOUNT*') {
-        Write-Host "      $k = $(Mask $map[$k])"
-    }
-}
+Write-Host "    -> account id: $($accounts.Count), token adayi: $($tokens.Count)"
 
 if ($accounts.Count -eq 0) {
     $manual = (Read-Host "Account ID bulunamadi. Cloudflare Account ID gir").Trim()
