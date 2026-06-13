@@ -13,3 +13,6 @@ Format: `- [cycle N] <what changed> — tests: <pass/fail> — commit <hash>`
 - [cycle 1] P0 over-creation fix: repeated-tool-call guard in the ollama/cloudflare loops
   (`orchestrator.py`) — model repeating the same tool-call set now stops instead of spinning to
   max-iterations (this is the "10 spheres" bug we hit live). Added 2 tests. — tests: 34 passed
+- [cycle 2] P1 layout math: `core/layout.py` `compute_layout_positions` (grid/circle/line/scatter
+  + deterministic, GPU-free jitter) — reusable building block for placement/level-building tools.
+  8 tests. Next: wire a `unity_place_*` tool on top of it. — tests: 42 passed
