@@ -60,6 +60,11 @@ incremental capability gains.
   `get_pattern` unified with `_classify_request` and both extended with Turkish keywords so patterns
   actually resolve for the (Turkish-driven) autopilot. Was dead-ended before. 5 tests + live proof
   (Turkish "orman kur" → pattern section). **Follow-up:** embedding-based recall (still keyword).
+- [x] Auto-record experiments with MEASURED metrics (cycle 5). `core/quality.metrics_from_signals`
+  derives clarity_score (structural cleanliness) + an fps proxy (triangle budget) + crash_count from
+  visual-QA & profiling; `gamestudio_record_scene_experiment` runs QA+profile on the live scene and
+  auto-writes a kernel experiment. Closes measure→record→recall→plan (no more always-None hand-typed
+  metrics). 7 tests + live proof (recorded a "promising" experiment from the real editor scene).
 - [~] Game-studio kernel: tighten the evolution loop (metrics → weak points → next plan).
   First concrete loop landed (day 1): `unity_quality_pass` runs an in-scene metrics→weak-points→fix
   cycle via `core/quality.assess_qa`. Weak-point ranking fixed (cycle 4): `_infer_weak_points` now

@@ -93,3 +93,74 @@ def assess_qa(qa: dict[str, Any] | None) -> dict[str, Any]:
             "objects": objects,
         },
     }
+
+
+def metrics_from_signals(
+    qa: dict[str, Any] | None,
+    profile: dict[str, Any] | None,
+    fps_budget_triangles: int = 1_000_000,
+) -> dict[str, Any]:
+    """Derive measurable GameStudio experiment metrics from a visual-QA result and a
+    performance profile, so the learning loop records real numbers instead of
+    hand-typed ones (the scan's "metrics are operator-supplied, always None" gap).
+
+    ``fun_score`` / ``difficulty_score`` / ``session_minutes`` stay None — they are
+    not derivable from a static scene. ``clarity_score`` (structural cleanliness) and
+    ``fps_average`` (a triangle-budget PROXY, not a runtime measurement) are derived.
+    Returns ``{"metrics": {...}, "outcome": str, "notes": str}``.
+    """
+    qa = qa or {}
+    profile = profile or {}
+    counts = qa.get("counts") or {}
+    missing = _int(counts, "missing_materials")
+    broken = _int(counts, "broken_materials")
+    unsupported = _int(counts, "unsupported_materials")
+    lights = _int(counts, "lights")
+    cameras = _int(counts, "cameras")
+    renderers = _int(counts, "renderers")
+
+    clarity = 10.0
+    clarity -= 2.0 * broken
+    clarity -= 1.5 * missing
+    clarity -= 0.5 * unsupported
+    if renderers > 0 and lights == 0:
+        clarity -= 2.0
+    if cameras == 0:
+        clarity -= 1.0
+    clarity = round(max(0.0, min(10.0, clarity)), 1)
+
+    triangles = _int(profile, "triangles")
+    fps_proxy = None
+    if triangles > 0:
+        fps_proxy = int(round(60.0 * min(1.0, fps_budget_triangles / float(triangles))))
+
+    crash = 1 if qa.get("ok") is False else 0
+
+    note_bits: list[str] = []
+    if qa.get("verdict"):
+        note_bits.append(str(qa["verdict"]))
+    if triangles > 0:
+        note_bits.append(f"~{triangles} tris -> fps proxy {fps_proxy}")
+    suggestions = profile.get("suggestions") or []
+    if suggestions:
+        note_bits.append("; ".join(str(s) for s in suggestions[:2]))
+    notes = " | ".join(note_bits) or "auto-recorded from QA + profile"
+
+    metrics = {
+        "fun_score": None,
+        "clarity_score": clarity,
+        "difficulty_score": None,
+        "session_minutes": None,
+        "fps_average": fps_proxy,
+        "crash_count": crash,
+        "notes": [notes],
+    }
+
+    if clarity >= 7.0 and (fps_proxy is None or fps_proxy >= 30):
+        outcome = "promising"
+    elif clarity < 4.0 or (fps_proxy is not None and fps_proxy < 20):
+        outcome = "needs_work"
+    else:
+        outcome = "mixed"
+
+    return {"metrics": metrics, "outcome": outcome, "notes": notes}

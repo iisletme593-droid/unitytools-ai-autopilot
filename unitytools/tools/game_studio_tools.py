@@ -5,7 +5,8 @@ from typing import Any
 
 from ..core.game_studio_actions import list_templates, plan_unreal_fast_action, preflight_prompt
 from ..core.game_studio_kernel import GameStudioKernel
-from ..core.tool_registry import tool
+from ..core.quality import metrics_from_signals
+from ..core.tool_registry import get_tool, tool
 
 
 @tool(description="Return the Level 1-6 Self-Evolving GameStudio architecture, agent roles, and evolution loop.")
@@ -56,6 +57,48 @@ def gamestudio_record_game_experiment(
         outcome=outcome,
         notes=notes,
     )
+
+
+@tool(description="Close the build->measure->learn loop: run visual QA + performance profiling on the active scene, derive measured metrics (clarity score, fps proxy, crash count), and auto-record a GameStudio experiment. Use after building/iterating a scene so the studio learns from real numbers.")
+def gamestudio_record_scene_experiment(
+    game_title: str,
+    hypothesis: str = "",
+    changes: list[str] | None = None,
+    prototype_type: str = "scene",
+    workspace: str = "GameStudioData",
+) -> dict:
+    qa_tool = get_tool("unity_run_visual_qa")
+    profile_tool = get_tool("unity_profile_scene_performance")
+    if qa_tool is None or profile_tool is None:
+        return {"ok": False, "error": "unity_run_visual_qa / unity_profile_scene_performance not registered"}
+
+    qa = qa_tool.fn(capture_screenshot=False)
+    if isinstance(qa, dict) and qa.get("ok") is False:
+        return {"ok": False, "error": qa.get("error", "visual QA failed"), "stage": "qa"}
+    profile = profile_tool.fn()
+    if isinstance(profile, dict) and profile.get("ok") is False:
+        return {"ok": False, "error": profile.get("error", "profiling failed"), "stage": "profile"}
+
+    derived = metrics_from_signals(
+        qa if isinstance(qa, dict) else {},
+        profile if isinstance(profile, dict) else {},
+    )
+    rec = GameStudioKernel(workspace=workspace).record_experiment(
+        game_title=game_title,
+        prototype_type=prototype_type,
+        hypothesis=hypothesis,
+        changes=changes,
+        metrics=derived["metrics"],
+        outcome=derived["outcome"],
+        notes=derived["notes"],
+    )
+    return {
+        "ok": True,
+        "metrics": derived["metrics"],
+        "outcome": derived["outcome"],
+        "experiment": rec.get("experiment"),
+        "path": rec.get("path"),
+    }
 
 
 @tool(description="Create the next safe iteration plan from local GameStudio experiment memory.")

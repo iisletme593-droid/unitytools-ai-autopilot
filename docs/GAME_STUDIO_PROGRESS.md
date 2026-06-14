@@ -144,3 +144,10 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   is normalized to a 0–1 goodness (`_metric_goodness`, fps ceiling 60, scores ceiling 10) and
   averaged per-metric before ranking ascending. Iteration focus now follows quality, not scale.
   +6 tests; live proof: fun=9/clarity=8/fps=30 → fps correctly flagged weakest. — tests: 158 passed
+- [cycle 5] Closed the build→measure→learn loop. `core/quality.metrics_from_signals` turns
+  `unity_run_visual_qa` + `unity_profile_scene_performance` output into measured metrics
+  (clarity_score, fps proxy from triangle budget, crash_count; fun/difficulty left None as not
+  measurable). New tool `gamestudio_record_scene_experiment` runs QA+profile on the live scene and
+  auto-records a kernel experiment — no more always-None hand-typed metrics. Combined with cycles
+  1/2/4, the studio now measures→records→recalls→ranks. +7 tests; live proof: recorded a "promising"
+  experiment (clarity 10, fps proxy 60) from the real editor forest scene. — tests: 165 passed
