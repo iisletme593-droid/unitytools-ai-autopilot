@@ -62,3 +62,18 @@ def resolve_color(spec) -> RGB:
     if max(r, g, b) > 1.0:  # treat as 0-255
         r, g, b = r / 255.0, g / 255.0, b / 255.0
     return (_clamp01(r), _clamp01(g), _clamp01(b))
+
+
+_THEMES = {
+    "fantasy": ["purple", "gold", "magenta", "cyan", "pink"],
+    "nature": ["green", "brown", "yellow", "#5b8c3e", "#3a7d44"],
+    "warm": ["red", "orange", "gold", "#c0392b", "#e67e22"],
+    "cool": ["blue", "cyan", "#2980b9", "#1abc9c", "purple"],
+    "mono": ["#222222", "#555555", "#888888", "#bbbbbb", "#eeeeee"],
+}
+
+
+def theme_palette(name: str = "fantasy") -> list:
+    """Curated RGB palette for a theme (fantasy/nature/warm/cool/mono; unknown -> fantasy)."""
+    names = _THEMES.get((name or "").strip().lower(), _THEMES["fantasy"])
+    return [resolve_color(n) for n in names]

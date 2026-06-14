@@ -40,3 +40,6 @@ Format: `- [cycle N] <what changed> — tests: <pass/fail> — commit <hash>`
   with object caps. 4 tests. — tests: 76 passed
 - [cycle 11] P4 robustness: `unity_save_scene` no longer always reports ok=true — it honors the
   editor's actual SaveScene result (a real "ok=true lie" from the audit). 3 tests. — tests: 79 passed
+- [cycle 12] P2 themed color: `theme_palette` (fantasy/nature/warm/cool/mono) + `unity_color_group`
+  — "color these props in a fantasy palette", cycling colors over a named group. 4 tests. —
+  tests: 83 passed

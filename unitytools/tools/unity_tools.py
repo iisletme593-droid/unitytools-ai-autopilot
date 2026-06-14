@@ -6,7 +6,7 @@ from ..core.tool_registry import tool
 from ..core.layout import compute_layout_positions, compute_structure_positions
 from ..core.lighting import compute_studio_lighting_rig
 from ..core.camera import frame_camera_pose
-from ..core.palette import resolve_color
+from ..core.palette import resolve_color, theme_palette
 
 
 _UNITY = None  # type: ignore
@@ -381,6 +381,24 @@ def unity_set_object_color(name: str, color: str = "gray") -> dict:
         return {"ok": True, "name": name, "rgb": [round(r, 3), round(g, 3), round(b, 3)]}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+@tool(description="Color a group of objects named '<prefix>_0..<prefix>_<count-1>' with a theme palette (fantasy/nature/warm/cool/mono), cycling colors. Pairs with unity_place_primitives / unity_build_structure.")
+def unity_color_group(name_prefix: str, count: int, theme: str = "fantasy") -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    count = max(0, min(int(count), 500))
+    palette = theme_palette(theme)
+    colored = 0
+    errors: list[str] = []
+    for i in range(count):
+        r, g, b = palette[i % len(palette)]
+        try:
+            _UNITY.call("set_material_color", {"name": f"{name_prefix}_{i}", "r": r, "g": g, "b": b, "a": 1.0})
+            colored += 1
+        except Exception as e:
+            errors.append(str(e))
+    return {"ok": len(errors) == 0, "theme": theme, "colored_count": colored, "errors": errors[:5]}
 
 
 @tool(description="Block out a small presentable scene in one shot: a floor, scattered props, studio lighting, and a framed camera. Gets from an empty scene to a composed one quickly.")

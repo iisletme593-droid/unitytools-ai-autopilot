@@ -45,7 +45,8 @@ incremental capability gains.
 
 ### P2 — Visual quality (toward "AAA look", pipeline-agnostic where possible)
 - [x] Color tool (cycle 9): `core/palette.py` `resolve_color` (name en+tr / hex / r,g,b) +
-  `unity_set_object_color`, 6 tests. **Follow-up:** metallic/smoothness if the bridge exposes them.
+  `unity_set_object_color`, 6 tests. Themed palettes (cycle 12): `theme_palette` +
+  `unity_color_group` (fantasy/nature/warm/cool/mono), 4 tests. **Follow-up:** metallic/smoothness.
 - [ ] Lighting rigs (key/fill/rim, ambient, fog) presets.
 - [ ] Post-process / quality-tier helpers (guarded so they no-op without URP/HDRP).
 
