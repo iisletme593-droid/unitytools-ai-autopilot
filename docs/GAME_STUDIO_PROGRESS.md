@@ -170,3 +170,10 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   commands). +5 regression-guard tests; import + 180 tests green; live editor check still green.
   Deferred: wiring `safe_contained_path` (a behavior-adding security change — import_asset takes
   external source paths, needs care). — tests: 180 passed
+- [cycle 8] Fixed dual_agent.py mojibake. The Master/Reader/Worker Turkish prompts were stored as
+  valid UTF-8 whose characters were the double-encoded mojibake (0xC4 0xB1 "Ä±" instead of 0x131
+  "ı"; 594 markers) — wasting tokens + hurting comprehension on every Master/Reader call. Reverse-
+  decoded with a mixed latin-1/cp1252 pass, restored 2 lost "ç" (in "ağaç"), and dropped the UTF-8
+  BOM that made tools misrender the file. +3 encoding-guard tests; codepoint-verified clean (Kullan
+  → 0x131). Honest note: terminal/Read-tool rendering first made it *look* already-correct — only a
+  raw codepoint check (0xc4 0xb1 vs 0x131) exposed the real corruption. — tests: 183 passed

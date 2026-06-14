@@ -84,7 +84,12 @@ incremental capability gains.
 - [ ] Anthropic loop 400-lock on unanswered tool_use blocks.
 - [x] Stop "ok=true" lies — `unity_save_scene` now honors EditorSceneManager's result instead of
   always returning ok=true (cycle 11, 3 tests). **Follow-up:** blender export + unreal import.
-- [ ] Fix dual_agent mojibake (UTF-8 prompts). (cycle 8)
+- [x] Fix dual_agent mojibake (cycle 8). The Master/Reader/Worker prompts were valid UTF-8 whose
+  *characters* were the double-encoded mojibake string ("KullanÄ±cÄ±" instead of "Kullanıcı", 594
+  markers) — wasting tokens + degrading Turkish comprehension every planning call. Reverse-decoded
+  (mixed latin-1/cp1252), restored 2 lost "ç" in "ağaç", dropped the UTF-8 BOM (which made readers
+  misrender it). `tests/test_encoding.py` guards it. (Investigation note: terminal/Read-tool
+  rendering initially made it look clean — codepoint inspection (0xc4 0xb1 vs 0x131) settled it.)
 - [x] Dead-code cleanup (cycle 7): removed orphan `simple_dual_agent.py` (+ its root test), the unused
   `TaskQueue`/`task_queue.py` export, and the stale `protocol.UNITY_METHODS` (phantom
   `run_csharp_script`). grep-verified dead, +5 regression-guard tests, 180 green. **Deferred:** wire
