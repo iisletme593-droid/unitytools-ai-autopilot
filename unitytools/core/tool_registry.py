@@ -39,6 +39,11 @@ class ToolSpec:
 
 _REGISTRY: dict[str, ToolSpec] = {}
 
+# Tracks duplicate tool-name registrations (last-import-wins silently shadows the
+# earlier one). Populated at import time; surfaced via get_collisions() so a test
+# can fail if two modules register the same @tool name.
+_COLLISIONS: dict[str, list[str]] = {}
+
 
 def tool(description: str, name: str | None = None) -> Callable:
     """Fonksiyonu LLM'e expose edilecek tool olarak kaydet."""
@@ -46,7 +51,13 @@ def tool(description: str, name: str | None = None) -> Callable:
     def decorator(fn: Callable) -> Callable:
         tool_name = name or fn.__name__
         if tool_name in _REGISTRY:
-            logger.debug("Tool '%s' yeniden tanımlandı, sonuncu kazanır.", tool_name)
+            prev_mod = getattr(_REGISTRY[tool_name].fn, "__module__", "?")
+            new_mod = getattr(fn, "__module__", "?")
+            logger.warning(
+                "Tool '%s' yeniden tanımlandı: %s onceki %s'i golgeliyor (sonuncu kazanir).",
+                tool_name, new_mod, prev_mod,
+            )
+            _COLLISIONS.setdefault(tool_name, [prev_mod]).append(new_mod)
         spec = ToolSpec(
             name=tool_name,
             description=description,
@@ -217,6 +228,16 @@ def to_openai_tool_format() -> list[dict[str, Any]]:
     ]
 
 
+def get_collisions() -> dict[str, list[str]]:
+    """Tool names registered by more than one module (name -> modules, in order).
+
+    Empty when every @tool name is unique. A non-empty result means last-import
+    silently shadows an earlier definition — see tests/test_no_tool_collisions.py.
+    """
+    return {k: list(v) for k, v in _COLLISIONS.items()}
+
+
 def clear_registry() -> None:
     """Test/yeniden yükleme için registry'i sıfırla."""
     _REGISTRY.clear()
+    _COLLISIONS.clear()

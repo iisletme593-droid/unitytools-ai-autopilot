@@ -101,7 +101,8 @@ def _normalize_category(category: str) -> str:
     return aliases.get(category, category)
 
 
-@tool(description="Run a visual and structural QA pass on the active Unity scene. Captures a SceneView screenshot when possible and reports material, lighting, camera, and performance risks.")
+# Unregistered duplicate of unity_tools.unity_run_visual_qa (canonical there). Kept
+# undecorated to end the tool-name collision while remaining callable internally.
 def unity_run_visual_qa(capture_screenshot: bool = True) -> dict:
     ok, error = _ensure_unity()
     if not ok:
@@ -117,7 +118,7 @@ def unity_run_visual_qa(capture_screenshot: bool = True) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-@tool(description="Profile the active Unity scene for editor performance: object counts, renderers, lights, shadow casters, vertices, triangles, materials, and optimization suggestions.")
+# Unregistered duplicate of unity_tools.unity_profile_scene_performance (canonical there).
 def unity_profile_scene_performance(max_objects: int = 10000) -> dict:
     ok, error = _ensure_unity()
     if not ok:
@@ -133,7 +134,9 @@ def unity_profile_scene_performance(max_objects: int = 10000) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-@tool(description="Analyze high-poly mesh groups in the active Unity scene and rank tree/rock/prop candidates for LOD or proxy decimation.")
+# Unregistered duplicate of unity_tools.unity_analyze_lod_decimation_candidates
+# (canonical there). Kept undecorated because unity_create_lod_decimation_plan below
+# calls it directly.
 def unity_analyze_lod_decimation_candidates(
     query: str = "",
     category: str = "",
@@ -240,7 +243,9 @@ def unity_create_lod_decimation_plan(
     }
 
 
-@tool(description="Apply safe scene LOD optimization: add proxy LODGroups to high-poly tree/rock objects, disable shadows, and mark static. Set replace_with_proxy=true only for aggressive visible simplification.")
+# Unregistered duplicate of unity_tools.unity_apply_lod_decimation_plan (canonical there;
+# the pre-aggressive-replace snapshot is covered by the orchestrator's destructive-tool
+# auto-snapshot hook). Kept undecorated.
 def unity_apply_lod_decimation_plan(
     query: str = "",
     category: str = "tree",
@@ -278,7 +283,8 @@ def unity_apply_lod_decimation_plan(
         return {"ok": False, "error": str(e)}
 
 
-@tool(description="Create a safe copy of the active Unity scene before risky edits. Use before deleting, clearing, large generation, or material conversions.")
+# Unregistered duplicate of unity_tools.unity_create_scene_snapshot (canonical there).
+# Kept undecorated because unity_apply_lod_decimation_plan above calls it directly.
 def unity_create_scene_snapshot(label: str = "manual") -> dict:
     ok, error = _ensure_unity()
     if not ok:
@@ -290,7 +296,7 @@ def unity_create_scene_snapshot(label: str = "manual") -> dict:
         return {"ok": False, "error": str(e)}
 
 
-@tool(description="Restore/open a previously created Unity scene snapshot from Assets/AutopilotSnapshots.")
+# Unregistered duplicate of unity_tools.unity_restore_scene_snapshot (canonical there).
 def unity_restore_scene_snapshot(snapshot_path: str) -> dict:
     ok, error = _ensure_unity()
     if not ok:

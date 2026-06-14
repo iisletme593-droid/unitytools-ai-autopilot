@@ -76,6 +76,13 @@ incremental capability gains.
 - [x] Unit tests for new tools + the P0 loop logic. (cycles 1-13 + day-1 wired tools = 122 tests)
 - [x] Game-studio tools catalog (cycle 13): `docs/GAME_STUDIO_TOOLS.md` — capability reference with
   example natural-language commands (en/tr).
+- [x] Tool-registry collision guard + de-dup (cycle 3). `tool_registry` now warns and tracks
+  duplicate @tool registrations (`get_collisions()`). The 15 day-1 tools turned out to duplicate
+  pre-existing `scene_intelligence_tools`/`autopilot_quality_tools` versions (the day-1 audit only
+  grepped `unity_tools.py`); consolidated onto the tested+live-proven `unity_tools` copies —
+  collisions **15 → 0**, guarded by `tests/test_no_tool_collisions.py`. **Follow-up:** port the
+  removed copies' richer per-call timeouts (60–240s) and `is_connected()` check onto the
+  `unity_tools` versions.
 
 ### P6 — Expose the bridge's existing power (the real gap, found on review)
 The C# bridge already implements far more than the Python tool layer exposes. Wrapping an existing

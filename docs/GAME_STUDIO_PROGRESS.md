@@ -131,3 +131,11 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   `_classify_request` and added Turkish keywords to both, so patterns actually resolve for the
   Turkish-driven autopilot (was English-only). +5 tests; live proof: Turkish "orman kur" → learned
   pattern section with best tools. — tests: 149 passed
+- [cycle 3] Tool de-dup + registry collision guard. The scan found ~15 shadowed dead tools; turned
+  out they were the day-1 wired tools duplicating PRE-EXISTING `scene_intelligence_tools` (9) and
+  `autopilot_quality_tools` (6) versions (the day-1 audit only grepped unity_tools.py — honest
+  miss). Kept the tested+live-proven `unity_tools` copies; rewrote `scene_intelligence_tools.py`
+  (deleted 9 dups, kept the unique knowledge-base export) and de-registered the 6 autopilot dups
+  (kept undecorated because `unity_create_lod_decimation_plan` calls them internally). Added a
+  collision warning + `get_collisions()` to `tool_registry`. Collisions 15→0. +3 tests; live
+  regression check against the editor still green. — tests: 152 passed

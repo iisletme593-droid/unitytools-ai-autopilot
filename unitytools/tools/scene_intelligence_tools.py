@@ -1,4 +1,14 @@
-"""High-level Unity scene understanding and bulk editing tools."""
+"""High-level Unity scene understanding and bulk editing tools.
+
+NOTE: the semantic catalog / find / delete / material-palette / repair / forest /
+optimize tools that used to live here are now the canonical ones in
+``unity_tools.py`` (tested + live-proven). They were duplicated here and silently
+shadowed by last-import-wins, so they were removed to end the collision (see
+tests/test_no_tool_collisions.py). The richer explicit per-call timeouts those
+copies carried can be ported onto the unity_tools versions in a follow-up.
+
+Only the unique ``unity_export_scene_knowledge_base`` remains here.
+"""
 from __future__ import annotations
 
 import json
@@ -17,172 +27,6 @@ def _ensure_unity() -> tuple[bool, str]:
     if not _UNITY.is_connected():
         return False, "Could not connect to the Unity Editor"
     return True, ""
-
-
-@tool(description="Build a semantic catalog of all scene GameObjects grouped by category, materials, components, and hierarchy path. Use this before editing unknown scenes.")
-def unity_get_scene_catalog(max_results: int = 2000) -> dict:
-    ok, error = _ensure_unity()
-    if not ok:
-        return {"ok": False, "error": error}
-    try:
-        result = _UNITY.call("get_scene_catalog", {"max_results": max_results}, timeout=60)
-        return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@tool(description="Find scene objects semantically by name, material, component, hierarchy, and category. Do not rely on tags for user phrases like tree, rock, ground, village, campfire.")
-def unity_find_scene_objects_semantic(query: str, category: str = "", max_results: int = 100) -> dict:
-    ok, error = _ensure_unity()
-    if not ok:
-        return {"ok": False, "error": error}
-    try:
-        result = _UNITY.call(
-            "find_scene_objects_semantic",
-            {"query": query, "category": category, "max_results": max_results},
-            timeout=60,
-        )
-        return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@tool(description="Delete scene objects semantically by category/query. Use this for 'remove all trees/rocks/campfires' instead of tag search.")
-def unity_delete_scene_objects_semantic(query: str, category: str = "", max: int = 500) -> dict:
-    ok, error = _ensure_unity()
-    if not ok:
-        return {"ok": False, "error": error}
-    try:
-        result = _UNITY.call(
-            "delete_scene_objects_semantic",
-            {"query": query, "category": category, "max": max},
-            timeout=90,
-        )
-        return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@tool(description="Apply a coherent material/color palette to scene objects. For 'paint/recolor all trees', call query='tree', category='tree', palette='forest'. Valid palettes include forest, village, dark_fantasy, ground, rocks, trees, campfire.")
-def unity_apply_material_palette(query: str = "", category: str = "", palette: str = "forest", max: int = 2000) -> dict:
-    ok, error = _ensure_unity()
-    if not ok:
-        return {"ok": False, "error": error}
-    try:
-        result = _UNITY.call(
-            "apply_material_palette",
-            {"query": query, "category": category, "palette": palette, "max": max},
-            timeout=120,
-        )
-        return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@tool(description="Diagnose pink/magenta/missing-shader material issues in the active scene, grouped by semantic query/category. Use before material repair.")
-def unity_diagnose_material_issues(query: str = "", category: str = "", max: int = 2000) -> dict:
-    ok, error = _ensure_unity()
-    if not ok:
-        return {"ok": False, "error": error}
-    try:
-        result = _UNITY.call(
-            "diagnose_material_issues",
-            {"query": query, "category": category, "max": max},
-            timeout=90,
-        )
-        return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@tool(description="Repair pink/magenta/missing-shader materials while preserving textures. Set tint=true only when user asks to recolor; include_unsupported=true to convert non-pipeline shaders.")
-def unity_repair_material_issues(
-    query: str = "",
-    category: str = "",
-    tint: bool = False,
-    palette: str = "forest",
-    include_unsupported: bool = False,
-    max: int = 2000,
-) -> dict:
-    ok, error = _ensure_unity()
-    if not ok:
-        return {"ok": False, "error": error}
-    try:
-        result = _UNITY.call(
-            "repair_material_issues",
-            {
-                "query": query,
-                "category": category,
-                "tint": tint,
-                "palette": palette,
-                "include_unsupported": include_unsupported,
-                "max": max,
-            },
-            timeout=180,
-        )
-        return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@tool(description="Repair texture import settings for shifted/broken-looking textures: normal maps, sRGB/linear flags, mipmaps, compression, and max texture size.")
-def unity_repair_texture_import_settings(query: str = "t:Texture2D", max: int = 500) -> dict:
-    ok, error = _ensure_unity()
-    if not ok:
-        return {"ok": False, "error": error}
-    try:
-        result = _UNITY.call(
-            "repair_texture_import_settings",
-            {"query": query, "max": max},
-            timeout=240,
-        )
-        return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@tool(description="Create a complete optimized forest scene in one Unity call: terrain, 80-120 mixed pine/dead trees, rocks, fog, light, camera, names, and materials. Prefer this for large forest prompts to avoid timeouts.")
-def unity_create_optimized_forest_scene(
-    tree_count: int = 100,
-    rock_count: int = 18,
-    terrain_size: float = 120.0,
-    clear_scene: bool = True,
-    seed: int = 12345,
-) -> dict:
-    ok, error = _ensure_unity()
-    if not ok:
-        return {"ok": False, "error": error}
-    try:
-        result = _UNITY.call(
-            "create_optimized_forest_scene",
-            {
-                "tree_count": tree_count,
-                "rock_count": rock_count,
-                "terrain_size": terrain_size,
-                "clear_scene": clear_scene,
-                "seed": seed,
-            },
-            timeout=180,
-        )
-        return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@tool(description="Lower Unity editor/rendering cost for heavy scenes: disables expensive shadows, lowers LOD bias and anti-aliasing. Use when Unity is lagging.")
-def unity_optimize_editor_performance(shadow_distance: float = 25.0, lod_bias: float = 0.55) -> dict:
-    ok, error = _ensure_unity()
-    if not ok:
-        return {"ok": False, "error": error}
-    try:
-        result = _UNITY.call(
-            "optimize_editor_performance",
-            {"shadow_distance": shadow_distance, "lod_bias": lod_bias},
-            timeout=60,
-        )
-        return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
 
 
 @tool(description="Export a deep scene knowledge file listing object names, categories, materials, components, and hierarchy paths so future searches understand the scene.")
