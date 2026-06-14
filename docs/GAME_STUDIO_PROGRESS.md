@@ -226,3 +226,8 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   was given "physics" and now carries Rigidbody + Collider — a static prop became a physics-driven
   game object in the real editor.** Follow-up: idempotent collider (primitives already have one);
   C# add_script_behaviour for scripted movement. — tests: 223 passed
+- [cycle 16] Idempotent collider. `core/gameplay.prune_redundant_steps` + `unity_add_gameplay_behaviour`
+  now read the object's components (get_object_details) and skip the add-collider step when one is
+  already present, so re-applying "physics" no longer stacks colliders (Cube primitives ship one).
+  +6 tests; live proof: re-applying physics to the cycle-15 test cube skipped add_collider. (C#
+  add_script_behaviour for scripted movement deferred to its own cycle — compile risk.) — tests: 227 passed

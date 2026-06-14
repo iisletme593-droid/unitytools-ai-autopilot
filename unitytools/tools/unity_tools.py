@@ -9,7 +9,7 @@ from ..core.camera import frame_camera_pose
 from ..core.palette import resolve_color, theme_palette
 from ..core.quality import assess_qa
 from ..core.security import safe_contained_path
-from ..core.gameplay import plan_gameplay_behaviour
+from ..core.gameplay import plan_gameplay_behaviour, prune_redundant_steps
 
 
 _UNITY = None  # type: ignore
@@ -1072,8 +1072,18 @@ def unity_add_gameplay_behaviour(object_name: str, behaviour: str = "physics") -
     plan = plan_gameplay_behaviour(behaviour, object_name)
     if not plan.get("ok"):
         return plan
+
+    # Idempotency: skip adding a collider if the object already has one.
+    existing: list = []
+    details_fn = globals().get("unity_get_object_details")
+    if callable(details_fn):
+        det = details_fn(object_name)
+        if isinstance(det, dict):
+            existing = det.get("components", []) or []
+    steps, skipped = prune_redundant_steps(plan["steps"], existing)
+
     applied: list[dict] = []
-    for step in plan["steps"]:
+    for step in steps:
         fn = globals().get(step["tool"])
         if not callable(fn):
             applied.append({"tool": step["tool"], "ok": False, "error": "tool unavailable"})
@@ -1084,6 +1094,9 @@ def unity_add_gameplay_behaviour(object_name: str, behaviour: str = "physics") -
             "ok": bool(isinstance(res, dict) and res.get("ok", True)),
             "error": res.get("error") if isinstance(res, dict) else None,
         })
+    for step in skipped:
+        applied.append({"tool": step["tool"], "ok": True, "skipped": True, "reason": step.get("reason")})
+
     return {
         "ok": all(a["ok"] for a in applied),
         "object": object_name,

@@ -156,7 +156,9 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   physics-driven object). Script-only behaviours flagged `needs_script`.
 - [ ] C# `add_script_behaviour`: a minimal bridge command that writes/attaches a small MonoBehaviour
   (rotator/mover/patrol/follow) so scripted gameplay works — the next unlock.
-- [ ] Make `unity_add_collider` / the catalog idempotent (Cube primitives already ship a collider).
+- [x] Idempotent collider (cycle 16): `prune_redundant_steps` + `unity_add_gameplay_behaviour` now
+  query the object's components and skip adding a collider when one already exists (Cube/Sphere
+  primitives ship one). Live-proven (re-applying physics skips the collider). 6 tests.
 - [ ] Player controller / input primitive (move + jump) and win/lose trigger zones.
 - [ ] Spawners / waves (compose with the arena-survivor ideas already on the Unreal side).
 

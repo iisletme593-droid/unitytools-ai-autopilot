@@ -93,3 +93,27 @@ def plan_gameplay_behaviour(behaviour: str, object_name: str) -> dict[str, Any]:
         }
     plan = [{"tool": tool, "kwargs": {"name": object_name, **kw}} for tool, kw in steps]
     return {"ok": True, "behaviour": b, "steps": plan}
+
+
+def _is_collider(component_name: Any) -> bool:
+    return str(component_name).endswith("Collider")
+
+
+def prune_redundant_steps(
+    steps: list[dict[str, Any]], existing_components: list[str] | None
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Drop steps that would duplicate what the object already has.
+
+    Currently: skip an ``unity_add_collider`` step when the object already carries
+    a collider (Cube/Sphere primitives ship one), so the behaviour is idempotent.
+    Returns (kept_steps, skipped_steps).
+    """
+    has_collider = any(_is_collider(c) for c in (existing_components or []))
+    kept: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for step in steps:
+        if step.get("tool") == "unity_add_collider" and has_collider:
+            skipped.append({**step, "reason": "object already has a collider"})
+        else:
+            kept.append(step)
+    return kept, skipped

@@ -8,6 +8,7 @@ import unitytools.tools.unity_tools as ut
 from unitytools.core.gameplay import (
     plan_gameplay_behaviour,
     normalize_behaviour,
+    prune_redundant_steps,
     GAMEPLAY_BEHAVIOURS,
     NEEDS_SCRIPT,
 )
@@ -71,7 +72,56 @@ def test_tool_static_obstacle_only_collider(monkeypatch):
     fb = _FakeBridge()
     monkeypatch.setattr(ut, "_UNITY", fb)
     ut.unity_add_gameplay_behaviour("Wall", "static_obstacle")
-    assert [m for (m, _p) in fb.calls] == ["add_collider"]
+    methods = [m for (m, _p) in fb.calls]
+    assert "add_collider" in methods
+    assert "set_rigidbody" not in methods
+
+
+# --- idempotent collider ---------------------------------------------------
+
+class _CompBridge:
+    """Fake bridge reporting a fixed component list for get_object_details."""
+
+    def __init__(self, components):
+        self.components = components
+        self.calls = []
+
+    def call(self, method, params, timeout=None):
+        self.calls.append((method, params))
+        if method == "get_object_details":
+            return {"components": list(self.components)}
+        return {"ok": True}
+
+
+def test_prune_drops_collider_when_object_has_one():
+    steps = [{"tool": "unity_set_rigidbody", "kwargs": {}}, {"tool": "unity_add_collider", "kwargs": {}}]
+    kept, skipped = prune_redundant_steps(steps, ["Transform", "BoxCollider"])
+    assert [s["tool"] for s in kept] == ["unity_set_rigidbody"]
+    assert len(skipped) == 1
+
+
+def test_prune_keeps_collider_when_absent():
+    steps = [{"tool": "unity_add_collider", "kwargs": {}}]
+    kept, skipped = prune_redundant_steps(steps, ["Transform", "MeshRenderer"])
+    assert len(kept) == 1 and skipped == []
+
+
+def test_tool_skips_collider_when_present(monkeypatch):
+    fb = _CompBridge(["Transform", "BoxCollider", "MeshRenderer"])
+    monkeypatch.setattr(ut, "_UNITY", fb)
+    r = ut.unity_add_gameplay_behaviour("Cube", "physics")
+    methods = [m for (m, _p) in fb.calls]
+    assert "set_rigidbody" in methods
+    assert "add_collider" not in methods          # idempotent: already has a collider
+    assert any(a.get("skipped") for a in r["applied"])
+    assert r["ok"] is True
+
+
+def test_tool_adds_collider_when_absent(monkeypatch):
+    fb = _CompBridge(["Transform", "MeshRenderer"])
+    monkeypatch.setattr(ut, "_UNITY", fb)
+    ut.unity_add_gameplay_behaviour("Empty", "physics")
+    assert "add_collider" in [m for (m, _p) in fb.calls]
 
 
 def test_tool_needs_script_does_not_touch_bridge(monkeypatch):
