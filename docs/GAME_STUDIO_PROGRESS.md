@@ -239,3 +239,13 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   tests; live proof: a valid AutopilotRotator script generated (speed 120, balanced braces, correct
   Unity API). Default generate-only path triggers no Unity recompile (safe unattended). Cycle 18:
   end-to-end live import→recompile→add_component orchestration. — tests: 235 passed
+- [cycle 18] Scripted-behaviour end-to-end flow. `unity_apply_script_behaviour` chains generate →
+  import (auto_import) → `wait_until_compiled` (bounded poll of get_editor_state until is_compiling is
+  False) → `unity_add_component`. The recompile-wait is a pure injectable helper (`core/gameplay`),
+  fully unit-tested (compiles-after-N polls, timeout, get_state error tolerance); the tool's
+  import→wait→attach ordering is verified with a fake bridge. +6 tests. Live: the poll source
+  (get_editor_state) was confirmed readable live, but the actual recompile-triggering run was NOT
+  done unattended — importing a .cs reloads the Unity domain and briefly drops the bridge, which
+  could disrupt later autonomous cycles; it should be run with the editor in focus. (Discovered + fixed
+  a test-fake bug: get_editor_state is called with no params, so fakes need params=None like the real
+  bridge.) — tests: 241 passed

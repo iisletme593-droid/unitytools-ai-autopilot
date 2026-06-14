@@ -190,6 +190,25 @@ def generate_behaviour_script(
     }
 
 
+def wait_until_compiled(get_state, sleep, max_attempts: int = 15, interval: float = 2.0) -> bool:
+    """Poll ``get_state()`` until the editor reports is_compiling == False.
+
+    Used by the end-to-end scripted-behaviour flow: after a script is imported,
+    Unity recompiles asynchronously, so we must wait before attaching the new
+    component. ``sleep(interval)`` is injected for testability. Returns True if
+    compilation finished within ``max_attempts`` polls, else False (timed out).
+    """
+    for _ in range(max(1, int(max_attempts))):
+        try:
+            state = get_state()
+        except Exception:
+            state = None
+        if isinstance(state, dict) and state.get("is_compiling") is False:
+            return True
+        sleep(interval)
+    return False
+
+
 def _is_collider(component_name: Any) -> bool:
     return str(component_name).endswith("Collider")
 

@@ -9,7 +9,7 @@ from ..core.camera import frame_camera_pose
 from ..core.palette import resolve_color, theme_palette
 from ..core.quality import assess_qa
 from ..core.security import safe_contained_path
-from ..core.gameplay import plan_gameplay_behaviour, prune_redundant_steps, generate_behaviour_script
+from ..core.gameplay import plan_gameplay_behaviour, prune_redundant_steps, generate_behaviour_script, wait_until_compiled
 
 
 _UNITY = None  # type: ignore
@@ -1140,3 +1140,37 @@ def unity_add_script_behaviour(object_name: str, behaviour: str = "rotate", spee
     except Exception as e:
         out["error"] = str(e)
     return out
+
+
+@tool(description="End-to-end SCRIPTED gameplay: generate a MonoBehaviour (rotate/spin/move), import it (triggers a Unity recompile), wait for compilation to finish, then attach it to the object so it actually runs. NOTE: importing a script reloads the Unity domain — best run with the editor in focus; the bridge briefly reconnects.")
+def unity_apply_script_behaviour(object_name: str, behaviour: str = "rotate", speed: float = 0.0, max_compile_wait: float = 30.0) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    imp = unity_add_script_behaviour(object_name, behaviour, speed=speed, auto_import=True)
+    if not imp.get("ok"):
+        return {"ok": False, "stage": "generate", **imp}
+    if not imp.get("imported"):
+        return {"ok": False, "stage": "import", **imp}
+    class_name = imp["class_name"]
+
+    import time
+    state_fn = globals().get("unity_get_editor_state")
+    attempts = max(1, int(float(max_compile_wait) / 2.0))
+    compiled = wait_until_compiled(
+        get_state=(state_fn if callable(state_fn) else (lambda: {})),
+        sleep=time.sleep,
+        max_attempts=attempts,
+        interval=2.0,
+    )
+
+    add_fn = globals().get("unity_add_component")
+    add_res = add_fn(object_name, class_name) if callable(add_fn) else {"ok": False, "error": "add tool unavailable"}
+    return {
+        "ok": bool(isinstance(add_res, dict) and add_res.get("ok")),
+        "object": object_name,
+        "behaviour": imp["behaviour"],
+        "class_name": class_name,
+        "imported": True,
+        "compiled_in_time": compiled,
+        "add_component": add_res,
+    }
