@@ -24,3 +24,6 @@ Format: `- [cycle N] <what changed> — tests: <pass/fail> — commit <hash>`
   tests: 51 passed
 - [cycle 5] P1 structure tool: `unity_build_structure` — "build a wall/tower/stairs/room/floor"
   via the bridge using cycle-4 math, 500-block safety cap. 3 tests. — tests: 54 passed
+- [cycle 6] P1 lighting math: `core/lighting.py` `compute_studio_lighting_rig` (3-point
+  key/fill/rim) — toward presentable scenes. 4 tests. Next: `unity_setup_studio_lighting` tool. —
+  tests: 58 passed
