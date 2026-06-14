@@ -107,3 +107,21 @@ prompt *instructed* the LLM to call `unity_apply_material_palette` and
   40 trees + rocks, editor quality auto-lowered for the GPU-less machine), then QA passed (145 objs,
   101 renderers, 0 broken materials). The wired tools + quality loop + snapshot all work on the real
   editor. (Auto-fix branch stays test-only — both live scenes were already clean.)
+
+---
+
+## — AUTONOMOUS STUDIO LOOP (post full-scan, ~25 min cadence) —
+
+An 8-agent `game-studio-full-scan` mapped every subsystem against the "fully autonomous,
+self-learning game studio" goal. Top cross-cutting findings: (1) cross-session learning was BROKEN
+(write-only memory), (2) learned patterns are computed but never used in planning, (3) ~15 tools are
+shadowed dead duplicates, (4) `_infer_weak_points` misranks (unnormalized), (5) experiments aren't
+auto-recorded, (6) the studio loop is Unreal-only, (7) dead code (TaskQueue, simple_dual_agent,
+phantom `protocol.UNITY_METHODS`/`run_csharp_script`, unwired `safe_contained_path`). Plan: one
+focused, tested, live-proven, deployed improvement per ~25-min cycle.
+
+- [cycle 1] P3 cross-session learning FIXED: `MemorySystem._load_long_term` loads
+  `long_term_memory.jsonl` at init (recent-500 cap, malformed-line tolerant); `recall_similar`/
+  `get_lessons` now search prior sessions (deduped session+disk). Was write-only → "learns across
+  sessions" now works. +6 tests; live proof: write → fresh instance (restart) → recalled the prior
+  request. — tests: 144 passed

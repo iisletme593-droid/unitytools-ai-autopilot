@@ -51,8 +51,12 @@ incremental capability gains.
 - [ ] Post-process / quality-tier helpers (guarded so they no-op without URP/HDRP).
 
 ### P3 — Learning & memory (toward "learning / focus")
-- [ ] Make long-term memory actually READ BACK (cross-session learning is currently write-only).
-- [ ] Feed recalled patterns/lessons into planning prompts.
+- [x] Make long-term memory actually READ BACK (cycle 1, post-scan). `MemorySystem._load_long_term`
+  loads `long_term_memory.jsonl` at init (capped to the most recent 500); `recall_similar`/
+  `get_lessons` now search prior sessions too. Was write-only before → the core "learns across
+  sessions" goal now functions. 6 tests + live write→restart→recall proof.
+- [ ] Feed recalled patterns/lessons into planning prompts (cycle 2 — `get_pattern`/`best_approach`
+  are computed and persisted but never injected into the master prompt).
 - [~] Game-studio kernel: tighten the evolution loop (metrics → weak points → next plan).
   First concrete loop landed (day 1): `unity_quality_pass` runs an in-scene metrics→weak-points→fix
   cycle via `core/quality.assess_qa`. Still open: persist verdicts across sessions and feed them

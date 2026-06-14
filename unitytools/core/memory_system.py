@@ -53,17 +53,22 @@ class MemorySystem:
         
         # Short-term memory (current session)
         self.session_memories: list[MemoryEntry] = []
-        
+
         # Long-term memory (persistent)
         self.long_term_file = self.storage_path / "long_term_memory.jsonl"
-        
+        # Long-term entries loaded from disk (prior sessions). Capped to the most
+        # recent N because the file is append-only and can grow unbounded.
+        self.long_term_memories: list[MemoryEntry] = []
+        self.max_long_term_recall = 500
+
         # Patterns (learned from experience)
         self.patterns: dict[str, Pattern] = {}
         self.patterns_file = self.storage_path / "patterns.json"
-        
-        # Load existing data
+
+        # Load existing data (patterns + prior-session memories -> cross-session recall)
         self._load_patterns()
-        
+        self._load_long_term()
+
         logger.info(f"MemorySystem initialized: {self.storage_path}")
     
     def remember(self, entry: MemoryEntry) -> None:
@@ -80,18 +85,27 @@ class MemorySystem:
         logger.debug(f"Remembered: {entry.request[:50]}... (success={entry.success})")
     
     def recall_similar(self, request: str, limit: int = 5) -> list[MemoryEntry]:
-        """Recall similar past experiences."""
-        # Simple keyword-based similarity for now
+        """Recall similar past experiences from THIS session and PRIOR sessions.
+
+        Searches both the in-process session memories (freshest) and the
+        long-term memories loaded from disk at init, so learning persists across
+        restarts. Entries present in both are de-duplicated by (timestamp, request).
+        """
         keywords = set(request.lower().split())
-        
-        similar = []
-        for entry in self.session_memories:
+
+        seen: set[tuple[float, str]] = set()
+        similar: list[tuple[int, MemoryEntry]] = []
+        for entry in [*self.session_memories, *self.long_term_memories]:
+            key = (entry.timestamp, entry.request)
+            if key in seen:
+                continue
+            seen.add(key)
             entry_keywords = set(entry.request.lower().split())
             overlap = len(keywords & entry_keywords)
             if overlap > 0:
                 similar.append((overlap, entry))
-        
-        # Sort by similarity
+
+        # Sort by similarity (stable: session entries already come first on ties)
         similar.sort(key=lambda x: x[0], reverse=True)
         return [entry for _, entry in similar[:limit]]
     
@@ -261,6 +275,47 @@ class MemorySystem:
             logger.info(f"Loaded {len(self.patterns)} patterns from disk")
         except Exception as e:
             logger.warning(f"Failed to load patterns: {e}")
+
+    def _load_long_term(self) -> None:
+        """Load persisted long-term memories so recall works ACROSS sessions.
+
+        Reads the JSONL written by _append_to_long_term and keeps the most recent
+        `max_long_term_recall` entries. Malformed lines are skipped. Without this,
+        long_term_memory.jsonl was write-only and cross-session learning never
+        actually recalled anything (the central 'learns across sessions' goal).
+        """
+        if not self.long_term_file.exists():
+            return
+        try:
+            with open(self.long_term_file, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        except Exception as e:
+            logger.warning(f"Failed to read long-term memory: {e}")
+            return
+
+        loaded: list[MemoryEntry] = []
+        for line in lines[-self.max_long_term_recall:]:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+                loaded.append(MemoryEntry(
+                    timestamp=float(d.get("timestamp", 0.0)),
+                    request=str(d.get("request", "")),
+                    plan=d.get("plan") or {},
+                    execution=d.get("execution") or {},
+                    success=bool(d.get("success", False)),
+                    duration=float(d.get("duration", 0.0)),
+                    tools_used=list(d.get("tools_used") or []),
+                    errors=list(d.get("errors") or []),
+                    lessons=list(d.get("lessons") or []),
+                ))
+            except Exception:
+                continue  # skip malformed lines, don't fail recall
+
+        self.long_term_memories = loaded
+        logger.info(f"Loaded {len(loaded)} long-term memories from disk (cross-session recall)")
     
     def get_statistics(self) -> dict[str, Any]:
         """Get memory statistics."""
