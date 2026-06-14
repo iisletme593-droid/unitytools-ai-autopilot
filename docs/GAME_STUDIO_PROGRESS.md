@@ -45,3 +45,21 @@ Format: `- [cycle N] <what changed> — tests: <pass/fail> — commit <hash>`
   tests: 83 passed
 - [cycle 13] P5 docs: `docs/GAME_STUDIO_TOOLS.md` — a catalog of the night's new autopilot tools
   with example en/tr commands (morning-review reference). docs-only. — tests: 83 passed
+
+---
+
+## — NIGHT COMPLETE (morning wrap-up) —
+
+13 verified cycles landed on `autonomous/game-studio` (14 commits ahead of `main`), 83/83 tests
+green, nothing left uncommitted. The autopilot grew from "creates one object at a time" into a
+small game-studio toolkit: **placement** (`unity_place_primitives`), **blockout building**
+(`unity_build_structure`), **3-point lighting** (`unity_setup_studio_lighting`), **camera framing**
+(`unity_frame_camera`), **one-shot scene composition** (`unity_blockout_scene`), and **color/theme**
+(`unity_set_object_color`, `unity_color_group`) — all natural-language (en/tr), all bridge-driven,
+all backed by GPU-free, unit-tested math. Two reliability fixes from the original audit also landed:
+the **repeated-tool-call guard** (no more "10 spheres for one request") and **honest `save_scene`**
+(no more `ok=true` lies).
+
+**Morning options:** review this log + the branch → if good, one PR merges the night's work into
+`main`. Remaining backlog (P0 intent parsing, P3 memory read-back, P4 RPC/Anthropic robustness)
+is in `GAME_STUDIO_ROADMAP.md` for the next run. Restart anytime with `/loop`.
