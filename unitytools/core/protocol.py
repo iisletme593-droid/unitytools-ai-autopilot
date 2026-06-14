@@ -38,18 +38,7 @@ class RpcResponse(BaseModel):
         return self.error is None
 
 
-# Editor tarafının desteklediği method isimleri (sadece referans)
-UNITY_METHODS = {
-    "ping",
-    "get_project_info",
-    "list_scene_objects",
-    "create_primitive",          # cube/sphere/...
-    "set_transform",
-    "set_material_color",
-    "import_asset",              # FBX vs.'i Assets/'a kopyala + AssetDatabase.Refresh
-    "instantiate_prefab",
-    "save_scene",
-    "open_scene",
-    "execute_menu_item",         # "GameObject/3D Object/Cube" gibi
-    "run_csharp_script",         # uzun vade için: Editor'de C# kod parçası çalıştır
-}
+# NOTE: a stale UNITY_METHODS reference set used to live here. It was unused, listed
+# a phantom "run_csharp_script" the editor never implements, and omitted ~40 real
+# commands — so it could only mislead. The authoritative command list is the C#
+# dispatch switch in unity_plugin/Editor/Bridge/CommandHandlers.cs.

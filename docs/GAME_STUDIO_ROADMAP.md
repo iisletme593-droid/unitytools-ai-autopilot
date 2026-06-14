@@ -84,7 +84,12 @@ incremental capability gains.
 - [ ] Anthropic loop 400-lock on unanswered tool_use blocks.
 - [x] Stop "ok=true" lies — `unity_save_scene` now honors EditorSceneManager's result instead of
   always returning ok=true (cycle 11, 3 tests). **Follow-up:** blender export + unreal import.
-- [ ] Fix dual_agent mojibake (UTF-8 prompts).
+- [ ] Fix dual_agent mojibake (UTF-8 prompts). (cycle 8)
+- [x] Dead-code cleanup (cycle 7): removed orphan `simple_dual_agent.py` (+ its root test), the unused
+  `TaskQueue`/`task_queue.py` export, and the stale `protocol.UNITY_METHODS` (phantom
+  `run_csharp_script`). grep-verified dead, +5 regression-guard tests, 180 green. **Deferred:** wire
+  `safe_contained_path` into file-path params (behavior-adding security; import_asset uses external
+  source paths so needs care).
 
 ### P5 — Tests & docs
 - [x] Unit tests for new tools + the P0 loop logic. (cycles 1-13 + day-1 wired tools = 122 tests)

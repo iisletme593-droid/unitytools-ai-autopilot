@@ -162,3 +162,11 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   (NOTE: the ~25-min auto-wakeup loop stalled ~6.5h between cycle 5 and 6 because ScheduleWakeup is
   session-local and pauses when the machine sleeps; work is committed each cycle so nothing was lost,
   resumed on the next message.)
+- [cycle 7] Dead-code cleanup (grep-verified unused, then test-confirmed). Removed: `simple_dual_agent.py`
+  (orphan, no importers) + its broken root orphan test `test_simple_dual.py`; the `TaskQueue`/`Task`/
+  `TaskStatus` export from `core/__init__.py` and the unused `core/task_queue.py` (the live "task
+  queue" is a separate JSON-file tool in autopilot_quality_tools); and the stale
+  `protocol.UNITY_METHODS` set (unused, advertised a phantom `run_csharp_script`, omitted ~40 real
+  commands). +5 regression-guard tests; import + 180 tests green; live editor check still green.
+  Deferred: wiring `safe_contained_path` (a behavior-adding security change — import_asset takes
+  external source paths, needs care). — tests: 180 passed
