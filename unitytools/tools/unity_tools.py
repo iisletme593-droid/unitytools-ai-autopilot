@@ -6,6 +6,7 @@ from ..core.tool_registry import tool
 from ..core.layout import compute_layout_positions, compute_structure_positions
 from ..core.lighting import compute_studio_lighting_rig
 from ..core.camera import frame_camera_pose
+from ..core.palette import resolve_color
 
 
 _UNITY = None  # type: ignore
@@ -360,6 +361,18 @@ def unity_set_material_color(name: str, r: float = 1.0, g: float = 1.0, b: float
             {"name": name, "r": r, "g": g, "b": b, "a": a},
         )
         return {"ok": True, **(result if isinstance(result, dict) else {})}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Set a GameObject's material color by a color NAME (red/kirmizi/blue/mavi/gold/...), hex (#RRGGBB), or 'r,g,b'. Friendlier than raw RGB numbers.")
+def unity_set_object_color(name: str, color: str = "gray") -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    r, g, b = resolve_color(color)
+    try:
+        _UNITY.call("set_material_color", {"name": name, "r": r, "g": g, "b": b, "a": 1.0})
+        return {"ok": True, "name": name, "rgb": [round(r, 3), round(g, 3), round(b, 3)]}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 

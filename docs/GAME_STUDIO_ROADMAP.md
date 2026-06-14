@@ -41,7 +41,8 @@ incremental capability gains.
   complete: place + build + light + frame.**
 
 ### P2 — Visual quality (toward "AAA look", pipeline-agnostic where possible)
-- [ ] Material setup tools (PBR-ish: base color, metallic, smoothness) via the bridge.
+- [x] Color tool (cycle 9): `core/palette.py` `resolve_color` (name en+tr / hex / r,g,b) +
+  `unity_set_object_color`, 6 tests. **Follow-up:** metallic/smoothness if the bridge exposes them.
 - [ ] Lighting rigs (key/fill/rim, ambient, fog) presets.
 - [ ] Post-process / quality-tier helpers (guarded so they no-op without URP/HDRP).
 

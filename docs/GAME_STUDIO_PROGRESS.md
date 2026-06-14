@@ -32,3 +32,6 @@ Format: `- [cycle N] <what changed> — tests: <pass/fail> — commit <hash>`
 - [cycle 8] P1 camera framing: `core/camera.py` `frame_camera_pose` + `unity_frame_camera` tool —
   orbit/frame a target for a presentable shot. Completes the P1 "presentable scene" set
   (place + build + light + frame). 6 tests. — tests: 66 passed
+- [cycle 9] P2 color: `core/palette.py` `resolve_color` (name en+tr / hex / r,g,b) +
+  `unity_set_object_color` — "make the cube red/kirmizi" instead of raw RGB. 6 tests. —
+  tests: 72 passed
