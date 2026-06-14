@@ -22,3 +22,5 @@ Format: `- [cycle N] <what changed> — tests: <pass/fail> — commit <hash>`
 - [cycle 4] P1 structure math: `compute_structure_positions` (wall/tower/stairs/room/floor) —
   block-out building blocks for level design. 6 tests. Next: `unity_build_structure` tool. —
   tests: 51 passed
+- [cycle 5] P1 structure tool: `unity_build_structure` — "build a wall/tower/stairs/room/floor"
+  via the bridge using cycle-4 math, 500-block safety cap. 3 tests. — tests: 54 passed

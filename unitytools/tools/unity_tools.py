@@ -3,7 +3,7 @@ from __future__ import annotations
 
 
 from ..core.tool_registry import tool
-from ..core.layout import compute_layout_positions
+from ..core.layout import compute_layout_positions, compute_structure_positions
 
 
 _UNITY = None  # type: ignore
@@ -126,6 +126,52 @@ def unity_place_primitives(
         "created_count": len(created),
         "requested_count": count,
         "pattern": pattern,
+        "errors": errors[:5],
+    }
+
+
+@tool(description="Build a simple structure from primitives to block out a level: kind=wall/tower/stairs/room/floor. Dimensions (width/height/depth) are in blocks. prim_type is Cube/Sphere/etc.")
+def unity_build_structure(
+    kind: str = "wall",
+    width: int = 5,
+    height: int = 3,
+    depth: int = 1,
+    spacing: float = 1.0,
+    prim_type: str = "Cube",
+    origin_x: float = 0.0,
+    origin_y: float = 0.0,
+    origin_z: float = 0.0,
+    name_prefix: str = "",
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    positions = compute_structure_positions(
+        kind,
+        width=width,
+        height=height,
+        depth=depth,
+        spacing=spacing,
+        origin=(origin_x, origin_y, origin_z),
+    )
+    if len(positions) > 500:  # guvenlik tavani: asiri nesne olusturmayi engelle
+        positions = positions[:500]
+    prefix = name_prefix or f"{kind}_{prim_type}"
+    created: list[str] = []
+    errors: list[str] = []
+    for i, (x, y, z) in enumerate(positions):
+        try:
+            _UNITY.call(
+                "create_primitive",
+                {"type": prim_type, "name": f"{prefix}_{i}", "position": {"x": x, "y": y, "z": z}},
+            )
+            created.append(f"{prefix}_{i}")
+        except Exception as e:
+            errors.append(str(e))
+    return {
+        "ok": len(errors) == 0,
+        "kind": kind,
+        "created_count": len(created),
+        "requested_count": len(positions),
         "errors": errors[:5],
     }
 
