@@ -184,3 +184,11 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   time out. Updated 3 test fakes' `call()` to accept `timeout=`. (is_connected port skipped —
   `UnityBridge.call` already raises when disconnected.) 183 tests green; live editor check green
   (timeout'd snapshot/QA/catalog calls succeeded). — tests: 183 passed
+- [cycle 10] LLM-free Unity fast-action executor. `run_unity_fast_action` (game_studio_actions) takes
+  a prompt → plan_unity_fast_action → runs each step against resolver-provided tools with event
+  streaming; returns None when there's no plan (caller falls through to the LLM). Wired into
+  chat_server as `_try_local_unity_action` (engine_context=="unity"), resolving tools from the @tool
+  registry (no hand-maintained tool_map like the Unreal path → drift-free). Deterministic logic lives
+  in a separately-testable function. +5 tests; live proof: Turkish "sahneyi listele" planned +
+  executed unity_get_scene_catalog against the real editor (145 objects), streaming
+  thinking→tool_call→tool_result, no LLM. — tests: 188 passed

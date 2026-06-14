@@ -331,6 +331,63 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     }
 
 
+def run_unity_fast_action(text, tool_resolver, emit=None):
+    """Execute a deterministic Unity fast-action plan against the live tools.
+
+    The LLM-free counterpart of chat_server's Unreal fast-path. ``tool_resolver``
+    maps a tool name to a callable (or None if not registered) — passing the
+    registry keeps this drift-free (no hand-maintained tool_map). ``emit`` is an
+    optional callback for streaming events ({"type": "tool_call"/"tool_result"}).
+
+    Returns None when the prompt has no fast-action plan (caller should fall
+    through to the LLM); otherwise a summary dict with each executed step.
+    """
+    plan = plan_unity_fast_action(text)
+    steps = plan.get("steps", []) if isinstance(plan, dict) else []
+    if not steps:
+        return None
+
+    def _emit(ev):
+        if emit:
+            try:
+                emit(ev)
+            except Exception:
+                pass
+
+    _emit({"type": "thinking"})
+    executed: list[dict[str, Any]] = []
+    for step in steps:
+        name = str(step.get("tool", ""))
+        kwargs = step.get("kwargs", {})
+        if not isinstance(kwargs, dict):
+            kwargs = {}
+        fn = tool_resolver(name)
+        if fn is None:
+            executed.append({"tool": name, "ok": False, "skipped": True, "error": "tool not registered"})
+            continue
+        _emit({"type": "tool_call", "tool": name, "input": {"mode": "local_unity_fast_path", **kwargs}})
+        try:
+            result = fn(**kwargs)
+        except Exception as exc:
+            result = {"ok": False, "error": str(exc)}
+        ok = bool(result.get("ok", False)) if isinstance(result, dict) else True
+        _emit({"type": "tool_result", "tool": name, "ok": ok,
+               "error": result.get("error") if isinstance(result, dict) else None})
+        executed.append({"tool": name, "ok": ok, "result": result})
+
+    ran = [e for e in executed if not e.get("skipped")]
+    ok_count = sum(1 for e in ran if e.get("ok"))
+    return {
+        "ok": bool(ran) and ok_count == len(ran),
+        "engine": "unity",
+        "executed": executed,
+        "ran_count": len(ran),
+        "ok_count": ok_count,
+        "safety_notes": plan.get("safety_notes", []),
+        "summary": f"Unity fast-action: {ok_count}/{len(ran)} step(s) ok",
+    }
+
+
 def preflight_prompt(text: str, engine: str = "unreal") -> dict[str, Any]:
     """Classify a prompt before an agent chooses tools.
 

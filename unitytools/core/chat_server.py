@@ -243,6 +243,40 @@ def _try_local_unreal_action(text: str, send: Callable[[dict], None]) -> bool:
     return True
 
 
+def _try_local_unity_action(text: str, send: Callable[[dict], None]) -> bool:
+    """Run common Unity actions deterministically (LLM-free), mirroring the Unreal
+    fast-path. Tools are resolved from the @tool registry (no hand-maintained map),
+    so it stays in sync as tools change. Returns False if the prompt has no plan.
+    """
+    try:
+        from .game_studio_actions import run_unity_fast_action
+        from .tool_registry import get_tool
+    except Exception:
+        return False
+
+    def resolver(name: str):
+        spec = get_tool(name)
+        return spec.fn if spec is not None else None
+
+    outcome = run_unity_fast_action(text, resolver, emit=send)
+    if outcome is None:
+        return False
+
+    lines = []
+    for step in outcome.get("executed", []):
+        if step.get("skipped"):
+            lines.append(f"- {step['tool']}: atlandi (kayitli degil)")
+        else:
+            lines.append(f"- {step['tool']}: ok={step.get('ok')}")
+    reply = "Unity hizli-aksiyon modu calisti; sadece yazi basmadim, sahneye tool uyguladim.\n\n"
+    reply += "\n".join(lines)
+    if outcome.get("safety_notes"):
+        reply += "\n\nGuvenlik: " + "; ".join(str(n) for n in outcome["safety_notes"])
+    send({"type": "assistant_text", "content": reply, "done": True})
+    send({"type": "assistant_done", "stop_reason": "local_unity_action"})
+    return True
+
+
 @dataclass
 class ClientHandle:
     sock: socket.socket
@@ -489,6 +523,9 @@ class ChatServer:
                     send({"type": "thinking"})
                     send({"type": "assistant_text", "content": local_reply, "done": True})
                     send({"type": "assistant_done", "stop_reason": "local_studio_plan"})
+                    return
+            elif self.engine_context == "unity":
+                if _try_local_unity_action(content, send):
                     return
             content = self._apply_engine_context(content)
             self._process_user_message(content, orch, send)

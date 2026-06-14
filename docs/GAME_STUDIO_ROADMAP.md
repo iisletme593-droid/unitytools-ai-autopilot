@@ -76,8 +76,12 @@ incremental capability gains.
   the PRIMARY engine: Turkish/English intent → ordered `unity_*` steps with write flags + safety
   notes (forest/blockout/place/lighting/palette/find/delete/QA/quality/profile/catalog/record).
   `preflight_prompt` now routes Unity too; `gamestudio_plan_unity_fast_action` tool added. Token-
-  prefix matching avoids substring false hits. 10 tests + live proof. **Follow-up:** an executor that
-  runs the planned steps (like chat_server's Unreal fast-path) so Unity prompts skip the LLM too.
+  prefix matching avoids substring false hits. 10 tests + live proof. Follow-up DONE (cycle 10):
+  `run_unity_fast_action` (game_studio_actions) executes the planned steps against resolver-provided
+  tools with event streaming — the LLM-free Unity counterpart of chat_server's Unreal fast-path —
+  wired into chat_server as `_try_local_unity_action` (engine_context=="unity"). Tools resolve from
+  the @tool registry (no hand-maintained map → drift-free). 5 tests + live proof (Turkish "sahneyi
+  listele" ran unity_get_scene_catalog against the real editor, no LLM).
 
 ### P4 — Robustness (from the original audit)
 - [ ] RPC request/response correlation after timeouts.
