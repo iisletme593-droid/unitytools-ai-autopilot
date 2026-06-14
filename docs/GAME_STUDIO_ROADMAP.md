@@ -64,6 +64,7 @@ incremental capability gains.
 
 ### P5 — Tests & docs
 - [ ] Unit tests for new tools + the P0 loop logic.
-- [ ] Keep docs in sync.
+- [x] Game-studio tools catalog (cycle 13): `docs/GAME_STUDIO_TOOLS.md` — capability reference with
+  example natural-language commands (en/tr).
 
 > Check items off in this file as they land. Add new items as discovered.

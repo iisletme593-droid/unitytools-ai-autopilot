@@ -43,3 +43,5 @@ Format: `- [cycle N] <what changed> — tests: <pass/fail> — commit <hash>`
 - [cycle 12] P2 themed color: `theme_palette` (fantasy/nature/warm/cool/mono) + `unity_color_group`
   — "color these props in a fantasy palette", cycling colors over a named group. 4 tests. —
   tests: 83 passed
+- [cycle 13] P5 docs: `docs/GAME_STUDIO_TOOLS.md` — a catalog of the night's new autopilot tools
+  with example en/tr commands (morning-review reference). docs-only. — tests: 83 passed
