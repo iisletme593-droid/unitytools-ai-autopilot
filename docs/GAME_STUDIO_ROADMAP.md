@@ -154,8 +154,13 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   `unity_add_gameplay_behaviour` compose Rigidbody/collider into real physics primitives
   (physics/falling/heavy/floaty/kinematic/static_obstacle). Live-proven (a cube became a
   physics-driven object). Script-only behaviours flagged `needs_script`.
-- [ ] C# `add_script_behaviour`: a minimal bridge command that writes/attaches a small MonoBehaviour
-  (rotator/mover/patrol/follow) so scripted gameplay works — the next unlock.
+- [~] Scripted behaviours (rotator/mover). Cycle 17 STEP A (done): `core/gameplay.generate_behaviour_script`
+  produces deterministic, balanced-brace C# MonoBehaviour source (AutopilotRotator/Mover, parametric
+  axis+speed); `unity_add_script_behaviour` tool returns it, and with `auto_import=True` writes+imports
+  it via the EXISTING `import_asset` (no new C# command needed — supersedes the originally-planned C#
+  handler). `needs_script` planner responses now carry the generated source. 8 tests, source shown
+  live. **Remaining (cycle 18):** end-to-end live orchestration (import → wait for Unity recompile →
+  `add_component`), since recompile is async.
 - [x] Idempotent collider (cycle 16): `prune_redundant_steps` + `unity_add_gameplay_behaviour` now
   query the object's components and skip adding a collider when one already exists (Cube/Sphere
   primitives ship one). Live-proven (re-applying physics skips the collider). 6 tests.

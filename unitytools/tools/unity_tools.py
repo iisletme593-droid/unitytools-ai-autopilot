@@ -9,7 +9,7 @@ from ..core.camera import frame_camera_pose
 from ..core.palette import resolve_color, theme_palette
 from ..core.quality import assess_qa
 from ..core.security import safe_contained_path
-from ..core.gameplay import plan_gameplay_behaviour, prune_redundant_steps
+from ..core.gameplay import plan_gameplay_behaviour, prune_redundant_steps, generate_behaviour_script
 
 
 _UNITY = None  # type: ignore
@@ -1103,3 +1103,40 @@ def unity_add_gameplay_behaviour(object_name: str, behaviour: str = "physics") -
         "behaviour": plan["behaviour"],
         "applied": applied,
     }
+
+
+@tool(description="Generate a MonoBehaviour script for a scripted gameplay behaviour (rotate/spin/move). Returns the C# source + class name. With auto_import=True (and a live bridge) it also imports the script into Assets/AutopilotScripts so Unity compiles it; then call unity_add_component(object, <class>) AFTER the recompile finishes. Default auto_import=False (generate only — safe, no recompile).")
+def unity_add_script_behaviour(object_name: str, behaviour: str = "rotate", speed: float = 0.0, auto_import: bool = False) -> dict:
+    script = generate_behaviour_script(behaviour, speed=(speed or None))
+    if not script.get("ok"):
+        return script
+    out: dict = {
+        "ok": True,
+        "object": object_name,
+        "behaviour": script["behaviour"],
+        "class_name": script["class_name"],
+        "filename": script["filename"],
+        "source": script["source"],
+        "next_step": f"After Unity recompiles, call unity_add_component('{object_name}', '{script['class_name']}').",
+        "imported": False,
+    }
+    if not auto_import:
+        return out
+    if _UNITY is None:
+        out["error"] = "auto_import requested but UnityBridge is not initialized"
+        return out
+    import os
+    import tempfile
+    try:
+        tmpdir = tempfile.mkdtemp()
+        src_path = os.path.join(tmpdir, f"{script['class_name']}.cs")
+        with open(src_path, "w", encoding="utf-8") as fh:
+            fh.write(script["source"])
+        imp = globals().get("unity_import_asset")
+        res = imp(src_path, f"AutopilotScripts/{script['class_name']}.cs") if callable(imp) else {"ok": False, "error": "import tool unavailable"}
+        out["imported"] = bool(isinstance(res, dict) and res.get("ok"))
+        out["import_result"] = res
+        out["note"] = "Script imported; Unity is recompiling. Add the component once compilation completes."
+    except Exception as e:
+        out["error"] = str(e)
+    return out

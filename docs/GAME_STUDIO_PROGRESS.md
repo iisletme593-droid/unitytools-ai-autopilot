@@ -231,3 +231,11 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   already present, so re-applying "physics" no longer stacks colliders (Cube primitives ship one).
   +6 tests; live proof: re-applying physics to the cycle-15 test cube skipped add_collider. (C#
   add_script_behaviour for scripted movement deferred to its own cycle — compile risk.) — tests: 227 passed
+- [cycle 17] Scripted-behaviour authoring (STEP A, safe). `core/gameplay.generate_behaviour_script`
+  emits deterministic, balanced-brace C# MonoBehaviour source for rotate/spin/move
+  (AutopilotRotator/Mover, parametric axis+speed); `unity_add_script_behaviour` tool returns it and,
+  with opt-in auto_import, writes+imports it via the EXISTING `import_asset` — so no new (compile-risky)
+  C# bridge command is needed. `needs_script` planner responses now carry the generated source. +8
+  tests; live proof: a valid AutopilotRotator script generated (speed 120, balanced braces, correct
+  Unity API). Default generate-only path triggers no Unity recompile (safe unattended). Cycle 18:
+  end-to-end live import→recompile→add_component orchestration. — tests: 235 passed
