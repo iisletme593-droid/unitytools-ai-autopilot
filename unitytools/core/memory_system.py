@@ -110,20 +110,12 @@ class MemorySystem:
         return [entry for _, entry in similar[:limit]]
     
     def get_pattern(self, request: str) -> Optional[Pattern]:
-        """Get learned pattern for this type of request."""
-        # Classify request type
-        request_lower = request.lower()
-        
-        if "create" in request_lower and "forest" in request_lower:
-            return self.patterns.get("create_forest")
-        elif "create" in request_lower and ("cube" in request_lower or "sphere" in request_lower):
-            return self.patterns.get("create_primitives")
-        elif "list" in request_lower or "show" in request_lower:
-            return self.patterns.get("query_scene")
-        elif "place" in request_lower or "scatter" in request_lower:
-            return self.patterns.get("scatter_objects")
-        
-        return None
+        """Get the learned pattern for this request's class (if any).
+
+        Unified with _classify_request so the recall taxonomy matches the learning
+        taxonomy (they used to diverge) and so Turkish requests resolve too.
+        """
+        return self.patterns.get(self._classify_request(request))
     
     def get_lessons(self, request: str) -> list[str]:
         """Get lessons learned from similar past requests."""
@@ -184,28 +176,33 @@ class MemorySystem:
         self._save_patterns()
     
     def _classify_request(self, request: str) -> str:
-        """Classify request into pattern type."""
-        request_lower = request.lower()
-        
-        if "create" in request_lower:
-            if "forest" in request_lower or "tree" in request_lower:
+        """Classify request into a pattern type (English + Turkish keywords).
+
+        Turkish matters because the autopilot is driven mostly in Turkish; without
+        these terms learned patterns would almost never resolve for real usage.
+        """
+        r = request.lower()
+
+        def has(*words: str) -> bool:
+            return any(w in r for w in words)
+
+        if has("create", "make", "build", "kur", "olustur", "oluştur", "yap", "ekle", "insa", "inşa"):
+            if has("forest", "tree", "orman", "agac", "ağaç", "cam ", "çam"):
                 return "create_forest"
-            elif "rock" in request_lower or "boulder" in request_lower:
+            if has("rock", "boulder", "kaya", "tas", "taş", "stone"):
                 return "create_rock_field"
-            elif any(prim in request_lower for prim in ["cube", "sphere", "cylinder", "capsule"]):
+            if has("cube", "sphere", "cylinder", "capsule", "kup", "küp", "kure", "küre", "silindir"):
                 return "create_primitives"
-            else:
-                return "create_objects"
-        elif "list" in request_lower or "show" in request_lower or "get" in request_lower:
+            return "create_objects"
+        if has("list", "show", "get", "listele", "goster", "göster", "bul", "katalog"):
             return "query_scene"
-        elif "place" in request_lower or "scatter" in request_lower or "distribute" in request_lower:
+        if has("place", "scatter", "distribute", "yerlestir", "yerleştir", "dagit", "dağıt", "serp"):
             return "scatter_objects"
-        elif "delete" in request_lower or "remove" in request_lower:
+        if has("delete", "remove", "sil", "kaldir", "kaldır", "temizle"):
             return "delete_objects"
-        elif "move" in request_lower or "position" in request_lower:
+        if has("move", "position", "tasi", "taşı", "konumlandir", "konumlandır", "kaydir", "kaydır"):
             return "transform_objects"
-        else:
-            return "general"
+        return "general"
     
     def _extract_signature(self, request: str) -> str:
         """Extract signature from request (for pattern matching)."""

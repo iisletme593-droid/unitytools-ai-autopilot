@@ -55,8 +55,11 @@ incremental capability gains.
   loads `long_term_memory.jsonl` at init (capped to the most recent 500); `recall_similar`/
   `get_lessons` now search prior sessions too. Was write-only before → the core "learns across
   sessions" goal now functions. 6 tests + live write→restart→recall proof.
-- [ ] Feed recalled patterns/lessons into planning prompts (cycle 2 — `get_pattern`/`best_approach`
-  are computed and persisted but never injected into the master prompt).
+- [x] Feed recalled patterns/lessons into planning prompts (cycle 2). `format_pattern_section`
+  injects the learned Pattern (success rate, best-approach tools, pitfalls) into the master prompt;
+  `get_pattern` unified with `_classify_request` and both extended with Turkish keywords so patterns
+  actually resolve for the (Turkish-driven) autopilot. Was dead-ended before. 5 tests + live proof
+  (Turkish "orman kur" → pattern section). **Follow-up:** embedding-based recall (still keyword).
 - [~] Game-studio kernel: tighten the evolution loop (metrics → weak points → next plan).
   First concrete loop landed (day 1): `unity_quality_pass` runs an in-scene metrics→weak-points→fix
   cycle via `core/quality.assess_qa`. Still open: persist verdicts across sessions and feed them

@@ -125,3 +125,9 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   `get_lessons` now search prior sessions (deduped session+disk). Was write-only → "learns across
   sessions" now works. +6 tests; live proof: write → fresh instance (restart) → recalled the prior
   request. — tests: 144 passed
+- [cycle 2] P3 learned-pattern injection: `dual_agent.format_pattern_section` puts the learned
+  Pattern (success rate, best-approach tools, common pitfalls) into the master planner prompt — it
+  was computed (`get_pattern`) and persisted but never used. Also unified `get_pattern` with
+  `_classify_request` and added Turkish keywords to both, so patterns actually resolve for the
+  Turkish-driven autopilot (was English-only). +5 tests; live proof: Turkish "orman kur" → learned
+  pattern section with best tools. — tests: 149 passed

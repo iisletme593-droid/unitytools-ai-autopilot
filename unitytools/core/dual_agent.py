@@ -339,6 +339,40 @@ class DualAgentResult:
     success: bool = True
 
 
+def format_pattern_section(pattern: Any) -> str:
+    """Render a learned Pattern as a master-prompt section (empty string if None).
+
+    Closes the gap where MemorySystem.get_pattern computed a Pattern (success
+    rate, best-approach tools, common pitfalls) that was never injected into the
+    planner prompt, so learning had no effect on planning. Duck-typed so it does
+    not couple to the Pattern dataclass import.
+    """
+    if pattern is None:
+        return ""
+    try:
+        rate = float(getattr(pattern, "success_rate", 0.0) or 0.0)
+        occ = int(getattr(pattern, "occurrences", 0) or 0)
+        ptype = getattr(pattern, "pattern_type", "general")
+    except (TypeError, ValueError):
+        return ""
+
+    lines = [
+        "\n=== LEARNED PATTERN (from past runs) ===",
+        f"type: {ptype} | success rate: {rate:.0%} over {occ} run(s)",
+    ]
+    best = getattr(pattern, "best_approach", None) or {}
+    tools = best.get("tools") if isinstance(best, dict) else None
+    if tools:
+        lines.append(f"best-approach tools last time: {', '.join(str(t) for t in tools[:8])}")
+    pitfalls = getattr(pattern, "common_pitfalls", None) or []
+    if pitfalls:
+        lines.append("avoid these past pitfalls:")
+        for p in pitfalls[:4]:
+            lines.append(f"  - {p}")
+    lines.append("")
+    return "\n".join(lines)
+
+
 class DualAgentOrchestrator:
     """Hierarchical dual-agent system with master planner and worker executor.
     
@@ -433,7 +467,8 @@ class DualAgentOrchestrator:
         context_info = ""
         similar_experiences = []
         learned_lessons = []
-        
+        pattern = None
+
         if self.context:
             context_info = self.context.get_context_summary()
             if on_master_thinking:
@@ -476,6 +511,7 @@ class DualAgentOrchestrator:
             learned_lessons,
             reader_brief,
             live_context,
+            pattern,
         )
 
         try:
@@ -682,6 +718,7 @@ EÄŸer hata varsa, ne olduÄŸunu aÃ§Ä±kla.
         learned_lessons: list[str],
         reader_brief: str = "",
         live_context: dict[str, Any] | None = None,
+        pattern: Any = None,
     ) -> str:
         """Build enhanced master prompt with context and memory."""
         prompt_parts = [self._engine_hint(), f"KullanÄ±cÄ± isteÄŸi: {user_message}\n"]
@@ -717,6 +754,12 @@ EÄŸer hata varsa, ne olduÄŸunu aÃ§Ä±kla.
             for i, lesson in enumerate(learned_lessons[:5], 1):
                 prompt_parts.append(f"{i}. {lesson}")
             prompt_parts.append("")
+
+        # Add the learned pattern for this request class (success rate, best tools,
+        # pitfalls) so past learning actually steers the plan.
+        pattern_section = format_pattern_section(pattern)
+        if pattern_section:
+            prompt_parts.append(pattern_section)
         
         # Add planning instructions
         prompt_parts.append("""
