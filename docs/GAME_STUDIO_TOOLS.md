@@ -54,4 +54,12 @@ actually call them. Params are grounded in the real C# handlers.
 | `unity_optimize_editor_performance` | Speed up the editor for heavy scenes (shadows/LOD/vSync) | "Editörü bu ağır sahne için optimize et" |
 | `unity_analyze_lod_decimation_candidates` / `unity_apply_lod_decimation_plan` | Find heavy meshes & add LOD groups with proxies | "Ağır ağaçlara LOD ekle" |
 
+## Quality loop & safety (day 1)
+- **`unity_quality_pass`** — runs the build→QA→fix loop: visual-QA the scene, then auto-repair
+  broken/missing materials and add lighting if missing, then re-check. Snapshots before fixing.
+  "Sahnenin kalitesini kontrol et ve sorunları düzelt."
+- **Auto-snapshot safety** — before the first *destructive* tool of a turn (delete, wipe-and-
+  regenerate, material/LOD rewrite), the orchestrator auto-saves a scene snapshot so the user can
+  roll back with `unity_restore_scene_snapshot`. One snapshot per turn, best-effort.
+
 > See `GAME_STUDIO_ROADMAP.md` for the backlog and `GAME_STUDIO_PROGRESS.md` for the per-cycle log.

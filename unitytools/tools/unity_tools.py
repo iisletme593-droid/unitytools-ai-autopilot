@@ -7,6 +7,7 @@ from ..core.layout import compute_layout_positions, compute_structure_positions
 from ..core.lighting import compute_studio_lighting_rig
 from ..core.camera import frame_camera_pose
 from ..core.palette import resolve_color, theme_palette
+from ..core.quality import assess_qa
 
 
 _UNITY = None  # type: ignore
@@ -999,5 +1000,54 @@ def unity_apply_lod_decimation_plan(query: str = "", category: str = "tree", max
             "lod1_screen_relative_height": lod1_screen_relative_height,
         })
         return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Run a visual-QA pass on the active scene and (optionally) auto-fix what it finds (broken/missing/unsupported materials, missing lights), then re-check. Snapshots the scene before the first fix. Returns per-pass verdicts and the fixes applied. This is the build->QA->fix quality loop.")
+def unity_quality_pass(auto_fix: bool = True, max_passes: int = 2, capture_screenshot: bool = True) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    passes = max(1, min(int(max_passes), 4))
+    history: list[dict] = []
+    applied: list[dict] = []
+    snapshotted = False
+    final: dict | None = None
+    try:
+        for i in range(passes):
+            qa = _UNITY.call("run_visual_qa", {"capture_screenshot": capture_screenshot})
+            assessment = assess_qa(qa if isinstance(qa, dict) else {})
+            final = assessment
+            history.append({
+                "pass": i,
+                "passed": assessment["passed"],
+                "score": assessment["score"],
+                "fixes": [f["tool"] for f in assessment["fixes"]],
+            })
+            if assessment["passed"] or not auto_fix or not assessment["fixes"]:
+                break
+            # Snapshot once before mutating anything, so the fixes are reversible.
+            if not snapshotted:
+                snap = globals().get("unity_create_scene_snapshot")
+                if callable(snap):
+                    snap(label="auto_before_quality_fix")
+                snapshotted = True
+            for fx in assessment["fixes"]:
+                fn = globals().get(fx["tool"])
+                if not callable(fn):
+                    continue
+                res = fn(**fx.get("params", {}))
+                applied.append({
+                    "tool": fx["tool"],
+                    "ok": bool(isinstance(res, dict) and res.get("ok", True)),
+                    "reason": fx.get("reason", ""),
+                })
+        return {
+            "ok": True,
+            "passed": bool(final and final["passed"]),
+            "final_score": final["score"] if final else None,
+            "passes": history,
+            "applied_fixes": applied,
+        }
     except Exception as e:
         return {"ok": False, "error": str(e)}

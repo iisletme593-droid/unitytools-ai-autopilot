@@ -26,6 +26,7 @@ from anthropic import Anthropic
 
 from .config import Config
 from .tool_registry import get_all_tools, get_tool, to_anthropic_format
+from .safety import is_destructive, snapshot_label_for
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +200,10 @@ class Orchestrator:
         self.history_turn_limit: int = max(
             8, int(getattr(config, "history_turn_limit", DEFAULT_HISTORY_TURN_LIMIT))
         )
+        # Auto-snapshot safety: at most one scene snapshot per chat turn, taken
+        # just before the first destructive tool call (see _maybe_snapshot_before).
+        self._snapshot_taken: bool = False
+        self._last_auto_snapshot: Optional[str] = None
 
     def reset(self) -> None:
         self.history = []
@@ -213,6 +218,8 @@ class Orchestrator:
         on_tool_result: Optional[Callable[[str, Any], None]] = None,
         max_iterations: int = 10,
     ) -> OrchestratorResult:
+        # New user turn: allow one fresh auto-snapshot before destructive edits.
+        self._snapshot_taken = False
         if self.config.provider == "ollama":
             # Ollama yalnızca düz string user content'i sorunsuz kabul eder.
             user_message = self._flatten_to_text(user_message)
@@ -966,7 +973,30 @@ class Orchestrator:
         if spec is None:
             raise ValueError(f"Bilinmeyen tool: {name}")
         params = self._normalize_tool_params(name, params, spec.fn)
+        self._maybe_snapshot_before(name)
         return spec.fn(**params)
+
+    def _maybe_snapshot_before(self, name: str) -> None:
+        """Auto-save a scene snapshot before the first destructive tool of a turn.
+
+        Best-effort: if there is no bridge / Unity, or the snapshot fails, we log
+        and proceed (the safety net is a bonus, never a blocker). At most one
+        snapshot per chat turn, so a sequence of edits is guarded by a single
+        restore point rather than spamming snapshots.
+        """
+        if self._snapshot_taken or not is_destructive(name):
+            return
+        snap = get_tool("unity_create_scene_snapshot")
+        if snap is None:
+            return
+        try:
+            result = snap.fn(label=snapshot_label_for(name))
+        except Exception:
+            logger.exception("auto-snapshot before %s failed", name)
+            return
+        if isinstance(result, dict) and result.get("ok"):
+            self._snapshot_taken = True
+            self._last_auto_snapshot = result.get("snapshot_path")
 
     def _normalize_tool_params(self, name: str, params: dict[str, Any], fn: Any) -> dict[str, Any]:
         """Accept common local-model argument aliases before calling Python tools.

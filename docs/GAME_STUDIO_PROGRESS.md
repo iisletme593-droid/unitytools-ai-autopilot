@@ -90,3 +90,12 @@ prompt *instructed* the LLM to call `unity_apply_material_palette` and
   (incl. a registry test proving all 15 are exposed to the LLM). The two tools the system prompt
   already referenced now actually exist — the prompt no longer promises phantom tools. —
   tests: 122 passed
+- [day1] **P6 completed.** (a) **Audit finding:** the active plugin bridge has 49 real commands (the
+  "65" was synonym-switch noise), and after the 15 wraps **every active command is exposed** with
+  **no phantom tool→bridge calls** (inverse audit). Richer terrain/particle/UI/behaviour commands
+  exist only in the worktree bridge, so they're gated on expanding the active C# first. (b)
+  **Quality loop** (`core/quality.py` + `unity_quality_pass`): build → `run_visual_qa` → assess →
+  auto-fix broken/missing materials & missing lights → re-check, snapshotting before any fix; pure
+  assessment is unit-tested. (c) **Snapshot safety** (`core/safety.py` + orchestrator `_execute_tool`
+  hook): auto-saves a scene snapshot before the first destructive tool of each turn (once per turn,
+  best-effort). +16 tests. — tests: 138 passed

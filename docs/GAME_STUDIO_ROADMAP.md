@@ -53,7 +53,10 @@ incremental capability gains.
 ### P3 — Learning & memory (toward "learning / focus")
 - [ ] Make long-term memory actually READ BACK (cross-session learning is currently write-only).
 - [ ] Feed recalled patterns/lessons into planning prompts.
-- [ ] Game-studio kernel: tighten the evolution loop (metrics → weak points → next plan).
+- [~] Game-studio kernel: tighten the evolution loop (metrics → weak points → next plan).
+  First concrete loop landed (day 1): `unity_quality_pass` runs an in-scene metrics→weak-points→fix
+  cycle via `core/quality.assess_qa`. Still open: persist verdicts across sessions and feed them
+  into planning (depends on the memory-read-back items above).
 
 ### P4 — Robustness (from the original audit)
 - [ ] RPC request/response correlation after timeouts.
@@ -77,11 +80,20 @@ commands; audit which still lack a `unity_*` tool and wire the high-value ones.
   in the real C# handlers, +39 tests, registry test included. **This also fixed the system prompt
   referencing `unity_apply_material_palette` / `unity_create_optimized_forest_scene` before those
   tools existed.**
-- [ ] Audit the remaining unexposed commands (terrain/particles/UI/atmosphere/behaviours live in
-  the larger worktree bridge — confirm which are in the *active* plugin before wrapping).
-- [ ] Wire `unity_run_visual_qa` into an actual iterate loop (build → QA verdict → fix) — this is
-  the bridge hook that makes P3 "learning/focus" real.
-- [ ] Use `unity_create_scene_snapshot` / `unity_restore_scene_snapshot` to make destructive
-  autopilot actions safely reversible (snapshot before mutate).
+- [x] Audit the remaining unexposed commands (day 1). **Finding:** the *active* plugin bridge has
+  exactly **49 real commands** (the earlier "65" was inflated by a `SynonymsFor` switch — those
+  `forest/village/terrain/...` tokens are synonym keywords, not commands). After the 15 wired tools,
+  **all 49 active commands are now exposed**, and an inverse audit confirmed **no tool calls a
+  non-existent bridge command**. The richer terrain/particles/UI/atmosphere/behaviour commands live
+  only in the larger *worktree* bridge, not the installed plugin — wrapping them would create
+  phantom tools, so that work is gated on expanding (or merging in) the active C# bridge first.
+- [x] Wire `unity_run_visual_qa` into an actual iterate loop (day 1): `core/quality.py` `assess_qa`
+  (pure: QA verdict → pass/score/fix-actions) + `unity_quality_pass` tool (build → QA → fix →
+  re-check, snapshots before fixing, bounded passes). This is the mechanical half of P3
+  "learning/focus". 9 tests.
+- [x] Snapshot-before-mutate (day 1): `core/safety.py` (`DESTRUCTIVE_TOOLS`, `is_destructive`,
+  `snapshot_label_for`) + an orchestrator hook in the single `_execute_tool` path that auto-saves a
+  scene snapshot before the first destructive tool of each turn (best-effort, once per turn). 7
+  tests.
 
 > Check items off in this file as they land. Add new items as discovered.
