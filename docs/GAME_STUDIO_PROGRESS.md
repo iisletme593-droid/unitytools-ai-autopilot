@@ -192,3 +192,8 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   in a separately-testable function. +5 tests; live proof: Turkish "sahneyi listele" planned +
   executed unity_get_scene_catalog against the real editor (145 objects), streaming
   thinking→tool_call→tool_result, no LLM. — tests: 188 passed
+- [cycle 11] Fixed dual_chat.py emoji mojibake. 3 CLI status labels were double-encoded emoji
+  ("ğŸ§ Master" etc.). Unlike dual_agent.py, the global demoji was lossy here (9 FFFD), so used a
+  precise escape-based replacement: 🧠 Master / 🔧 Tool / 📊 Result restored to real codepoints
+  (0x1f9e0/0x1f527/0x1f4ca), BOM dropped. Cosmetic (CLI only, not model-facing). +1 guard test in
+  test_encoding.py. — tests: 189 passed

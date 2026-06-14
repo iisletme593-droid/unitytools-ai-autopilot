@@ -1,4 +1,4 @@
-﻿"""Dual-agent interactive chat REPL.
+"""Dual-agent interactive chat REPL.
 
 Reader and Worker default to qwen2.5:14b-instruct for fast scene/context work.
 Master defaults to qwen3.6:latest for planning when installed.
@@ -44,13 +44,13 @@ def run_dual_chat(
     session: PromptSession = PromptSession(history=InMemoryHistory())
 
     def on_master_thinking(msg: str) -> None:
-        console.print(f"[bold magenta]ğŸ§  Master:[/bold magenta] [dim]{msg}[/dim]")
+        console.print(f"[bold magenta]🧠 Master:[/bold magenta] [dim]{msg}[/dim]")
 
     def on_worker_executing(msg: str) -> None:
         console.print(f"[bold blue]âš™ï¸  Worker:[/bold blue] [dim]{msg}[/dim]")
 
     def on_tool_call(name: str, params: dict) -> None:
-        console.print(f"[yellow]ğŸ”§ Tool:[/yellow] {name}")
+        console.print(f"[yellow]🔧 Tool:[/yellow] {name}")
         if params:
             syntax = Syntax(
                 str(params),
@@ -103,7 +103,7 @@ def run_dual_chat(
             )
 
             # Show final result
-            console.print("\n[bold green]ğŸ“Š Result:[/bold green]")
+            console.print("\n[bold green]📊 Result:[/bold green]")
             console.print(Panel(result.text, border_style="green"))
 
             # Show stats

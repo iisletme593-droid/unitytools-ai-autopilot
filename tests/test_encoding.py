@@ -27,3 +27,17 @@ def test_correct_turkish_present():
     assert "Kullanıcı" in text   # "Kullanıcı"
     assert "Geçmiş" in text       # "Geçmiş"
     assert "ağaç" in text         # "ağaç"
+
+
+DUAL_CHAT = pathlib.Path(__file__).resolve().parents[1] / "unitytools" / "cli" / "dual_chat.py"
+
+
+def test_dual_chat_emoji_not_mojibake():
+    raw = DUAL_CHAT.read_bytes()
+    assert raw[:3] != b"\xef\xbb\xbf"          # no BOM
+    text = raw.decode("utf-8")                  # valid utf-8
+    assert "ğŸ" not in text                     # mojibake'd-emoji lead sequence absent
+    assert "�" not in text                      # no lost chars
+    # the intended emoji labels are real codepoints
+    assert "\U0001F9E0" in text                 # 🧠 Master
+    assert "\U0001F4CA" in text                 # 📊 Result

@@ -94,6 +94,9 @@ incremental capability gains.
   (mixed latin-1/cp1252), restored 2 lost "ç" in "ağaç", dropped the UTF-8 BOM (which made readers
   misrender it). `tests/test_encoding.py` guards it. (Investigation note: terminal/Read-tool
   rendering initially made it look clean — codepoint inspection (0xc4 0xb1 vs 0x131) settled it.)
+  Also fixed (cycle 11): `dual_chat.py`'s 3 mojibake'd emoji CLI labels (🧠 Master / 🔧 Tool /
+  📊 Result) — restored via precise escape-based replacement (the global demoji was lossy here),
+  BOM dropped, guarded by `tests/test_encoding.py`.
 - [x] Dead-code cleanup (cycle 7): removed orphan `simple_dual_agent.py` (+ its root test), the unused
   `TaskQueue`/`task_queue.py` export, and the stale `protocol.UNITY_METHODS` (phantom
   `run_csharp_script`). grep-verified dead, +5 regression-guard tests, 180 green. **Deferred:** wire
