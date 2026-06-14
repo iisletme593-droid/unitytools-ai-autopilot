@@ -5,6 +5,7 @@ from __future__ import annotations
 from ..core.tool_registry import tool
 from ..core.layout import compute_layout_positions, compute_structure_positions
 from ..core.lighting import compute_studio_lighting_rig
+from ..core.camera import frame_camera_pose
 
 
 _UNITY = None  # type: ignore
@@ -211,6 +212,39 @@ def unity_setup_studio_lighting(
         except Exception as e:
             errors.append(str(e))
     return {"ok": len(errors) == 0, "lights": created, "errors": errors[:5]}
+
+
+@tool(description="Frame the camera on a target point (orbit by distance/yaw/pitch) for a presentable shot. camera_name defaults to 'Main Camera'; set fov>0 to also adjust field of view.")
+def unity_frame_camera(
+    target_x: float = 0.0,
+    target_y: float = 0.0,
+    target_z: float = 0.0,
+    distance: float = 10.0,
+    yaw_deg: float = 30.0,
+    pitch_deg: float = 20.0,
+    fov: float = 0.0,
+    camera_name: str = "Main Camera",
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    (px, py, pz), (rx, ry, rz) = frame_camera_pose(
+        (target_x, target_y, target_z), distance=distance, yaw_deg=yaw_deg, pitch_deg=pitch_deg
+    )
+    errors: list[str] = []
+    try:
+        _UNITY.call("set_transform", {"name": camera_name, "position": {"x": px, "y": py, "z": pz}})
+        _UNITY.call("set_transform", {"name": camera_name, "rotation": {"x": rx, "y": ry, "z": rz}})
+        if fov > 0:
+            _UNITY.call("set_camera", {"name": camera_name, "fov": fov})
+    except Exception as e:
+        errors.append(str(e))
+    return {
+        "ok": len(errors) == 0,
+        "camera": camera_name,
+        "position": [px, py, pz],
+        "rotation": [rx, ry, rz],
+        "errors": errors,
+    }
 
 
 @tool(description="Copy an asset into the Unity project's Assets folder and refresh AssetDatabase.")

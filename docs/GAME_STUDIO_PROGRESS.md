@@ -29,3 +29,6 @@ Format: `- [cycle N] <what changed> — tests: <pass/fail> — commit <hash>`
   tests: 58 passed
 - [cycle 7] P1 lighting tool: `unity_setup_studio_lighting` — "set up studio lighting" creates a
   key/fill/rim rig via the bridge (create_light). 2 tests. — tests: 60 passed
+- [cycle 8] P1 camera framing: `core/camera.py` `frame_camera_pose` + `unity_frame_camera` tool —
+  orbit/frame a target for a presentable shot. Completes the P1 "presentable scene" set
+  (place + build + light + frame). 6 tests. — tests: 66 passed
