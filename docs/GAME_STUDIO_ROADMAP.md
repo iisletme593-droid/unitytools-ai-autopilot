@@ -39,6 +39,9 @@ incremental capability gains.
 - [x] Camera framing (cycle 8): `core/camera.py` `frame_camera_pose` + `unity_frame_camera` tool
   (orbit a target by distance/yaw/pitch, optional fov), 6 tests. **P1 "presentable scene" set now
   complete: place + build + light + frame.**
+- [x] One-shot scene blockout (cycle 10): `unity_blockout_scene` composes floor + scattered props +
+  studio lighting + framed camera into a single autopilot action (caps: 17x17 floor, 50 props).
+  4 tests.
 
 ### P2 — Visual quality (toward "AAA look", pipeline-agnostic where possible)
 - [x] Color tool (cycle 9): `core/palette.py` `resolve_color` (name en+tr / hex / r,g,b) +

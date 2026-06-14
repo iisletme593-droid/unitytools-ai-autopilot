@@ -35,3 +35,6 @@ Format: `- [cycle N] <what changed> — tests: <pass/fail> — commit <hash>`
 - [cycle 9] P2 color: `core/palette.py` `resolve_color` (name en+tr / hex / r,g,b) +
   `unity_set_object_color` — "make the cube red/kirmizi" instead of raw RGB. 6 tests. —
   tests: 72 passed
+- [cycle 10] CAPSTONE: `unity_blockout_scene` — one command composes floor + scattered props +
+  studio lighting + framed camera (uses cycles 2-8). "Empty scene -> composed scene" in one shot,
+  with object caps. 4 tests. — tests: 76 passed

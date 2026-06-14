@@ -377,6 +377,65 @@ def unity_set_object_color(name: str, color: str = "gray") -> dict:
         return {"ok": False, "error": str(e)}
 
 
+@tool(description="Block out a small presentable scene in one shot: a floor, scattered props, studio lighting, and a framed camera. Gets from an empty scene to a composed one quickly.")
+def unity_blockout_scene(
+    prim_type: str = "Cube",
+    floor_size: int = 8,
+    prop_count: int = 6,
+    spacing: float = 1.0,
+    add_lighting: bool = True,
+    frame_camera: bool = True,
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    steps = {"floor": 0, "props": 0, "lights": 0, "camera": False}
+    errors: list[str] = []
+    floor_size = max(1, min(int(floor_size), 17))  # cap 17x17 = 289 floor cubes
+    center = (floor_size * spacing / 2.0, 0.0, floor_size * spacing / 2.0)
+
+    floor = compute_structure_positions("floor", width=floor_size, depth=floor_size, spacing=spacing)
+    for i, (x, y, z) in enumerate(floor):
+        try:
+            _UNITY.call("create_primitive", {"type": "Cube", "name": f"Floor_{i}", "position": {"x": x, "y": y - 0.5, "z": z}})
+            steps["floor"] += 1
+        except Exception as e:
+            errors.append(str(e))
+            break
+
+    props = compute_layout_positions(
+        max(0, min(int(prop_count), 50)), "scatter", spacing=spacing * 1.5,
+        origin=(center[0], 0.5, center[2]), seed=7,
+    )
+    for i, (x, y, z) in enumerate(props):
+        try:
+            _UNITY.call("create_primitive", {"type": prim_type, "name": f"Prop_{i}", "position": {"x": x, "y": y, "z": z}})
+            steps["props"] += 1
+        except Exception as e:
+            errors.append(str(e))
+            break
+
+    if add_lighting:
+        for spec in compute_studio_lighting_rig(target=center, distance=floor_size * spacing):
+            x, y, z = spec["position"]
+            try:
+                _UNITY.call("create_light", {"name": f"Light_{spec['role']}", "light_type": spec["type"], "position": {"x": x, "y": y, "z": z}, "intensity": spec["intensity"]})
+                steps["lights"] += 1
+            except Exception as e:
+                errors.append(str(e))
+                break
+
+    if frame_camera:
+        (px, py, pz), (rx, ry, rz) = frame_camera_pose(center, distance=floor_size * spacing * 1.4, yaw_deg=35.0, pitch_deg=25.0)
+        try:
+            _UNITY.call("set_transform", {"name": "Main Camera", "position": {"x": px, "y": py, "z": pz}})
+            _UNITY.call("set_transform", {"name": "Main Camera", "rotation": {"x": rx, "y": ry, "z": rz}})
+            steps["camera"] = True
+        except Exception as e:
+            errors.append(str(e))
+
+    return {"ok": len(errors) == 0, "steps": steps, "errors": errors[:5]}
+
+
 @tool(description="Execute a Unity Editor menu item by path. Example: 'Window/General/Scene'.")
 def unity_execute_menu_item(path: str) -> dict:
     if _UNITY is None:
