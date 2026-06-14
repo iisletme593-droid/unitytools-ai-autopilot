@@ -216,3 +216,13 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   `ASSET_FINDER_CATEGORIES` mapping (+ prop/character/weapon→props). +5 tests (lightweight: unbound
   method + fake self, no orchestrator build); live proof: prop+character finders populate
   context.assets. — tests: 213 passed
+- [cycle 15] **GAMEPLAY AUTHORING begins** — the biggest capability gap (scene decorator → game
+  maker). The C# `add_component` adds built-in/project components but sets no properties; `set_rigidbody`
+  both adds AND configures a Rigidbody. So `core/gameplay.py` (behaviour catalog) + the new
+  `unity_add_gameplay_behaviour` tool compose existing Rigidbody/collider tools into real physics
+  primitives (physics/falling/heavy/floaty/kinematic/static_obstacle, en+tr aliases) — no new C#
+  needed. Script-only behaviours (rotate/patrol/follow) are honestly reported as `needs_script`
+  (a future `add_script_behaviour` bridge command), not faked. +10 tests; **LIVE PROOF: a test cube
+  was given "physics" and now carries Rigidbody + Collider — a static prop became a physics-driven
+  game object in the real editor.** Follow-up: idempotent collider (primitives already have one);
+  C# add_script_behaviour for scripted movement. — tests: 223 passed

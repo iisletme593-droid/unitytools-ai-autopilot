@@ -9,6 +9,7 @@ from ..core.camera import frame_camera_pose
 from ..core.palette import resolve_color, theme_palette
 from ..core.quality import assess_qa
 from ..core.security import safe_contained_path
+from ..core.gameplay import plan_gameplay_behaviour
 
 
 _UNITY = None  # type: ignore
@@ -1062,3 +1063,30 @@ def unity_quality_pass(auto_fix: bool = True, max_passes: int = 2, capture_scree
         }
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+@tool(description="Give a GameObject a gameplay behaviour by name: physics/falling/heavy/floaty/kinematic/static_obstacle (composes Rigidbody + collider, turning a static prop into a physics-driven game object). Scripted behaviours like rotate/patrol/follow report needs_script (await a future bridge command). The first step from decorating scenes to authoring gameplay.")
+def unity_add_gameplay_behaviour(object_name: str, behaviour: str = "physics") -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    plan = plan_gameplay_behaviour(behaviour, object_name)
+    if not plan.get("ok"):
+        return plan
+    applied: list[dict] = []
+    for step in plan["steps"]:
+        fn = globals().get(step["tool"])
+        if not callable(fn):
+            applied.append({"tool": step["tool"], "ok": False, "error": "tool unavailable"})
+            continue
+        res = fn(**step["kwargs"])
+        applied.append({
+            "tool": step["tool"],
+            "ok": bool(isinstance(res, dict) and res.get("ok", True)),
+            "error": res.get("error") if isinstance(res, dict) else None,
+        })
+    return {
+        "ok": all(a["ok"] for a in applied),
+        "object": object_name,
+        "behaviour": plan["behaviour"],
+        "applied": applied,
+    }

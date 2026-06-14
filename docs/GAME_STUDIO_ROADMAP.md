@@ -148,4 +148,16 @@ commands; audit which still lack a `unity_*` tool and wire the high-value ones.
   scene snapshot before the first destructive tool of each turn (best-effort, once per turn). 7
   tests.
 
+### P7 — Gameplay authoring (scene decorator → game maker, the biggest gap)
+The studio can place/decorate but not yet author gameplay. This is the road to "builds a game".
+- [x] Physics behaviours via existing tools (cycle 15): `core/gameplay.py` catalog +
+  `unity_add_gameplay_behaviour` compose Rigidbody/collider into real physics primitives
+  (physics/falling/heavy/floaty/kinematic/static_obstacle). Live-proven (a cube became a
+  physics-driven object). Script-only behaviours flagged `needs_script`.
+- [ ] C# `add_script_behaviour`: a minimal bridge command that writes/attaches a small MonoBehaviour
+  (rotator/mover/patrol/follow) so scripted gameplay works — the next unlock.
+- [ ] Make `unity_add_collider` / the catalog idempotent (Cube primitives already ship a collider).
+- [ ] Player controller / input primitive (move + jump) and win/lose trigger zones.
+- [ ] Spawners / waves (compose with the arena-survivor ideas already on the Unreal side).
+
 > Check items off in this file as they land. Add new items as discovered.
