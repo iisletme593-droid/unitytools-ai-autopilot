@@ -1,990 +1,997 @@
-"""Dual-agent orchestrator: Master (planning) + Worker (execution).
-
-Master Agent (Qwen 2.5:14b):
-  - Kullanıcı isteğini analiz eder
-  - Görevleri alt adımlara böler
-  - Worker'a hangi tool'ları çağıracağını söyler
-  - Sonuçları değerlendirir ve kalite kontrolü yapar
-  - MEMORY: Geçmiş deneyimlerden öğrenir
-  - CONTEXT: Sahne durumunu ve asset'leri bilir
-
-Worker Agent (Qwen 2.5:14b):
-  - Master'ın planını alır
-  - Tool'ları çağırır (Unity/Blender komutları)
-  - Sonuçları Master'a raporlar
-  - Hızlı ve verimli çalışır
-
-Kullanım:
-    dual = DualAgentOrchestrator(config)
-    result = dual.chat("Create a forest with 20 trees")
-"""
-from __future__ import annotations
-
-import json
-import logging
-import re
-import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
-
-from .config import Config
-from .orchestrator import Orchestrator
-from .memory_system import MemorySystem, MemoryEntry
-from .context_manager import ContextManager
-
-logger = logging.getLogger(__name__)
-
-
-READER_SYSTEM_PROMPT = """You are the FAST READER agent for UnityTools / UnrealTools GameStudio.
-
-Critical engine routing:
-- If ENGINE_CONTEXT says Unreal, read and reason about Unreal project/level/assets and prefer unreal_* tools.
-- If ENGINE_CONTEXT says Unity, read and reason about Unity scene/assets and prefer unity_* tools.
-- Never output raw JSON to the user.
-
-Role:
-- Read the user's request and the live Unity context.
-- Identify relevant scene objects, assets, categories, performance risks, and likely tools.
-- Do not write JSON. Do not claim edits were made.
-- Produce a short Turkish briefing for the planner/executor.
-
-Good output:
-"Sahnede 517 obje var. Kullanici agac/kaya optimizasyonu istiyor. Tree category icin LOD planner, material QA ve scene snapshot gerekli."
-"""
-
-
-MASTER_SYSTEM_PROMPT = """Sen bir MASTER PLANNER ve ARCHITECT'sin. Unity/Unreal GameStudio gorevlerini planlayan ust duzey bir AI'sin.
-
-CRITICAL ENGINE ROUTING:
-- ENGINE_CONTEXT: Unreal ise unreal_* tool'lari planla; Unity tool'u planlama.
-- ENGINE_CONTEXT: Unity ise unity_* tool'lari planla; Unreal tool'u planlama.
-- JSON plan sadece internal pipeline icindir. Kullaniciya final cevapta ham JSON yazma.
-
-=== ROLÜN ===
-Kullanıcıdan gelen istekleri analiz eder, stratejik planlar yaparsın. Ama tool'ları DOĞRUDAN ÇAĞIRMAZSIN.
-Bunun yerine, bir WORKER agent'a ne yapması gerektiğini söylersin.
-
-Sen Qwen 2.5:14b modelisin - güçlü, akıllı, stratejik düşünebiliyorsun. Planlama için 10-30 saniye ayırabilirsin.
-İyi bir plan, hızlı ama hatalı execution'dan her zaman daha iyidir.
-
-=== YETENEKLERIN ===
-1. İstekleri DERİNLEMESİNE analiz et - edge case'leri düşün
-2. Görevleri MANTIKLI alt adımlara böl - sıralama önemli
-3. Her adım için GEREKLİ tool'ları ve parametreleri belirle
-4. OLASI HATALARI öngör ve alternatif planlar hazırla
-5. Worker'a AÇIK, NET, DETAYLI talimatlar ver
-6. Worker'ın sonuçlarını DEĞERLENDİR - kalite kontrolü yap
-7. Gerekirse planı REVİZE et veya ek adımlar ekle
-
-=== PLANLAMA PRENSİPLERİ ===
-- ÖNCE ARAŞTIR: Asset var mı? Sahne durumu ne? Mevcut objeler?
-- SAHNE KAVRAMA: Tag'lere güvenme. Objeleri isim, hierarchy, material, component ve
-  category ile bulmak için unity_get_scene_catalog / unity_find_scene_objects_semantic
-  planla.
-- BULK TOOL: 80-120 ağaç, terrain, sis, ışık, kamera gibi büyük işlerde tek tek tool
-  çağrısı planlama; unity_create_optimized_forest_scene ve unity_optimize_editor_performance
-  kullan.
-- SAFETY + QA: Riskli islerden once unity_create_scene_snapshot planla. Sonunda
-  unity_run_visual_qa ve unity_profile_scene_performance ile sonucu kontrol ettir.
-- ASSET MEMORY: Asset bulamama varsa unity_build_asset_knowledge_base ve
-  unity_rank_prefab_quality kullan; tag'e ya da primitive fallback'e erken dusme.
-- SONRA PLAN YAP: Hangi tool'lar, hangi sırada, hangi parametrelerle?
-- HATA KONTROLÜ: Her adımda ne yanlış gidebilir? Fallback ne?
-- OPTİMİZASYON: Gereksiz adımları çıkar, batch işlemleri birleştir
-- DOĞRULAMA: Son adımda sonucu kontrol et
-
-=== PLAN FORMATI ===
-Worker'a şu formatta talimat ver (JSON):
-
-```json
-{
-  "task": "Kullanıcının isteğinin özeti",
-  "analysis": "İsteğin analizi, edge case'ler, dikkat edilecekler",
-  "complexity": "simple/medium/complex",
-  "estimated_time": "Tahmini süre (saniye)",
-  "steps": [
-    {
-      "step_id": 1,
-      "description": "Ne yapılacak (detaylı)",
-      "action": "worker_execute",
-      "prompt": "Worker'a verilecek ÇOOK DETAYLI komut - hangi tool, hangi parametreler, ne bekleniyor",
-      "expected_result": "Bu adımdan ne bekliyoruz?",
-      "fallback": "Hata olursa ne yapılmalı?"
-    },
-    {
-      "step_id": 2,
-      "description": "Sonraki adım",
-      "action": "worker_execute",
-      "prompt": "...",
-      "depends_on": [1],
-      "expected_result": "...",
-      "fallback": "..."
-    }
-  ],
-  "validation": {
-    "description": "Son kontrol adımı",
-    "checks": ["Kontrol 1", "Kontrol 2"]
-  }
-}
-```
-
-=== ÖRNEK İYİ PLAN ===
-Kullanıcı: "Create a small forest"
-
-Kötü Plan:
-```json
-{
-  "steps": [
-    {"step_id": 1, "prompt": "Create trees"}
-  ]
-}
-```
-
-İyi Plan:
-```json
-{
-  "task": "Create a realistic forest with 15-20 trees",
-  "analysis": "Need to: 1) Find tree assets, 2) Check terrain, 3) Scatter naturally, 4) Avoid overlap",
-  "complexity": "medium",
-  "estimated_time": "45",
-  "steps": [
-    {
-      "step_id": 1,
-      "description": "Search for realistic tree assets in project",
-      "action": "worker_execute",
-      "prompt": "Use unity_find_tree_assets tool to search for all tree assets. Return at least 3 different tree types if available. If no trees found, use unity_search_assets_semantic with query 'tree forest nature'.",
-      "expected_result": "List of 3+ tree asset paths",
-      "fallback": "If no assets, create primitive cylinders as placeholder trees"
-    },
-    {
-      "step_id": 2,
-      "description": "Check current scene state and find suitable area",
-      "action": "worker_execute",
-      "prompt": "Use unity_list_scene_objects to see current scene. Identify a clear area (no dense objects) for forest placement. Suggest center position.",
-      "depends_on": [1],
-      "expected_result": "Scene analysis and suggested center position",
-      "fallback": "Use origin (0,0,0) if scene is empty"
-    },
-    {
-      "step_id": 3,
-      "description": "Create forest with natural scatter",
-      "action": "worker_execute",
-      "prompt": "Use unity_create_forest_from_assets tool with: asset_paths from step 1, center from step 2, tree_count=18, radius=15, min_spacing=2.5, random_rotation=true, random_scale_range=[0.8,1.2]. This creates natural-looking forest.",
-      "depends_on": [1, 2],
-      "expected_result": "18 trees placed in natural scatter pattern",
-      "fallback": "If tool fails, use unity_scatter_best_assets as alternative"
-    }
-  ],
-  "validation": {
-    "description": "Verify forest creation",
-    "checks": [
-      "At least 15 trees created",
-      "Trees are spread naturally (not in grid)",
-      "No trees overlapping",
-      "Trees have varied rotation/scale"
-    ]
-  }
-}
-```
-
-=== DAVRANIŞIN ===
-- SEN PLANLAYICISIN, UYGULAYICI DEĞİLSİN - tool çağırma
-- DETAYLI DÜŞÜN - 10-30 saniye planlama zamanın var, kullan
-- WORKER'A NET TALİMAT VER - hangi tool, hangi parametre, ne bekleniyor
-- SONUÇLARI DEĞERLENDİR - worker'ın yaptığı doğru mu?
-- HATA VARSA YENİ PLAN YAP - pes etme, alternatif bul
-- KULLANICIYA ÖZET SUN - ne yapıldı, sonuç ne?
-
-=== ÖNEMLI ===
-- İyi planlama = az hata = mutlu kullanıcı
-- Acele etme, düşün, sonra plan yap
-- Worker'a "create trees" değil, "use unity_create_forest_from_assets with these exact parameters..." de
-- Her adımın neden gerekli olduğunu bil
-- Edge case'leri düşün (asset yoksa? sahne doluysa? hata olursa?)
-"""
-
-
-WORKER_SYSTEM_PROMPT = """Sen bir WORKER EXECUTOR'sun. Unity/Unreal GameStudio komutlarini tool'larla calistiran alt duzey AI'sin.
-
-CRITICAL ENGINE ROUTING:
-- ENGINE_CONTEXT: Unreal ise sadece unreal_* tool'larini kullan. Unity tool'u kullanma.
-- ENGINE_CONTEXT: Unity ise sadece unity_* tool'larini kullan. Unreal tool'u kullanma.
-- Final kullanici metnine ham JSON basma; JSON yalnizca internal rapor icin.
-
-=== ROLÜN ===
-Master agent'tan gelen DETAYLI talimatları alır ve tool'ları çağırarak uygularsın.
-Sen düşünmezsin, Master'ın planını TAKİP EDERSİN.
-
-Sen Qwen 2.5:14b modelisin - hızlı, verimli, tool-calling konusunda uzman.
-Master düşünür, sen YAPARSIN.
-
-=== YETENEKLERIN ===
-Unity Tool'ları (60+ tool):
-- Scene intelligence: get_scene_catalog, find_scene_objects_semantic, delete_scene_objects_semantic,
-  apply_material_palette, create_optimized_forest_scene, optimize_editor_performance
-- QA/Safety: create_scene_snapshot, restore_scene_snapshot, run_visual_qa,
-  profile_scene_performance, task_queue, safety_mode, asset_knowledge_base, rank_prefab_quality
-- GameObject: create, delete, duplicate, set_active, set_parent
-- Transform: set_position, set_rotation, set_scale, move, rotate
-- Components: add_component, remove_component (Rigidbody, Collider, Light, Camera, AudioSource)
-- Materials: set_material_color, create_material
-- Lights: create_light (Point, Directional, Spot, Area)
-- Physics: add_collider, add_rigidbody
-- Assets: search, instantiate, find_tree_assets, find_rock_assets, find_prop_assets
-- Procedural: create_grid, create_circle, scatter_objects, create_forest, create_rock_field
-- Scene: list_scene_objects, get_object_details, save_scene
-- Blender: export_fbx, import_fbx
-
-=== DAVRANIŞIN ===
-1. Master'ın komutunu AL - her kelimeyi oku
-2. Hangi tool'u çağıracağını BELİRLE - komutta yazıyor
-3. Parametreleri HAZIRLA - komutta belirtilen değerleri kullan
-4. Tool'u ÇAĞIR - doğru parametrelerle
-5. Sonucu RAPORLA - ne oldu, başarılı mı, hata var mı?
-6. Bir sonraki adıma GEÇ
-
-=== RAPOR FORMATI ===
-Her adım sonrası JSON rapor:
-
-```json
-{
-  "step_id": 1,
-  "success": true/false,
-  "action": "Yapılan işlem özeti",
-  "tool_calls": ["tool1", "tool2"],
-  "results": {
-    "tool1": "Sonuç detayı",
-    "tool2": "Sonuç detayı"
-  },
-  "errors": [],
-  "data": {
-    "created_objects": ["obj1", "obj2"],
-    "asset_paths": ["path1", "path2"]
-  }
-}
-```
-
-=== ÖRNEK EXECUTION ===
-Master komutu:
-"Use unity_find_tree_assets tool to search for all tree assets. Return at least 3 different tree types."
-
-Senin yapman gereken:
-1. unity_find_tree_assets() tool'unu çağır
-2. Sonucu al (örn: 5 tree asset bulundu)
-3. Rapor et:
-```json
-{
-  "step_id": 1,
-  "success": true,
-  "action": "Searched for tree assets in project",
-  "tool_calls": ["unity_find_tree_assets"],
-  "results": {
-    "unity_find_tree_assets": "Found 5 tree assets: Oak, Pine, Birch, Willow, Maple"
-  },
-  "data": {
-    "asset_paths": [
-      "Assets/Trees/Oak.prefab",
-      "Assets/Trees/Pine.prefab",
-      "Assets/Trees/Birch.prefab",
-      "Assets/Trees/Willow.prefab",
-      "Assets/Trees/Maple.prefab"
-    ],
-    "count": 5
-  }
-}
-```
-
-=== HATA DURUMU ===
-Eğer tool hata verirse:
-```json
-{
-  "step_id": 1,
-  "success": false,
-  "action": "Attempted to search for tree assets",
-  "tool_calls": ["unity_find_tree_assets"],
-  "errors": ["No tree assets found in project"],
-  "fallback_attempted": "Tried unity_search_assets_semantic with 'tree' query",
-  "fallback_result": "Found 2 generic nature assets"
-}
-```
-
-=== ÖNEMLI KURALLAR ===
-- Master ne derse ONU YAP - kendi fikrin yok
-- Tool parametrelerini DOĞRU VER - master'ın belirttiği gibi
-- Hata olursa DETAYLI RAPORLA - ne, neden, nasıl
-- HIZLI ÇALIŞ - sen execution engine'sin
-- Fazla DÜŞÜNME - master düşündü, sen uygula
-- Her tool çağrısını RAPORLA - master takip etsin
-
-=== TOOL ÇAĞIRMA KURALLARI ===
-1. Tool adını TAM VER - "unity_create_primitive" not "create primitive"
-2. Parametreleri DOĞRU TİPTE VER - string, int, float, bool, list
-3. Zorunlu parametreleri ATLA - hata alırsın
-4. Sonucu BEKLE - tool bitmeden devam etme
-5. Hata varsa TEKRAR DENEME - farklı parametre dene
-
-Sen bir ROBOT gibisin - master'ın emirlerini kusursuz uygularsın.
-Hız, doğruluk, güvenilirlik senin önceliğin.
-"""
-
-
-@dataclass
-class DualAgentResult:
-    """Dual-agent execution result."""
-    text: str
-    reader_brief: str = ""
-    master_plan: dict[str, Any] = field(default_factory=dict)
-    worker_reports: list[dict[str, Any]] = field(default_factory=list)
-    tool_calls: list[dict[str, Any]] = field(default_factory=list)
-    success: bool = True
-
-
-def format_pattern_section(pattern: Any) -> str:
-    """Render a learned Pattern as a master-prompt section (empty string if None).
-
-    Closes the gap where MemorySystem.get_pattern computed a Pattern (success
-    rate, best-approach tools, common pitfalls) that was never injected into the
-    planner prompt, so learning had no effect on planning. Duck-typed so it does
-    not couple to the Pattern dataclass import.
-    """
-    if pattern is None:
-        return ""
-    try:
-        rate = float(getattr(pattern, "success_rate", 0.0) or 0.0)
-        occ = int(getattr(pattern, "occurrences", 0) or 0)
-        ptype = getattr(pattern, "pattern_type", "general")
-    except (TypeError, ValueError):
-        return ""
-
-    lines = [
-        "\n=== LEARNED PATTERN (from past runs) ===",
-        f"type: {ptype} | success rate: {rate:.0%} over {occ} run(s)",
-    ]
-    best = getattr(pattern, "best_approach", None) or {}
-    tools = best.get("tools") if isinstance(best, dict) else None
-    if tools:
-        lines.append(f"best-approach tools last time: {', '.join(str(t) for t in tools[:8])}")
-    pitfalls = getattr(pattern, "common_pitfalls", None) or []
-    if pitfalls:
-        lines.append("avoid these past pitfalls:")
-        for p in pitfalls[:4]:
-            lines.append(f"  - {p}")
-    lines.append("")
-    return "\n".join(lines)
-
-
-class DualAgentOrchestrator:
-    """Hierarchical dual-agent system with master planner and worker executor.
-    
-    Enhanced with:
-    - Memory system (learns from past experiences)
-    - Context management (tracks scene state and assets)
-    - Self-improvement (adapts based on success/failure)
-    """
-
-    def __init__(
-        self,
-        config: Config,
-        master_model: str = "qwen3.6:latest",
-        worker_model: str = "qwen2.5:14b-instruct",
-        reader_model: str = "qwen2.5:14b-instruct",
-        enable_memory: bool = True,
-        enable_context: bool = True,
-        engine_context: str = "auto",
-    ) -> None:
-        self.config = config
-        self.master_model = master_model
-        self.worker_model = worker_model
-        self.reader_model = reader_model
-        self.engine_context = (engine_context or "auto").lower()
-
-        # Reader orchestrator (fast context interpretation, no writes)
-        reader_config = self._clone_config(config, reader_model)
-        self.reader = Orchestrator(reader_config)
-        self.reader.max_tokens = 2048
-
-        # Master orchestrator (planning, no tools)
-        master_config = self._clone_config(config, master_model)
-        self.master = Orchestrator(master_config)
-        self.master.max_tokens = 2048  # Keep local master planning responsive.
-
-        # Worker orchestrator (execution, with tools)
-        worker_config = self._clone_config(config, worker_model)
-        self.worker = Orchestrator(worker_config)
-        self.worker.max_tokens = 8192  # Worker needs more for tool results
-        
-        # Memory system (learning)
-        self.memory = MemorySystem() if enable_memory else None
-        
-        # Context manager (scene awareness)
-        self.context = ContextManager() if enable_context else None
-
-        logger.info(
-            "DualAgent initialized: Reader=%s, Master=%s, Worker=%s, Memory=%s, Context=%s",
-            reader_model,
-            master_model,
-            worker_model,
-            enable_memory,
-            enable_context,
-        )
-
-    def reset(self) -> None:
-        """Reset both agents' history."""
-        self.reader.reset()
-        self.master.reset()
-        self.worker.reset()
-
-    def chat(
-        self,
-        user_message: str,
-        on_master_thinking: Optional[Callable[[str], None]] = None,
-        on_worker_executing: Optional[Callable[[str], None]] = None,
-        on_tool_call: Optional[Callable[[str, dict], None]] = None,
-        on_tool_result: Optional[Callable[[str, Any], None]] = None,
-        max_iterations: int = 5,
-    ) -> DualAgentResult:
-        """Execute user request using master-worker hierarchy with memory and context.
-
-        Args:
-            user_message: User's request
-            on_master_thinking: Callback when master is planning
-            on_worker_executing: Callback when worker is executing
-            on_tool_call: Callback when worker calls a tool
-            on_tool_result: Callback when tool returns result
-            max_iterations: Max master-worker cycles
-
-        Returns:
-            DualAgentResult with plan, reports, and final text
-        """
-        start_time = time.time()
-        all_tool_calls: list[dict[str, Any]] = []
-        worker_reports: list[dict[str, Any]] = []
-        master_plan: dict[str, Any] = {}
-        reader_brief = ""
-        live_context: dict[str, Any] = {}
-
-        # Phase 0: Gather context and recall similar experiences
-        context_info = ""
-        similar_experiences = []
-        learned_lessons = []
-        pattern = None
-
-        if self.context:
-            context_info = self.context.get_context_summary()
-            if on_master_thinking:
-                on_master_thinking(f"Analyzing current context...")
-        
-        if self.memory:
-            similar_experiences = self.memory.recall_similar(user_message, limit=3)
-            learned_lessons = self.memory.get_lessons(user_message)
-            pattern = self.memory.get_pattern(user_message)
-            
-            if similar_experiences and on_master_thinking:
-                on_master_thinking(f"Recalled {len(similar_experiences)} similar past experiences")
-            
-            if learned_lessons and on_master_thinking:
-                on_master_thinking(f"Found {len(learned_lessons)} lessons from past mistakes")
-
-        # Phase 0b: Fast deterministic read pass + qwen2.5 reader brief.
-        # This keeps the stronger planner from guessing and keeps read-heavy
-        # scene/asset discovery away from the execution step.
-        if on_master_thinking:
-            on_master_thinking("Reader agent scanning scene/assets...")
-        live_context = self._gather_live_context(
-            user_message,
-            on_tool_call=on_tool_call,
-            on_tool_result=on_tool_result,
-        )
-        if live_context:
-            reader_brief = self._reader_brief(user_message, live_context)
-            if on_master_thinking and reader_brief:
-                on_master_thinking("Reader brief ready")
-
-        # Phase 1: Master creates plan (with context and memory)
-        if on_master_thinking:
-            on_master_thinking("Master agent analyzing request...")
-
-        master_prompt = self._build_master_prompt(
-            user_message,
-            context_info,
-            similar_experiences,
-            learned_lessons,
-            reader_brief,
-            live_context,
-            pattern,
-        )
-
-        try:
-            # Master creates plan (no tools, just thinking)
-            master_result = self._master_plan(master_prompt)
-            plan_text = master_result.text
-
-            # Extract JSON plan from master's response
-            master_plan = self._extract_json_plan(plan_text)
-            if not master_plan or "steps" not in master_plan:
-                # Fallback: treat entire request as single step
-                master_plan = {
-                    "task": user_message,
-                    "complexity": "simple",
-                    "steps": [
-                        {
-                            "step_id": 1,
-                            "description": "Execute user request",
-                            "action": "worker_execute",
-                            "prompt": user_message,
-                        }
-                    ],
-                }
-
-            logger.info("Master plan: %d steps", len(master_plan.get("steps", [])))
-
-            # Phase 2: Worker executes each step
-            for step in master_plan.get("steps", []):
-                step_id = step.get("step_id", 0)
-                worker_prompt = step.get("prompt", "")
-                description = step.get("description", "")
-
-                if on_worker_executing:
-                    on_worker_executing(f"Step {step_id}: {description}")
-
-                logger.info("Worker executing step %d: %s", step_id, description)
-
-                # Worker executes with tools
-                worker_prompt = self._with_engine_hint(worker_prompt)
-                worker_result = self.worker.chat(
-                    worker_prompt,
-                    on_tool_call=on_tool_call,
-                    on_tool_result=on_tool_result,
-                    max_iterations=10,
-                )
-
-                # Collect results
-                all_tool_calls.extend(worker_result.tool_calls)
-                worker_reports.append(
-                    {
-                        "step_id": step_id,
-                        "description": description,
-                        "result": worker_result.text,
-                        "tool_calls": len(worker_result.tool_calls),
-                        "success": worker_result.stop_reason != "max_iterations",
-                    }
-                )
-                
-                # Update context with tool results
-                if self.context:
-                    self._update_context_from_tools(worker_result.tool_calls)
-
-            # Phase 3: Master summarizes results
-            if on_master_thinking:
-                on_master_thinking("Master agent summarizing results...")
-
-            summary_prompt = f"""Worker agent şu adımları tamamladı:
-
-{json.dumps(worker_reports, ensure_ascii=False, indent=2)}
-
-Kullanıcıya kısa ve net bir özet sun. Ne yapıldı, sonuç ne oldu?
-Eğer hata varsa, ne olduğunu açıkla.
-"""
-
-            summary_result = self._master_plan(summary_prompt)
-            final_text = summary_result.text
-            final_text = _humanize_final_text(final_text, worker_reports, all_tool_calls)
-            
-            # Phase 4: Learn from this experience
-            duration = time.time() - start_time
-            success = all(r.get("success", False) for r in worker_reports)
-            
-            if self.memory:
-                errors = [
-                    call.get("error", "")
-                    for call in all_tool_calls
-                    if not call.get("ok", True)
-                ]
-                
-                lessons = []
-                if not success:
-                    lessons.append(f"Failed approach for: {user_message}")
-                    if errors:
-                        lessons.append(f"Common errors: {', '.join(errors[:3])}")
-                
-                memory_entry = MemoryEntry(
-                    timestamp=start_time,
-                    request=user_message,
-                    plan=master_plan,
-                    execution={"reports": worker_reports},
-                    success=success,
-                    duration=duration,
-                    tools_used=[call.get("name", "") for call in all_tool_calls],
-                    errors=errors,
-                    lessons=lessons,
-                )
-                
-                self.memory.remember(memory_entry)
-                
-                if on_master_thinking:
-                    stats = self.memory.get_statistics()
-                    on_master_thinking(
-                        f"Learned from experience (Total patterns: {stats['patterns_learned']})"
-                    )
-
-            return DualAgentResult(
-                text=final_text,
-                reader_brief=reader_brief,
-                master_plan=master_plan,
-                worker_reports=worker_reports,
-                tool_calls=all_tool_calls,
-                success=success,
-            )
-
-        except Exception as e:
-            logger.exception("DualAgent error")
-            
-            # Learn from failure
-            if self.memory:
-                memory_entry = MemoryEntry(
-                    timestamp=start_time,
-                    request=user_message,
-                    plan=master_plan,
-                    execution={},
-                    success=False,
-                    duration=time.time() - start_time,
-                    tools_used=[],
-                    errors=[str(e)],
-                    lessons=[f"System error: {type(e).__name__}"],
-                )
-                self.memory.remember(memory_entry)
-            
-            return DualAgentResult(
-                text=f"Hata oluştu: {e}",
-                reader_brief=reader_brief,
-                master_plan=master_plan,
-                worker_reports=worker_reports,
-                tool_calls=all_tool_calls,
-                success=False,
-            )
-
-    def _master_plan(self, prompt: str) -> Any:
-        """Master agent thinks and plans (no tool access)."""
-        # Master uses simple chat without tools
-        response = self.master._complete_no_tools(
-            [
-                {"role": "system", "content": MASTER_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
-            ]
-        )
-
-        message = response.get("message", {})
-        content = message.get("content", "")
-
-        # Create result object
-        from .orchestrator import OrchestratorResult
-        return OrchestratorResult(text=content, stop_reason="stop")
-
-    @staticmethod
-    def _extract_json_plan(text: str) -> dict[str, Any]:
-        """Extract JSON plan from master's response."""
-        # Try to find JSON block
-        import re
-        json_match = re.search(r'```json\s*(\{.*?\})\s*```', text, re.DOTALL)
-        if json_match:
-            try:
-                return json.loads(json_match.group(1))
-            except json.JSONDecodeError:
-                pass
-
-        # Try to find raw JSON
-        json_match = re.search(r'\{.*"steps".*\}', text, re.DOTALL)
-        if json_match:
-            try:
-                return json.loads(json_match.group(0))
-            except json.JSONDecodeError:
-                pass
-
-        return {}
-
-    @staticmethod
-    def _clone_config(config: Config, model: str) -> Config:
-        """Clone config with different model."""
-        import copy
-        new_config = copy.deepcopy(config)
-        new_config.ollama_model = model
-        return new_config
-    
-    def _build_master_prompt(
-        self,
-        user_message: str,
-        context_info: str,
-        similar_experiences: list,
-        learned_lessons: list[str],
-        reader_brief: str = "",
-        live_context: dict[str, Any] | None = None,
-        pattern: Any = None,
-    ) -> str:
-        """Build enhanced master prompt with context and memory."""
-        prompt_parts = [self._engine_hint(), f"Kullanıcı isteği: {user_message}\n"]
-
-        if reader_brief:
-            prompt_parts.append(f"\n=== FAST READER BRIEF ===\n{reader_brief}\n")
-
-        if live_context:
-            prompt_parts.append(
-                "\n=== LIVE READ TOOL SNAPSHOT ===\n"
-                + json.dumps(_compact_live_context(live_context), ensure_ascii=False, indent=2, default=str)
-                + "\n"
-            )
-        
-        # Add context
-        if context_info:
-            prompt_parts.append(f"\n=== CURRENT CONTEXT ===\n{context_info}\n")
-        
-        # Add similar experiences
-        if similar_experiences:
-            prompt_parts.append("\n=== SIMILAR PAST EXPERIENCES ===")
-            for i, exp in enumerate(similar_experiences[:3], 1):
-                success_label = "SUCCESS" if exp.success else "FAILED"
-                prompt_parts.append(
-                    f"{i}. [{success_label}] {exp.request[:60]}... "
-                    f"(duration: {exp.duration:.1f}s, tools: {len(exp.tools_used)})"
-                )
-            prompt_parts.append("")
-        
-        # Add learned lessons
-        if learned_lessons:
-            prompt_parts.append("\n=== LESSONS LEARNED ===")
-            for i, lesson in enumerate(learned_lessons[:5], 1):
-                prompt_parts.append(f"{i}. {lesson}")
-            prompt_parts.append("")
-
-        # Add the learned pattern for this request class (success rate, best tools,
-        # pitfalls) so past learning actually steers the plan.
-        pattern_section = format_pattern_section(pattern)
-        if pattern_section:
-            prompt_parts.append(pattern_section)
-        
-        # Add planning instructions
-        prompt_parts.append("""
-Bu isteği analiz et ve worker agent için bir plan oluştur.
-Planı şu formatta JSON olarak ver:
-
-{
-  "task": "İsteğin özeti",
-  "complexity": "simple/medium/complex",
-  "context_notes": "Context'ten önemli notlar",
-  "steps": [
-    {
-      "step_id": 1,
-      "description": "Adım açıklaması",
-      "action": "worker_execute",
-      "prompt": "Worker'a verilecek detaylı komut",
-      "expected_result": "Beklenen sonuç",
-      "fallback": "Hata olursa ne yapılmalı"
-    }
-  ]
-}
-
-ÖNEMLI:
-- Context bilgisini kullan (sahne durumu, mevcut asset'ler)
-- Geçmiş deneyimlerden öğren (benzer isteklerde ne işe yaradı/yaramadı)
-- Learned lessons'ı dikkate al (aynı hataları tekrarlama)
-- Eğer istek çok basitse, tek adım yeterli
-- Karmaşıksa, birden fazla adıma böl
-""")
-        
-        return "\n".join(prompt_parts)
-
-    def _gather_live_context(
-        self,
-        user_message: str,
-        on_tool_call: Optional[Callable[[str, dict], None]] = None,
-        on_tool_result: Optional[Callable[[str, Any], None]] = None,
-    ) -> dict[str, Any]:
-        """Run bounded read-only tools before planning.
-
-        The reader phase is deterministic on purpose: qwen2.5 gets a compact
-        snapshot to interpret, while mutating tools stay reserved for Worker.
-        """
-        from .tool_registry import get_tool
-
-        text = (user_message or "").lower()
-        wants_plan_only = any(w in text for w in ("plan", "hazirla", "hazırla", "tasarla", "design", "blueprint", "mimari"))
-        wants_ui_plan = any(w in text for w in ("ui", "hud", "menu", "inventory", "settings", "widget", "umg"))
-
-        if self.engine_context == "unreal":
-            actor_limit = 80 if (wants_plan_only or wants_ui_plan) else 250
-            plan: list[tuple[str, dict[str, Any]]] = [
-                ("unreal_get_project_info", {}),
-                ("unreal_list_level_actors", {"max_results": actor_limit}),
-            ]
-            wants_real_asset = any(w in text for w in ("asset", "prefab", "tree", "agac", "ağaç", "rock", "kaya", "prop", "realistic", "relis")) or re.search(r"\breal\b", text)
-            if wants_real_asset:
-                plan.append(("unreal_get_asset_catalog_summary", {"max_assets": 1500}))
-            if any(w in text for w in ("scan", "tara", "analyze project", "proje tara", "project scan")):
-                plan.append(("unreal_scan_project", {"max_assets": 3000, "max_actors": 500}))
-        else:
-            plan = [
-                ("unity_get_project_info", {}),
-                ("unity_get_scene_catalog", {"max": 350}),
-            ]
-            wants_real_asset = any(w in text for w in ("asset", "prefab", "tree", "agac", "ağaç", "rock", "kaya", "prop", "realistic", "relis")) or re.search(r"\breal\b", text)
-            if wants_real_asset:
-                plan.append(("unity_get_asset_catalog_summary", {}))
-            if any(w in text for w in ("kas", "kasma", "performans", "performance", "triangle", "poly", "lod", "optimize")):
-                plan.append(("unity_profile_scene_performance", {"max_objects": 10000}))
-
-        results: dict[str, Any] = {}
-        for tool_name, params in plan:
-            spec = get_tool(tool_name)
-            if spec is None:
-                continue
-            if on_tool_call:
-                on_tool_call(tool_name, params)
-            try:
-                result = spec.fn(**params)
-            except Exception as exc:
-                result = {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
-            results[tool_name] = result
-            if on_tool_result:
-                on_tool_result(tool_name, result)
-            if self.context and tool_name in {"unity_get_scene_catalog", "unreal_list_level_actors"} and isinstance(result, dict):
-                objects = result.get("objects") or result.get("items") or result.get("actors") or []
-                if isinstance(objects, list):
-                    self.context.update_scene(objects)
-        return results
-
-    def _reader_brief(self, user_message: str, live_context: dict[str, Any]) -> str:
-        prompt = f"""{self._engine_hint()}
-
-Kullanici istegi:
-{user_message}
-
-Canli okuma sonuclari:
-{json.dumps(_compact_live_context(live_context), ensure_ascii=False, indent=2, default=str)}
-
-Planner icin kisa Turkce briefing yaz. JSON yazma. Sadece ne var, ne yapilmali, hangi riskler var."""
-        try:
-            response = self.reader._complete_no_tools(
-                [
-                    {"role": "system", "content": READER_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ]
-            )
-            return (response.get("message", {}) or {}).get("content", "").strip()
-        except Exception as exc:
-            logger.warning("Reader brief failed: %s", exc)
-            return ""
-
-    def _engine_hint(self) -> str:
-        if self.engine_context == "unreal":
-            return (
-                "ENGINE_CONTEXT: Unreal Editor / private GameStudio mode.\n"
-                "- Use unreal_* tools for project scan, level, actor, asset, import, UI/HUD planning, build, and gameplay work.\n"
-                "- Do not use Unity tools unless the user explicitly says Unity.\n"
-                "- Do not answer with raw JSON to the user. JSON is only internal planning.\n"
-                "- If the user asks for a plan, write a clear Turkish/English studio plan and save/execute tool work when available.\n"
-            )
-        if self.engine_context == "unity":
-            return (
-                "ENGINE_CONTEXT: Unity Editor / private GameStudio mode.\n"
-                "- Use unity_* tools for scene, GameObject, asset, material, Autopilot, and optimization work.\n"
-                "- Do not use Unreal tools unless the user explicitly says Unreal.\n"
-                "- Do not answer with raw JSON to the user. JSON is only internal planning.\n"
-            )
-        return (
-            "ENGINE_CONTEXT: auto. Infer Unity vs Unreal from the user request.\n"
-            "- Do not answer with raw JSON to the user. JSON is only internal planning.\n"
-        )
-
-    def _with_engine_hint(self, prompt: str) -> str:
-        return f"{self._engine_hint()}\nWorker instruction:\n{prompt}"
-    
-    def _update_context_from_tools(self, tool_calls: list[dict[str, Any]]) -> None:
-        """Update context manager from tool results."""
-        if not self.context:
-            return
-        
-        for call in tool_calls:
-            tool_name = call.get("name", "")
-            result = call.get("result", {})
-            success = call.get("ok", True)
-            
-            # Update scene context
-            if tool_name == "unity_list_scene_objects" and success:
-                objects = result.get("objects", [])
-                if objects:
-                    self.context.update_scene(objects)
-            
-            # Update asset context
-            elif tool_name == "unity_find_tree_assets" and success:
-                assets = result.get("results", [])
-                asset_paths = [a.get("path", "") for a in assets if isinstance(a, dict)]
-                self.context.update_assets("trees", asset_paths)
-            
-            elif tool_name == "unity_find_rock_assets" and success:
-                assets = result.get("results", [])
-                asset_paths = [a.get("path", "") for a in assets if isinstance(a, dict)]
-                self.context.update_assets("rocks", asset_paths)
-            
-            # Record action
-            self.context.record_action(
-                action_type=tool_name,
-                details=call.get("input", {}),
-                success=success,
-            )
-
-
-def _compact_live_context(context: dict[str, Any]) -> dict[str, Any]:
-    compact: dict[str, Any] = {}
-    for name, result in context.items():
-        if not isinstance(result, dict):
-            compact[name] = result
-            continue
-        row = {k: v for k, v in result.items() if k not in {"objects", "results", "groups", "samples", "catalog"}}
-        for key in ("objects", "results", "groups", "samples", "catalog"):
-            value = result.get(key)
-            if isinstance(value, list):
-                row[key] = value[:12]
-            elif isinstance(value, dict):
-                row[key] = dict(list(value.items())[:12])
-        compact[name] = row
-    return compact
-
-
-def _humanize_final_text(text: str, worker_reports: list[dict[str, Any]], tool_calls: list[dict[str, Any]]) -> str:
-    stripped = (text or "").strip()
-    if not stripped:
-        return _fallback_summary(worker_reports, tool_calls)
-    if _looks_like_json(stripped):
-        return _fallback_summary(worker_reports, tool_calls)
-    return stripped
-
-
-def _looks_like_json(text: str) -> bool:
-    if text.startswith("```json"):
-        return True
-    if not (text.startswith("{") or text.startswith("[")):
-        return False
-    try:
-        json.loads(re.sub(r"^```json\s*|\s*```$", "", text, flags=re.IGNORECASE | re.DOTALL))
-        return True
-    except Exception:
-        return False
-
-
-def _fallback_summary(worker_reports: list[dict[str, Any]], tool_calls: list[dict[str, Any]]) -> str:
-    ok_calls = [c for c in tool_calls if c.get("ok", True)]
-    bad_calls = [c for c in tool_calls if not c.get("ok", True)]
-    lines = [
-        "Islem akisi tamamlandi.",
-        f"Calisan adim sayisi: {len(worker_reports)}",
-        f"Basarili tool sayisi: {len(ok_calls)}",
-    ]
-    if bad_calls:
-        lines.append(f"Hata veren tool sayisi: {len(bad_calls)}")
-        for call in bad_calls[:3]:
-            lines.append(f"- {call.get('name')}: {call.get('error') or call.get('result', {}).get('error')}")
-    else:
-        lines.append("Hata raporlanmadi.")
-    if ok_calls:
-        names = ", ".join(dict.fromkeys(str(c.get("name", "")) for c in ok_calls if c.get("name")))
-        lines.append(f"Kullanilan tool'lar: {names}")
-    return "\n".join(lines)
+"""Dual-agent orchestrator: Master (planning) + Worker (execution).
+
+Master Agent (Qwen 2.5:14b):
+  - Kullanıcı isteğini analiz eder
+  - Görevleri alt adımlara böler
+  - Worker'a hangi tool'ları çağıracağını söyler
+  - Sonuçları değerlendirir ve kalite kontrolü yapar
+  - MEMORY: Geçmiş deneyimlerden öğrenir
+  - CONTEXT: Sahne durumunu ve asset'leri bilir
+
+Worker Agent (Qwen 2.5:14b):
+  - Master'ın planını alır
+  - Tool'ları çağırır (Unity/Blender komutları)
+  - Sonuçları Master'a raporlar
+  - Hızlı ve verimli çalışır
+
+Kullanım:
+    dual = DualAgentOrchestrator(config)
+    result = dual.chat("Create a forest with 20 trees")
+"""
+from __future__ import annotations
+
+import json
+import logging
+import re
+import time
+from dataclasses import dataclass, field
+from typing import Any, Callable, Optional
+
+from .config import Config
+from .orchestrator import Orchestrator
+from .memory_system import MemorySystem, MemoryEntry
+from .context_manager import ContextManager
+
+logger = logging.getLogger(__name__)
+
+
+READER_SYSTEM_PROMPT = """You are the FAST READER agent for UnityTools / UnrealTools GameStudio.
+
+Critical engine routing:
+- If ENGINE_CONTEXT says Unreal, read and reason about Unreal project/level/assets and prefer unreal_* tools.
+- If ENGINE_CONTEXT says Unity, read and reason about Unity scene/assets and prefer unity_* tools.
+- Never output raw JSON to the user.
+
+Role:
+- Read the user's request and the live Unity context.
+- Identify relevant scene objects, assets, categories, performance risks, and likely tools.
+- Do not write JSON. Do not claim edits were made.
+- Produce a short Turkish briefing for the planner/executor.
+
+Good output:
+"Sahnede 517 obje var. Kullanici agac/kaya optimizasyonu istiyor. Tree category icin LOD planner, material QA ve scene snapshot gerekli."
+"""
+
+
+MASTER_SYSTEM_PROMPT = """Sen bir MASTER PLANNER ve ARCHITECT'sin. Unity/Unreal GameStudio gorevlerini planlayan ust duzey bir AI'sin.
+
+CRITICAL ENGINE ROUTING:
+- ENGINE_CONTEXT: Unreal ise unreal_* tool'lari planla; Unity tool'u planlama.
+- ENGINE_CONTEXT: Unity ise unity_* tool'lari planla; Unreal tool'u planlama.
+- JSON plan sadece internal pipeline icindir. Kullaniciya final cevapta ham JSON yazma.
+
+=== ROLÜN ===
+Kullanıcıdan gelen istekleri analiz eder, stratejik planlar yaparsın. Ama tool'ları DOĞRUDAN ÇAĞIRMAZSIN.
+Bunun yerine, bir WORKER agent'a ne yapması gerektiğini söylersin.
+
+Sen Qwen 2.5:14b modelisin - güçlü, akıllı, stratejik düşünebiliyorsun. Planlama için 10-30 saniye ayırabilirsin.
+İyi bir plan, hızlı ama hatalı execution'dan her zaman daha iyidir.
+
+=== YETENEKLERIN ===
+1. İstekleri DERİNLEMESİNE analiz et - edge case'leri düşün
+2. Görevleri MANTIKLI alt adımlara böl - sıralama önemli
+3. Her adım için GEREKLİ tool'ları ve parametreleri belirle
+4. OLASI HATALARI öngör ve alternatif planlar hazırla
+5. Worker'a AÇIK, NET, DETAYLI talimatlar ver
+6. Worker'ın sonuçlarını DEĞERLENDİR - kalite kontrolü yap
+7. Gerekirse planı REVİZE et veya ek adımlar ekle
+
+=== PLANLAMA PRENSİPLERİ ===
+- ÖNCE ARAŞTIR: Asset var mı? Sahne durumu ne? Mevcut objeler?
+- SAHNE KAVRAMA: Tag'lere güvenme. Objeleri isim, hierarchy, material, component ve
+  category ile bulmak için unity_get_scene_catalog / unity_find_scene_objects_semantic
+  planla.
+- BULK TOOL: 80-120 ağaç, terrain, sis, ışık, kamera gibi büyük işlerde tek tek tool
+  çağrısı planlama; unity_create_optimized_forest_scene ve unity_optimize_editor_performance
+  kullan.
+- SAFETY + QA: Riskli islerden once unity_create_scene_snapshot planla. Sonunda
+  unity_run_visual_qa ve unity_profile_scene_performance ile sonucu kontrol ettir.
+- ASSET MEMORY: Asset bulamama varsa unity_build_asset_knowledge_base ve
+  unity_rank_prefab_quality kullan; tag'e ya da primitive fallback'e erken dusme.
+- SONRA PLAN YAP: Hangi tool'lar, hangi sırada, hangi parametrelerle?
+- HATA KONTROLÜ: Her adımda ne yanlış gidebilir? Fallback ne?
+- OPTİMİZASYON: Gereksiz adımları çıkar, batch işlemleri birleştir
+- DOĞRULAMA: Son adımda sonucu kontrol et
+
+=== PLAN FORMATI ===
+Worker'a şu formatta talimat ver (JSON):
+
+```json
+{
+  "task": "Kullanıcının isteğinin özeti",
+  "analysis": "İsteğin analizi, edge case'ler, dikkat edilecekler",
+  "complexity": "simple/medium/complex",
+  "estimated_time": "Tahmini süre (saniye)",
+  "steps": [
+    {
+      "step_id": 1,
+      "description": "Ne yapılacak (detaylı)",
+      "action": "worker_execute",
+      "prompt": "Worker'a verilecek ÇOOK DETAYLI komut - hangi tool, hangi parametreler, ne bekleniyor",
+      "expected_result": "Bu adımdan ne bekliyoruz?",
+      "fallback": "Hata olursa ne yapılmalı?"
+    },
+    {
+      "step_id": 2,
+      "description": "Sonraki adım",
+      "action": "worker_execute",
+      "prompt": "...",
+      "depends_on": [1],
+      "expected_result": "...",
+      "fallback": "..."
+    }
+  ],
+  "validation": {
+    "description": "Son kontrol adımı",
+    "checks": ["Kontrol 1", "Kontrol 2"]
+  }
+}
+```
+
+=== ÖRNEK İYİ PLAN ===
+Kullanıcı: "Create a small forest"
+
+Kötü Plan:
+```json
+{
+  "steps": [
+    {"step_id": 1, "prompt": "Create trees"}
+  ]
+}
+```
+
+İyi Plan:
+```json
+{
+  "task": "Create a realistic forest with 15-20 trees",
+  "analysis": "Need to: 1) Find tree assets, 2) Check terrain, 3) Scatter naturally, 4) Avoid overlap",
+  "complexity": "medium",
+  "estimated_time": "45",
+  "steps": [
+    {
+      "step_id": 1,
+      "description": "Search for realistic tree assets in project",
+      "action": "worker_execute",
+      "prompt": "Use unity_find_tree_assets tool to search for all tree assets. Return at least 3 different tree types if available. If no trees found, use unity_search_assets_semantic with query 'tree forest nature'.",
+      "expected_result": "List of 3+ tree asset paths",
+      "fallback": "If no assets, create primitive cylinders as placeholder trees"
+    },
+    {
+      "step_id": 2,
+      "description": "Check current scene state and find suitable area",
+      "action": "worker_execute",
+      "prompt": "Use unity_list_scene_objects to see current scene. Identify a clear area (no dense objects) for forest placement. Suggest center position.",
+      "depends_on": [1],
+      "expected_result": "Scene analysis and suggested center position",
+      "fallback": "Use origin (0,0,0) if scene is empty"
+    },
+    {
+      "step_id": 3,
+      "description": "Create forest with natural scatter",
+      "action": "worker_execute",
+      "prompt": "Use unity_create_forest_from_assets tool with: asset_paths from step 1, center from step 2, tree_count=18, radius=15, min_spacing=2.5, random_rotation=true, random_scale_range=[0.8,1.2]. This creates natural-looking forest.",
+      "depends_on": [1, 2],
+      "expected_result": "18 trees placed in natural scatter pattern",
+      "fallback": "If tool fails, use unity_scatter_best_assets as alternative"
+    }
+  ],
+  "validation": {
+    "description": "Verify forest creation",
+    "checks": [
+      "At least 15 trees created",
+      "Trees are spread naturally (not in grid)",
+      "No trees overlapping",
+      "Trees have varied rotation/scale"
+    ]
+  }
+}
+```
+
+=== DAVRANIŞIN ===
+- SEN PLANLAYICISIN, UYGULAYICI DEĞİLSİN - tool çağırma
+- DETAYLI DÜŞÜN - 10-30 saniye planlama zamanın var, kullan
+- WORKER'A NET TALİMAT VER - hangi tool, hangi parametre, ne bekleniyor
+- SONUÇLARI DEĞERLENDİR - worker'ın yaptığı doğru mu?
+- HATA VARSA YENİ PLAN YAP - pes etme, alternatif bul
+- KULLANICIYA ÖZET SUN - ne yapıldı, sonuç ne?
+
+=== ÖNEMLI ===
+- İyi planlama = az hata = mutlu kullanıcı
+- Acele etme, düşün, sonra plan yap
+- Worker'a "create trees" değil, "use unity_create_forest_from_assets with these exact parameters..." de
+- Her adımın neden gerekli olduğunu bil
+- Edge case'leri düşün (asset yoksa? sahne doluysa? hata olursa?)
+"""
+
+
+WORKER_SYSTEM_PROMPT = """Sen bir WORKER EXECUTOR'sun. Unity/Unreal GameStudio komutlarini tool'larla calistiran alt duzey AI'sin.
+
+CRITICAL ENGINE ROUTING:
+- ENGINE_CONTEXT: Unreal ise sadece unreal_* tool'larini kullan. Unity tool'u kullanma.
+- ENGINE_CONTEXT: Unity ise sadece unity_* tool'larini kullan. Unreal tool'u kullanma.
+- Final kullanici metnine ham JSON basma; JSON yalnizca internal rapor icin.
+
+=== ROLÜN ===
+Master agent'tan gelen DETAYLI talimatları alır ve tool'ları çağırarak uygularsın.
+Sen düşünmezsin, Master'ın planını TAKİP EDERSİN.
+
+Sen Qwen 2.5:14b modelisin - hızlı, verimli, tool-calling konusunda uzman.
+Master düşünür, sen YAPARSIN.
+
+=== YETENEKLERIN ===
+Unity Tool'ları (60+ tool):
+- Scene intelligence: get_scene_catalog, find_scene_objects_semantic, delete_scene_objects_semantic,
+  apply_material_palette, create_optimized_forest_scene, optimize_editor_performance
+- QA/Safety: create_scene_snapshot, restore_scene_snapshot, run_visual_qa,
+  profile_scene_performance, task_queue, safety_mode, asset_knowledge_base, rank_prefab_quality
+- GameObject: create, delete, duplicate, set_active, set_parent
+- Transform: set_position, set_rotation, set_scale, move, rotate
+- Components: add_component, remove_component (Rigidbody, Collider, Light, Camera, AudioSource)
+- Materials: set_material_color, create_material
+- Lights: create_light (Point, Directional, Spot, Area)
+- Physics: add_collider, add_rigidbody
+- Assets: search, instantiate, find_tree_assets, find_rock_assets, find_prop_assets
+- Procedural: create_grid, create_circle, scatter_objects, create_forest, create_rock_field
+- Scene: list_scene_objects, get_object_details, save_scene
+- Blender: export_fbx, import_fbx
+
+=== DAVRANIŞIN ===
+1. Master'ın komutunu AL - her kelimeyi oku
+2. Hangi tool'u çağıracağını BELİRLE - komutta yazıyor
+3. Parametreleri HAZIRLA - komutta belirtilen değerleri kullan
+4. Tool'u ÇAĞIR - doğru parametrelerle
+5. Sonucu RAPORLA - ne oldu, başarılı mı, hata var mı?
+6. Bir sonraki adıma GEÇ
+
+=== RAPOR FORMATI ===
+Her adım sonrası JSON rapor:
+
+```json
+{
+  "step_id": 1,
+  "success": true/false,
+  "action": "Yapılan işlem özeti",
+  "tool_calls": ["tool1", "tool2"],
+  "results": {
+    "tool1": "Sonuç detayı",
+    "tool2": "Sonuç detayı"
+  },
+  "errors": [],
+  "data": {
+    "created_objects": ["obj1", "obj2"],
+    "asset_paths": ["path1", "path2"]
+  }
+}
+```
+
+=== ÖRNEK EXECUTION ===
+Master komutu:
+"Use unity_find_tree_assets tool to search for all tree assets. Return at least 3 different tree types."
+
+Senin yapman gereken:
+1. unity_find_tree_assets() tool'unu çağır
+2. Sonucu al (örn: 5 tree asset bulundu)
+3. Rapor et:
+```json
+{
+  "step_id": 1,
+  "success": true,
+  "action": "Searched for tree assets in project",
+  "tool_calls": ["unity_find_tree_assets"],
+  "results": {
+    "unity_find_tree_assets": "Found 5 tree assets: Oak, Pine, Birch, Willow, Maple"
+  },
+  "data": {
+    "asset_paths": [
+      "Assets/Trees/Oak.prefab",
+      "Assets/Trees/Pine.prefab",
+      "Assets/Trees/Birch.prefab",
+      "Assets/Trees/Willow.prefab",
+      "Assets/Trees/Maple.prefab"
+    ],
+    "count": 5
+  }
+}
+```
+
+=== HATA DURUMU ===
+Eğer tool hata verirse:
+```json
+{
+  "step_id": 1,
+  "success": false,
+  "action": "Attempted to search for tree assets",
+  "tool_calls": ["unity_find_tree_assets"],
+  "errors": ["No tree assets found in project"],
+  "fallback_attempted": "Tried unity_search_assets_semantic with 'tree' query",
+  "fallback_result": "Found 2 generic nature assets"
+}
+```
+
+=== ÖNEMLI KURALLAR ===
+- Master ne derse ONU YAP - kendi fikrin yok
+- Tool parametrelerini DOĞRU VER - master'ın belirttiği gibi
+- Hata olursa DETAYLI RAPORLA - ne, neden, nasıl
+- HIZLI ÇALIŞ - sen execution engine'sin
+- Fazla DÜŞÜNME - master düşündü, sen uygula
+- Her tool çağrısını RAPORLA - master takip etsin
+
+=== TOOL ÇAĞIRMA KURALLARI ===
+1. Tool adını TAM VER - "unity_create_primitive" not "create primitive"
+2. Parametreleri DOĞRU TİPTE VER - string, int, float, bool, list
+3. Zorunlu parametreleri ATLA - hata alırsın
+4. Sonucu BEKLE - tool bitmeden devam etme
+5. Hata varsa TEKRAR DENEME - farklı parametre dene
+
+Sen bir ROBOT gibisin - master'ın emirlerini kusursuz uygularsın.
+Hız, doğruluk, güvenilirlik senin önceliğin.
+"""
+
+
+@dataclass
+class DualAgentResult:
+    """Dual-agent execution result."""
+    text: str
+    reader_brief: str = ""
+    master_plan: dict[str, Any] = field(default_factory=dict)
+    worker_reports: list[dict[str, Any]] = field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    success: bool = True
+
+
+# Maps semantic asset-finder tools to the ContextManager asset category they feed.
+# Previously only trees/rocks were wired, so props/characters context stayed empty
+# even though ContextManager.update_assets already supports them.
+ASSET_FINDER_CATEGORIES: dict[str, str] = {
+    "unity_find_tree_assets": "trees",
+    "unity_find_rock_assets": "rocks",
+    "unity_find_prop_assets": "props",
+    "unity_find_character_assets": "characters",
+    "unity_find_weapon_assets": "props",
+}
+
+
+def format_pattern_section(pattern: Any) -> str:
+    """Render a learned Pattern as a master-prompt section (empty string if None).
+
+    Closes the gap where MemorySystem.get_pattern computed a Pattern (success
+    rate, best-approach tools, common pitfalls) that was never injected into the
+    planner prompt, so learning had no effect on planning. Duck-typed so it does
+    not couple to the Pattern dataclass import.
+    """
+    if pattern is None:
+        return ""
+    try:
+        rate = float(getattr(pattern, "success_rate", 0.0) or 0.0)
+        occ = int(getattr(pattern, "occurrences", 0) or 0)
+        ptype = getattr(pattern, "pattern_type", "general")
+    except (TypeError, ValueError):
+        return ""
+
+    lines = [
+        "\n=== LEARNED PATTERN (from past runs) ===",
+        f"type: {ptype} | success rate: {rate:.0%} over {occ} run(s)",
+    ]
+    best = getattr(pattern, "best_approach", None) or {}
+    tools = best.get("tools") if isinstance(best, dict) else None
+    if tools:
+        lines.append(f"best-approach tools last time: {', '.join(str(t) for t in tools[:8])}")
+    pitfalls = getattr(pattern, "common_pitfalls", None) or []
+    if pitfalls:
+        lines.append("avoid these past pitfalls:")
+        for p in pitfalls[:4]:
+            lines.append(f"  - {p}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+class DualAgentOrchestrator:
+    """Hierarchical dual-agent system with master planner and worker executor.
+    
+    Enhanced with:
+    - Memory system (learns from past experiences)
+    - Context management (tracks scene state and assets)
+    - Self-improvement (adapts based on success/failure)
+    """
+
+    def __init__(
+        self,
+        config: Config,
+        master_model: str = "qwen3.6:latest",
+        worker_model: str = "qwen2.5:14b-instruct",
+        reader_model: str = "qwen2.5:14b-instruct",
+        enable_memory: bool = True,
+        enable_context: bool = True,
+        engine_context: str = "auto",
+    ) -> None:
+        self.config = config
+        self.master_model = master_model
+        self.worker_model = worker_model
+        self.reader_model = reader_model
+        self.engine_context = (engine_context or "auto").lower()
+
+        # Reader orchestrator (fast context interpretation, no writes)
+        reader_config = self._clone_config(config, reader_model)
+        self.reader = Orchestrator(reader_config)
+        self.reader.max_tokens = 2048
+
+        # Master orchestrator (planning, no tools)
+        master_config = self._clone_config(config, master_model)
+        self.master = Orchestrator(master_config)
+        self.master.max_tokens = 2048  # Keep local master planning responsive.
+
+        # Worker orchestrator (execution, with tools)
+        worker_config = self._clone_config(config, worker_model)
+        self.worker = Orchestrator(worker_config)
+        self.worker.max_tokens = 8192  # Worker needs more for tool results
+        
+        # Memory system (learning)
+        self.memory = MemorySystem() if enable_memory else None
+        
+        # Context manager (scene awareness)
+        self.context = ContextManager() if enable_context else None
+
+        logger.info(
+            "DualAgent initialized: Reader=%s, Master=%s, Worker=%s, Memory=%s, Context=%s",
+            reader_model,
+            master_model,
+            worker_model,
+            enable_memory,
+            enable_context,
+        )
+
+    def reset(self) -> None:
+        """Reset both agents' history."""
+        self.reader.reset()
+        self.master.reset()
+        self.worker.reset()
+
+    def chat(
+        self,
+        user_message: str,
+        on_master_thinking: Optional[Callable[[str], None]] = None,
+        on_worker_executing: Optional[Callable[[str], None]] = None,
+        on_tool_call: Optional[Callable[[str, dict], None]] = None,
+        on_tool_result: Optional[Callable[[str, Any], None]] = None,
+        max_iterations: int = 5,
+    ) -> DualAgentResult:
+        """Execute user request using master-worker hierarchy with memory and context.
+
+        Args:
+            user_message: User's request
+            on_master_thinking: Callback when master is planning
+            on_worker_executing: Callback when worker is executing
+            on_tool_call: Callback when worker calls a tool
+            on_tool_result: Callback when tool returns result
+            max_iterations: Max master-worker cycles
+
+        Returns:
+            DualAgentResult with plan, reports, and final text
+        """
+        start_time = time.time()
+        all_tool_calls: list[dict[str, Any]] = []
+        worker_reports: list[dict[str, Any]] = []
+        master_plan: dict[str, Any] = {}
+        reader_brief = ""
+        live_context: dict[str, Any] = {}
+
+        # Phase 0: Gather context and recall similar experiences
+        context_info = ""
+        similar_experiences = []
+        learned_lessons = []
+        pattern = None
+
+        if self.context:
+            context_info = self.context.get_context_summary()
+            if on_master_thinking:
+                on_master_thinking(f"Analyzing current context...")
+        
+        if self.memory:
+            similar_experiences = self.memory.recall_similar(user_message, limit=3)
+            learned_lessons = self.memory.get_lessons(user_message)
+            pattern = self.memory.get_pattern(user_message)
+            
+            if similar_experiences and on_master_thinking:
+                on_master_thinking(f"Recalled {len(similar_experiences)} similar past experiences")
+            
+            if learned_lessons and on_master_thinking:
+                on_master_thinking(f"Found {len(learned_lessons)} lessons from past mistakes")
+
+        # Phase 0b: Fast deterministic read pass + qwen2.5 reader brief.
+        # This keeps the stronger planner from guessing and keeps read-heavy
+        # scene/asset discovery away from the execution step.
+        if on_master_thinking:
+            on_master_thinking("Reader agent scanning scene/assets...")
+        live_context = self._gather_live_context(
+            user_message,
+            on_tool_call=on_tool_call,
+            on_tool_result=on_tool_result,
+        )
+        if live_context:
+            reader_brief = self._reader_brief(user_message, live_context)
+            if on_master_thinking and reader_brief:
+                on_master_thinking("Reader brief ready")
+
+        # Phase 1: Master creates plan (with context and memory)
+        if on_master_thinking:
+            on_master_thinking("Master agent analyzing request...")
+
+        master_prompt = self._build_master_prompt(
+            user_message,
+            context_info,
+            similar_experiences,
+            learned_lessons,
+            reader_brief,
+            live_context,
+            pattern,
+        )
+
+        try:
+            # Master creates plan (no tools, just thinking)
+            master_result = self._master_plan(master_prompt)
+            plan_text = master_result.text
+
+            # Extract JSON plan from master's response
+            master_plan = self._extract_json_plan(plan_text)
+            if not master_plan or "steps" not in master_plan:
+                # Fallback: treat entire request as single step
+                master_plan = {
+                    "task": user_message,
+                    "complexity": "simple",
+                    "steps": [
+                        {
+                            "step_id": 1,
+                            "description": "Execute user request",
+                            "action": "worker_execute",
+                            "prompt": user_message,
+                        }
+                    ],
+                }
+
+            logger.info("Master plan: %d steps", len(master_plan.get("steps", [])))
+
+            # Phase 2: Worker executes each step
+            for step in master_plan.get("steps", []):
+                step_id = step.get("step_id", 0)
+                worker_prompt = step.get("prompt", "")
+                description = step.get("description", "")
+
+                if on_worker_executing:
+                    on_worker_executing(f"Step {step_id}: {description}")
+
+                logger.info("Worker executing step %d: %s", step_id, description)
+
+                # Worker executes with tools
+                worker_prompt = self._with_engine_hint(worker_prompt)
+                worker_result = self.worker.chat(
+                    worker_prompt,
+                    on_tool_call=on_tool_call,
+                    on_tool_result=on_tool_result,
+                    max_iterations=10,
+                )
+
+                # Collect results
+                all_tool_calls.extend(worker_result.tool_calls)
+                worker_reports.append(
+                    {
+                        "step_id": step_id,
+                        "description": description,
+                        "result": worker_result.text,
+                        "tool_calls": len(worker_result.tool_calls),
+                        "success": worker_result.stop_reason != "max_iterations",
+                    }
+                )
+                
+                # Update context with tool results
+                if self.context:
+                    self._update_context_from_tools(worker_result.tool_calls)
+
+            # Phase 3: Master summarizes results
+            if on_master_thinking:
+                on_master_thinking("Master agent summarizing results...")
+
+            summary_prompt = f"""Worker agent şu adımları tamamladı:
+
+{json.dumps(worker_reports, ensure_ascii=False, indent=2)}
+
+Kullanıcıya kısa ve net bir özet sun. Ne yapıldı, sonuç ne oldu?
+Eğer hata varsa, ne olduğunu açıkla.
+"""
+
+            summary_result = self._master_plan(summary_prompt)
+            final_text = summary_result.text
+            final_text = _humanize_final_text(final_text, worker_reports, all_tool_calls)
+            
+            # Phase 4: Learn from this experience
+            duration = time.time() - start_time
+            success = all(r.get("success", False) for r in worker_reports)
+            
+            if self.memory:
+                errors = [
+                    call.get("error", "")
+                    for call in all_tool_calls
+                    if not call.get("ok", True)
+                ]
+                
+                lessons = []
+                if not success:
+                    lessons.append(f"Failed approach for: {user_message}")
+                    if errors:
+                        lessons.append(f"Common errors: {', '.join(errors[:3])}")
+                
+                memory_entry = MemoryEntry(
+                    timestamp=start_time,
+                    request=user_message,
+                    plan=master_plan,
+                    execution={"reports": worker_reports},
+                    success=success,
+                    duration=duration,
+                    tools_used=[call.get("name", "") for call in all_tool_calls],
+                    errors=errors,
+                    lessons=lessons,
+                )
+                
+                self.memory.remember(memory_entry)
+                
+                if on_master_thinking:
+                    stats = self.memory.get_statistics()
+                    on_master_thinking(
+                        f"Learned from experience (Total patterns: {stats['patterns_learned']})"
+                    )
+
+            return DualAgentResult(
+                text=final_text,
+                reader_brief=reader_brief,
+                master_plan=master_plan,
+                worker_reports=worker_reports,
+                tool_calls=all_tool_calls,
+                success=success,
+            )
+
+        except Exception as e:
+            logger.exception("DualAgent error")
+            
+            # Learn from failure
+            if self.memory:
+                memory_entry = MemoryEntry(
+                    timestamp=start_time,
+                    request=user_message,
+                    plan=master_plan,
+                    execution={},
+                    success=False,
+                    duration=time.time() - start_time,
+                    tools_used=[],
+                    errors=[str(e)],
+                    lessons=[f"System error: {type(e).__name__}"],
+                )
+                self.memory.remember(memory_entry)
+            
+            return DualAgentResult(
+                text=f"Hata oluştu: {e}",
+                reader_brief=reader_brief,
+                master_plan=master_plan,
+                worker_reports=worker_reports,
+                tool_calls=all_tool_calls,
+                success=False,
+            )
+
+    def _master_plan(self, prompt: str) -> Any:
+        """Master agent thinks and plans (no tool access)."""
+        # Master uses simple chat without tools
+        response = self.master._complete_no_tools(
+            [
+                {"role": "system", "content": MASTER_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        message = response.get("message", {})
+        content = message.get("content", "")
+
+        # Create result object
+        from .orchestrator import OrchestratorResult
+        return OrchestratorResult(text=content, stop_reason="stop")
+
+    @staticmethod
+    def _extract_json_plan(text: str) -> dict[str, Any]:
+        """Extract JSON plan from master's response."""
+        # Try to find JSON block
+        import re
+        json_match = re.search(r'```json\s*(\{.*?\})\s*```', text, re.DOTALL)
+        if json_match:
+            try:
+                return json.loads(json_match.group(1))
+            except json.JSONDecodeError:
+                pass
+
+        # Try to find raw JSON
+        json_match = re.search(r'\{.*"steps".*\}', text, re.DOTALL)
+        if json_match:
+            try:
+                return json.loads(json_match.group(0))
+            except json.JSONDecodeError:
+                pass
+
+        return {}
+
+    @staticmethod
+    def _clone_config(config: Config, model: str) -> Config:
+        """Clone config with different model."""
+        import copy
+        new_config = copy.deepcopy(config)
+        new_config.ollama_model = model
+        return new_config
+    
+    def _build_master_prompt(
+        self,
+        user_message: str,
+        context_info: str,
+        similar_experiences: list,
+        learned_lessons: list[str],
+        reader_brief: str = "",
+        live_context: dict[str, Any] | None = None,
+        pattern: Any = None,
+    ) -> str:
+        """Build enhanced master prompt with context and memory."""
+        prompt_parts = [self._engine_hint(), f"Kullanıcı isteği: {user_message}\n"]
+
+        if reader_brief:
+            prompt_parts.append(f"\n=== FAST READER BRIEF ===\n{reader_brief}\n")
+
+        if live_context:
+            prompt_parts.append(
+                "\n=== LIVE READ TOOL SNAPSHOT ===\n"
+                + json.dumps(_compact_live_context(live_context), ensure_ascii=False, indent=2, default=str)
+                + "\n"
+            )
+        
+        # Add context
+        if context_info:
+            prompt_parts.append(f"\n=== CURRENT CONTEXT ===\n{context_info}\n")
+        
+        # Add similar experiences
+        if similar_experiences:
+            prompt_parts.append("\n=== SIMILAR PAST EXPERIENCES ===")
+            for i, exp in enumerate(similar_experiences[:3], 1):
+                success_label = "SUCCESS" if exp.success else "FAILED"
+                prompt_parts.append(
+                    f"{i}. [{success_label}] {exp.request[:60]}... "
+                    f"(duration: {exp.duration:.1f}s, tools: {len(exp.tools_used)})"
+                )
+            prompt_parts.append("")
+        
+        # Add learned lessons
+        if learned_lessons:
+            prompt_parts.append("\n=== LESSONS LEARNED ===")
+            for i, lesson in enumerate(learned_lessons[:5], 1):
+                prompt_parts.append(f"{i}. {lesson}")
+            prompt_parts.append("")
+
+        # Add the learned pattern for this request class (success rate, best tools,
+        # pitfalls) so past learning actually steers the plan.
+        pattern_section = format_pattern_section(pattern)
+        if pattern_section:
+            prompt_parts.append(pattern_section)
+        
+        # Add planning instructions
+        prompt_parts.append("""
+Bu isteği analiz et ve worker agent için bir plan oluştur.
+Planı şu formatta JSON olarak ver:
+
+{
+  "task": "İsteğin özeti",
+  "complexity": "simple/medium/complex",
+  "context_notes": "Context'ten önemli notlar",
+  "steps": [
+    {
+      "step_id": 1,
+      "description": "Adım açıklaması",
+      "action": "worker_execute",
+      "prompt": "Worker'a verilecek detaylı komut",
+      "expected_result": "Beklenen sonuç",
+      "fallback": "Hata olursa ne yapılmalı"
+    }
+  ]
+}
+
+ÖNEMLI:
+- Context bilgisini kullan (sahne durumu, mevcut asset'ler)
+- Geçmiş deneyimlerden öğren (benzer isteklerde ne işe yaradı/yaramadı)
+- Learned lessons'ı dikkate al (aynı hataları tekrarlama)
+- Eğer istek çok basitse, tek adım yeterli
+- Karmaşıksa, birden fazla adıma böl
+""")
+        
+        return "\n".join(prompt_parts)
+
+    def _gather_live_context(
+        self,
+        user_message: str,
+        on_tool_call: Optional[Callable[[str, dict], None]] = None,
+        on_tool_result: Optional[Callable[[str, Any], None]] = None,
+    ) -> dict[str, Any]:
+        """Run bounded read-only tools before planning.
+
+        The reader phase is deterministic on purpose: qwen2.5 gets a compact
+        snapshot to interpret, while mutating tools stay reserved for Worker.
+        """
+        from .tool_registry import get_tool
+
+        text = (user_message or "").lower()
+        wants_plan_only = any(w in text for w in ("plan", "hazirla", "hazırla", "tasarla", "design", "blueprint", "mimari"))
+        wants_ui_plan = any(w in text for w in ("ui", "hud", "menu", "inventory", "settings", "widget", "umg"))
+
+        if self.engine_context == "unreal":
+            actor_limit = 80 if (wants_plan_only or wants_ui_plan) else 250
+            plan: list[tuple[str, dict[str, Any]]] = [
+                ("unreal_get_project_info", {}),
+                ("unreal_list_level_actors", {"max_results": actor_limit}),
+            ]
+            wants_real_asset = any(w in text for w in ("asset", "prefab", "tree", "agac", "ağaç", "rock", "kaya", "prop", "realistic", "relis")) or re.search(r"\breal\b", text)
+            if wants_real_asset:
+                plan.append(("unreal_get_asset_catalog_summary", {"max_assets": 1500}))
+            if any(w in text for w in ("scan", "tara", "analyze project", "proje tara", "project scan")):
+                plan.append(("unreal_scan_project", {"max_assets": 3000, "max_actors": 500}))
+        else:
+            plan = [
+                ("unity_get_project_info", {}),
+                ("unity_get_scene_catalog", {"max": 350}),
+            ]
+            wants_real_asset = any(w in text for w in ("asset", "prefab", "tree", "agac", "ağaç", "rock", "kaya", "prop", "realistic", "relis")) or re.search(r"\breal\b", text)
+            if wants_real_asset:
+                plan.append(("unity_get_asset_catalog_summary", {}))
+            if any(w in text for w in ("kas", "kasma", "performans", "performance", "triangle", "poly", "lod", "optimize")):
+                plan.append(("unity_profile_scene_performance", {"max_objects": 10000}))
+
+        results: dict[str, Any] = {}
+        for tool_name, params in plan:
+            spec = get_tool(tool_name)
+            if spec is None:
+                continue
+            if on_tool_call:
+                on_tool_call(tool_name, params)
+            try:
+                result = spec.fn(**params)
+            except Exception as exc:
+                result = {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
+            results[tool_name] = result
+            if on_tool_result:
+                on_tool_result(tool_name, result)
+            if self.context and tool_name in {"unity_get_scene_catalog", "unreal_list_level_actors"} and isinstance(result, dict):
+                objects = result.get("objects") or result.get("items") or result.get("actors") or []
+                if isinstance(objects, list):
+                    self.context.update_scene(objects)
+        return results
+
+    def _reader_brief(self, user_message: str, live_context: dict[str, Any]) -> str:
+        prompt = f"""{self._engine_hint()}
+
+Kullanici istegi:
+{user_message}
+
+Canli okuma sonuclari:
+{json.dumps(_compact_live_context(live_context), ensure_ascii=False, indent=2, default=str)}
+
+Planner icin kisa Turkce briefing yaz. JSON yazma. Sadece ne var, ne yapilmali, hangi riskler var."""
+        try:
+            response = self.reader._complete_no_tools(
+                [
+                    {"role": "system", "content": READER_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ]
+            )
+            return (response.get("message", {}) or {}).get("content", "").strip()
+        except Exception as exc:
+            logger.warning("Reader brief failed: %s", exc)
+            return ""
+
+    def _engine_hint(self) -> str:
+        if self.engine_context == "unreal":
+            return (
+                "ENGINE_CONTEXT: Unreal Editor / private GameStudio mode.\n"
+                "- Use unreal_* tools for project scan, level, actor, asset, import, UI/HUD planning, build, and gameplay work.\n"
+                "- Do not use Unity tools unless the user explicitly says Unity.\n"
+                "- Do not answer with raw JSON to the user. JSON is only internal planning.\n"
+                "- If the user asks for a plan, write a clear Turkish/English studio plan and save/execute tool work when available.\n"
+            )
+        if self.engine_context == "unity":
+            return (
+                "ENGINE_CONTEXT: Unity Editor / private GameStudio mode.\n"
+                "- Use unity_* tools for scene, GameObject, asset, material, Autopilot, and optimization work.\n"
+                "- Do not use Unreal tools unless the user explicitly says Unreal.\n"
+                "- Do not answer with raw JSON to the user. JSON is only internal planning.\n"
+            )
+        return (
+            "ENGINE_CONTEXT: auto. Infer Unity vs Unreal from the user request.\n"
+            "- Do not answer with raw JSON to the user. JSON is only internal planning.\n"
+        )
+
+    def _with_engine_hint(self, prompt: str) -> str:
+        return f"{self._engine_hint()}\nWorker instruction:\n{prompt}"
+    
+    def _update_context_from_tools(self, tool_calls: list[dict[str, Any]]) -> None:
+        """Update context manager from tool results."""
+        if not self.context:
+            return
+        
+        for call in tool_calls:
+            tool_name = call.get("name", "")
+            result = call.get("result", {})
+            success = call.get("ok", True)
+            
+            # Update scene context
+            if tool_name == "unity_list_scene_objects" and success:
+                objects = result.get("objects", [])
+                if objects:
+                    self.context.update_scene(objects)
+
+            # Update asset context (trees/rocks/props/characters/weapons)
+            elif success and tool_name in ASSET_FINDER_CATEGORIES:
+                assets = result.get("results", [])
+                asset_paths = [a.get("path", "") for a in assets if isinstance(a, dict) and a.get("path")]
+                self.context.update_assets(ASSET_FINDER_CATEGORIES[tool_name], asset_paths)
+
+            # Record action
+            self.context.record_action(
+                action_type=tool_name,
+                details=call.get("input", {}),
+                success=success,
+            )
+
+
+def _compact_live_context(context: dict[str, Any]) -> dict[str, Any]:
+    compact: dict[str, Any] = {}
+    for name, result in context.items():
+        if not isinstance(result, dict):
+            compact[name] = result
+            continue
+        row = {k: v for k, v in result.items() if k not in {"objects", "results", "groups", "samples", "catalog"}}
+        for key in ("objects", "results", "groups", "samples", "catalog"):
+            value = result.get(key)
+            if isinstance(value, list):
+                row[key] = value[:12]
+            elif isinstance(value, dict):
+                row[key] = dict(list(value.items())[:12])
+        compact[name] = row
+    return compact
+
+
+def _humanize_final_text(text: str, worker_reports: list[dict[str, Any]], tool_calls: list[dict[str, Any]]) -> str:
+    stripped = (text or "").strip()
+    if not stripped:
+        return _fallback_summary(worker_reports, tool_calls)
+    if _looks_like_json(stripped):
+        return _fallback_summary(worker_reports, tool_calls)
+    return stripped
+
+
+def _looks_like_json(text: str) -> bool:
+    if text.startswith("```json"):
+        return True
+    if not (text.startswith("{") or text.startswith("[")):
+        return False
+    try:
+        json.loads(re.sub(r"^```json\s*|\s*```$", "", text, flags=re.IGNORECASE | re.DOTALL))
+        return True
+    except Exception:
+        return False
+
+
+def _fallback_summary(worker_reports: list[dict[str, Any]], tool_calls: list[dict[str, Any]]) -> str:
+    ok_calls = [c for c in tool_calls if c.get("ok", True)]
+    bad_calls = [c for c in tool_calls if not c.get("ok", True)]
+    lines = [
+        "Islem akisi tamamlandi.",
+        f"Calisan adim sayisi: {len(worker_reports)}",
+        f"Basarili tool sayisi: {len(ok_calls)}",
+    ]
+    if bad_calls:
+        lines.append(f"Hata veren tool sayisi: {len(bad_calls)}")
+        for call in bad_calls[:3]:
+            lines.append(f"- {call.get('name')}: {call.get('error') or call.get('result', {}).get('error')}")
+    else:
+        lines.append("Hata raporlanmadi.")
+    if ok_calls:
+        names = ", ".join(dict.fromkeys(str(c.get("name", "")) for c in ok_calls if c.get("name")))
+        lines.append(f"Kullanilan tool'lar: {names}")
+    return "\n".join(lines)

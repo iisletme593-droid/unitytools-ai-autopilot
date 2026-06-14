@@ -210,3 +210,9 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   paths still pass. `import_asset` left untouched (external source paths by design). +13 tests (incl.
   safe_contained_path itself, untested before); live proof: malicious path rejected (bridge not
   called), legit path forwarded. — tests: 208 passed
+- [cycle 14] Context: props/characters/weapons asset-finders now feed ContextManager.
+  `_update_context_from_tools` only wired tree/rock, so prop/character context stayed empty though
+  `update_assets` already supported them. Refactored the tree/rock elif chain into a
+  `ASSET_FINDER_CATEGORIES` mapping (+ prop/character/weapon→props). +5 tests (lightweight: unbound
+  method + fake self, no orchestrator build); live proof: prop+character finders populate
+  context.assets. — tests: 213 passed
