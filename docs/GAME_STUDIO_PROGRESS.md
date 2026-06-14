@@ -63,3 +63,30 @@ the **repeated-tool-call guard** (no more "10 spheres for one request") and **ho
 **Morning options:** review this log + the branch → if good, one PR merges the night's work into
 `main`. Remaining backlog (P0 intent parsing, P3 memory read-back, P4 RPC/Anthropic robustness)
 is in `GAME_STUDIO_ROADMAP.md` for the next run. Restart anytime with `/loop`.
+
+---
+
+## — DAY 1: expose the bridge's existing power (post-review) —
+
+**User review caught a real problem:** most of the night's "new" tools were thin re-wraps of
+things the LLM could already approximate from primitives. The genuinely-new value was only the 2
+reliability fixes. The deeper issue surfaced on inspection: the C# bridge (`CommandHandlers.cs`)
+exposes **65 commands**, but the Python tool layer only wrapped ~42 of them — so the autopilot's
+LLM physically could not reach material palettes, semantic find/delete, scene catalog, optimized
+forest generation, visual QA, snapshots, or performance/LOD tooling. Worse, the orchestrator system
+prompt *instructed* the LLM to call `unity_apply_material_palette` and
+`unity_create_optimized_forest_scene` — tools that did not exist.
+
+- [day1] **Wired 15 existing bridge commands into Python @tool wrappers** (params grounded in the
+  real C# handlers, verified line-by-line): `unity_apply_material_palette`,
+  `unity_diagnose_material_issues`, `unity_repair_material_issues`,
+  `unity_repair_texture_import_settings`, `unity_create_optimized_forest_scene`,
+  `unity_get_scene_catalog`, `unity_find_scene_objects_semantic`,
+  `unity_delete_scene_objects_semantic`, `unity_run_visual_qa`, `unity_create_scene_snapshot`,
+  `unity_restore_scene_snapshot`, `unity_profile_scene_performance`,
+  `unity_optimize_editor_performance`, `unity_analyze_lod_decimation_candidates`,
+  `unity_apply_lod_decimation_plan`. Built via a 5-agent workflow that read the C# and generated
+  matching code+tests; integrated, deduped into one test file, and verified. +39 tests
+  (incl. a registry test proving all 15 are exposed to the LLM). The two tools the system prompt
+  already referenced now actually exist — the prompt no longer promises phantom tools. —
+  tests: 122 passed

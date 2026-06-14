@@ -802,3 +802,202 @@ def unity_list_prefabs(folder: str = "Assets", max_results: int = 200) -> dict:
         return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Wired bridge commands: thin wrappers over existing CommandHandlers commands
+# that previously had NO Python tool, so the autopilot LLM could not reach them
+# (materials/palette, semantic find/delete, scene catalog, optimized forest
+# scene, visual QA, snapshots, performance profiling, LOD). Params are grounded
+# in the real C# handlers in unity_plugin/Editor/Bridge/CommandHandlers.cs.
+# ---------------------------------------------------------------------------
+
+
+@tool(description="Apply a themed color palette (e.g. 'forest') to scene materials, recreating broken/unsupported materials and preserving textures. Optionally scope by semantic query/category.")
+def unity_apply_material_palette(query: str = "", category: str = "", palette: str = "forest", max: int = 2000) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("apply_material_palette", {"query": query, "category": category, "palette": palette, "max": max})
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Scan scene renderers and report material problems (missing materials, broken/unsupported shaders, textured materials) without modifying anything. Optionally scope by semantic query/category.")
+def unity_diagnose_material_issues(query: str = "", category: str = "", max: int = 2000) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("diagnose_material_issues", {"query": query, "category": category, "max": max})
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Repair scene materials by recreating missing/broken (and optionally pipeline-incompatible) materials, preserving textures and optionally tinting them with a palette.")
+def unity_repair_material_issues(query: str = "", category: str = "", tint: bool = False, palette: str = "forest", include_unsupported: bool = False, max: int = 2000) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("repair_material_issues", {"query": query, "category": category, "tint": tint, "palette": palette, "include_unsupported": include_unsupported, "max": max})
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Normalize texture asset import settings (normal-map type, sRGB/linear, mipmaps, max size, compression) for assets matching an AssetDatabase search query.")
+def unity_repair_texture_import_settings(query: str = "texture", max: int = 500) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("repair_texture_import_settings", {"query": query, "max": max})
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Generate a performance-optimized forest scene in Unity (terrain, pines, dead trees, rocks, fog, directional light, overview camera) from a deterministic seed.")
+def unity_create_optimized_forest_scene(clear_scene: bool = True, tree_count: int = 100, rock_count: int = 18, terrain_size: float = 120.0, seed: int = 12345) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("create_optimized_forest_scene", {
+            "clear_scene": clear_scene,
+            "tree_count": tree_count,
+            "rock_count": rock_count,
+            "terrain_size": terrain_size,
+            "seed": seed,
+        })
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Return a catalog of the active Unity scene: every GameObject with its category, tag, layer, position, renderer/material/component summary, plus per-category counts. Use max_results to cap the response size.")
+def unity_get_scene_catalog(max_results: int = 1000) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("get_scene_catalog", {"max_results": max_results})
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Find GameObjects in the active Unity scene by a semantic query and/or category, returning their names, paths, categories, positions, and renderer counts.")
+def unity_find_scene_objects_semantic(query: str = "", category: str = "", max_results: int = 100) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("find_scene_objects_semantic", {"query": query, "category": category, "max_results": max_results})
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Delete GameObjects from the active Unity scene that match a semantic query and/or category; returns the count and names of deleted objects.")
+def unity_delete_scene_objects_semantic(query: str = "", category: str = "", max: int = 500) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("delete_scene_objects_semantic", {"query": query, "category": category, "max": max})
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Run a visual QA pass on the active Unity scene (counts objects/renderers/lights/cameras, flags missing/broken/unsupported materials, optionally captures a SceneView screenshot) and returns a verdict.")
+def unity_run_visual_qa(capture_screenshot: bool = True) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("run_visual_qa", {"capture_screenshot": capture_screenshot})
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Save the active Unity scene and write a timestamped snapshot copy under Assets/AutopilotSnapshots/ tagged with an optional label.")
+def unity_create_scene_snapshot(label: str = "manual") -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("create_scene_snapshot", {"label": label})
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Restore a previously saved scene snapshot by opening the snapshot .unity asset (must be a path under Assets/) as the active scene.")
+def unity_restore_scene_snapshot(path: str) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("restore_scene_snapshot", {"path": path})
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Profile the active Unity scene's render cost: counts renderers/meshes/lights, vertex and triangle totals, shadow casters, unique materials, and returns optimization suggestions.")
+def unity_profile_scene_performance(max_objects: int = 10000) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("profile_scene_performance", {"max_objects": max_objects})
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Speed up the Unity editor for heavy scenes: disables vSync/MSAA, turns off light and renderer shadows, and sets shadow distance and LOD bias.")
+def unity_optimize_editor_performance(shadow_distance: float = 25.0, lod_bias: float = 0.55) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("optimize_editor_performance", {
+            "shadow_distance": shadow_distance,
+            "lod_bias": lod_bias,
+        })
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Find heavy meshes in the scene that are good LOD/decimation candidates (e.g. repeated trees/rocks), grouped by mesh with triangle totals and per-group recommendations. Read-only analysis.")
+def unity_analyze_lod_decimation_candidates(query: str = "", category: str = "", max_results: int = 25, min_triangles: int = 10000) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("analyze_lod_decimation_candidates", {
+            "query": query,
+            "category": category,
+            "max_results": max_results,
+            "min_triangles": min_triangles,
+        })
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Apply an LOD/decimation plan to heavy meshes: adds LODGroups with proxy LODs, optionally disables shadows, marks objects static, and can replace originals with low-poly proxies. Mutates the active scene.")
+def unity_apply_lod_decimation_plan(query: str = "", category: str = "tree", max_objects: int = 150, min_triangles_per_object: int = 25000, create_proxy_lods: bool = True, replace_with_proxy: bool = False, disable_shadows: bool = True, mark_static: bool = True, lod0_screen_relative_height: float = 0.38, lod1_screen_relative_height: float = 0.08) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    try:
+        result = _UNITY.call("apply_lod_decimation_plan", {
+            "query": query,
+            "category": category,
+            "max_objects": max_objects,
+            "min_triangles_per_object": min_triangles_per_object,
+            "create_proxy_lods": create_proxy_lods,
+            "replace_with_proxy": replace_with_proxy,
+            "disable_shadows": disable_shadows,
+            "mark_static": mark_static,
+            "lod0_screen_relative_height": lod0_screen_relative_height,
+            "lod1_screen_relative_height": lod1_screen_relative_height,
+        })
+        return result if isinstance(result, dict) else {"ok": True, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}

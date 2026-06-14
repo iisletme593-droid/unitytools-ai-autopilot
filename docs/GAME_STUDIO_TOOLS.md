@@ -34,4 +34,24 @@ Color names work in English and Turkish (red/kırmızı, blue/mavi, gold/altın�
   (fixes the "10 spheres for one request" bug); it stops after the action is done.
 - **Honest results:** `unity_save_scene` reports a real failure instead of always claiming success.
 
+## Wired bridge power (day 1) — capabilities that existed in the C# bridge but had no tool
+These were already implemented in the bridge; they now have `unity_*` wrappers so the autopilot can
+actually call them. Params are grounded in the real C# handlers.
+
+| Tool | What it does | Example command |
+|------|--------------|-----------------|
+| `unity_apply_material_palette` | Re-skin scene materials with a themed palette, preserving textures | "Sahnedeki materyallere orman paletini uygula" |
+| `unity_diagnose_material_issues` | Report missing/broken/unsupported materials (read-only) | "Sahnedeki bozuk materyalleri tara" |
+| `unity_repair_material_issues` | Recreate broken materials, optionally tint with a palette | "Bozuk materyalleri onar" |
+| `unity_repair_texture_import_settings` | Normalize texture import (mipmaps, sRGB/linear, compression) | "Doku import ayarlarını düzelt" |
+| `unity_create_optimized_forest_scene` | Generate a perf-optimized forest (terrain+trees+rocks+fog+light+cam) from a seed | "150 ağaçlı optimize orman sahnesi kur" |
+| `unity_get_scene_catalog` | Full catalog of the scene: per-object category/tag/pos/components + group counts | "Sahnenin kataloğunu çıkar" |
+| `unity_find_scene_objects_semantic` | Find objects by semantic query/category | "Sahnedeki tüm ağaçları bul" |
+| `unity_delete_scene_objects_semantic` | Delete objects by semantic query/category | "Sahnedeki tüm kayaları sil" |
+| `unity_run_visual_qa` | QA pass: counts + material flags + verdict, optional screenshot | "Sahnede görsel kalite kontrolü yap" |
+| `unity_create_scene_snapshot` / `unity_restore_scene_snapshot` | Save/restore a timestamped scene snapshot (safe experimentation) | "Sahnenin anlık görüntüsünü al" |
+| `unity_profile_scene_performance` | Vertex/triangle/draw cost profile + optimization suggestions | "Sahne performansını analiz et" |
+| `unity_optimize_editor_performance` | Speed up the editor for heavy scenes (shadows/LOD/vSync) | "Editörü bu ağır sahne için optimize et" |
+| `unity_analyze_lod_decimation_candidates` / `unity_apply_lod_decimation_plan` | Find heavy meshes & add LOD groups with proxies | "Ağır ağaçlara LOD ekle" |
+
 > See `GAME_STUDIO_ROADMAP.md` for the backlog and `GAME_STUDIO_PROGRESS.md` for the per-cycle log.

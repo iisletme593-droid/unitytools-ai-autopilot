@@ -63,8 +63,25 @@ incremental capability gains.
 - [ ] Fix dual_agent mojibake (UTF-8 prompts).
 
 ### P5 — Tests & docs
-- [ ] Unit tests for new tools + the P0 loop logic.
+- [x] Unit tests for new tools + the P0 loop logic. (cycles 1-13 + day-1 wired tools = 122 tests)
 - [x] Game-studio tools catalog (cycle 13): `docs/GAME_STUDIO_TOOLS.md` — capability reference with
   example natural-language commands (en/tr).
+
+### P6 — Expose the bridge's existing power (the real gap, found on review)
+The C# bridge already implements far more than the Python tool layer exposes. Wrapping an existing
+command is higher-leverage than reinventing a weaker version of it. The active bridge has 65
+commands; audit which still lack a `unity_*` tool and wire the high-value ones.
+- [x] Wire 15 unexposed bridge commands as `@tool`s (day 1): material palette/diagnose/repair,
+  texture-import repair, optimized forest scene, scene catalog, semantic find/delete, visual QA,
+  scene snapshot/restore, performance profile, editor optimize, LOD analyze/apply. Params grounded
+  in the real C# handlers, +39 tests, registry test included. **This also fixed the system prompt
+  referencing `unity_apply_material_palette` / `unity_create_optimized_forest_scene` before those
+  tools existed.**
+- [ ] Audit the remaining unexposed commands (terrain/particles/UI/atmosphere/behaviours live in
+  the larger worktree bridge — confirm which are in the *active* plugin before wrapping).
+- [ ] Wire `unity_run_visual_qa` into an actual iterate loop (build → QA verdict → fix) — this is
+  the bridge hook that makes P3 "learning/focus" real.
+- [ ] Use `unity_create_scene_snapshot` / `unity_restore_scene_snapshot` to make destructive
+  autopilot actions safely reversible (snapshot before mutate).
 
 > Check items off in this file as they land. Add new items as discovered.
