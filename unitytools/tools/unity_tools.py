@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ..core.tool_registry import tool
 from ..core.layout import compute_layout_positions, compute_structure_positions
+from ..core.lighting import compute_studio_lighting_rig
 
 
 _UNITY = None  # type: ignore
@@ -174,6 +175,42 @@ def unity_build_structure(
         "requested_count": len(positions),
         "errors": errors[:5],
     }
+
+
+@tool(description="Set up a studio 3-point lighting rig (key/fill/rim) around a target point for a presentable scene.")
+def unity_setup_studio_lighting(
+    target_x: float = 0.0,
+    target_y: float = 0.0,
+    target_z: float = 0.0,
+    distance: float = 6.0,
+    key_intensity: float = 1.3,
+    name_prefix: str = "StudioLight",
+) -> dict:
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    rig = compute_studio_lighting_rig(
+        target=(target_x, target_y, target_z),
+        distance=distance,
+        key_intensity=key_intensity,
+    )
+    created: list[str] = []
+    errors: list[str] = []
+    for spec in rig:
+        x, y, z = spec["position"]
+        try:
+            _UNITY.call(
+                "create_light",
+                {
+                    "name": f"{name_prefix}_{spec['role']}",
+                    "light_type": spec["type"],
+                    "position": {"x": x, "y": y, "z": z},
+                    "intensity": spec["intensity"],
+                },
+            )
+            created.append(spec["role"])
+        except Exception as e:
+            errors.append(str(e))
+    return {"ok": len(errors) == 0, "lights": created, "errors": errors[:5]}
 
 
 @tool(description="Copy an asset into the Unity project's Assets folder and refresh AssetDatabase.")

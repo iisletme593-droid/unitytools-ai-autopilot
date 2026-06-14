@@ -35,7 +35,8 @@ incremental capability gains.
   (wall/tower/stairs/room/floor), 6 tests. Tool wired (cycle 5): `unity_build_structure`
   (500-block safety cap, 3 tests).
 - [x] Lighting preset math (cycle 6): `core/lighting.py` `compute_studio_lighting_rig` (3-point
-  key/fill/rim), 4 tests. **Follow-up:** `unity_setup_studio_lighting` tool + camera framing.
+  key/fill/rim), 4 tests. Tool wired (cycle 7): `unity_setup_studio_lighting` (2 tests).
+- [ ] Camera framing tool (frame the scene/an object for a presentable shot).
 
 ### P2 — Visual quality (toward "AAA look", pipeline-agnostic where possible)
 - [ ] Material setup tools (PBR-ish: base color, metallic, smoothness) via the bridge.

@@ -27,3 +27,5 @@ Format: `- [cycle N] <what changed> — tests: <pass/fail> — commit <hash>`
 - [cycle 6] P1 lighting math: `core/lighting.py` `compute_studio_lighting_rig` (3-point
   key/fill/rim) — toward presentable scenes. 4 tests. Next: `unity_setup_studio_lighting` tool. —
   tests: 58 passed
+- [cycle 7] P1 lighting tool: `unity_setup_studio_lighting` — "set up studio lighting" creates a
+  key/fill/rim rig via the bridge (create_light). 2 tests. — tests: 60 passed
