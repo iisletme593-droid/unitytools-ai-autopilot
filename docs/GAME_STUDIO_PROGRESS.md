@@ -151,3 +151,14 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   auto-records a kernel experiment — no more always-None hand-typed metrics. Combined with cycles
   1/2/4, the studio now measures→records→recalls→ranks. +7 tests; live proof: recorded a "promising"
   experiment (clarity 10, fps proxy 60) from the real editor forest scene. — tests: 165 passed
+- [cycle 6] Unity fast-action planner (the studio loop now runs on the PRIMARY engine). The
+  self-evolving planner was Unreal-only; added `plan_unity_fast_action` (+ wired `preflight_prompt`
+  for Unity + `gamestudio_plan_unity_fast_action` tool) mapping Turkish/English intents to the
+  existing unity_* tools — forest/blockout/place/lighting/palette/find/delete/QA/quality-pass/
+  profile/catalog/record-experiment — with write flags + safety notes for destructive steps.
+  Token-prefix matching (not anywhere-substring) avoids false hits like "naSİLsin"→delete. +10 tests
+  (incl. a guard that every emitted tool is registered); live proof: compound Turkish prompt →
+  ordered snapshot→forest→quality-pass plan. — tests: 175 passed
+  (NOTE: the ~25-min auto-wakeup loop stalled ~6.5h between cycle 5 and 6 because ScheduleWakeup is
+  session-local and pauses when the machine sleeps; work is committed each cycle so nothing was lost,
+  resumed on the next message.)

@@ -72,6 +72,13 @@ incremental capability gains.
   outranks a good fun (7/10) — it used to be driven by raw magnitude. Still open: persist verdicts
   across sessions and feed them into planning (depends on the memory-read-back items above).
 
+- [x] Unity fast-action planner (cycle 6). `plan_unity_fast_action` mirrors the Unreal planner for
+  the PRIMARY engine: Turkish/English intent → ordered `unity_*` steps with write flags + safety
+  notes (forest/blockout/place/lighting/palette/find/delete/QA/quality/profile/catalog/record).
+  `preflight_prompt` now routes Unity too; `gamestudio_plan_unity_fast_action` tool added. Token-
+  prefix matching avoids substring false hits. 10 tests + live proof. **Follow-up:** an executor that
+  runs the planned steps (like chat_server's Unreal fast-path) so Unity prompts skip the LLM too.
+
 ### P4 — Robustness (from the original audit)
 - [ ] RPC request/response correlation after timeouts.
 - [ ] Anthropic loop 400-lock on unanswered tool_use blocks.

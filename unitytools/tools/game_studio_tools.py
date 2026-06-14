@@ -3,7 +3,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..core.game_studio_actions import list_templates, plan_unreal_fast_action, preflight_prompt
+from ..core.game_studio_actions import (
+    list_templates,
+    plan_unity_fast_action,
+    plan_unreal_fast_action,
+    preflight_prompt,
+)
 from ..core.game_studio_kernel import GameStudioKernel
 from ..core.quality import metrics_from_signals
 from ..core.tool_registry import get_tool, tool
@@ -22,6 +27,11 @@ def gamestudio_list_templates() -> dict:
 @tool(description="Plan a deterministic safe Unreal fast-action from a user prompt without executing it.")
 def gamestudio_plan_unreal_fast_action(text: str) -> dict:
     return plan_unreal_fast_action(text)
+
+
+@tool(description="Plan a deterministic safe Unity fast-action from a user prompt (Turkish/English) without executing it: ordered unity_* tool steps with write flags and safety notes. Unity is the primary engine; use this to route common imperative scene prompts.")
+def gamestudio_plan_unity_fast_action(text: str) -> dict:
+    return plan_unity_fast_action(text)
 
 
 @tool(description="Classify a prompt before tool execution: route, risk level, template match, and recommended tools.")

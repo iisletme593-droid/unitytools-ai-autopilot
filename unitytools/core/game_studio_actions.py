@@ -224,25 +224,137 @@ def plan_unreal_fast_action(text: str) -> dict[str, Any]:
     return {"ok": True, "template": template.key, "steps": [], "reason": "template has no planner"}
 
 
+def plan_unity_fast_action(text: str) -> dict[str, Any]:
+    """Deterministic Turkish/English intent -> Unity tool-step planner.
+
+    Mirrors plan_unreal_fast_action for the PRIMARY engine: maps common imperative
+    prompts to the existing unity_* tools so the studio loop can run on Unity
+    without an LLM round-trip. Returns ordered steps, each with a ``write`` flag,
+    plus ``safety_notes`` for destructive ones. Compound prompts (e.g. "snapshot al
+    sonra orman kur") emit multiple steps.
+    """
+    lower = _normalize_prompt(text)
+    if not lower.strip():
+        return {"ok": True, "engine": "unity", "steps": [], "reason": "empty"}
+
+    tokens = [t.strip(".,;:!?()[]{}\"'") for t in lower.split()]
+
+    def has(*keywords: str) -> bool:
+        # Multi-word keywords match as a substring; single words match a token
+        # PREFIX (Turkish suffixes attach to the end, so "kayalari" matches "kaya"
+        # but "nasilsin" does NOT match "sil"). Avoids anywhere-substring false hits.
+        for kw in keywords:
+            if " " in kw:
+                if kw in lower:
+                    return True
+            elif any(tok.startswith(kw) for tok in tokens):
+                return True
+        return False
+
+    steps: list[dict[str, Any]] = []
+    safety_notes: list[str] = []
+    build_verb = has("kur", "olustur", "yap", "build", "create", "generate", "uret", "insa")
+
+    if has("snapshot", "yedek", "backup", "geri yukle", "restore point"):
+        steps.append({"tool": "unity_create_scene_snapshot", "kwargs": {"label": "fast_action"},
+                      "write": True, "note": "save a restore point before edits"})
+
+    if has("orman", "forest") and build_verb:
+        steps.append({"tool": "unity_create_optimized_forest_scene",
+                      "kwargs": {"tree_count": _infer_count(lower, 80), "clear_scene": True},
+                      "write": True, "note": "clears the scene then generates an optimized forest"})
+        safety_notes.append("forest generation clears the active scene (orchestrator auto-snapshots first)")
+    elif has("blockout", "kompoze", "sahne kur", "sahne olustur", "build scene", "compose scene"):
+        steps.append({"tool": "unity_blockout_scene", "kwargs": {},
+                      "write": True, "note": "floor + props + lighting + framed camera in one shot"})
+
+    if has("yerlestir", "place", "scatter", "dagit", "serp") or (
+        has("kup", "kure", "cube", "sphere", "silindir", "cylinder", "primitive") and build_verb
+    ):
+        pattern = ("circle" if has("cember", "circle", "ring") else
+                   "grid" if has("izgara", "grid") else
+                   "line" if has("cizgi", "line", "sira") else "scatter")
+        prim = ("Sphere" if has("kure", "sphere") else
+                "Cylinder" if has("silindir", "cylinder") else "Cube")
+        count = _infer_count(lower, 12)
+        steps.append({"tool": "unity_place_primitives",
+                      "kwargs": {"count": count, "pattern": pattern, "type": prim},
+                      "write": True, "note": f"place {count} {prim} in a {pattern}"})
+
+    if has("isik", "light", "aydinlat", "studio lighting", "3 nokta"):
+        steps.append({"tool": "unity_setup_studio_lighting", "kwargs": {},
+                      "write": True, "note": "3-point key/fill/rim rig"})
+
+    if has("renklendir", "boya", "palette", "palet", "recolor", "tint"):
+        steps.append({"tool": "unity_apply_material_palette", "kwargs": {"palette": _infer_palette(lower)},
+                      "write": True, "note": "apply a themed material palette"})
+
+    if has("bul", "find", "search", "nerede") and not has("sil", "delete", "kaldir", "remove"):
+        steps.append({"tool": "unity_find_scene_objects_semantic",
+                      "kwargs": {"query": _infer_placement_category(lower)},
+                      "write": False, "note": "semantic scene search (read-only)"})
+
+    if has("sil", "delete", "kaldir", "remove", "temizle"):
+        steps.append({"tool": "unity_delete_scene_objects_semantic",
+                      "kwargs": {"query": _infer_placement_category(lower)},
+                      "write": True, "note": "semantic delete"})
+        safety_notes.append("deletion is destructive (orchestrator auto-snapshots first)")
+
+    if has("kalite", "quality", "qa", "duzelt", "fix", "onar", "iyilestir"):
+        if has("duzelt", "fix", "onar", "iyilestir", "auto"):
+            steps.append({"tool": "unity_quality_pass", "kwargs": {"auto_fix": True},
+                          "write": True, "note": "visual QA -> auto-fix materials/lighting -> re-check"})
+        else:
+            steps.append({"tool": "unity_run_visual_qa", "kwargs": {},
+                          "write": False, "note": "visual QA pass (read-only)"})
+
+    if has("performans", "performance", "profil", "profile", "fps"):
+        steps.append({"tool": "unity_profile_scene_performance", "kwargs": {},
+                      "write": False, "note": "render-cost profile (read-only)"})
+
+    if has("katalog", "catalog", "listele", "envanter", "ne var"):
+        steps.append({"tool": "unity_get_scene_catalog", "kwargs": {},
+                      "write": False, "note": "scene catalog (read-only)"})
+
+    if has("deney", "experiment", "olc", "measure", "ogren", "learn"):
+        steps.append({"tool": "gamestudio_record_scene_experiment", "kwargs": {"game_title": "scene"},
+                      "write": True, "note": "measure (QA+profile) and record a learning experiment"})
+
+    if not steps:
+        return {"ok": True, "engine": "unity", "steps": [], "reason": "no action verb"}
+    return {
+        "ok": True,
+        "engine": "unity",
+        "steps": steps,
+        "safety_notes": safety_notes,
+        "reason": f"matched {len(steps)} unity action(s)",
+    }
+
+
 def preflight_prompt(text: str, engine: str = "unreal") -> dict[str, Any]:
     """Classify a prompt before an agent chooses tools.
 
     This does not execute anything. It is a cheap safety pass for local models
-    and UI panels.
+    and UI panels. Supports both Unreal and Unity engines.
     """
     lower = _normalize_prompt(text)
     engine = (engine or "unreal").lower()
-    if engine != "unreal":
+    if engine == "unity":
+        plan = plan_unity_fast_action(text)
+        read_only_tools = ["unity_get_scene_catalog", "unity_list_scene_objects", "unity_get_editor_state"]
+    elif engine == "unreal":
+        plan = plan_unreal_fast_action(text)
+        read_only_tools = ["unreal_get_project_info", "unreal_scan_project", "unreal_list_level_actors"]
+    else:
         return {
             "ok": True,
             "engine": engine,
             "route": "orchestrator",
             "risk": "unknown",
-            "reason": "preflight currently has deterministic template rules for Unreal only",
+            "reason": "preflight has deterministic rules for Unreal and Unity only",
             "recommended_tools": [],
         }
 
-    plan = plan_unreal_fast_action(text)
     steps = plan.get("steps", [])
     if steps:
         risk = "write" if any(step.get("write") for step in steps) else "read_only"
@@ -265,7 +377,7 @@ def preflight_prompt(text: str, engine: str = "unreal") -> dict[str, Any]:
             "risk": "read_only",
             "template": None,
             "reason": "generic read-only inspection",
-            "recommended_tools": ["unreal_get_project_info", "unreal_scan_project", "unreal_list_level_actors"],
+            "recommended_tools": read_only_tools,
         }
 
     destructive_terms = ("sil", "delete", "remove", "wipe", "temizle", "destroy", "kaldir")
