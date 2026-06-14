@@ -99,3 +99,11 @@ prompt *instructed* the LLM to call `unity_apply_material_palette` and
   assessment is unit-tested. (c) **Snapshot safety** (`core/safety.py` + orchestrator `_execute_tool`
   hook): auto-saves a scene snapshot before the first destructive tool of each turn (once per turn,
   best-effort). +16 tests. — tests: 138 passed
+- [day1] **LIVE VERIFIED against the running Unity Editor** (port 7779, token auth). `scripts/
+  live_check.py`: connect → ping → scene catalog (SampleScene, 14 objs) → `unity_create_scene_snapshot`
+  (wrote a real .unity under Assets/AutopilotSnapshots) → `unity_run_visual_qa` (captured a
+  screenshot, "Scene QA passed.") → `unity_quality_pass` (score 100). `scripts/forest_demo.py`:
+  one command `unity_create_optimized_forest_scene` built a 48-object optimized forest (terrain +
+  40 trees + rocks, editor quality auto-lowered for the GPU-less machine), then QA passed (145 objs,
+  101 renderers, 0 broken materials). The wired tools + quality loop + snapshot all work on the real
+  editor. (Auto-fix branch stays test-only — both live scenes were already clean.)
