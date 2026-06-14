@@ -139,3 +139,8 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   (kept undecorated because `unity_create_lod_decimation_plan` calls them internally). Added a
   collision warning + `get_collisions()` to `tool_registry`. Collisions 15→0. +3 tests; live
   regression check against the editor still green. — tests: 152 passed
+- [cycle 4] Kernel weak-point ranking fixed: `_infer_weak_points` summed raw metrics, so
+  fps_average (~90) never ranked weak and a good fun_score (~7) was wrongly flagged. Now each metric
+  is normalized to a 0–1 goodness (`_metric_goodness`, fps ceiling 60, scores ceiling 10) and
+  averaged per-metric before ranking ascending. Iteration focus now follows quality, not scale.
+  +6 tests; live proof: fun=9/clarity=8/fps=30 → fps correctly flagged weakest. — tests: 158 passed

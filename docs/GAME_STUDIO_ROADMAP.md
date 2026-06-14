@@ -62,8 +62,10 @@ incremental capability gains.
   (Turkish "orman kur" → pattern section). **Follow-up:** embedding-based recall (still keyword).
 - [~] Game-studio kernel: tighten the evolution loop (metrics → weak points → next plan).
   First concrete loop landed (day 1): `unity_quality_pass` runs an in-scene metrics→weak-points→fix
-  cycle via `core/quality.assess_qa`. Still open: persist verdicts across sessions and feed them
-  into planning (depends on the memory-read-back items above).
+  cycle via `core/quality.assess_qa`. Weak-point ranking fixed (cycle 4): `_infer_weak_points` now
+  normalizes each metric to a 0–1 goodness (`_metric_goodness`) before ranking, so a bad fps (35/60)
+  outranks a good fun (7/10) — it used to be driven by raw magnitude. Still open: persist verdicts
+  across sessions and feed them into planning (depends on the memory-read-back items above).
 
 ### P4 — Robustness (from the original audit)
 - [ ] RPC request/response correlation after timeouts.

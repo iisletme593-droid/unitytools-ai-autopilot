@@ -280,22 +280,43 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# Per-metric "good" ceiling for normalization. Each raw value is mapped to a
+# goodness score in [0, 1] (value / ceiling, clamped) so metrics on different
+# scales/units are comparable. Without this, summing raw values let the smallest-
+# magnitude metric (e.g. fun ~7) dominate "weakest" over a genuinely bad large-scale
+# one (e.g. fps 35), so iteration focus was driven by scale, not quality.
+_METRIC_GOOD_CEILING: dict[str, float] = {
+    "fun_score": 10.0,
+    "clarity_score": 10.0,
+    "difficulty_score": 10.0,
+    "fps_average": 60.0,  # 60 FPS == fully good; below that scores proportionally lower
+}
+
+
+def _metric_goodness(key: str, value: float) -> float:
+    ceiling = _METRIC_GOOD_CEILING.get(key, 10.0)
+    return max(0.0, min(1.0, float(value) / ceiling))
+
+
 def _infer_weak_points(experiments: list[dict[str, Any]], focus: str) -> list[str]:
     if not experiments:
         return [focus, "prototype clarity", "basic smoke test"]
-    scores: dict[str, float] = {}
+    # Accumulate normalized goodness per metric (averaged over the rows that
+    # actually carry it), then rank ascending: lowest goodness = weakest signal.
+    sums: dict[str, float] = {}
+    counts: dict[str, int] = {}
     for row in experiments:
         metrics = row.get("metrics") or {}
-        for key in ("fun_score", "clarity_score", "difficulty_score", "fps_average"):
+        for key in _METRIC_GOOD_CEILING:
             value = metrics.get(key)
             if isinstance(value, (int, float)):
-                scores.setdefault(key, 0.0)
-                scores[key] += float(value)
-    if not scores:
+                sums[key] = sums.get(key, 0.0) + _metric_goodness(key, value)
+                counts[key] = counts.get(key, 0) + 1
+    if not sums:
         return [focus, "missing metrics", "playtest notes"]
-    averaged = {key: value / max(1, len(experiments)) for key, value in scores.items()}
-    ordered = sorted(averaged.items(), key=lambda item: item[1])
-    weak = [key.replace("_score", "").replace("_", " ") for key, _ in ordered[:3]]
+    avg_goodness = {key: sums[key] / counts[key] for key in sums}
+    ordered = sorted(avg_goodness.items(), key=lambda item: item[1])
+    weak = [key.replace("_score", "").replace("_average", "").replace("_", " ") for key, _ in ordered[:3]]
     if focus not in " ".join(weak):
         weak.insert(0, focus)
     return weak[:3]
