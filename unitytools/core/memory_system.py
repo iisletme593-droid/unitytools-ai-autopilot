@@ -11,12 +11,51 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+
+
+# --- recall similarity (pure, GPU-free) ------------------------------------
+# Generic particles/articles (en+tr) plus the ultra-common scene verbs that
+# carry no discriminative signal (every request is "create/yap X"), so recall
+# matches on the SUBJECT (forest, tower, dungeon), not the boilerplate.
+_STOPWORDS = frozenset({
+    "the", "a", "an", "to", "of", "in", "on", "and", "or", "for", "with", "is",
+    "are", "be", "it", "this", "that", "my", "me", "please", "i", "you",
+    "bir", "ve", "ile", "icin", "bu", "su", "o", "da", "de", "den", "dan", "ki",
+    "mi", "mu", "ne", "gibi", "cok", "ben", "bana", "lutfen", "sen",
+    "create", "make", "build", "add", "generate", "yap", "kur", "ekle",
+    "olustur", "uret",
+})
+
+_TR_FOLD = str.maketrans({
+    "ı": "i", "İ": "i", "ş": "s", "Ş": "s", "ğ": "g", "Ğ": "g",
+    "ü": "u", "Ü": "u", "ö": "o", "Ö": "o", "ç": "c", "Ç": "c",
+})
+
+
+def _normalize_token_set(text: str) -> set[str]:
+    norm = (text or "").translate(_TR_FOLD).lower()
+    tokens = (t.strip(".,;:!?()[]{}\"'`-_/") for t in norm.split())
+    return {t for t in tokens if t}
+
+
+def _content_tokens(text: str) -> set[str]:
+    """Normalized, stopword-filtered, length>=2, non-numeric tokens."""
+    return {
+        t for t in _normalize_token_set(text)
+        if len(t) >= 2 and not t.isdigit() and t not in _STOPWORDS
+    }
+
+
+def _idf(token: str, df: dict[str, int], n: int) -> float:
+    """Smoothed inverse document frequency: rarer tokens weigh more."""
+    return math.log((n + 1) / (df.get(token, 0) + 1)) + 1.0
 
 
 @dataclass
@@ -90,24 +129,51 @@ class MemorySystem:
         Searches both the in-process session memories (freshest) and the
         long-term memories loaded from disk at init, so learning persists across
         restarts. Entries present in both are de-duplicated by (timestamp, request).
-        """
-        keywords = set(request.lower().split())
 
+        Similarity is an IDF-weighted Jaccard over Turkish-normalized, stopword-
+        filtered tokens (not a raw overlap count): length-normalized, and rewards
+        sharing distinctive subject words (e.g. "dungeon") over boilerplate. Pure
+        Python — no neural embeddings (GPU-free).
+        """
+        # Build a de-duplicated pool with cached token sets.
         seen: set[tuple[float, str]] = set()
-        similar: list[tuple[int, MemoryEntry]] = []
+        pool: list[tuple[MemoryEntry, set[str]]] = []
         for entry in [*self.session_memories, *self.long_term_memories]:
             key = (entry.timestamp, entry.request)
             if key in seen:
                 continue
             seen.add(key)
-            entry_keywords = set(entry.request.lower().split())
-            overlap = len(keywords & entry_keywords)
-            if overlap > 0:
-                similar.append((overlap, entry))
+            pool.append((entry, _content_tokens(entry.request)))
+        if not pool:
+            return []
 
-        # Sort by similarity (stable: session entries already come first on ties)
-        similar.sort(key=lambda x: x[0], reverse=True)
-        return [entry for _, entry in similar[:limit]]
+        # Document frequencies over the pool (for IDF weighting).
+        df: dict[str, int] = {}
+        for _entry, toks in pool:
+            for t in toks:
+                df[t] = df.get(t, 0) + 1
+        n = len(pool)
+
+        query = _content_tokens(request)
+        if not query:  # query was all stopwords/numbers — fall back to raw tokens
+            query = _normalize_token_set(request)
+        if not query:
+            return []
+
+        scored: list[tuple[float, MemoryEntry]] = []
+        for entry, toks in pool:
+            shared = query & toks
+            if not shared:
+                continue
+            union = query | toks
+            num = sum(_idf(t, df, n) for t in shared)
+            den = sum(_idf(t, df, n) for t in union)
+            score = num / den if den else 0.0
+            scored.append((score, entry))
+
+        # Stable sort: session entries already precede long-term ones on ties.
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [entry for _, entry in scored[:limit]]
     
     def get_pattern(self, request: str) -> Optional[Pattern]:
         """Get the learned pattern for this request's class (if any).

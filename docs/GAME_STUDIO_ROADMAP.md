@@ -59,7 +59,11 @@ incremental capability gains.
   injects the learned Pattern (success rate, best-approach tools, pitfalls) into the master prompt;
   `get_pattern` unified with `_classify_request` and both extended with Turkish keywords so patterns
   actually resolve for the (Turkish-driven) autopilot. Was dead-ended before. 5 tests + live proof
-  (Turkish "orman kur" → pattern section). **Follow-up:** embedding-based recall (still keyword).
+  (Turkish "orman kur" → pattern section). Recall upgraded (cycle 12): `recall_similar` now scores
+  by IDF-weighted Jaccard over Turkish-normalized, stopword-filtered tokens (was a raw overlap
+  count) — length-normalized and rewards distinctive subject words over boilerplate; pure Python (no
+  neural embeddings — GPU-free). 6 tests + live proof (a rare "dungeon" entry outranks 6 common
+  "forest" ones).
 - [x] Auto-record experiments with MEASURED metrics (cycle 5). `core/quality.metrics_from_signals`
   derives clarity_score (structural cleanliness) + an fps proxy (triangle budget) + crash_count from
   visual-QA & profiling; `gamestudio_record_scene_experiment` runs QA+profile on the live scene and

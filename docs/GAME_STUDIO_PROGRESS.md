@@ -197,3 +197,10 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   precise escape-based replacement: 🧠 Master / 🔧 Tool / 📊 Result restored to real codepoints
   (0x1f9e0/0x1f527/0x1f4ca), BOM dropped. Cosmetic (CLI only, not model-facing). +1 guard test in
   test_encoding.py. — tests: 189 passed
+- [cycle 12] Smarter memory recall. `MemorySystem.recall_similar` replaced the raw keyword-overlap
+  count with an IDF-weighted Jaccard over Turkish-normalized (`ağaç`→`agac`), stopword-filtered
+  tokens: length-normalized and rewards sharing distinctive subject words (`dungeon`) over the
+  boilerplate verbs/articles every request shares. Pure Python, GPU-free; backward compatible
+  (cross-session recall tests still pass). +6 tests; live proof: with 6 "orman" entries + 1 "zindan",
+  the query "orman zindan" ranks the rare zindan entry first (raw overlap would tie them). —
+  tests: 195 passed
