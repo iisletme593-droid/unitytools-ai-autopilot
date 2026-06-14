@@ -38,3 +38,5 @@ Format: `- [cycle N] <what changed> — tests: <pass/fail> — commit <hash>`
 - [cycle 10] CAPSTONE: `unity_blockout_scene` — one command composes floor + scattered props +
   studio lighting + framed camera (uses cycles 2-8). "Empty scene -> composed scene" in one shot,
   with object caps. 4 tests. — tests: 76 passed
+- [cycle 11] P4 robustness: `unity_save_scene` no longer always reports ok=true — it honors the
+  editor's actual SaveScene result (a real "ok=true lie" from the audit). 3 tests. — tests: 79 passed

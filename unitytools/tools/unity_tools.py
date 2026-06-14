@@ -267,8 +267,14 @@ def unity_save_scene() -> dict:
     if _UNITY is None:
         return {"ok": False, "error": "UnityBridge is not initialized"}
     try:
-        _UNITY.call("save_scene")
-        return {"ok": True}
+        result = _UNITY.call("save_scene")
+        if isinstance(result, dict) and result.get("ok") is False:
+            return {
+                "ok": False,
+                "error": "Sahne kaydedilemedi (EditorSceneManager.SaveScene false dondu).",
+                "path": result.get("path"),
+            }
+        return {"ok": True, "path": result.get("path") if isinstance(result, dict) else None}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 

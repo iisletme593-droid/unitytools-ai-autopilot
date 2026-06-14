@@ -57,7 +57,8 @@ incremental capability gains.
 ### P4 — Robustness (from the original audit)
 - [ ] RPC request/response correlation after timeouts.
 - [ ] Anthropic loop 400-lock on unanswered tool_use blocks.
-- [ ] Stop "ok=true" lies (save_scene, blender export, unreal import).
+- [x] Stop "ok=true" lies — `unity_save_scene` now honors EditorSceneManager's result instead of
+  always returning ok=true (cycle 11, 3 tests). **Follow-up:** blender export + unreal import.
 - [ ] Fix dual_agent mojibake (UTF-8 prompts).
 
 ### P5 — Tests & docs
