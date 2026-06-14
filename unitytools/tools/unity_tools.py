@@ -8,6 +8,7 @@ from ..core.lighting import compute_studio_lighting_rig
 from ..core.camera import frame_camera_pose
 from ..core.palette import resolve_color, theme_palette
 from ..core.quality import assess_qa
+from ..core.security import safe_contained_path
 
 
 _UNITY = None  # type: ignore
@@ -934,8 +935,18 @@ def unity_create_scene_snapshot(label: str = "manual") -> dict:
 def unity_restore_scene_snapshot(path: str) -> dict:
     if _UNITY is None:
         return {"ok": False, "error": "UnityBridge is not initialized"}
+    # Path-traversal guard: the model picks this path, so confine it to Assets/
+    # and reject absolute / drive-letter / '..'-escaping paths before the bridge
+    # opens it. Legit Assets/AutopilotSnapshots/*.unity paths still pass.
+    norm = str(path or "").strip().replace("\\", "/")
+    if not norm.startswith("Assets/"):
+        return {"ok": False, "error": "snapshot path must be under Assets/"}
     try:
-        result = _UNITY.call("restore_scene_snapshot", {"path": path}, timeout=60)
+        safe_contained_path("Assets", norm[len("Assets/"):])  # raises ValueError on escape
+    except ValueError as e:
+        return {"ok": False, "error": f"unsafe snapshot path: {e}"}
+    try:
+        result = _UNITY.call("restore_scene_snapshot", {"path": norm}, timeout=60)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}

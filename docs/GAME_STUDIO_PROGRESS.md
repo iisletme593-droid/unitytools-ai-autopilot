@@ -204,3 +204,9 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   (cross-session recall tests still pass). +6 tests; live proof: with 6 "orman" entries + 1 "zindan",
   the query "orman zindan" ranks the rare zindan entry first (raw overlap would tie them). —
   tests: 195 passed
+- [cycle 13] Security: wired the dead `safe_contained_path` into `unity_restore_scene_snapshot`. The
+  model picks the restore path, so it's now confined to `Assets/` with absolute / drive-letter /
+  `..`-escaping paths rejected before the bridge opens the scene; legit Assets/AutopilotSnapshots
+  paths still pass. `import_asset` left untouched (external source paths by design). +13 tests (incl.
+  safe_contained_path itself, untested before); live proof: malicious path rejected (bridge not
+  called), legit path forwarded. — tests: 208 passed

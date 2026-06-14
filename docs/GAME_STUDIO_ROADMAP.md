@@ -103,9 +103,11 @@ incremental capability gains.
   BOM dropped, guarded by `tests/test_encoding.py`.
 - [x] Dead-code cleanup (cycle 7): removed orphan `simple_dual_agent.py` (+ its root test), the unused
   `TaskQueue`/`task_queue.py` export, and the stale `protocol.UNITY_METHODS` (phantom
-  `run_csharp_script`). grep-verified dead, +5 regression-guard tests, 180 green. **Deferred:** wire
-  `safe_contained_path` into file-path params (behavior-adding security; import_asset uses external
-  source paths so needs care).
+  `run_csharp_script`). grep-verified dead, +5 regression-guard tests, 180 green. `safe_contained_path`
+  wired (cycle 13): `unity_restore_scene_snapshot` confines the model-chosen path to `Assets/` and
+  rejects absolute / drive-letter / `..`-escaping paths before the bridge opens it (legit
+  Assets/AutopilotSnapshots/*.unity still pass). `import_asset` intentionally untouched (takes an
+  external source path by design). +13 tests (incl. safe_contained_path itself, untested before).
 
 ### P5 — Tests & docs
 - [x] Unit tests for new tools + the P0 loop logic. (cycles 1-13 + day-1 wired tools = 122 tests)
