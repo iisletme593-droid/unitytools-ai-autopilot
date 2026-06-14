@@ -19,3 +19,6 @@ Format: `- [cycle N] <what changed> — tests: <pass/fail> — commit <hash>`
 - [cycle 3] P1 placement tool: `unity_place_primitives` — places N primitives in a chosen layout
   via the bridge, with a 500-object safety cap (also guards against scene-flooding). Builds on
   cycle 2's layout math. 3 tests. — tests: 45 passed
+- [cycle 4] P1 structure math: `compute_structure_positions` (wall/tower/stairs/room/floor) —
+  block-out building blocks for level design. 6 tests. Next: `unity_build_structure` tool. —
+  tests: 51 passed

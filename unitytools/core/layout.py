@@ -76,3 +76,54 @@ def compute_layout_positions(
             for (x, y, z) in positions
         ]
     return positions
+
+
+_STRUCTURES = ("wall", "tower", "stairs", "room", "floor")
+
+
+def compute_structure_positions(
+    kind: str = "wall",
+    width: int = 5,
+    height: int = 3,
+    depth: int = 1,
+    spacing: float = 1.0,
+    origin: Vec3 = (0.0, 0.0, 0.0),
+) -> List[Vec3]:
+    """Block-out positions for a simple primitive structure (e.g. a wall of cubes).
+
+    kind:
+      - "wall"  : width x height grid in the XY plane (a flat wall).
+      - "tower" : a vertical column of `height` blocks.
+      - "stairs": `height` steps, each +1 up and +1 forward (a diagonal staircase).
+      - "floor" : width x depth grid on the ground (y = origin.y).
+      - "room"  : hollow width x depth footprint, `height` tall (perimeter walls only).
+      - unknown -> "wall".
+    """
+    kind = (kind or "wall").lower()
+    ox, oy, oz = origin
+    width = max(1, int(width))
+    height = max(1, int(height))
+    depth = max(1, int(depth))
+    out: List[Vec3] = []
+
+    if kind == "tower":
+        for h in range(height):
+            out.append((ox, oy + h * spacing, oz))
+    elif kind == "stairs":
+        for s in range(height):
+            out.append((ox, oy + s * spacing, oz + s * spacing))
+    elif kind == "floor":
+        for d in range(depth):
+            for w in range(width):
+                out.append((ox + w * spacing, oy, oz + d * spacing))
+    elif kind == "room":
+        for d in range(depth):
+            for w in range(width):
+                if w in (0, width - 1) or d in (0, depth - 1):
+                    for h in range(height):
+                        out.append((ox + w * spacing, oy + h * spacing, oz + d * spacing))
+    else:  # wall
+        for h in range(height):
+            for w in range(width):
+                out.append((ox + w * spacing, oy + h * spacing, oz))
+    return out
