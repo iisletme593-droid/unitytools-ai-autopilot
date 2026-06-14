@@ -819,7 +819,7 @@ def unity_apply_material_palette(query: str = "", category: str = "", palette: s
     if _UNITY is None:
         return {"ok": False, "error": "UnityBridge is not initialized"}
     try:
-        result = _UNITY.call("apply_material_palette", {"query": query, "category": category, "palette": palette, "max": max})
+        result = _UNITY.call("apply_material_palette", {"query": query, "category": category, "palette": palette, "max": max}, timeout=120)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -830,7 +830,7 @@ def unity_diagnose_material_issues(query: str = "", category: str = "", max: int
     if _UNITY is None:
         return {"ok": False, "error": "UnityBridge is not initialized"}
     try:
-        result = _UNITY.call("diagnose_material_issues", {"query": query, "category": category, "max": max})
+        result = _UNITY.call("diagnose_material_issues", {"query": query, "category": category, "max": max}, timeout=90)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -841,7 +841,7 @@ def unity_repair_material_issues(query: str = "", category: str = "", tint: bool
     if _UNITY is None:
         return {"ok": False, "error": "UnityBridge is not initialized"}
     try:
-        result = _UNITY.call("repair_material_issues", {"query": query, "category": category, "tint": tint, "palette": palette, "include_unsupported": include_unsupported, "max": max})
+        result = _UNITY.call("repair_material_issues", {"query": query, "category": category, "tint": tint, "palette": palette, "include_unsupported": include_unsupported, "max": max}, timeout=180)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -852,7 +852,7 @@ def unity_repair_texture_import_settings(query: str = "texture", max: int = 500)
     if _UNITY is None:
         return {"ok": False, "error": "UnityBridge is not initialized"}
     try:
-        result = _UNITY.call("repair_texture_import_settings", {"query": query, "max": max})
+        result = _UNITY.call("repair_texture_import_settings", {"query": query, "max": max}, timeout=240)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -869,7 +869,7 @@ def unity_create_optimized_forest_scene(clear_scene: bool = True, tree_count: in
             "rock_count": rock_count,
             "terrain_size": terrain_size,
             "seed": seed,
-        })
+        }, timeout=180)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -880,7 +880,7 @@ def unity_get_scene_catalog(max_results: int = 1000) -> dict:
     if _UNITY is None:
         return {"ok": False, "error": "UnityBridge is not initialized"}
     try:
-        result = _UNITY.call("get_scene_catalog", {"max_results": max_results})
+        result = _UNITY.call("get_scene_catalog", {"max_results": max_results}, timeout=60)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -891,7 +891,7 @@ def unity_find_scene_objects_semantic(query: str = "", category: str = "", max_r
     if _UNITY is None:
         return {"ok": False, "error": "UnityBridge is not initialized"}
     try:
-        result = _UNITY.call("find_scene_objects_semantic", {"query": query, "category": category, "max_results": max_results})
+        result = _UNITY.call("find_scene_objects_semantic", {"query": query, "category": category, "max_results": max_results}, timeout=60)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -902,7 +902,7 @@ def unity_delete_scene_objects_semantic(query: str = "", category: str = "", max
     if _UNITY is None:
         return {"ok": False, "error": "UnityBridge is not initialized"}
     try:
-        result = _UNITY.call("delete_scene_objects_semantic", {"query": query, "category": category, "max": max})
+        result = _UNITY.call("delete_scene_objects_semantic", {"query": query, "category": category, "max": max}, timeout=90)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -913,7 +913,7 @@ def unity_run_visual_qa(capture_screenshot: bool = True) -> dict:
     if _UNITY is None:
         return {"ok": False, "error": "UnityBridge is not initialized"}
     try:
-        result = _UNITY.call("run_visual_qa", {"capture_screenshot": capture_screenshot})
+        result = _UNITY.call("run_visual_qa", {"capture_screenshot": capture_screenshot}, timeout=120)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -924,7 +924,7 @@ def unity_create_scene_snapshot(label: str = "manual") -> dict:
     if _UNITY is None:
         return {"ok": False, "error": "UnityBridge is not initialized"}
     try:
-        result = _UNITY.call("create_scene_snapshot", {"label": label})
+        result = _UNITY.call("create_scene_snapshot", {"label": label}, timeout=60)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -935,7 +935,7 @@ def unity_restore_scene_snapshot(path: str) -> dict:
     if _UNITY is None:
         return {"ok": False, "error": "UnityBridge is not initialized"}
     try:
-        result = _UNITY.call("restore_scene_snapshot", {"path": path})
+        result = _UNITY.call("restore_scene_snapshot", {"path": path}, timeout=60)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -946,7 +946,7 @@ def unity_profile_scene_performance(max_objects: int = 10000) -> dict:
     if _UNITY is None:
         return {"ok": False, "error": "UnityBridge is not initialized"}
     try:
-        result = _UNITY.call("profile_scene_performance", {"max_objects": max_objects})
+        result = _UNITY.call("profile_scene_performance", {"max_objects": max_objects}, timeout=120)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -960,7 +960,7 @@ def unity_optimize_editor_performance(shadow_distance: float = 25.0, lod_bias: f
         result = _UNITY.call("optimize_editor_performance", {
             "shadow_distance": shadow_distance,
             "lod_bias": lod_bias,
-        })
+        }, timeout=60)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -976,7 +976,7 @@ def unity_analyze_lod_decimation_candidates(query: str = "", category: str = "",
             "category": category,
             "max_results": max_results,
             "min_triangles": min_triangles,
-        })
+        }, timeout=120)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -998,7 +998,7 @@ def unity_apply_lod_decimation_plan(query: str = "", category: str = "tree", max
             "mark_static": mark_static,
             "lod0_screen_relative_height": lod0_screen_relative_height,
             "lod1_screen_relative_height": lod1_screen_relative_height,
-        })
+        }, timeout=240)
         return result if isinstance(result, dict) else {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}

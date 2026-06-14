@@ -58,7 +58,7 @@ class _QABridge:
         self.calls = []
         self._qa = 0
 
-    def call(self, method, params):
+    def call(self, method, params, timeout=None):
         self.calls.append((method, params))
         if method == "run_visual_qa":
             self._qa += 1

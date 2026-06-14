@@ -104,9 +104,10 @@ incremental capability gains.
   duplicate @tool registrations (`get_collisions()`). The 15 day-1 tools turned out to duplicate
   pre-existing `scene_intelligence_tools`/`autopilot_quality_tools` versions (the day-1 audit only
   grepped `unity_tools.py`); consolidated onto the tested+live-proven `unity_tools` copies —
-  collisions **15 → 0**, guarded by `tests/test_no_tool_collisions.py`. **Follow-up:** port the
-  removed copies' richer per-call timeouts (60–240s) and `is_connected()` check onto the
-  `unity_tools` versions.
+  collisions **15 → 0**, guarded by `tests/test_no_tool_collisions.py`. Follow-up DONE (cycle 9):
+  ported the removed copies' explicit per-call timeouts (60–240s) onto all 15 `unity_tools` wrappers
+  so slow ops (texture repair 240s, LOD 240s) don't hit the 180s default. (`is_connected()` port
+  unnecessary — `UnityBridge.call` already raises if disconnected.)
 
 ### P6 — Expose the bridge's existing power (the real gap, found on review)
 The C# bridge already implements far more than the Python tool layer exposes. Wrapping an existing

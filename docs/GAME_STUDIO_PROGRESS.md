@@ -177,3 +177,10 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   BOM that made tools misrender the file. +3 encoding-guard tests; codepoint-verified clean (Kullan
   → 0x131). Honest note: terminal/Read-tool rendering first made it *look* already-correct — only a
   raw codepoint check (0xc4 0xb1 vs 0x131) exposed the real corruption. — tests: 183 passed
+- [cycle 9] Ported explicit per-call timeouts onto the 15 wired `unity_tools` wrappers (cycle-3
+  follow-up): get_scene_catalog/find_semantic 60, delete_semantic/diagnose 90, apply_palette/QA/
+  profile/analyze_lod 120, repair_materials/forest 180, repair_texture/apply_lod 240, snapshot/
+  restore/optimize 60. Slow ops (texture repair, LOD) previously hit the 180s default and could
+  time out. Updated 3 test fakes' `call()` to accept `timeout=`. (is_connected port skipped —
+  `UnityBridge.call` already raises when disconnected.) 183 tests green; live editor check green
+  (timeout'd snapshot/QA/catalog calls succeeded). — tests: 183 passed

@@ -11,7 +11,7 @@ class _FakeBridge:
     def __init__(self):
         self.calls = []
 
-    def call(self, method, params):
+    def call(self, method, params, timeout=None):
         self.calls.append((method, params))
         return {"ok": True}
 
