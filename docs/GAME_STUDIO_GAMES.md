@@ -76,6 +76,18 @@ intent is checked *before* the build intent, so a prompt with both a game type a
 ("dodge oyununu değerlendir") is analysed, not rebuilt. Scene-level "analiz"/"qa"/"performans"
 (no game context) still route to the visual-QA / profiling tools.
 
+**Save / load / list (P8 persistence):**
+- "oyunu kaydet", "dodge oyununu **boss olarak** kaydet", "save the game **as** level1",
+  `kaydet "my level"` → `unity_save_game` (writes a JSON file under the games directory; the name is
+  taken from quotes / "as X" / "X olarak", else the game type, and is sanitized + traversal-guarded).
+- "oyunu yükle boss", "boss oyununu yükle", "load game level1" → `unity_load_game` (returns the saved
+  **plan only** — it does not build it).
+- "kayıtlı oyunlar", "saved games", "diskteki oyunlar" → `unity_list_saved_games`.
+
+These use distinctive verbs (kaydet/yükle/kayıtlı/save/load) and are checked before build, so
+"dodge oyununu kaydet" saves rather than rebuilds; "kayıtlı oyunlar" (disk) stays distinct from
+"hangi oyunlar" (catalog). Scene-level "save"/"geri yükle" without a game context are not touched.
+
 ## 4. execute=False vs execute=True (recompile note)
 
 - `execute=False` (default): returns the **step plan** only. No scene changes — safe to call

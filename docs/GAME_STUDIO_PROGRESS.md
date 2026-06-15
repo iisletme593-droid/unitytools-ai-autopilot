@@ -487,3 +487,17 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   only). +17 tests (sanitization table, disk round-trip via tmp_path, sorted listing, missing->error,
   traversal-stays-inside-root, env-pointed tool flow). Live-proved save->list->load round-trip and the
   traversal defense. — tests: 456 passed
+- [cycle 42] P8 step 3: save/load/list NL intents. `plan_unity_fast_action` gained three game-scoped
+  branches, checked BEFORE build/assess/variations/catalog: (a) "oyunu kaydet" / "X olarak kaydet" /
+  `save the game as Y` / `kaydet "name"` -> unity_save_game; (b) "oyunu yukle X" / "X oyununu yukle" /
+  "load game X" -> unity_load_game (returns the plan only, write=False); (c) "kayitli oyunlar" /
+  "saved games" / "diskteki oyunlar" -> unity_list_saved_games. A pure `extract_game_name(text)` helper
+  parses the name from quotes, English "as X", Turkish "X olarak", a verb-prefix (kaydet/yukle/save/load
+  + optional game/oyun filler), or an "X oyununu" possessive; a stopword set keeps connectors/verbs
+  ("ve", "and", "deney", "game", ...) from being mistaken for a name. The branches require a game context
+  (oyun/game or a game-type word) OR an explicit name, so scene-level "save my work" / "sahneyi geri
+  yukle" and the "deney kaydet ve ogren" experiment-record intent are NOT hijacked (caught + fixed a
+  regression where "kaydet ve ogren" parsed "ve" as a name). "kayitli oyunlar" (disk) stays distinct
+  from "hangi oyunlar" (catalog). Doc §3 note. +21 tests (extract_game_name table, save/load/list
+  routing, difficulty-on-save, no-collision, scene-not-hijacked). Live-proved NL kaydet->listele->yukle
+  end-to-end. — tests: 477 passed

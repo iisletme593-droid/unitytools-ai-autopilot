@@ -312,5 +312,14 @@ parameter-tuning (needs persistence to store history), or a level editor (needs 
   bridge; saving never touches the scene). Verified disk round-trip, listing, missing-file errors, and
   that `../../etc/passwd` lands inside the root. +17 tests. **Next:** saved-game library + NL intent
   (kaydet/yükle/kayıtlı oyunlar) (cycle 42); `unity_import_game` + replay an imported plan (cycle 43).
+- [x] Save/load NL intents (cycle 42): `plan_unity_fast_action` now routes save/load/list to the disk
+  tools. "oyunu kaydet" / "X olarak kaydet" / `save as Y` → `unity_save_game` (name from quotes / "as X"
+  / "X olarak", else game type); "oyunu yükle X" / "load X" → `unity_load_game` (returns the plan only);
+  "kayıtlı oyunlar" / "saved games" → `unity_list_saved_games`. A pure `extract_game_name` helper does
+  the name parsing. These are checked before build/assess/variations/catalog (distinctive verbs) and
+  require a game context so scene-level "save"/"geri yükle" and the "deney kaydet" experiment intent are
+  not stolen. Doc §3 note. +21 tests. **Next:** `unity_import_game` (validate + load external JSON) +
+  a build-from-plan path to actually construct a loaded game (cycle 43); add save/load to the master
+  prompt summary + landing doc (cycle 44).
 
 > Check items off in this file as they land. Add new items as discovered.

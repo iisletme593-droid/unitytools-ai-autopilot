@@ -302,6 +302,62 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "reason": f"variations intent -> {gt}",
         }
 
+    # Save / load / list saved games (P8). Distinctive verbs (kaydet/yukle/kayitli
+    # /save/load), checked before build/catalog so "dodge oyununu kaydet" saves
+    # rather than rebuilds. game_context keeps them off scene/snapshot prompts.
+    game_context = has("oyun", "game") or detect_game_type() != "collectathon" or has("collectathon", "toplama")
+
+    # (c) list saved games — before save, so "saved games" -> list not save.
+    if has("kayitli oyun", "kayitli oyunlar", "kayitli oyunlari", "saved game", "saved games",
+           "diskteki oyun", "kayitli oyunu goster", "kaydedilen oyun"):
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_list_saved_games",
+                "kwargs": {},
+                "write": False,
+                "note": "list games saved to disk (read-only, no bridge)",
+            }],
+            "safety_notes": ["read-only; no scene changes"],
+            "reason": "list-saved-games intent -> unity_list_saved_games",
+        }
+
+    # (a) save game — a name (quoted / "as X" / "X olarak") is enough on its own,
+    # even without an explicit "oyun"/"game" word ("kaydet boss").
+    save_name = extract_game_name(lower)
+    if has("kaydet", "save") and (game_context or save_name):
+        gt = detect_game_type()
+        name = save_name or gt
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_save_game",
+                "kwargs": {"game_type": gt, "name": name, "collectible_count": difficulty_count(5)},
+                "write": True,
+                "note": f"save the {gt} game to disk as '{name}' (writes a file; no scene change)",
+            }],
+            "safety_notes": ["writes a save file to the games directory; no scene changes"],
+            "reason": f"save-game intent -> {gt} as '{name}'",
+        }
+
+    # (b) load game (returns the plan only; does not build)
+    if (has("yukle", "load") or has("oyununu ac", "oyunu ac")) and game_context:
+        name = extract_game_name(lower) or ""
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_load_game",
+                "kwargs": {"name": name},
+                "write": False,
+                "note": f"load saved game '{name}' from disk (returns its plan; does not build it)",
+            }],
+            "safety_notes": ["read-only; returns a plan, does not change the scene"],
+            "reason": f"load-game intent -> '{name}'",
+        }
+
     # Game-catalog intent ("what games can you make?") — must be specific enough
     # that bare "katalog"/"catalog" (the SCENE catalog) is not stolen, so it keys
     # on game-scoped phrases only.
@@ -954,6 +1010,45 @@ def _infer_count(lower: str, default: int) -> int:
             return max(1, min(300, int(range_match.group(1))))
         return default
     return max(1, min(300, int(match.group(1))))
+
+
+# Quote characters a name might be wrapped in (straight, curly, guillemets).
+_QUOTE_RE = re.compile(r"[\"'“”‘’«»]\s*([^\"'“”‘’«»]+?)\s*[\"'“”‘’«»]")
+# Words that are never a save name (verbs / particles / game word).
+_NAME_STOP = frozenset({"oyun", "oyunu", "oyunlar", "oyunlari", "game", "the", "bir",
+                        "bu", "su", "my", "a", "an", "kayitli", "saved", "olarak", "as",
+                        # connectors / verbs that are never a save name
+                        "ve", "and", "ile", "ya", "veya", "or", "then", "sonra",
+                        "deney", "experiment", "ogren", "learn"})
+
+
+def extract_game_name(text: str | None) -> str | None:
+    """Pull a save/load name out of a normalized prompt, or None.
+
+    Tries, in order: a quoted string, English ``as <name>``, Turkish
+    ``<name> olarak``, a verb-prefixed ``kaydet/yukle/save/load <name>``, and a
+    ``<name> oyunu(nu)`` possessive. Operates on the already-normalized (lower,
+    accent-folded) text; the returned name is sanitized again before any file I/O.
+    """
+    s = (text or "").strip()
+    if not s:
+        return None
+    m = _QUOTE_RE.search(s)
+    if m and m.group(1).strip():
+        return m.group(1).strip()
+    m = re.search(r"\bas\s+([a-z0-9_][a-z0-9_\- ]*)$", s)
+    if m and m.group(1).strip() not in _NAME_STOP:
+        return m.group(1).strip()
+    m = re.search(r"\b([a-z0-9_][a-z0-9_\-]*)\s+olarak\b", s)
+    if m and m.group(1) not in _NAME_STOP:
+        return m.group(1)
+    m = re.search(r"\b(?:kaydet|yukle|save|load)\s+(?:game\s+|oyunu?\s+)?([a-z0-9_][a-z0-9_\-]*)", s)
+    if m and m.group(1) not in _NAME_STOP:
+        return m.group(1)
+    m = re.search(r"\b([a-z0-9_][a-z0-9_\-]*)\s+oyun(?:unu|u|lari|lar)?\b", s)
+    if m and m.group(1) not in _NAME_STOP:
+        return m.group(1)
+    return None
 
 
 def _plan_arena_survivor(lower: str, template: TemplateInfo) -> dict[str, Any]:
