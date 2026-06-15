@@ -55,10 +55,14 @@ Give one object a behaviour with `unity_add_gameplay_behaviour(object, behaviour
 | `follow` / `chase` / `takip` | AutopilotFollower | Chases the Player (tag) with MoveTowards; no-op if absent |
 | `orbit` | AutopilotOrbit | Orbits its start point on an axis (RotateAround) |
 | `wander` | AutopilotWander | Drifts to random points near home, re-targeting on a timer |
+| `health` / `can` / `sağlık` / `hp` | AutopilotHealth | Hit points + `TakeDamage(n)`/`Heal(n)`; death → respawn (or destroy); top-right HP HUD |
+| `attack` / `saldırı` / `vur` / `hit` | AutopilotAttack | Damages a tagged target in `range` every `cooldown` via `SendMessage("TakeDamage")` — pairs with `health`, no hard reference |
 
-Turkish/English aliases are accepted (fizik, ağır, oyuncu, toplanabilir, hedef, ölüm/lava,
-dalga, devriye, takip, zıpla, …). **Every behaviour listed here is templated** — each generates
-a compilable MonoBehaviour (`generate_behaviour_script` returns its source); none are stubs.
+The last two are the start of the **action-RPG combat** building blocks (P11): `attack` deals damage
+that `health` receives, fully decoupled. Turkish/English aliases are accepted (fizik, ağır, oyuncu,
+toplanabilir, hedef, ölüm/lava, dalga, devriye, takip, zıpla, can, saldırı, …). **Every behaviour
+listed here is templated** — each generates a compilable MonoBehaviour (`generate_behaviour_script`
+returns its source); none are stubs.
 
 ## 3. "Build me a game" — intent routing
 

@@ -439,5 +439,13 @@ hack-and-slash prototype. Chosen as P11; it extends the existing behaviour catal
   +5 tests. **Next:** `attack` (melee hit that calls TakeDamage on what it touches) (cycle 52); an enemy
   AI that chases + attacks (follow + attack) (cycle 53); an `arena`/`brawler` blueprint composing player
   + health + armed enemies (cycle 54); later inventory/loot + xp/level.
+- [x] Attack behaviour (cycle 52): `attack` scripted behaviour -> `AutopilotAttack` MonoBehaviour — every
+  `cooldown` seconds it damages any object tagged `targetTag` within `range` (Physics.OverlapSphere) by
+  `SendMessage("TakeDamage", damage, DontRequireReceiver)`. It pairs with `health` (whose TakeDamage(int)
+  receives it) but holds NO code reference to AutopilotHealth — a fully decoupled combat chain, so each
+  compiles and runs alone. Aliases saldırı/saldır/vur/vuruş/hit. Pure ASCII, balanced. GAMES.md scripted
+  table gained health + attack rows (doc guard now generates them too). +10 tests. **Next:** enemy AI
+  (follow + attack) (cycle 53); an `arena`/`brawler` blueprint (player+health+armed enemies) as the 7th
+  game type (cycle 54); later inventory/loot + xp/level.
 
 > Check items off in this file as they land. Add new items as discovered.

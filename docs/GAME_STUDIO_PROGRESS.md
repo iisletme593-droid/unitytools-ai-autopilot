@@ -627,3 +627,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   top-right HP HUD); aliases can/saglik/hp/health/canli. Pure ASCII, balanced, no NEEDS_SCRIPT behaviour
   left un-templated. +10 tests (5 maze integration + 5 health). Live-proved the maze intent->save->load
   identity and the health source. No Math.random / new Date; generate-only. — tests: 710 passed
+- [cycle 52] P11 step 2: `attack` behaviour. New scripted behaviour `attack` -> AutopilotAttack
+  MonoBehaviour: every `cooldown` seconds it scans Physics.OverlapSphere(transform.position, range) and
+  damages the first object tagged `targetTag` by `SendMessage("TakeDamage", damage,
+  SendMessageOptions.DontRequireReceiver)`. This forms a fully DECOUPLED combat pair with `health`:
+  attack sends "TakeDamage" and AutopilotHealth.TakeDamage(int) receives it, but attack holds NO code
+  reference to the AutopilotHealth type (only the comment names it), so each compiles and runs alone.
+  Public fields damage/range/cooldown/targetTag. Aliases saldiri/saldir/vur/vurus/hit. Pure ASCII,
+  brace/paren-balanced, all placeholders substituted; no NEEDS_SCRIPT behaviour left un-templated.
+  GAME_STUDIO_GAMES.md scripted table gained health + attack rows and the no-phantom doc guard now
+  generates them too. +10 tests (attack source, decoupled-no-hard-ref, ASCII/balance, aliases,
+  health+attack combat pair). Live-proved the attack source + the decoupled attack->health chain.
+  — tests: 720 passed
