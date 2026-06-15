@@ -266,5 +266,12 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   `unity_game_variations`, checked before the build branch so "dodge varyasyonları göster" lists the
   options instead of building. Doc §6 intent note + 19 tests. **Remaining:** a one-glance catalog
   report (all types + readiness) (cycle 37); inject game capabilities into the master planner (cycle 38).
+- [x] Game catalog (cycle 37): `core/game_qa.summarize_catalog()` walks every blueprint, plans +
+  assesses each, and returns a one-glance "what can I make?" report — per-game summary/counts/playable
+  verdict/warnings, plus the union of behaviours used and an `all_playable` flag. New pure tool
+  `unity_game_catalog` (no bridge); routed by intent ("oyun katalogu" / "hangi oyunlar" / "neler
+  yapabilirsin" / "what games" / "list games") while bare "katalog" still means the scene catalog.
+  Doc §7 + 14 tests. **Remaining:** inject game capabilities into the master planner (cycle 38);
+  a one-page studio README/landing doc (cycle 39).
 
 > Check items off in this file as they land. Add new items as discovered.

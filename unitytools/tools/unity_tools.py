@@ -1296,3 +1296,9 @@ def unity_game_variations(game_type: str = "collectathon", counts: str = "", are
     from ..core.game_blueprint import plan_game_variations
     count_list = [int(c) for c in counts.replace(" ", "").split(",") if c.strip().isdigit()] or None
     return plan_game_variations(game_type, counts=count_list, arena_size=arena_size)
+
+
+@tool(description="List every game the studio can make, at a glance, WITHOUT touching the scene (pure, no bridge): each game type's summary, object/script counts, playable verdict, and warnings, plus the full set of behaviours used. A 'what can I build?' report. Use to answer 'hangi oyunlar / what games can you make'.")
+def unity_game_catalog(count: int = 5) -> dict:
+    from ..core.game_qa import summarize_catalog
+    return summarize_catalog(count)

@@ -110,7 +110,16 @@ so difficulty rises monotonically (more enemies/collectibles → more objects). 
   `unity_game_variations` instead of building — checked before the build intent, so "dodge
   varyasyonları göster" lists the options rather than building one dodge.
 
-## 7. Living scenes (decorative, not a game)
+## 7. Game catalog (what can I make?)
+
+`unity_game_catalog()` returns a one-glance report of the whole catalog: every game type's summary,
+object/script counts, player/goal/score flags, playable verdict, and warnings, plus the full set of
+behaviours used across all games and whether they are `all_playable`. Pure (no scene changes, no
+bridge); the pure function is `core/game_qa.summarize_catalog`. Routed by intent — "oyun katalogu",
+"hangi oyunlar yapabilirsin", "neler yapabilirsin", "what games can you make", "list games" — while
+bare "katalog" still means the *scene* catalog (`unity_get_scene_catalog`).
+
+## 8. Living scenes (decorative, not a game)
 
 Not every scene is a game. `unity_animate_group` brings a scene to life: it places N props
 and gives each a **decorative** scripted behaviour (`bob` / `orbit` / `rotate` / `wander`,

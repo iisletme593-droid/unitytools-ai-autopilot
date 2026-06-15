@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .game_blueprint import group_execution_plan
+from .game_blueprint import group_execution_plan, BLUEPRINTS, plan_game
 
 # Behaviours that give a game something to DO — an objective, a threat, or motion
 # the player must react to. A scene with a player but none of these is a sandbox,
@@ -96,4 +96,41 @@ def assess_game_readiness(plan: dict[str, Any]) -> dict[str, Any]:
         "hazard_count": hazard_count,
         "playable": playable,
         "warnings": warnings,
+    }
+
+
+def summarize_catalog(count: int = 5) -> dict[str, Any]:
+    """One-glance "what can I make?" report across the whole game catalog. Pure.
+
+    Walks every blueprint in BLUEPRINTS, plans it at ``count`` and assesses its
+    readiness, returning {ok, game_count, games:[...], all_playable,
+    unique_behaviours, behaviour_count}. No bridge, no scene changes — the studio
+    describing its own capabilities.
+    """
+    games: list[dict[str, Any]] = []
+    behaviours: set[str] = set()
+    all_playable = True
+    for gt in sorted(BLUEPRINTS):
+        plan = plan_game(gt, count)
+        report = assess_game_readiness(plan)
+        games.append({
+            "game_type": gt,
+            "summary": plan.get("summary", ""),
+            "object_count": report["object_count"],
+            "unique_scripts": report["unique_scripts"],
+            "playable": report["playable"],
+            "has_player": report["has_player"],
+            "has_goal": report["has_goal"],
+            "has_score": report["has_score"],
+            "warnings": report["warnings"],
+        })
+        behaviours.update(report["behaviour_counts"].keys())
+        all_playable = all_playable and report["playable"]
+    return {
+        "ok": True,
+        "game_count": len(games),
+        "games": games,
+        "all_playable": all_playable,
+        "unique_behaviours": sorted(behaviours),
+        "behaviour_count": len(behaviours),
     }

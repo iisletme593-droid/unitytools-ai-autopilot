@@ -428,3 +428,12 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   tests (difficulty->count table, explicit-number priority, variations routing + game_type, variations-
   beats-build, cok-not-a-trigger). Live-proved difficulty build counts + variation routing (pure).
   — tests: 401 passed
+- [cycle 37] Game catalog — the studio's one-glance "what can I make?" report. `core/game_qa.summarize_catalog(count)`
+  walks every blueprint in BLUEPRINTS, plans + assesses each, and returns {ok, game_count, games:[per-game
+  game_type/summary/object_count/unique_scripts/playable/has_player/has_goal/has_score/warnings], all_playable,
+  unique_behaviours, behaviour_count}. Games are sorted for stable output; behaviours are the union across the
+  whole catalog. New pure tool `unity_game_catalog` (NO bridge) exposes it; `plan_unity_fast_action` routes
+  "oyun katalogu", "oyun listesi/turleri/cesitleri", "hangi oyunlar", "neler yapabilir", "what games", "list
+  games" -> unity_game_catalog — keyed on game-scoped phrases so bare "katalog"/"sahne katalogu" still reaches
+  the scene catalog (`unity_get_scene_catalog`), verified not hijacked. Live: all 5 games playable, 9 unique
+  behaviours across the catalog. Doc §7. +14 tests. Pure + deterministic, no scene changes. — tests: 415 passed

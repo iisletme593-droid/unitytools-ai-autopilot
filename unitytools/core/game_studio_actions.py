@@ -302,6 +302,25 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "reason": f"variations intent -> {gt}",
         }
 
+    # Game-catalog intent ("what games can you make?") — must be specific enough
+    # that bare "katalog"/"catalog" (the SCENE catalog) is not stolen, so it keys
+    # on game-scoped phrases only.
+    if has("oyun katalog", "oyun listesi", "oyun turleri", "oyun cesitleri", "oyun cesidi",
+           "hangi oyunlar", "ne tur oyun", "neler yapabilir", "what games", "list games",
+           "game catalog", "game list", "which games"):
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_game_catalog",
+                "kwargs": {},
+                "write": False,
+                "note": "list every game the studio can make (pure, no scene changes, no bridge)",
+            }],
+            "safety_notes": ["read-only; no scene changes"],
+            "reason": "game-catalog intent -> unity_game_catalog",
+        }
+
     # Assess/QA intent must beat build-game: "dodge oyununu degerlendir" contains
     # both "dodge" and "degerlendir" — the user wants an analysis, not a build. It
     # also requires a game context ("oyun"/"game") so scene-level "analiz"/"qa"
