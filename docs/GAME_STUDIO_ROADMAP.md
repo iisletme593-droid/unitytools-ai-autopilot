@@ -238,5 +238,14 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   build→import→wait→attach path was extracted into a shared `_execute_grouped_behaviour_plan` helper
   (de-dups unity_build_simple_game; behaviour unchanged — its tests still pass). Doc §6 + 9 tests.
   **Remaining:** game summarizer / readiness QA report (cycle 33).
+- [x] Game QA / readiness (cycle 33): `core/game_qa.py` — pure, bridge-free analysis of a blueprint
+  plan. `summarize_plan` counts objects (create=1, place=count, set_tag=0) and behaviours (scripted +
+  physics); `assess_game_readiness` adds has_player/has_goal/has_score, collectible/hazard counts,
+  unique-script count, a **playable** verdict (player + an interactive element), and warnings ("no
+  goal", "collectibles but no score HUD", "not playable", …). New tool `unity_assess_game` (pure, no
+  bridge) runs it for a game_type so the studio can sanity-check a game before building. Every one of
+  the 5 blueprints reports playable=True; decor reports not-playable (correctly). +15 tests.
+  **Remaining:** bind QA to the NL/master-planner intent (cycle 34); a game-variation generator
+  (same type, different parameters) (cycle 35).
 
 > Check items off in this file as they land. Add new items as discovered.

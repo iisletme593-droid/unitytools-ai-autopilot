@@ -378,3 +378,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   count tests still pass). Doc §6 "Living scenes" added (no-phantom guard still green; unity_animate_group
   is registered). +9 tests. Live-proved the decor plan + alias validation + dry-run + 4 intent phrases
   (pure, execute=False; no recompile triggered). — tests: 342 passed
+- [cycle 33] Game QA / readiness — pure, bridge-free self-analysis. New `core/game_qa.py`:
+  `summarize_plan(plan)` counts objects (`unity_create_primitive`=1, `unity_place_primitives`=count,
+  `unity_set_tag`=0) and behaviours (both scripted `script_behaviour` steps and physics
+  `unity_add_gameplay_behaviour` steps, e.g. platformer's static_obstacle). `assess_game_readiness(plan)`
+  builds on it: has_player/has_goal/has_score, collectible_count, hazard_count (killzone),
+  unique-script count (via group_execution_plan), a **playable** verdict (player AND at least one
+  interactive behaviour from goal/collectible/killzone/mover/follow/chase/spawner/patrol), and a
+  warnings list ("empty scene", "no player", "no goal", "collectibles but no score HUD", "not
+  playable"). New tool `unity_assess_game(game_type, collectible_count)` runs the whole thing with NO
+  bridge so the studio can sanity-check a game before building. Verified across the catalog: all 5
+  blueprints report playable=True (survival also warns "no goal" — correct, it's survive-don't-die);
+  ambient decor correctly reports playable=False with player/goal warnings. +15 tests. Live-proved a
+  readiness table for every game type + decor (pure). — tests: 357 passed

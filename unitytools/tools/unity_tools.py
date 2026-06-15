@@ -1279,3 +1279,13 @@ def unity_animate_group(
         "unique_scripts": result["unique_scripts"],
         "applied": applied,
     }
+
+
+@tool(description="Assess a game blueprint WITHOUT touching the scene (pure analysis, no bridge): how many objects and behaviours it has, whether it has a player/goal/score, and whether it is actually playable. game_type='collectathon'/'dodge'/'survival'/'platformer'/'chase'. Returns counts + a playable verdict + warnings (e.g. 'no goal'). Use to sanity-check a game before building it.")
+def unity_assess_game(game_type: str = "collectathon", collectible_count: int = 5) -> dict:
+    from ..core.game_blueprint import plan_game
+    from ..core.game_qa import assess_game_readiness
+    plan = plan_game(game_type, collectible_count)
+    report = assess_game_readiness(plan)
+    report["summary"] = plan.get("summary", "")
+    return report
