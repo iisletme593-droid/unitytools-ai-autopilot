@@ -60,6 +60,49 @@ def plan_collectathon_game(collectible_count: int = 5, arena_size: float = 20.0)
     }
 
 
+def plan_dodge_game(obstacle_count: int = 6, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan a dodge game: ground, a controllable player, N MOVING hazards, a goal.
+
+    Each hazard composes two behaviours (mover + killzone) so it slides around and
+    respawns the player on contact — a different game from the same building blocks.
+    Same return schema as plan_collectathon_game.
+    """
+    n = max(1, min(int(obstacle_count), 50))
+    size = max(6.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
+
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Cube",
+            "count": n,
+            "pattern": "scatter",
+            "spacing": max(2.0, size / float(n)),
+            "name_prefix": "Obstacle",
+        },
+    })
+    for i in range(n):
+        steps.append({"script_behaviour": {"object": f"Obstacle_{i}", "behaviour": "mover"}})
+        steps.append({"script_behaviour": {"object": f"Obstacle_{i}", "behaviour": "killzone"}})
+
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_y": 0.5, "position_z": size / 2.0}})
+    steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
+
+    return {
+        "ok": True,
+        "game": "dodge",
+        "summary": f"Dodge: ground + WASD player + {n} moving hazards + goal ({len(steps)} steps).",
+        "obstacle_count": n,
+        "steps": steps,
+    }
+
+
 def group_execution_plan(steps: list[dict[str, Any]]) -> dict[str, Any]:
     """Split a blueprint's steps for efficient execution.
 

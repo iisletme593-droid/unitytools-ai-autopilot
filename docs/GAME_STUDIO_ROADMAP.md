@@ -184,7 +184,9 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   geometry / distinct scripts / attachments; `unity_build_simple_game` execute now imports each
   unique behaviour script ONCE (one recompile phase) then attaches to every target — a 5-collectible
   game drops from 7 script imports to 3. 2 tests (incl. import-count assertion).
-- [ ] More blueprints (platformer / dodge / survival) + spawners / waves (compose with the
-  arena-survivor ideas already on the Unreal side).
+- [~] More blueprints. Dodge added (cycle 23): `plan_dodge_game` — ground + WASD player + N MOVING
+  hazards (mover + killzone composed) + goal; `unity_build_simple_game(game_type='dodge')`. Proves the
+  blueprint pattern generalizes (same blocks → a different game). 6 tests. **Remaining:** platformer/
+  survival, spawners/waves (compose with the arena-survivor ideas on the Unreal side).
 
 > Check items off in this file as they land. Add new items as discovered.

@@ -278,3 +278,9 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   phase) then attaches the compiled component to every target — so a 5-collectible game drops from 7
   script imports to 3 (player/collectible/goal), with the 5 collectibles sharing a single import. +2
   tests; live proof: grouped plan shows 3 unique scripts for a 5-collectible game. — tests: 267 passed
+- [cycle 23] Second game blueprint — DODGE. `plan_dodge_game` composes the same building blocks into
+  a different game: ground + WASD player + N MOVING hazards (each = mover + killzone) + goal;
+  `unity_build_simple_game` gained a `game_type` param (collectathon default, dodge). group_execution_plan
+  handles the 2-behaviour-per-object hazards generically (4 unique scripts: player/mover/killzone/goal).
+  +6 tests; live proof: a 15-step dodge plan for 4 moving hazards. Proves the blueprint pattern isn't
+  tied to one game — the autopilot can plan different games from the same parts. — tests: 273 passed
