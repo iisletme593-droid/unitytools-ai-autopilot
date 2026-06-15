@@ -102,6 +102,14 @@ before committing to a build. Pure analysis (no scene changes, no bridge); the p
 so difficulty rises monotonically (more enemies/collectibles → more objects). Each entry reports
 `{label, params, summary, object_count, unique_scripts, playable, warnings}`.
 
+**Intent routing:**
+- A **difficulty word** in a build prompt sets the count: kolay/easy → 3, orta/normal/medium → 5,
+  zor/hard → 8. An explicit number always wins ("zor dodge oyunu yap 4" → 4). ("çok" is not a
+  difficulty trigger — it's a quantity word; "çok zor" still matches "zor".)
+- **"varyasyon" / "seçenekler" / "farklı zorluklar" / "variations"** (with a game type) route to
+  `unity_game_variations` instead of building — checked before the build intent, so "dodge
+  varyasyonları göster" lists the options rather than building one dodge.
+
 ## 7. Living scenes (decorative, not a game)
 
 Not every scene is a game. `unity_animate_group` brings a scene to life: it places N props

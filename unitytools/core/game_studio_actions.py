@@ -266,6 +266,42 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             return "chase"
         return "collectathon"
 
+    def difficulty_count(default: int = 5) -> int:
+        # An explicit number always wins ("dodge oyunu yap 4 dusman" -> 4); only
+        # when there is no number does a difficulty WORD set the count. ("cok" is
+        # deliberately not a trigger — it's ambiguous, "cok dusman" is a count,
+        # not a difficulty; "cok zor" still matches "zor".)
+        if re.search(r"\b\d{1,3}\b", lower):
+            return _infer_count(lower, default)
+        if has("kolay", "easy", "basit"):
+            return 3
+        if has("zor", "hard", "difficult", "zorlu"):
+            return 8
+        if has("orta", "normal", "medium"):
+            return 5
+        return default
+
+    # Variation/difficulty-options intent must beat build-game ("dodge
+    # varyasyonlari goster" has "dodge"): the user wants the easy/medium/hard
+    # options, not one build. Needs a game context so it won't grab scene prompts.
+    variations_verb = has("varyasyon", "variations", "secenek", "farkli zorluk",
+                          "difficulty option", "easy medium hard")
+    if variations_verb and (has("oyun", "game") or detect_game_type() != "collectathon"
+                            or has("collectathon", "toplama")):
+        gt = detect_game_type()
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_game_variations",
+                "kwargs": {"game_type": gt},
+                "write": False,
+                "note": f"generate easy/medium/hard variations of the {gt} game (pure, no scene changes, no bridge)",
+            }],
+            "safety_notes": ["read-only; no scene changes"],
+            "reason": f"variations intent -> {gt}",
+        }
+
     # Assess/QA intent must beat build-game: "dodge oyununu degerlendir" contains
     # both "dodge" and "degerlendir" — the user wants an analysis, not a build. It
     # also requires a game context ("oyun"/"game") so scene-level "analiz"/"qa"
@@ -302,7 +338,7 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "engine": "unity",
             "steps": [{
                 "tool": "unity_build_simple_game",
-                "kwargs": {"game_type": game_type, "collectible_count": _infer_count(lower, 5), "execute": False},
+                "kwargs": {"game_type": game_type, "collectible_count": difficulty_count(5), "execute": False},
                 "write": False,
                 "note": f"plan a {game_type} game (execute=False; real build needs execute=True + a Unity recompile)",
             }],

@@ -415,3 +415,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   Verified every variation of all 5 blueprints is playable and object counts increase strictly with
   count. Doc §6 "Difficulty variations". +14 tests. Live-proved 3 variations each for chase/collectathon
   + a custom dodge 2/5/10 sweep (pure, no bridge). — tests: 382 passed
+- [cycle 36] Bound difficulty + variations to natural language. (a) A `difficulty_count()` closure in
+  plan_unity_fast_action maps a difficulty WORD to the build count — kolay/easy/basit→3, orta/normal/
+  medium→5, zor/hard/difficult/zorlu→8 — but an explicit number always wins (`re.search` for a digit
+  short-circuits to _infer_count). "cok" is deliberately NOT a trigger: it's a quantity word ("cok
+  dusman"=many enemies), and "cok zor" still matches "zor". The build branch now uses difficulty_count
+  instead of a bare _infer_count. (b) A new variations intent ("varyasyon", "secenek*", "farkli
+  zorluk", "variations", "easy medium hard" + a game context) routes to unity_game_variations and is
+  checked BEFORE the build branch, so "dodge varyasyonlari goster" lists the easy/medium/hard options
+  rather than building one dodge ("secenek" is a single-token prefix so it catches "secenekleri" even
+  after "oyunu"). Verified the existing build/assess intents are unchanged. Doc §6 intent note. +19
+  tests (difficulty->count table, explicit-number priority, variations routing + game_type, variations-
+  beats-build, cok-not-a-trigger). Live-proved difficulty build counts + variation routing (pure).
+  — tests: 401 passed

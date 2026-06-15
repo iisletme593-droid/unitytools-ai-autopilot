@@ -260,5 +260,11 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   difficulty rises monotonically (more objects). New pure tool `unity_game_variations` (no bridge).
   Every variation of every blueprint is playable. Doc §6 + 14 tests. **Remaining:** bind difficulty
   to NL ("kolay/zor oyun") (cycle 36); a one-glance catalog report (all types + readiness) (cycle 37).
+- [x] Difficulty + variations intents (cycle 36): `plan_unity_fast_action` now reads difficulty —
+  kolay/easy→3, orta/normal→5, zor/hard→8 set the build count (an explicit number still wins; "çok" is
+  not a trigger). A new variations intent ("varyasyon" / "seçenekler" / "farklı zorluklar") routes to
+  `unity_game_variations`, checked before the build branch so "dodge varyasyonları göster" lists the
+  options instead of building. Doc §6 intent note + 19 tests. **Remaining:** a one-glance catalog
+  report (all types + readiness) (cycle 37); inject game capabilities into the master planner (cycle 38).
 
 > Check items off in this file as they land. Add new items as discovered.
