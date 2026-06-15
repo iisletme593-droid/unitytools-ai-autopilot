@@ -460,3 +460,17 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   (registry/BLUEPRINTS), and the sibling links are present. Verified all 5 game types + 5 tool
   references + sibling links resolve against the live code. +5 tests. Docs only, no behaviour change.
   — tests: 424 passed
+- [cycle 40] STATE REVIEW + new big goal P8 = SAVE/LOAD. Reviewed P0-P7 (all done; the studio is a
+  working game maker: 5 game types, full behaviour catalog, score/HUD, living scenes, QA, variations,
+  catalog, NL intent, master-prompt injection, landing doc; tests 84->424). Picked game PERSISTENCE as
+  the next big goal — every game was ephemeral (built then forgotten, unsaveable/unshareable), and
+  save/load unblocks a game library, multi-level packs, procedural seeds, and tuning history (chosen
+  over a new game type / parameter tuning / level editor, which depend on it). First step shipped:
+  `core/game_io.py` — `serialize_plan(plan, pretty=)` wraps a plan in a versioned JSON envelope
+  (schema "unitytools.game_plan" v1 + kind/name/step_count), `deserialize_plan(text)` validates the
+  envelope (schema, not-future version, a real steps list) and returns the EXACT plan back,
+  `plan_metadata(text)` reads just the header. New pure tool `unity_export_game(game_type, count)` (NO
+  bridge) returns the serialized JSON. Verified zero-loss round-trip for every blueprint + decor plan,
+  rejection of junk/forged/future-version input, and an end-to-end export->load-back of a platformer.
+  +15 tests. Roadmap P8 section added with the next steps (disk save/load via safe_contained_path,
+  saved-game library, import+replay). Pure + deterministic, no disk, no scene changes. — tests: 439 passed

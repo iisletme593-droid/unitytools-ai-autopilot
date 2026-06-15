@@ -286,4 +286,22 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   sibling docs. Guarded by `tests/test_landing_doc.py` (every game type + unity_* tool named is real,
   sibling links present). +5 tests. **Remaining:** state review + pick the next big goal (cycle 40).
 
+### P8 — Game persistence (save / load), then a game library
+**Cycle-40 state review.** P0–P7 are done: the studio is a working game maker — 5 playable game types
+(collectathon/dodge/survival/platformer/chase), a complete behaviour catalog (physics + scripted, no
+stubs), score/HUD, living scenes, readiness QA, difficulty variations, a catalog report, full NL intent
+routing, master-planner capability injection, and a landing doc. Tests grew 84 → 439.
+
+The biggest remaining gap: **every game is ephemeral.** A plan is built and forgotten — it can't be
+saved, shared, versioned, or replayed. P8 makes games **persistent**, which also unblocks a game
+library, multi-level packs, procedural seeds, and tuning history. Chosen over a new game type (marginal),
+parameter-tuning (needs persistence to store history), or a level editor (needs save/load first).
+
+- [x] Save/load core (cycle 40): `core/game_io.py` — `serialize_plan(plan)` → a versioned JSON envelope
+  (schema/version/kind/name/step_count + plan), `deserialize_plan(text)` → the exact plan back
+  (round-trip safe, validates schema/version, rejects junk), `plan_metadata(text)` → envelope header
+  only. New pure tool `unity_export_game(game_type)` (no bridge). Round-trips every blueprint + decor
+  with zero loss. +15 tests. **Next:** save/load to disk via `safe_contained_path` (cycle 41); a saved-
+  game library / list+load by name (cycle 42); `unity_import_game` + replay an imported plan.
+
 > Check items off in this file as they land. Add new items as discovered.

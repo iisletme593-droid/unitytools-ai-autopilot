@@ -1302,3 +1302,12 @@ def unity_game_variations(game_type: str = "collectathon", counts: str = "", are
 def unity_game_catalog(count: int = 5) -> dict:
     from ..core.game_qa import summarize_catalog
     return summarize_catalog(count)
+
+
+@tool(description="Export a game as portable, versioned JSON WITHOUT touching the scene (pure, no bridge): serialize a game_type's plan so it can be saved, shared, or replayed later. game_type='collectathon'/'dodge'/'survival'/'platformer'/'chase'. Returns {ok, game_type, json, step_count}. The JSON round-trips back via the game_io loader.")
+def unity_export_game(game_type: str = "collectathon", collectible_count: int = 5, pretty: bool = True) -> dict:
+    from ..core.game_blueprint import plan_game
+    from ..core.game_io import serialize_plan
+    plan = plan_game(game_type, collectible_count)
+    text = serialize_plan(plan, pretty=pretty)
+    return {"ok": True, "game_type": plan.get("game", game_type), "step_count": len(plan.get("steps", [])), "json": text}
