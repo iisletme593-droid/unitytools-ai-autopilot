@@ -377,4 +377,28 @@ P8) and autonomous tuning (needs the seed/variety axis first); a new game type i
   dict, so it survives serialize/deserialize AND disk save/load (round-trip tested). Capability summary +
   GAMES.md note added. +18 tests. **Next:** P9 wrap-up + pick P10 (cycle 48).
 
+### P10 — Maze game type (procedural labyrinth)
+**Cycle-48 state review.** P0–P9 reviewed: the studio is a self-operating game maker — 5 game types,
+full behaviour catalog, score/HUD, living scenes, readiness QA, difficulty variations, catalog,
+persistence (save/load/import/build), and reproducible procedural variety (seeded RNG -> layout -> NL +
+persistence). Tests 84 -> 660. (Open older polish items remain in P0/P2/P4; not blockers for game-making.)
+
+Chosen next big goal (user-delegated): a **procedural maze/labyrinth game type** — it puts the new
+seed/procedural machinery to its best use (maze generation is the canonical seeded-procedural task),
+reuses the existing behaviour/blueprint/QA stack, and adds a genuinely new kind of game. Picked over
+autonomous parameter tuning (a good follow-on, but a maze is higher-leverage user value) and a
+level-pack (a thin layer over P8).
+
+- [x] Maze generator (cycle 48): `core/maze.py` — `generate_maze(seed, width, height)` builds a
+  **perfect** maze via a seeded recursive backtracker (a spanning tree over all cells), so it is
+  deterministic (same seed => same maze) and **always solvable** (exactly one path between any two
+  cells). Returns a `'#'/' '` wall grid + entrance/exit cells. `maze_is_solvable` (independent BFS)
+  proves solvability and guards malformed mazes; `maze_wall_positions` maps the grid to Unity cube
+  (x,z) positions for the future blueprint. Pure, no system time. +72 tests (dimensions, border, clamp,
+  determinism, always-solvable across 8 seeds x 7 sizes, perfect-maze passage count, broken-maze
+  detection, wall-position mapping) plus an independent two-adversary verification.
+  **Next:** `plan_maze_game` blueprint (walls as static_obstacle cubes + player at entrance + goal at
+  exit) + `maze` in BLUEPRINTS (cycle 49); maze NL intent ("labirent oyunu / maze game") + size/seed
+  routing (cycle 50).
+
 > Check items off in this file as they land. Add new items as discovered.

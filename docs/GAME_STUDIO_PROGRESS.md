@@ -568,3 +568,19 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   seed-vs-count separation, explicit-count+seed coexist, no-seed no-kwarg, word seeds, seed survives
   serialize + disk round-trip). Live-proved NL "tohum 7" -> seed 7 (count 8), same seed -> same game,
   seed preserved in JSON. Deterministic. — tests: 588 passed
+- [cycle 48] STATE REVIEW + new big goal P10 = MAZE GAME TYPE. Reviewed P0-P9 (the studio is a
+  self-operating game maker: 5 game types, full behaviour catalog, score/HUD, living scenes, QA,
+  variations, catalog, persistence, procedural seeds; tests 84->588). User delegated the P10 choice;
+  picked a procedural maze/labyrinth game type — the canonical use of the new seed machinery, reusing
+  the existing behaviour/blueprint/QA stack. First step: `core/maze.py` — `generate_maze(seed, width,
+  height)` builds a PERFECT maze via a seeded recursive backtracker (iterative DFS over a (2h+1)x(2w+1)
+  wall grid, neighbour chosen by seeded_rng), giving a spanning tree over all cells: deterministic (same
+  seed=>same maze) and ALWAYS solvable (exactly one path between any two cells). Returns the '#'/' '
+  grid + entrance (0,0) / exit (w-1,h-1). `maze_is_solvable` is an INDEPENDENT BFS that proves
+  solvability (and guards a malformed/imported maze); `maze_wall_positions` maps the grid to Unity cube
+  (x,z) positions for the upcoming blueprint. Pure, no system time / Math.random. +72 tests (dimensions,
+  all-walls border, size clamp 1..25, determinism, ALWAYS-SOLVABLE across 8 seeds x 7 sizes incl 1x1 and
+  25x25, perfect-maze passage count 2*W*H-1, broken-maze detection, wall-position mapping + origin).
+  Additionally ran a two-adversary independent verification workflow (each adversary wrote its OWN
+  solver/structure checker and brute-forced many seeds/sizes). Live-rendered a real solvable maze.
+  — tests: 660 passed
