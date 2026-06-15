@@ -273,5 +273,12 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   yapabilirsin" / "what games" / "list games") while bare "katalog" still means the scene catalog.
   Doc §7 + 14 tests. **Remaining:** inject game capabilities into the master planner (cycle 38);
   a one-page studio README/landing doc (cycle 39).
+- [x] Master-planner capability injection (cycle 38): `game_qa.build_game_capabilities_summary()`
+  renders a compact, CODE-DERIVED block (from summarize_catalog, not hardcoded) listing the 5 game
+  types and the tool each request routes to (build→unity_build_simple_game, assess→unity_assess_game,
+  variations→unity_game_variations, catalog→unity_game_catalog) plus the behaviour set and the
+  execute/recompile note. `DualAgentOrchestrator._build_master_prompt` injects it (defensive try/except)
+  so the planner knows it can make games. +4 tests. **Remaining:** a one-page studio README/landing doc
+  (cycle 39); a state review to pick the next big goal — multiplayer? save/load? level editor? (cycle 40).
 
 > Check items off in this file as they land. Add new items as discovered.

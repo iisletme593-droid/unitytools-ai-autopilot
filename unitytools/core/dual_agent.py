@@ -772,7 +772,16 @@ Eğer hata varsa, ne olduğunu açıkla.
         pattern_section = format_pattern_section(pattern)
         if pattern_section:
             prompt_parts.append(pattern_section)
-        
+
+        # Inject the studio's game-making capabilities (code-derived, always current)
+        # so the planner knows it can build/assess/vary/list games and routes those
+        # requests to the right tools. Defensive: never let this break planning.
+        try:
+            from .game_qa import build_game_capabilities_summary
+            prompt_parts.append("\n" + build_game_capabilities_summary() + "\n")
+        except Exception:
+            pass
+
         # Add planning instructions
         prompt_parts.append("""
 Bu isteği analiz et ve worker agent için bir plan oluştur.

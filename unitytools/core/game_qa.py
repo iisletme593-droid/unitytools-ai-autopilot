@@ -134,3 +134,27 @@ def summarize_catalog(count: int = 5) -> dict[str, Any]:
         "unique_behaviours": sorted(behaviours),
         "behaviour_count": len(behaviours),
     }
+
+
+def build_game_capabilities_summary() -> str:
+    """A compact, CODE-DERIVED block describing the studio's game-making powers,
+    for injection into the master planner prompt. Reads summarize_catalog() rather
+    than hardcoding, so it stays current as blueprints/behaviours change. Pure.
+    """
+    cat = summarize_catalog()
+    types = ", ".join(g["game_type"] for g in cat["games"])
+    lines = [
+        "=== GAME STUDIO CAPABILITIES ===",
+        f"This studio can author {cat['game_count']} playable game types: {types}.",
+        "Route game requests to these tools (deterministic, no guessing):",
+        "- Build a game ('... oyunu yap/kur', 'build me a X game', difficulty kolay/orta/zor sets the size)"
+        " -> unity_build_simple_game(game_type, collectible_count, execute).",
+        "- Assess / QA a game ('oyunu degerlendir', 'oynanabilir mi', 'is the game playable')"
+        " -> unity_assess_game(game_type).",
+        "- Difficulty variations ('varyasyon', 'zorluk secenekleri', 'easy/medium/hard')"
+        " -> unity_game_variations(game_type).",
+        "- List the catalog ('hangi oyunlar', 'neler yapabilirsin', 'what games') -> unity_game_catalog().",
+        f"Gameplay behaviours available: {', '.join(cat['unique_behaviours'])}.",
+        "execute=False plans only (safe, no scene change); execute=True builds and triggers a Unity recompile.",
+    ]
+    return "\n".join(lines)

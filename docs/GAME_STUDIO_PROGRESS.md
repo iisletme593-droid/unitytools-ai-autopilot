@@ -437,3 +437,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   games" -> unity_game_catalog — keyed on game-scoped phrases so bare "katalog"/"sahne katalogu" still reaches
   the scene catalog (`unity_get_scene_catalog`), verified not hijacked. Live: all 5 games playable, 9 unique
   behaviours across the catalog. Doc §7. +14 tests. Pure + deterministic, no scene changes. — tests: 415 passed
+- [cycle 38] Injected the studio's game-making capabilities into the master planner prompt.
+  `core/game_qa.build_game_capabilities_summary()` renders a compact block listing the game types and
+  the tool each request routes to (build->unity_build_simple_game, assess->unity_assess_game,
+  variations->unity_game_variations, catalog->unity_game_catalog), the available behaviour set, and the
+  execute=False/True recompile note. It is CODE-DERIVED (reads summarize_catalog, not a hardcoded list)
+  so it stays current as blueprints/behaviours grow. `DualAgentOrchestrator._build_master_prompt` now
+  appends this block (between the learned-pattern section and the planning instructions) inside a
+  defensive try/except so a failure here can never break planning. Now the LOCAL LLM master planner is
+  aware it can make 5 games and how to route each request — closing the gap where the deterministic
+  fast-path knew about games but the LLM planner did not. +4 tests (summary lists all types + tool names,
+  is code-derived not hardcoded, is actually injected into a real _build_master_prompt call). Live-proved
+  the generated capability text. — tests: 419 passed
