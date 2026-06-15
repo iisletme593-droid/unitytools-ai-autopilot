@@ -249,3 +249,9 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   could disrupt later autonomous cycles; it should be run with the editor in focus. (Discovered + fixed
   a test-fake bug: get_editor_state is called with no params, so fakes need params=None like the real
   bridge.) — tests: 241 passed
+- [cycle 19] Player controller / input primitive. `AutopilotPlayerController` template added to the
+  script catalog: WASD movement via `Input.GetAxis(Horizontal/Vertical)` + Space jump (manual gravity
+  + ground clamp), parametric moveSpeed. Mapped player/controller + Turkish oyuncu/kontrolcu/karakter/
+  pawn; flows through the existing unity_add_script_behaviour/unity_apply_script_behaviour. +5 tests;
+  live proof: a compilable AutopilotPlayerController generated (Input.GetAxis, moveSpeed 6, balanced
+  braces). The input/player layer of an actual game. — tests: 246 passed

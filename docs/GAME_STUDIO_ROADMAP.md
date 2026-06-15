@@ -168,7 +168,10 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
 - [x] Idempotent collider (cycle 16): `prune_redundant_steps` + `unity_add_gameplay_behaviour` now
   query the object's components and skip adding a collider when one already exists (Cube/Sphere
   primitives ship one). Live-proven (re-applying physics skips the collider). 6 tests.
-- [ ] Player controller / input primitive (move + jump) and win/lose trigger zones.
+- [x] Player controller / input primitive (cycle 19): `AutopilotPlayerController` MonoBehaviour
+  template — WASD via Input.GetAxis + Space jump with gravity/ground handling, parametric moveSpeed.
+  Mapped player/controller/oyuncu/karakter/pawn. 5 tests, source shown live (compilable, balanced).
+- [ ] Win/lose trigger zones (OnTriggerEnter) — collect/goal/death.
 - [ ] Spawners / waves (compose with the arena-survivor ideas already on the Unreal side).
 
 > Check items off in this file as they land. Add new items as discovered.
