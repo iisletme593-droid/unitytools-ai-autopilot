@@ -337,6 +337,63 @@ def group_execution_plan(steps: list[dict[str, Any]]) -> dict[str, Any]:
     return {"geometry": geometry, "script_behaviours": script_behaviours, "attachments": attachments}
 
 
+def plan_maze_game(size: int = 5, arena_size: float = 20.0, seed: object = None) -> dict[str, Any]:
+    """Plan a maze game: a deterministic, always-solvable labyrinth you escape.
+
+    Generates a perfect maze (core.maze.generate_maze) and builds it from solid
+    wall cubes (each made a static_obstacle), with a WASD+jump player + score HUD
+    at the entrance and a goal at the exit. The seed is used at GENERATION time, so
+    the same seed always lays out the same maze; it is recorded on the plan so it
+    survives save/load. Same step schema as the other blueprints; size is clamped
+    to 3..8 to keep the wall count (and object count) reasonable.
+    """
+    from .maze import generate_maze, maze_wall_positions
+
+    n = max(3, min(int(size), 8))
+    cell_size = 2.0
+    step = cell_size / 2.0
+    mz = generate_maze(seed if seed is not None else "maze-default", n, n)
+    walls = maze_wall_positions(mz, cell_size=cell_size, origin=(0.0, 0.0))
+
+    def cell_world(cell: tuple[int, int]) -> tuple[float, float]:
+        cx, cy = cell
+        return round((2 * cx + 1) * step, 3), round((2 * cy + 1) * step, 3)
+
+    steps: list[dict[str, Any]] = []
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # solid walls (a Cube already has a collider; static_obstacle makes it explicit)
+    for i, (x, z) in enumerate(walls):
+        steps.append({"tool": "unity_create_primitive",
+                      "kwargs": {"type": "Cube", "name": f"Wall_{i}", "position_x": x, "position_y": 0.5, "position_z": z}})
+        steps.append({"tool": "unity_add_gameplay_behaviour",
+                      "kwargs": {"object_name": f"Wall_{i}", "behaviour": "static_obstacle"}})
+
+    # player at the entrance, carrying the score HUD
+    px, pz = cell_world(mz["entrance"])
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_x": px, "position_y": 0.5, "position_z": pz}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "score"}})
+
+    # goal at the exit
+    gx, gz = cell_world(mz["exit"])
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_x": gx, "position_y": 0.5, "position_z": gz}})
+    steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
+
+    plan: dict[str, Any] = {
+        "ok": True,
+        "game": "maze",
+        "summary": f"Maze: {n}x{n} labyrinth ({len(walls)} walls) + entrance player + exit goal ({len(steps)} steps).",
+        "size": n,
+        "wall_count": len(walls),
+        "steps": steps,
+    }
+    if seed is not None:
+        plan["seed"] = seed
+    return plan
+
+
 # Registry of game blueprints (game_type -> planner). Each planner takes the count
 # of its main repeated element and returns {ok, game, summary, steps, ...}.
 BLUEPRINTS = {
@@ -345,6 +402,7 @@ BLUEPRINTS = {
     "survival": plan_survival_game,
     "platformer": plan_platformer_game,
     "chase": plan_chase_game,
+    "maze": plan_maze_game,
 }
 
 
@@ -403,6 +461,9 @@ def plan_game(game_type: str = "collectathon", count: int = 5, seed: object = No
     """
     gt = (game_type or "collectathon").strip().lower()
     planner = BLUEPRINTS.get(gt, plan_collectathon_game)
+    if gt == "maze":
+        # the maze needs the seed at GENERATION time (not as post-hoc jitter)
+        return planner(count, seed=seed)
     return _apply_seed(planner(count), gt, count, seed)
 
 

@@ -400,5 +400,16 @@ level-pack (a thin layer over P8).
   **Next:** `plan_maze_game` blueprint (walls as static_obstacle cubes + player at entrance + goal at
   exit) + `maze` in BLUEPRINTS (cycle 49); maze NL intent ("labirent oyunu / maze game") + size/seed
   routing (cycle 50).
+- [x] Maze blueprint (cycle 49): `plan_maze_game(size, arena_size, seed)` — the **6th game type**. It
+  generates a deterministic perfect maze and builds it from solid wall cubes (each a `static_obstacle`),
+  a WASD+jump player + score HUD at the entrance, and a goal at the exit. The seed is threaded at
+  GENERATION time (plan_game special-cases `maze` to pass the seed to the planner instead of post-hoc
+  jitter) and recorded on the plan, so the same seed lays out the same maze and it survives save/load.
+  Registered in `BLUEPRINTS`; size clamped 3..8 (5×5 = 72 walls / 75 objects; 8×8 = 162 walls / 165
+  objects — well under the 500 ceiling). Every seed is valid (`validate_plan`) and playable (`assess`),
+  the player/goal never overlap a wall, and the catalog now has 6 games. Added a maze row to the landing
+  doc (keeps the no-phantom guard green). +13 tests. **Next:** maze NL intent ("labirent oyunu kur" /
+  "maze game" + size + seed) + GAMES.md/catalog maze row (cycle 50); maze × save/load × variations
+  integration + state review (cycle 51).
 
 > Check items off in this file as they land. Add new items as discovered.

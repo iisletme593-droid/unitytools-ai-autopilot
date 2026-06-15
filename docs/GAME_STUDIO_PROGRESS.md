@@ -584,3 +584,19 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   Additionally ran a two-adversary independent verification workflow (each adversary wrote its OWN
   solver/structure checker and brute-forced many seeds/sizes). Live-rendered a real solvable maze.
   — tests: 660 passed
+- [cycle 49] P10 step 2: maze blueprint — the 6th game type. `core/game_blueprint.plan_maze_game(size,
+  arena_size, seed)` generates a deterministic perfect maze (core.maze.generate_maze) and lays it out as
+  solid wall cubes (each made a `static_obstacle`) on a ground plane, with a WASD+jump player + score
+  HUD placed on the entrance cell and a goal on the exit cell (world positions computed from the cell ->
+  grid -> world mapping, so neither overlaps a wall). The seed is used at GENERATION time: plan_game now
+  special-cases `maze` to pass the seed straight to the planner (rather than the place_primitives-jitter
+  path of _apply_seed, which a maze has none of), and the seed is recorded on the plan so it survives
+  save/load. Registered in BLUEPRINTS (6 games now: collectathon/dodge/survival/platformer/chase/maze).
+  Size clamped 3..8 to keep object counts sane (5x5 = 72 walls/75 objects, 8x8 = 162 walls/165 objects,
+  well under the 500 ceiling). Every seed passes validate_plan (walls are whitelisted create_primitive +
+  static_obstacle tool steps) and assesses as playable (player+goal); plan_game_variations also works
+  for maze (varies size). Added a maze row to the landing doc so the no-phantom landing guard stays
+  green. +13 tests (registration, structure, valid+playable per seed, determinism + seed recorded, size
+  clamp + object-count bound, player/goal-not-in-wall, player/goal on entrance/exit cells, one-recompile
+  grouping, variations). Live-rendered a 5x5 maze game with P at the entrance and G at the exit.
+  — tests: 686 passed

@@ -18,6 +18,7 @@ Five playable game types, each composed from the same gameplay building blocks:
 | `survival` | Endure elevated spawners raining physics-cube hazards |
 | `platformer` | Jump up a staircase of solid platforms to a goal on top |
 | `chase` | Outrun enemies that hunt the player while you grab collectibles |
+| `maze` | Escape a deterministic, always-solvable procedural labyrinth (seeded) |
 
 Plus **living scenes** — decorative `bob`/`orbit`/`rotate`/`wander` motion as scene juice (not a game).
 
