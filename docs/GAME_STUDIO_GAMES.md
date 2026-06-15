@@ -15,9 +15,10 @@ optionally builds) a complete playable game by composing the building blocks bel
 | `collectathon` | Ground + WASD player + N collectibles (pickups) + a goal zone | "bana bir toplama oyunu kur" / "build me a collectathon game" |
 | `dodge` | Ground + WASD player + N **moving** hazards (mover+killzone) + goal | "dodge oyunu yap" / "make a dodge game" |
 | `survival` | Ground + WASD player + N elevated hazard **spawners** (raining cubes) | "sağ kalma oyunu kur" / "build me a survival game" |
+| `platformer` | Ground + WASD+**jump** player + N solid platforms climbing like a staircase + a goal on top | "platform oyunu yap" / "build me a platformer" |
 
 `collectible_count` is the count of the main repeated element (collectibles / hazards /
-spawners). The blueprint registry is `core/game_blueprint.BLUEPRINTS`;
+spawners / platforms). The blueprint registry is `core/game_blueprint.BLUEPRINTS`;
 `list_blueprints()` lists them and `plan_game(game_type, count)` dispatches.
 
 ## 2. Gameplay behaviour catalog
@@ -55,8 +56,8 @@ yet): `bob`, `bounce`, `chase`, `follow`, `orbit`, `patrol`, `wander` — good n
 `plan_unity_fast_action` (and the Unity fast-path) route these to a `unity_build_simple_game`
 plan automatically:
 
-- tr: "oyun kur", "oyun yap", "toplama oyunu", "dodge/kaçma oyunu", "sağ kalma / hayatta kalma oyunu", "oyun iskeleti"
-- en: "build me a game", "make a collectathon/dodge/survival game"
+- tr: "oyun kur", "oyun yap", "toplama oyunu", "dodge/kaçma oyunu", "sağ kalma / hayatta kalma oyunu", "platform / zıplama oyunu", "oyun iskeleti"
+- en: "build me a game", "make a collectathon/dodge/survival/platformer game"
 
 A number in the prompt sets the count ("toplama oyunu yap 8 toplanabilir" → 8).
 

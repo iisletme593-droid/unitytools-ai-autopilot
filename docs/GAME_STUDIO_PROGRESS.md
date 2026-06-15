@@ -311,3 +311,14 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   every `unity_*` tool / game type / behaviour actually exists (no phantom references — it caught a
   regex false-positive and the doc honestly lists the 7 declared-but-not-yet-templated behaviours).
   Linked from GAME_STUDIO_TOOLS.md. +4 tests. — tests: 295 passed
+- [cycle 28] Platformer blueprint — the 4th game type. `core/game_blueprint.plan_platformer_game`:
+  ground + a WASD player who already has a Space-to-jump controller + N cubes arranged as a climbing
+  staircase (each platform a strict step higher and further: y=1.0,2.5,4.0,… z=3,6,9,…), each made a
+  solid ledge with the `static_obstacle` physics behaviour (a plain tool step → no recompile), and a
+  goal sitting on top of the highest platform that you can only reach by jumping up. Registered in
+  `BLUEPRINTS` and dispatched by `plan_game`; only `player`+`goal` are scripted so the build is a
+  single recompile (platforms are physics). `plan_unity_fast_action` routes "platform/zıplama oyunu",
+  "platformer", "jump game" → game_type=platformer (other game intents unchanged). Added a row to
+  `GAME_STUDIO_GAMES.md` §1 + intent phrases (still passes the no-phantom doc guard). +8 tests
+  (structure, staircase-monotonicity, goal-above-top, count-clamp, grouping, intent routing).
+  Live-proved the plan + 4 intent phrases (pure, execute=False). — tests: 303 passed

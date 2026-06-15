@@ -201,5 +201,11 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   guide. Guarded by `tests/test_games_doc.py` (every referenced tool/behaviour/game verified against
   the live registry — no phantoms; caught the "declared-but-not-templated" set too). Linked from
   GAME_STUDIO_TOOLS.md. **Remaining:** platformer blueprint, in-game score/HUD.
+- [x] Platformer blueprint (cycle 28): `plan_platformer_game` — ground + WASD+**jump** player + N
+  solid platforms climbing like a staircase (increasing y & z, made solid with the `static_obstacle`
+  physics behaviour — no recompile) + a goal on top reached by jumping up. Registered as the 4th game
+  type; routed by intent (platform / zıplama oyunu / platformer / jump game → game_type=platformer).
+  Doc table + 8 tests. Catalog now has 4 games. **Remaining:** in-game score/HUD, fill the
+  not-yet-templated behaviours (follow/patrol/bob).
 
 > Check items off in this file as they land. Add new items as discovered.

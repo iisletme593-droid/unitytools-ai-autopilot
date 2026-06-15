@@ -140,6 +140,62 @@ def plan_survival_game(spawner_count: int = 3, arena_size: float = 20.0) -> dict
     }
 
 
+def plan_platformer_game(platform_count: int = 5, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan a platformer: ground, a WASD+jump player, N solid platforms climbing
+    like a staircase, and a goal at the top you reach by jumping up them.
+
+    The player already has a Space-to-jump controller; the platforms are plain
+    cubes (which carry a BoxCollider) made explicitly solid with the
+    ``static_obstacle`` physics behaviour, so they are jump-on-able and need no
+    recompile. Each platform sits a step higher (and further) than the last.
+    Same return schema as the other plan_*_game blueprints.
+    """
+    n = max(1, min(int(platform_count), 30))
+    size = max(6.0, float(arena_size))
+    step_y = 1.5   # how much higher each platform sits
+    step_z = 3.0   # how much further out each platform sits (staircase depth)
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) player at the foot of the staircase: WASD + Space jump
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
+
+    # 3) platforms: cubes climbing up-and-away, each a solid (static_obstacle) ledge
+    top_y = 0.0
+    top_z = 0.0
+    for i in range(n):
+        py = 1.0 + i * step_y
+        pz = (i + 1) * step_z
+        top_y, top_z = py, pz
+        steps.append({
+            "tool": "unity_create_primitive",
+            "kwargs": {"type": "Cube", "name": f"Platform_{i}", "position_y": py, "position_z": pz},
+        })
+        steps.append({
+            "tool": "unity_add_gameplay_behaviour",
+            "kwargs": {"object_name": f"Platform_{i}", "behaviour": "static_obstacle"},
+        })
+
+    # 4) goal sitting on top of the last (highest) platform
+    steps.append({
+        "tool": "unity_create_primitive",
+        "kwargs": {"type": "Cube", "name": "Goal", "position_y": top_y + 1.0, "position_z": top_z},
+    })
+    steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
+
+    return {
+        "ok": True,
+        "game": "platformer",
+        "summary": f"Platformer: ground + WASD+jump player + {n} climbing platforms + goal on top ({len(steps)} steps).",
+        "platform_count": n,
+        "steps": steps,
+    }
+
+
 def group_execution_plan(steps: list[dict[str, Any]]) -> dict[str, Any]:
     """Split a blueprint's steps for efficient execution.
 
@@ -169,6 +225,7 @@ BLUEPRINTS = {
     "collectathon": plan_collectathon_game,
     "dodge": plan_dodge_game,
     "survival": plan_survival_game,
+    "platformer": plan_platformer_game,
 }
 
 
