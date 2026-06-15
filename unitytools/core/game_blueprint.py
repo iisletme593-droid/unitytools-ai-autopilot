@@ -352,22 +352,44 @@ def list_blueprints() -> list[str]:
     return sorted(BLUEPRINTS)
 
 
-def _apply_seed(plan: dict[str, Any], game_type: str, count: int, seed: object) -> dict[str, Any]:
-    """Deterministically vary a plan from a seed, without editing any blueprint.
+_SEED_PATTERNS = ("scatter", "circle", "grid")
 
-    Records the seed on the plan and gives each placement step a reproducible
-    ``jitter`` (same seed -> same jitter). Pure: a None seed is a no-op, so the
-    plan is identical to the un-seeded one. Layout (counts, behaviours) is
-    unchanged — only the scatter is perturbed, so seeded games stay playable.
+
+def _apply_seed(plan: dict[str, Any], game_type: str, count: int, seed: object) -> dict[str, Any]:
+    """Deterministically vary a plan's LAYOUT from a seed, without editing any
+    blueprint and without changing what makes it a game.
+
+    For placement steps: a seeded pattern (scatter/circle/grid), a slightly varied
+    spacing, and reproducible jitter. For a platformer's staircase: a lateral
+    (x-only) shift per platform with the goal kept aligned to the last platform —
+    position_y and position_z (the climb) are untouched, so it stays monotone and
+    reachable. Object COUNTS and behaviours never change, so every seed stays
+    playable and validate-able. None seed is a no-op (identical plain plan).
     """
     if seed is None:
         return plan
     from .procedural import seeded_rng
 
     rng = seeded_rng(f"{game_type}:{count}:{seed}")
+    last_platform_x = 0.0
     for step in plan.get("steps", []):
-        if step.get("tool") == "unity_place_primitives":
-            step["kwargs"]["jitter"] = round(rng.uniform(0.5, 2.0), 3)
+        tool = step.get("tool")
+        if tool == "unity_place_primitives":
+            kw = step["kwargs"]
+            kw["pattern"] = _SEED_PATTERNS[rng.randint(0, len(_SEED_PATTERNS) - 1)]
+            kw["jitter"] = round(rng.uniform(0.5, 2.0), 3)
+            kw["spacing"] = round(float(kw.get("spacing", 2.0)) * rng.uniform(0.85, 1.25), 3)
+        elif tool == "unity_create_primitive" and str(step["kwargs"].get("name", "")).startswith("Platform_"):
+            # lateral shift only — keep position_y / position_z (the climb) intact
+            last_platform_x = round(rng.uniform(-2.5, 2.5), 3)
+            step["kwargs"]["position_x"] = last_platform_x
+
+    # keep a platformer's goal sitting on the highest platform after the x-shift
+    for step in plan.get("steps", []):
+        if step.get("tool") == "unity_create_primitive" and step["kwargs"].get("name") == "Goal" \
+                and any(str(s.get("kwargs", {}).get("name", "")).startswith("Platform_") for s in plan.get("steps", [])):
+            step["kwargs"]["position_x"] = last_platform_x
+
     plan["seed"] = seed
     plan["summary"] = f"{plan.get('summary', '').rstrip('.')} [seed {seed}]."
     return plan

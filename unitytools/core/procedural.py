@@ -73,3 +73,26 @@ class SeededRng:
 def seeded_rng(seed: object) -> SeededRng:
     """Build a deterministic RNG from ``seed`` (string or number)."""
     return SeededRng(seed)
+
+
+def seeded_pick(seed: object, options):
+    """Deterministically pick one element of ``options`` from ``seed``."""
+    opts = list(options)
+    if not opts:
+        raise ValueError("seeded_pick needs a non-empty options list")
+    return seeded_rng(seed).choice(opts)
+
+
+def seeded_positions(seed: object, count: int, area: float = 10.0, center=(0.0, 0.0)) -> list[tuple[float, float]]:
+    """A deterministic list of (x, z) positions scattered in a square of side ``area``.
+
+    Same seed -> same positions. Pure; intended for laying out props without a
+    fixed pattern. Each coordinate is rounded to 3 places for stable plans.
+    """
+    rng = seeded_rng(seed)
+    cx, cz = center
+    half = max(0.0, float(area)) / 2.0
+    return [
+        (round(cx + rng.uniform(-half, half), 3), round(cz + rng.uniform(-half, half), 3))
+        for _ in range(max(0, int(count)))
+    ]

@@ -542,3 +542,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   added. +14 tests (RNG determinism/bounds/coverage, choice/shuffle, seeded-plan reproducibility,
   seed=None no-op, validate+playable, build tool). Live-proved same-seed-same-game across calls. No
   Math.random / new Date — fully deterministic. — tests: 512 passed
+- [cycle 46] P9 step 2: the seed now reaches the LAYOUT (not just jitter). `core/procedural.py` gained
+  two pure deterministic helpers — `seeded_pick(seed, options)` and `seeded_positions(seed, count,
+  area)`. `game_blueprint._apply_seed` was extended: every `unity_place_primitives` step now gets a
+  seed-chosen pattern (scatter/circle/grid), a seed-scaled spacing, and jitter; and a platformer's
+  `Platform_i` cubes get a lateral x-only shift (-2.5..2.5) with the Goal re-aligned to the LAST
+  platform's x — position_y and position_z (the staircase climb) are deliberately left untouched, so the
+  platformer stays strictly monotone in y/z and the goal stays reachable on top. Critically, object
+  COUNTS and behaviours are never changed, so every seed still passes validate_plan and assesses as
+  playable; seed=None remains a no-op (identical plain plan), and same seed gives an identical plan.
+  +58 tests (seeded_pick/positions determinism+bounds, pattern/spacing differ by seed, platformer climb
+  monotone across 8 seeds, valid+playable for all 5 games x 8 seeds, object_count seed-independent,
+  determinism, seed=None no-op). Live-proved different seeds give different layouts while all stay
+  playable. Still no Math.random / new Date. — tests: 570 passed

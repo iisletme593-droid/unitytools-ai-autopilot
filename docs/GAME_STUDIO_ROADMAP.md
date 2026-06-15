@@ -358,5 +358,15 @@ P8) and autonomous tuning (needs the seed/variety axis first); a new game type i
   `unity_build_simple_game` gained a `seed` param. Seeded plans still validate + play. +14 tests.
   **Next:** thread the seed into per-blueprint layout (positions/counts/arena), not just jitter (cycle
   46); expose a seed NL intent ("tohum 42 ile dodge oyunu") + save/share seeds (cycle 47).
+- [x] Seed reaches the layout (cycle 46): `core/procedural.py` gained `seeded_pick(seed, options)` and
+  `seeded_positions(seed, count, area)` (both pure + deterministic). `_apply_seed` now varies real
+  layout: each placement step gets a seed-chosen pattern (scatter/circle/grid), a varied spacing, and
+  jitter; a platformer's platforms get a lateral (x-only) shift with the goal re-aligned to the top
+  platform — position_y/position_z (the climb) are left intact so it stays strictly monotone and
+  reachable. Object counts and behaviours never change, so every seed stays valid (`validate_plan`) and
+  playable (`assess`). +58 tests (helpers, pattern/spacing from seed, platformer monotonicity across 8
+  seeds, valid+playable for all game×seed combos, count seed-independent, determinism, seed=None no-op).
+  **Next:** seed NL intent ("tohum 42 ile dodge oyunu" / "seed 42") + include the seed in save/export
+  (cycle 47); P9 wrap-up + pick P10 (cycle 48).
 
 > Check items off in this file as they land. Add new items as discovered.
