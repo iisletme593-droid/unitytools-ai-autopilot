@@ -18,6 +18,7 @@ optionally builds) a complete playable game by composing the building blocks bel
 | `platformer` | Ground + WASD+**jump** player + N solid platforms climbing like a staircase + a goal on top | "platform oyunu yap" / "build me a platformer" |
 | `chase` | Ground + player + score HUD + N enemies that **chase** you (follow + killzone) + N collectibles to grab while escaping + goal | "kovalamaca oyunu kur" / "build me a chase game" |
 | `maze` | A deterministic, always-solvable procedural **labyrinth** (seeded): solid walls + player at the entrance + goal at the exit. `collectible_count` is the maze size (3–8) | "labirent oyunu kur" / "build me a maze game" |
+| `arena` | A blocky **brawler**: an armed player (health + attack + score) versus N enemies that chase and attack back (each with health) — mutual combat, no goal | "arena oyunu kur" / "dövüş oyunu yap" / "build me a brawler" |
 
 `collectible_count` is the count of the main repeated element (collectibles / hazards /
 spawners / platforms / enemies). The blueprint registry is `core/game_blueprint.BLUEPRINTS`;
@@ -70,8 +71,8 @@ returns its source); none are stubs.
 `plan_unity_fast_action` (and the Unity fast-path) route these to a `unity_build_simple_game`
 plan automatically:
 
-- tr: "oyun kur", "oyun yap", "toplama oyunu", "dodge/kaçma oyunu", "sağ kalma / hayatta kalma oyunu", "platform / zıplama oyunu", "kovalamaca / takip oyunu", "labirent oyunu", "oyun iskeleti"
-- en: "build me a game", "make a collectathon/dodge/survival/platformer/chase/maze game"
+- tr: "oyun kur", "oyun yap", "toplama oyunu", "dodge/kaçma oyunu", "sağ kalma / hayatta kalma oyunu", "platform / zıplama oyunu", "kovalamaca / takip oyunu", "labirent oyunu", "arena / dövüş / savaş oyunu", "oyun iskeleti"
+- en: "build me a game", "make a collectathon/dodge/survival/platformer/chase/maze/arena game"
 
 A number in the prompt sets the count ("toplama oyunu yap 8 toplanabilir" → 8).
 

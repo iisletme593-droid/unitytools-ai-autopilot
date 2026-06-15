@@ -665,3 +665,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   (registration/7th, armed player, Enemy-tagged AI enemies, mutual-combat targets, enemy interactive,
   valid+playable per seed, determinism, clamp, grouping, variations). Live-proved the arena structure +
   mutual combat. Generate-only; deterministic. — tests: 753 passed
+- [cycle 55] P11 step 5: arena natural-language intent + docs. `detect_game_type` gained an arena branch
+  (arena/dovus/brawler/savas/combat -> "arena") and `wants_game` learned arena/dovus/brawler/"savas
+  oyunu"/"arena oyunu"/"dovus oyunu", so "arena oyunu kur" / "build me a brawler" / "savas oyunu kur"
+  route to an arena build, with size + seed working together ("arena oyunu kur 6 tohum 5" -> arena,
+  size 6, seed 5). Verified "savas" does NOT collide with survival ("sag kalma"/"hayatta kalma" still
+  -> survival) and the Unreal-only arena_survivor template (in plan_unreal_fast_action, a separate
+  function/engine) is untouched. assess + variations recognise arena via the shared detect_game_type.
+  GAME_STUDIO_GAMES.md §1 gained an arena row + intent phrases (no-phantom doc guard now asserts arena);
+  the code-derived capability summary now reports "7 playable game types" and lists arena automatically.
+  The other six game intents are unchanged. +10 tests (arena build per phrasing, size+seed,
+  assess+variations, savas-vs-survival, others-unchanged, capability summary 7 games). Live-proved NL
+  arena build + the 7-game summary. Generate-only; deterministic. — tests: 763 passed

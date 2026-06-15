@@ -467,5 +467,14 @@ hack-and-slash prototype. Chosen as P11; it extends the existing behaviour catal
   +10 tests. **Next:** arena NL intent ("arena / dövüş / brawler / savaş oyunu" + size + seed) +
   GAMES.md/catalog row (cycle 55); arena × save/load × variations integration + state review (cycle 56);
   later inventory/loot + xp/level.
+- [x] Arena NL intent + docs (cycle 55): `detect_game_type` gained an arena branch
+  (arena/dövüş/brawler/savaş/combat -> "arena") and `wants_game` learned arena/dövüş/brawler/"savaş
+  oyunu"/"arena oyunu"/"dövüş oyunu", so "arena oyunu kur" / "build me a brawler" route to an arena
+  build; size + seed work together ("arena oyunu kur 6 tohum 5" -> arena, size 6, seed 5). Crucially
+  "savaş" does NOT collide with survival ("sağ kalma"/"hayatta kalma"), and the Unreal-only
+  arena_survivor template is untouched (separate planner). GAMES.md §1 arena row + intent phrases + doc
+  guard; the code-derived capability summary now reports "7 playable game types" and lists arena. The
+  other six game intents are unchanged. +10 tests. **Next:** arena × save/load × variations × assess
+  end-to-end integration + state review (cycle 56); then inventory/loot + xp/level.
 
 > Check items off in this file as they land. Add new items as discovered.
