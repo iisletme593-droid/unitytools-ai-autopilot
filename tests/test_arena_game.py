@@ -26,12 +26,19 @@ def test_registered_as_seventh_game():
     assert len(BLUEPRINTS) == 7
 
 
-def test_player_is_armed_with_health_score_and_xp():
+def test_player_is_armed_with_health_score_xp_and_inventory():
     plan = plan_arena_game(4)
-    assert _beh_of(plan, "Player") == {"player", "health", "attack", "score", "xp"}
+    assert _beh_of(plan, "Player") == {"player", "health", "attack", "score", "xp", "inventory"}
     tags = {s["kwargs"]["tag"] for s in plan["steps"] if s.get("tool") == "unity_set_tag"
             and s["kwargs"]["name"] == "Player"}
     assert tags == {"Player"}
+
+
+def test_arena_scatters_loot_to_collect():
+    plan = plan_arena_game(5)
+    loot = [s["script_behaviour"]["object"] for s in plan["steps"]
+            if s.get("script_behaviour", {}).get("behaviour") == "loot"]
+    assert loot == [f"Loot_{i}" for i in range(5)]
 
 
 def test_enemies_are_tagged_enemy_with_ai_and_reward():
@@ -75,10 +82,10 @@ def test_enemy_count_clamped():
     assert plan_arena_game(99)["enemy_count"] == 30
 
 
-def test_groups_to_seven_unique_scripts():
+def test_groups_to_nine_unique_scripts():
     grouped = group_execution_plan(plan_arena_game(4)["steps"])
     assert set(grouped["script_behaviours"]) == {
-        "player", "health", "attack", "score", "xp", "enemy", "reward"}
+        "player", "health", "attack", "score", "xp", "inventory", "enemy", "reward", "loot"}
 
 
 def test_variations_work_for_arena():

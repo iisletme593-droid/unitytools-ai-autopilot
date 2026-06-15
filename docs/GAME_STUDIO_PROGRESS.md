@@ -720,3 +720,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   inventory source, decoupled-no-hard-ref, ascii/balanced, alias table incl. ganimet-stays-reward,
   pickup chain). Live-proved the loot->AddItem->inventory chain. Generate-only; deterministic.
   — tests: 797 passed
+- [cycle 59] P11 step 9: loot into the arena + state review. plan_arena_game now gives the Player
+  `inventory` (the Items HUD) and scatters N `loot` spheres on the field (place_primitives Sphere +
+  `loot` behaviour) to collect while fighting — a simple, decoupled item economy (walk over loot ->
+  SendMessage AddItem -> inventory count). Chose scattered loot over a kill->drop spawn because it stays
+  fully decoupled and unit-testable (no AutopilotReward->AutopilotLoot AddComponent coupling or runtime
+  Instantiate); kill->drop is noted as a future refinement. The arena stays valid/playable/deterministic
+  with 9 unique scripts (player/health/attack/score/xp/inventory + enemy/reward/loot). STATE REVIEW:
+  declared P11 combat comprehensive for a blocky prototype — the building blocks (health, attack, enemy
+  AI, xp/leveling, reward, loot, inventory) plus the arena that wires them into a working loop honestly
+  deliver the action-RPG-FLAVORED prototype promised when the user asked about a Knight Online/V Rising/
+  Remnant 2/Valheim mix (a real game at that scale stays out of scope, but the mechanics work). Next: one
+  combat capstone (a `ranged` attack) then P11 is done; P12 will broaden beyond combat. +1 test (arena
+  scatters loot; updated player-behaviour and 9-unique-script assertions). — tests: 798 passed

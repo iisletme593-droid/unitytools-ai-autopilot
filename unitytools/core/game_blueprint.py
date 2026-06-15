@@ -288,6 +288,7 @@ def plan_arena_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "attack"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "score"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "xp"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "inventory"}})
 
     # 3) enemies: a ring of cubes tagged Enemy, each chasing+attacking the player and
     #    carrying a `reward` (their HP + XP loot) so the player can defeat them and
@@ -308,10 +309,25 @@ def plan_arena_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
         steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "enemy"}})
         steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "reward"}})
 
+    # 4) loot scattered on the field: spheres the player picks up for items while
+    #    fighting (a simple, decoupled item economy — collect -> inventory HUD).
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Sphere",
+            "count": n,
+            "pattern": "scatter",
+            "spacing": max(2.0, size / (2.0 * float(n))),
+            "name_prefix": "Loot",
+        },
+    })
+    for i in range(n):
+        steps.append({"script_behaviour": {"object": f"Loot_{i}", "behaviour": "loot"}})
+
     return {
         "ok": True,
         "game": "arena",
-        "summary": f"Arena: ground + armed WASD player (health+attack+score) + {n} enemies that chase and attack ({len(steps)} steps).",
+        "summary": f"Arena: ground + armed WASD player (health+attack+score+xp+inventory) + {n} enemies (chase+attack, reward XP) + {n} loot ({len(steps)} steps).",
         "enemy_count": n,
         "steps": steps,
     }

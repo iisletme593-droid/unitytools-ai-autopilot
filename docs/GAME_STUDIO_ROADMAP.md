@@ -508,5 +508,18 @@ hack-and-slash prototype. Chosen as P11; it extends the existing behaviour catal
   blocks now: health/attack/enemy/xp/reward/loot/inventory). GAMES.md rows + doc guard. +14 tests.
   **Next:** make a killed `reward` drop `loot` (kill -> item) and wire loot/inventory into the arena
   (cycle 59); state review on P11 depth (ranged attack? or P12) — choose then.
+- [x] Loot in the arena + state review (cycle 59): the arena now gives the Player `inventory` (Items
+  HUD) and scatters N `loot` spheres on the field to collect while fighting (a simple, decoupled item
+  economy: walk over loot -> SendMessage AddItem -> inventory). Chosen scattered loot over a kill->drop
+  spawn because it stays decoupled and testable (no reward->loot AddComponent coupling / runtime spawn);
+  kill->drop is noted as a future refinement. Arena stays valid/playable/deterministic (9 unique scripts).
+  **STATE REVIEW: P11 combat is comprehensive for a blocky prototype** — health, attack, enemy AI,
+  xp/leveling, reward (kill->XP), loot, inventory, and the arena game wiring them all into a working loop
+  (armed player vs enemies, kill->XP->level, collect loot->items). This honestly delivers the
+  action-RPG-FLAVORED prototype promised when the user asked about KO/V Rising/Remnant 2/Valheim — a real
+  game at that scale stays out of scope, but the mechanics work. +1 test. **Next:** one combat capstone —
+  a `ranged` attack (projectile/raycast) to round out melee+ranged (cycle 60) — then P11 is done and the
+  next big goal (P12) broadens beyond combat (candidates: a level/wave campaign, title/menu UI, audio
+  cues, or spreading combat into other game types).
 
 > Check items off in this file as they land. Add new items as discovered.
