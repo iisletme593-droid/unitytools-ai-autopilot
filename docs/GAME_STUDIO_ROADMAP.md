@@ -195,7 +195,11 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   `unity_build_simple_game` (execute=False, safe). 6 tests; live-proven. **Closes the intent→game
   loop:** a Turkish/English request → the full plan for that game. Survival added (cycle 26):
   `plan_survival_game` — ground + WASD player + M elevated hazard spawners; routed by intent (sağ
-  kalma / survive). Catalog now has 3 games (collectathon, dodge, survival). 6 tests. **Remaining:**
-  platformer blueprint, a games doc.
+  kalma / survive). Catalog now has 3 games (collectathon, dodge, survival). 6 tests.
+- [x] Games doc (cycle 27): `docs/GAME_STUDIO_GAMES.md` — game-type table, behaviour catalog
+  (physics + scripted), intent phrases (tr/en), execute/recompile notes, and a "add a blueprint"
+  guide. Guarded by `tests/test_games_doc.py` (every referenced tool/behaviour/game verified against
+  the live registry — no phantoms; caught the "declared-but-not-templated" set too). Linked from
+  GAME_STUDIO_TOOLS.md. **Remaining:** platformer blueprint, in-game score/HUD.
 
 > Check items off in this file as they land. Add new items as discovered.

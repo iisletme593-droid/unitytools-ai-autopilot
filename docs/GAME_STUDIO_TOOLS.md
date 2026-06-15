@@ -62,4 +62,15 @@ actually call them. Params are grounded in the real C# handlers.
   regenerate, material/LOD rewrite), the orchestrator auto-saves a scene snapshot so the user can
   roll back with `unity_restore_scene_snapshot`. One snapshot per turn, best-effort.
 
+## Gameplay authoring
+
+Beyond decorating scenes, the autopilot can author **gameplay**: physics behaviours
+(`unity_add_gameplay_behaviour`), scripted MonoBehaviours (`unity_add_script_behaviour` /
+`unity_apply_script_behaviour` — rotate/move/player/collectible/goal/killzone/spawner), and whole
+playable games (`unity_build_simple_game` — collectathon / dodge / survival). Natural-language
+"build me a game" requests route there automatically.
+
+→ Full reference (game types, behaviour catalog, example commands, recompile notes):
+**`GAME_STUDIO_GAMES.md`**.
+
 > See `GAME_STUDIO_ROADMAP.md` for the backlog and `GAME_STUDIO_PROGRESS.md` for the per-cycle log.

@@ -304,3 +304,10 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   tests; live proof: survival plan (2 unique scripts: player/spawner) + "sağ kalma oyunu kur" →
   survival. Catalog now offers 3 games (collectathon, dodge, survival), all reachable by NL request.
   — tests: 291 passed
+- [cycle 27] Games documentation. `docs/GAME_STUDIO_GAMES.md`: game-type table (collectathon/dodge/
+  survival with example tr+en commands), the physics + scripted behaviour catalog, "build me a game"
+  intent phrases, execute=False/True + recompile notes, and a guide for adding a blueprint. Built
+  from verified catalog data and guarded by `tests/test_games_doc.py`, which scans the doc and asserts
+  every `unity_*` tool / game type / behaviour actually exists (no phantom references — it caught a
+  regex false-positive and the doc honestly lists the 7 declared-but-not-yet-templated behaviours).
+  Linked from GAME_STUDIO_TOOLS.md. +4 tests. — tests: 295 passed
