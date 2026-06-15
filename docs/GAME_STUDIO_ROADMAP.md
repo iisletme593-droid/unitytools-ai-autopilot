@@ -280,5 +280,10 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   execute/recompile note. `DualAgentOrchestrator._build_master_prompt` injects it (defensive try/except)
   so the planner knows it can make games. +4 tests. **Remaining:** a one-page studio README/landing doc
   (cycle 39); a state review to pick the next big goal — multiplayer? save/load? level editor? (cycle 40).
+- [x] Landing doc (cycle 39): `docs/GAME_STUDIO.md` — the one-screen entry point. What it makes (5-game
+  table), how to drive it (NL command → tool table), an ASCII architecture diagram (NL → blueprint →
+  group_execution → execute), the safety model (execute=False default, recompile note), and links to all
+  sibling docs. Guarded by `tests/test_landing_doc.py` (every game type + unity_* tool named is real,
+  sibling links present). +5 tests. **Remaining:** state review + pick the next big goal (cycle 40).
 
 > Check items off in this file as they land. Add new items as discovered.

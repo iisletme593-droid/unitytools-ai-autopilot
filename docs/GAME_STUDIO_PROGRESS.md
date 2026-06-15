@@ -449,3 +449,14 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   fast-path knew about games but the LLM planner did not. +4 tests (summary lists all types + tool names,
   is code-derived not hardcoded, is actually injected into a real _build_master_prompt call). Live-proved
   the generated capability text. — tests: 419 passed
+- [cycle 39] Landing / README doc. `docs/GAME_STUDIO.md` is the one-screen entry point to the whole
+  studio: WHAT it makes (a 5-game table: collectathon/dodge/survival/platformer/chase + living scenes),
+  HOW to drive it (a natural-language → tool table covering build / difficulty / assess / variations /
+  catalog / animate), the architecture as an ASCII pipeline (NL -> plan_unity_fast_action -> blueprint
+  -> group_execution_plan -> execute=False plan or execute=True build), the safety model (execute=False
+  default, recompile note, pure planning/QA tools), and links to every sibling doc
+  (GAMES/TOOLS/ARCHITECTURE/ROADMAP/PROGRESS). Kept it summary+signpost so it does not duplicate the
+  deep docs. Guarded by `tests/test_landing_doc.py`: every game type and unity_* tool it names is real
+  (registry/BLUEPRINTS), and the sibling links are present. Verified all 5 game types + 5 tool
+  references + sibling links resolve against the live code. +5 tests. Docs only, no behaviour change.
+  — tests: 424 passed
