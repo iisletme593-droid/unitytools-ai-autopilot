@@ -230,5 +230,13 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   game_type=chase). 6 unique scripts collapse to one recompile. Doc §1 row + intent phrases + 8 tests.
   Catalog now has 5 games. **Remaining:** decorative behaviours (bob/orbit) in a scene/blueprint
   (cycle 32); a game summarizer / readiness QA report (cycle 33).
+- [x] Living scenes (cycle 32): decorative behaviours as scene juice. `plan_ambient_decor` (pure)
+  places N props and cycles `bob/orbit/rotate/wander` over them — a scene that breathes, not a game
+  (no player/goal). Custom subsets are normalized + validated (unknown names dropped, never phantom).
+  New tool `unity_animate_group` wraps it with the same execute=False(plan)/execute=True(build, one
+  recompile) contract; routed by intent (sahneyi canlandır / yaşayan sahne / animate the scene). The
+  build→import→wait→attach path was extracted into a shared `_execute_grouped_behaviour_plan` helper
+  (de-dups unity_build_simple_game; behaviour unchanged — its tests still pass). Doc §6 + 9 tests.
+  **Remaining:** game summarizer / readiness QA report (cycle 33).
 
 > Check items off in this file as they land. Add new items as discovered.

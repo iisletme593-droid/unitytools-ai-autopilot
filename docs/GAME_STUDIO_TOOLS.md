@@ -67,8 +67,9 @@ actually call them. Params are grounded in the real C# handlers.
 Beyond decorating scenes, the autopilot can author **gameplay**: physics behaviours
 (`unity_add_gameplay_behaviour`), scripted MonoBehaviours (`unity_add_script_behaviour` /
 `unity_apply_script_behaviour` — rotate/move/player/collectible/goal/killzone/spawner), and whole
-playable games (`unity_build_simple_game` — collectathon / dodge / survival). Natural-language
-"build me a game" requests route there automatically.
+playable games (`unity_build_simple_game` — collectathon / dodge / survival / platformer / chase),
+and decorative **living scenes** (`unity_animate_group` — place props + cycle bob/orbit/rotate/wander).
+Natural-language "build me a game" and "animate the scene" requests route there automatically.
 
 → Full reference (game types, behaviour catalog, example commands, recompile notes):
 **`GAME_STUDIO_GAMES.md`**.

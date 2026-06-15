@@ -86,5 +86,21 @@ A number in the prompt sets the count ("toplama oyunu yap 8 toplanabilir" → 8)
 3. Add an intent trigger to `plan_unity_fast_action`'s build-game block.
 4. Add a row to the table in §1 and a test.
 
+## 6. Living scenes (decorative, not a game)
+
+Not every scene is a game. `unity_animate_group` brings a scene to life: it places N props
+and gives each a **decorative** scripted behaviour (`bob` / `orbit` / `rotate` / `wander`,
+cycled) so the scene breathes — pure juice, no player or goal. The pure planner is
+`core/game_blueprint.plan_ambient_decor` (default decor set `DECOR_BEHAVIOURS`); the tool wraps
+it with the same `execute=False` (default, plan only) / `execute=True` (build + one recompile)
+contract as the games.
+
+| Tool | What it does | Example command |
+|------|--------------|-----------------|
+| `unity_animate_group` | Place N props + cycle decorative behaviours over them (living scene) | "sahneyi canlandır" / "animate the scene" / "yaşayan sahne kur" |
+
+`behaviours` is an optional comma-separated subset (e.g. `"bob,rotate"`); unknown names are
+normalized and dropped so the plan never references a behaviour without a template.
+
 > See `GAME_STUDIO_TOOLS.md` for the full tool catalog and `GAME_STUDIO_PROGRESS.md` for the
 > per-cycle history of how this was built.

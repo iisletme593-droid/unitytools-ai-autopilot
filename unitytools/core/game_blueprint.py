@@ -261,6 +261,59 @@ def plan_chase_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     }
 
 
+# Decorative (non-gameplay) scripted behaviours that give a scene "juice".
+DECOR_BEHAVIOURS = ["bob", "orbit", "rotate", "wander"]
+
+
+def plan_ambient_decor(
+    count: int = 8,
+    arena_size: float = 16.0,
+    primitive: str = "Sphere",
+    pattern: str = "circle",
+    behaviours: list[str] | None = None,
+) -> dict[str, Any]:
+    """Plan a "living scene": place N props and give each a decorative scripted
+    behaviour (bob/orbit/rotate/wander, cycled) so the scene breathes. This is
+    juice, not a game — there is no player or goal. Same step schema as the game
+    blueprints (tool + script_behaviour). Pure + deterministic.
+
+    Unknown/aliased behaviour names are normalized and validated against the
+    template registry; anything without a template is dropped (falls back to the
+    default decor set if nothing valid remains) so the plan never references a
+    phantom behaviour.
+    """
+    from .gameplay import generate_behaviour_script, normalize_behaviour
+
+    n = max(1, min(int(count), 200))
+    size = max(4.0, float(arena_size))
+    requested = behaviours if behaviours else DECOR_BEHAVIOURS
+    beh = [normalize_behaviour(b) for b in requested]
+    beh = [b for b in beh if generate_behaviour_script(b).get("ok")] or list(DECOR_BEHAVIOURS)
+
+    steps: list[dict[str, Any]] = []
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": primitive,
+            "count": n,
+            "pattern": pattern,
+            "spacing": max(2.0, size / float(n)),
+            "name_prefix": "Decor",
+        },
+    })
+    for i in range(n):
+        steps.append({"script_behaviour": {"object": f"Decor_{i}", "behaviour": beh[i % len(beh)]}})
+
+    return {
+        "ok": True,
+        "decor": "ambient",
+        "summary": f"Living scene: {n} {primitive}(s) with cycled {'/'.join(beh)} ({len(steps)} steps).",
+        "count": n,
+        "behaviours": beh,
+        "steps": steps,
+    }
+
+
 def group_execution_plan(steps: list[dict[str, Any]]) -> dict[str, Any]:
     """Split a blueprint's steps for efficient execution.
 

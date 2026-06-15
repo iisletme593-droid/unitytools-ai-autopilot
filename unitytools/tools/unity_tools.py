@@ -1176,21 +1176,16 @@ def unity_apply_script_behaviour(object_name: str, behaviour: str = "rotate", sp
     }
 
 
-@tool(description="Plan (and optionally build) a simple PLAYABLE game from the gameplay building blocks. game_type='collectathon' (ground + WASD player + N collectibles + goal) or 'dodge' (ground + WASD player + N moving hazards + goal). collectible_count is the count of the main repeated element. execute=False (default) returns the step plan without touching the scene; execute=True builds the geometry and imports the behaviour scripts (triggers Unity recompiles, so run with the editor in focus).")
-def unity_build_simple_game(collectible_count: int = 5, execute: bool = False, game_type: str = "collectathon") -> dict:
-    from ..core.game_blueprint import plan_game, group_execution_plan
-    plan = plan_game(game_type, collectible_count)
-    if not execute:
-        return {
-            "ok": True,
-            "dry_run": True,
-            **plan,
-            "note": "execute=False: plan only, no scene changes. Set execute=True to build (script behaviours trigger Unity recompiles).",
-        }
-    if _UNITY is None:
-        return {"ok": False, "error": "UnityBridge is not initialized"}
+def _execute_grouped_behaviour_plan(steps: list) -> dict:
+    """Build a behaviour plan against the live bridge: geometry first, then import
+    each UNIQUE script once (one recompile, not one per object), wait for the
+    compile, then attach the compiled component to every target. Returns
+    {applied, unique_scripts}. Shared by unity_build_simple_game and
+    unity_animate_group so the build->import->wait->attach path lives in one place.
+    """
+    from ..core.game_blueprint import group_execution_plan
 
-    grouped = group_execution_plan(plan["steps"])
+    grouped = group_execution_plan(steps)
     applied: list[dict] = []
 
     # 1) geometry (so target objects exist before attaching)
@@ -1223,10 +1218,64 @@ def unity_build_simple_game(collectible_count: int = 5, execute: bool = False, g
         res = add_fn(att["object"], cls)
         applied.append({"step": f"attach:{cls}->{att['object']}", "ok": bool(isinstance(res, dict) and res.get("ok", True))})
 
+    return {"applied": applied, "unique_scripts": len(grouped["script_behaviours"])}
+
+
+@tool(description="Plan (and optionally build) a simple PLAYABLE game from the gameplay building blocks. game_type='collectathon' (ground + WASD player + N collectibles + goal) or 'dodge' (ground + WASD player + N moving hazards + goal). collectible_count is the count of the main repeated element. execute=False (default) returns the step plan without touching the scene; execute=True builds the geometry and imports the behaviour scripts (triggers Unity recompiles, so run with the editor in focus).")
+def unity_build_simple_game(collectible_count: int = 5, execute: bool = False, game_type: str = "collectathon") -> dict:
+    from ..core.game_blueprint import plan_game
+    plan = plan_game(game_type, collectible_count)
+    if not execute:
+        return {
+            "ok": True,
+            "dry_run": True,
+            **plan,
+            "note": "execute=False: plan only, no scene changes. Set execute=True to build (script behaviours trigger Unity recompiles).",
+        }
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+
+    result = _execute_grouped_behaviour_plan(plan["steps"])
+    applied = result["applied"]
     return {
         "ok": all(a["ok"] for a in applied),
         "game": plan["game"],
         "executed": True,
-        "unique_scripts": len(grouped["script_behaviours"]),
+        "unique_scripts": result["unique_scripts"],
+        "applied": applied,
+    }
+
+
+@tool(description="Bring a scene to life: place N props (Sphere/Cube/...) and give each a DECORATIVE scripted behaviour (bob/orbit/rotate/wander, cycled) so the scene breathes — juice, not a game (no player/goal). behaviours is an optional comma-separated subset (e.g. 'bob,rotate'). execute=False (default) returns the step plan without touching the scene; execute=True builds it and imports the scripts (triggers a Unity recompile, so run with the editor in focus). 'sahneyi canlandir', 'yasayan sahne', 'animate the scene'.")
+def unity_animate_group(
+    count: int = 8,
+    primitive: str = "Sphere",
+    pattern: str = "circle",
+    arena_size: float = 16.0,
+    behaviours: str = "",
+    execute: bool = False,
+) -> dict:
+    from ..core.game_blueprint import plan_ambient_decor
+    beh_list = [b.strip() for b in behaviours.split(",") if b.strip()] or None
+    plan = plan_ambient_decor(
+        count=count, arena_size=arena_size, primitive=primitive, pattern=pattern, behaviours=beh_list
+    )
+    if not execute:
+        return {
+            "ok": True,
+            "dry_run": True,
+            **plan,
+            "note": "execute=False: plan only, no scene changes. Set execute=True to build (script behaviours trigger a Unity recompile).",
+        }
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+
+    result = _execute_grouped_behaviour_plan(plan["steps"])
+    applied = result["applied"]
+    return {
+        "ok": all(a["ok"] for a in applied),
+        "decor": plan["decor"],
+        "executed": True,
+        "unique_scripts": result["unique_scripts"],
         "applied": applied,
     }

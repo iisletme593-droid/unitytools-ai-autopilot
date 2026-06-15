@@ -363,3 +363,18 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   (structure, enemy follow+killzone combo, collectibles+goal, count clamp, catalog, grouping, intent
   routing, other-intents-unchanged). Live-proved the plan + 4 intent phrases (pure, execute=False; no
   recompile triggered). — tests: 333 passed
+- [cycle 32] Living scenes — decorative behaviours as scene juice (not a game). `plan_ambient_decor`
+  (pure, in core/game_blueprint.py) places N props (default Sphere, circle) and cycles the decor set
+  `bob/orbit/rotate/wander` over them so the scene breathes; there is deliberately no player/goal.
+  Custom `behaviours` subsets are normalized through the alias table and validated against the template
+  registry (e.g. "don"->rotate kept, "teleport" dropped), falling back to the default set if nothing
+  valid remains — the plan can never reference a behaviour without a template. New tool
+  `unity_animate_group` wraps the planner with the same execute=False (plan only, default) /
+  execute=True (build + a single recompile) contract as the games; `plan_unity_fast_action` routes
+  "sahneyi canlandır", "yaşayan sahne", "animate the scene", "dekoratif animasyon" -> unity_animate_group
+  (a non-game intent branch, separate from build-game). Refactor: the live build->import->wait->attach
+  path is now a shared `_execute_grouped_behaviour_plan` helper used by BOTH unity_build_simple_game and
+  unity_animate_group (de-dup; unity_build_simple_game's behaviour is unchanged and its execute/import-
+  count tests still pass). Doc §6 "Living scenes" added (no-phantom guard still green; unity_animate_group
+  is registered). +9 tests. Live-proved the decor plan + alias validation + dry-run + 4 intent phrases
+  (pure, execute=False; no recompile triggered). — tests: 342 passed

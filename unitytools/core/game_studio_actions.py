@@ -287,6 +287,22 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "reason": f"build-game intent -> {game_type}",
         }
 
+    # Decorative "living scene" intent (juice, not a game) -> animate a group.
+    if has("yasayan sahne", "sahneyi canlandir", "canli sahne", "sahneye hayat",
+           "living scene", "animate the scene", "animate decor", "dekoratif animasyon"):
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_animate_group",
+                "kwargs": {"count": _infer_count(lower, 8), "execute": False},
+                "write": False,
+                "note": "plan a living/animated decor scene (execute=False; building imports scripts -> a Unity recompile)",
+            }],
+            "safety_notes": ["decor plan only (execute=False); building for real triggers a Unity recompile"],
+            "reason": "animate-decor intent -> unity_animate_group",
+        }
+
     if has("snapshot", "yedek", "backup", "geri yukle", "restore point"):
         steps.append({"tool": "unity_create_scene_snapshot", "kwargs": {"label": "fast_action"},
                       "write": True, "note": "save a restore point before edits"})
