@@ -88,9 +88,9 @@ def test_tool_registered():
 def test_group_execution_plan_dedupes_scripts():
     from unitytools.core.game_blueprint import plan_collectathon_game, group_execution_plan
     grouped = group_execution_plan(plan_collectathon_game(collectible_count=3)["steps"])
-    # 3 distinct behaviours even though there are 5 script steps (player + 3 collectible + goal)
-    assert grouped["script_behaviours"] == ["player", "collectible", "goal"]
-    assert len(grouped["attachments"]) == 5
+    # 4 distinct behaviours across 6 script steps (player + score + 3 collectible + goal)
+    assert grouped["script_behaviours"] == ["player", "score", "collectible", "goal"]
+    assert len(grouped["attachments"]) == 6
     assert all("tool" in s for s in grouped["geometry"])
 
 
@@ -98,11 +98,11 @@ def test_execute_imports_each_unique_script_once(monkeypatch):
     fb = _GameBridge()
     monkeypatch.setattr(ut, "_UNITY", fb)
     r = ut.unity_build_simple_game(collectible_count=4, execute=True)
-    # 3 unique scripts (player/collectible/goal) -> 3 imports, NOT 6 (one per script step)
-    assert fb.calls.count("import_asset") == 3
-    assert r["unique_scripts"] == 3
-    # 6 attachments: Player + 4 collectibles + Goal
-    assert fb.calls.count("add_component") == 6
+    # 4 unique scripts (player/score/collectible/goal) -> 4 imports, NOT 7 (one per script step)
+    assert fb.calls.count("import_asset") == 4
+    assert r["unique_scripts"] == 4
+    # 7 attachments: Player(controller) + Player(score) + 4 collectibles + Goal
+    assert fb.calls.count("add_component") == 7
     # exactly one recompile wait phase (state polled, not once-per-script)
     assert "get_editor_state" in fb.calls
     assert r["executed"] is True

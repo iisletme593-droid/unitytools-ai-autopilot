@@ -322,3 +322,17 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   `GAME_STUDIO_GAMES.md` §1 + intent phrases (still passes the no-phantom doc guard). +8 tests
   (structure, staircase-monotonicity, goal-above-top, count-clamp, grouping, intent routing).
   Live-proved the plan + 4 intent phrases (pure, execute=False). — tests: 303 passed
+- [cycle 29] In-game score / HUD. New scripted behaviour `score` → `AutopilotScore` MonoBehaviour: a
+  global `static int Score` (reset in Awake), a top-left `OnGUI` HUD ("Score: N"), and TWO ways to add
+  points — the `static AutopilotScore.Add(n)` helper for direct callers and an instance `AddScore(n)`
+  for `SendMessage`. The collectible (`AutopilotCollectible`) now increments on pickup via
+  `other.SendMessage("AddScore", 1, SendMessageOptions.DontRequireReceiver)` — it messages whoever
+  picked it up (the Player) with NO reference to the AutopilotScore type, so the collectible stays
+  self-contained and compiles with or without a HUD ("(varsa)" by construction). The collectathon
+  blueprint attaches `score` to the Player (one persistent object, no stray HUD GameObject), so the
+  flagship game now shows a live counter; it still collapses to a single recompile (4 unique scripts:
+  player/score/collectible/goal). Aliases skor/puan/hud/points/sayac. Generated C# is pure ASCII
+  (replaced a stray em-dash). Doc scripted-table row + §1 collectathon row updated (no-phantom guard
+  still green). +6 score tests; updated the 2 collectathon grouping assertions (now 4 unique / 6-7
+  attachments). Live-proved the generated AutopilotScore.cs + decoupled collectible + HUD wiring
+  (pure, execute=False; no recompile triggered). — tests: 312 passed

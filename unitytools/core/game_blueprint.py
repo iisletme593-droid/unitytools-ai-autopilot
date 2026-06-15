@@ -28,10 +28,13 @@ def plan_collectathon_game(collectible_count: int = 5, arena_size: float = 20.0)
     # 1) ground
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
 
-    # 2) player: cube, tagged Player, with the WASD controller behaviour
+    # 2) player: cube, tagged Player, with the WASD controller behaviour and the
+    #    score HUD (collectibles message the player to add points, so the counter
+    #    lives on the player — one persistent object, no stray HUD GameObject).
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
     steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "score"}})
 
     # 3) collectibles: N spheres in a ring, each a pickup trigger
     steps.append({
@@ -54,7 +57,7 @@ def plan_collectathon_game(collectible_count: int = 5, arena_size: float = 20.0)
     return {
         "ok": True,
         "game": "collectathon",
-        "summary": f"Collect-a-thon: ground + WASD player + {n} collectibles + goal ({len(steps)} steps).",
+        "summary": f"Collect-a-thon: ground + WASD player + score HUD + {n} collectibles + goal ({len(steps)} steps).",
         "collectible_count": n,
         "steps": steps,
     }

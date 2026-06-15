@@ -207,5 +207,13 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   type; routed by intent (platform / zıplama oyunu / platformer / jump game → game_type=platformer).
   Doc table + 8 tests. Catalog now has 4 games. **Remaining:** in-game score/HUD, fill the
   not-yet-templated behaviours (follow/patrol/bob).
+- [x] Score / HUD (cycle 29): `score` scripted behaviour → `AutopilotScore` MonoBehaviour — a global
+  `static int Score`, a top-left `OnGUI` HUD, and both a `static Add(n)` helper and a `SendMessage`
+  target `AddScore(n)`. The collectible now signals a +1 on pickup via
+  `SendMessage("AddScore", 1, DontRequireReceiver)` — no hard type reference, so it stays
+  self-contained (compiles with or without a HUD). The collectathon blueprint attaches `score` to the
+  Player so the flagship game shows a live counter (still one recompile: player/score/collectible/goal).
+  Aliases skor/puan/hud/points/sayac. Generated source is pure ASCII. Doc row + 6 tests.
+  **Remaining:** fill the not-yet-templated behaviours (follow/patrol/bob), HUD beyond score (timer/lives).
 
 > Check items off in this file as they land. Add new items as discovered.

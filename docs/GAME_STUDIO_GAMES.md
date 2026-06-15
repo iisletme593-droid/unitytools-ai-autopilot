@@ -12,7 +12,7 @@ optionally builds) a complete playable game by composing the building blocks bel
 
 | game_type | What it is | Example command (tr / en) |
 |-----------|-----------|----------------------------|
-| `collectathon` | Ground + WASD player + N collectibles (pickups) + a goal zone | "bana bir toplama oyunu kur" / "build me a collectathon game" |
+| `collectathon` | Ground + WASD player + an on-screen **score HUD** + N collectibles (each +1) + a goal zone | "bana bir toplama oyunu kur" / "build me a collectathon game" |
 | `dodge` | Ground + WASD player + N **moving** hazards (mover+killzone) + goal | "dodge oyunu yap" / "make a dodge game" |
 | `survival` | Ground + WASD player + N elevated hazard **spawners** (raining cubes) | "sağ kalma oyunu kur" / "build me a survival game" |
 | `platformer` | Ground + WASD+**jump** player + N solid platforms climbing like a staircase + a goal on top | "platform oyunu yap" / "build me a platformer" |
@@ -42,10 +42,11 @@ Give one object a behaviour with `unity_add_gameplay_behaviour(object, behaviour
 | `rotate` / `spin` / `spinner` | AutopilotRotator | Spins every frame |
 | `move` / `mover` | AutopilotMover | Translates every frame |
 | `player` / `controller` | AutopilotPlayerController | WASD movement + Space jump |
-| `collectible` | AutopilotCollectible | OnTriggerEnter(Player) → Destroy (pickup) |
+| `collectible` | AutopilotCollectible | OnTriggerEnter(Player) → +1 score (SendMessage) then Destroy (pickup) |
 | `goal` | AutopilotGoalZone | OnTriggerEnter(Player) → win flag |
 | `killzone` | AutopilotKillZone | OnTriggerEnter(Player) → respawn |
 | `spawner` | AutopilotSpawner | InvokeRepeating spawns physics cubes (waves) |
+| `score` / `skor` / `puan` / `hud` | AutopilotScore | Global counter + top-left OnGUI HUD; `Add(n)` static or `SendMessage("AddScore", n)` |
 
 Turkish/English aliases are accepted (fizik, ağır, oyuncu, toplanabilir, hedef, ölüm/lava,
 dalga, …). **Declared but not yet templated** (they report `needs_script` with no source
