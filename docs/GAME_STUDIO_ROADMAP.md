@@ -215,5 +215,13 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   Player so the flagship game shows a live counter (still one recompile: player/score/collectible/goal).
   Aliases skor/puan/hud/points/sayac. Generated source is pure ASCII. Doc row + 6 tests.
   **Remaining:** fill the not-yet-templated behaviours (follow/patrol/bob), HUD beyond score (timer/lives).
+- [x] Motion behaviour templates (cycle 30): templated ALL 7 remaining `needs_script` behaviours —
+  `bob` (AutopilotBob, sine bob), `bounce` (AutopilotBounce, abs-sine), `patrol` (AutopilotPatrol,
+  PingPong between two points), `follow`/`chase` (AutopilotFollower, MoveTowards the Player tag,
+  no-op if absent), `orbit` (AutopilotOrbit, RotateAround), `wander` (AutopilotWander, random drift).
+  Every NEEDS_SCRIPT behaviour now generates a compilable, pure-ASCII, balanced MonoBehaviour — no
+  stubs left. Doc scripted-table now lists them all ("Declared but not yet templated" note retired).
+  +13 tests (per-behaviour ASCII/balance/placeholder-substitution, class names, key idioms, TR aliases
+  devriye/takip/zıpla). **Remaining:** use these in a blueprint or fast-action intent (cycle 31).
 
 > Check items off in this file as they land. Add new items as discovered.

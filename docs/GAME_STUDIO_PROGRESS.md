@@ -336,3 +336,17 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   still green). +6 score tests; updated the 2 collectathon grouping assertions (now 4 unique / 6-7
   attachments). Live-proved the generated AutopilotScore.cs + decoupled collectible + HUD wiring
   (pure, execute=False; no recompile triggered). — tests: 312 passed
+- [cycle 30] Filled ALL remaining scripted-behaviour templates. Seven behaviours were declared in
+  `NEEDS_SCRIPT` but had no MonoBehaviour source (they reported `needs_script` with nothing to attach):
+  `bob` (AutopilotBob — sine bob around start), `bounce` (AutopilotBounce — abs-sine, never dips below
+  rest), `patrol` (AutopilotPatrol — PingPong/Lerp between start and a point `distance` along an axis),
+  `follow`/`chase` (AutopilotFollower — FindWithTag("Player") then MoveTowards, stops short, no-op if
+  no player), `orbit` (AutopilotOrbit — RotateAround its start point), `wander` (AutopilotWander —
+  drifts to random points near home, re-targeting on a timer). All reuse the existing
+  `__CLASS__/__AX__/__AY__/__AZ__/__SPEED__` placeholder scheme via `_SCRIPT_TEMPLATES`. Verified every
+  generated source is pure ASCII, brace- and paren-balanced, with every placeholder substituted; now
+  NO NEEDS_SCRIPT behaviour is left without a template. Doc scripted-table lists them all and the
+  "Declared but not yet templated" note is retired (no-phantom guard still green). TR aliases
+  devriye→patrol, takip→follow, zıpla→bounce resolve to real templates. +13 tests. Live-proved the
+  generated AutopilotPatrol.cs + AutopilotFollower.cs + the empty backlog (pure, execute=False; no
+  recompile triggered). — tests: 325 passed

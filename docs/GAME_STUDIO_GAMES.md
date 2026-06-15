@@ -47,10 +47,16 @@ Give one object a behaviour with `unity_add_gameplay_behaviour(object, behaviour
 | `killzone` | AutopilotKillZone | OnTriggerEnter(Player) → respawn |
 | `spawner` | AutopilotSpawner | InvokeRepeating spawns physics cubes (waves) |
 | `score` / `skor` / `puan` / `hud` | AutopilotScore | Global counter + top-left OnGUI HUD; `Add(n)` static or `SendMessage("AddScore", n)` |
+| `bob` | AutopilotBob | Bobs up/down on a sine wave around its start position |
+| `bounce` / `zıpla` | AutopilotBounce | Bounces off its rest height (abs-sine, never dips below) |
+| `patrol` / `devriye` | AutopilotPatrol | Patrols back and forth between two points (PingPong) |
+| `follow` / `chase` / `takip` | AutopilotFollower | Chases the Player (tag) with MoveTowards; no-op if absent |
+| `orbit` | AutopilotOrbit | Orbits its start point on an axis (RotateAround) |
+| `wander` | AutopilotWander | Drifts to random points near home, re-targeting on a timer |
 
 Turkish/English aliases are accepted (fizik, ağır, oyuncu, toplanabilir, hedef, ölüm/lava,
-dalga, …). **Declared but not yet templated** (they report `needs_script` with no source
-yet): `bob`, `bounce`, `chase`, `follow`, `orbit`, `patrol`, `wander` — good next additions.
+dalga, devriye, takip, zıpla, …). **Every behaviour listed here is templated** — each generates
+a compilable MonoBehaviour (`generate_behaviour_script` returns its source); none are stubs.
 
 ## 3. "Build me a game" — intent routing
 

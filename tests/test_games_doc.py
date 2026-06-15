@@ -36,6 +36,7 @@ def test_documented_physics_behaviours_exist():
 
 
 def test_documented_scripted_behaviours_generate():
-    for b in ("rotate", "move", "player", "collectible", "goal", "killzone", "spawner", "score"):
+    for b in ("rotate", "move", "player", "collectible", "goal", "killzone", "spawner", "score",
+              "bob", "bounce", "patrol", "follow", "chase", "orbit", "wander"):
         assert b in TEXT
         assert generate_behaviour_script(b)["ok"] is True
