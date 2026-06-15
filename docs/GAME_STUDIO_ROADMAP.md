@@ -223,5 +223,12 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   stubs left. Doc scripted-table now lists them all ("Declared but not yet templated" note retired).
   +13 tests (per-behaviour ASCII/balance/placeholder-substitution, class names, key idioms, TR aliases
   devriye/takip/zıpla). **Remaining:** use these in a blueprint or fast-action intent (cycle 31).
+- [x] Chase blueprint (cycle 31): `plan_chase_game` — the 5th game type, the first to use a cycle-30
+  behaviour in a real game. Ground + player (tag + controller + score HUD) + N enemies that **chase**
+  the player (`follow` + `killzone` composed, the dodge trick) + a ring of `collectible`s to grab while
+  escaping + a goal. Registered as `chase`; routed by intent (kovalamaca / takip oyunu / chase game →
+  game_type=chase). 6 unique scripts collapse to one recompile. Doc §1 row + intent phrases + 8 tests.
+  Catalog now has 5 games. **Remaining:** decorative behaviours (bob/orbit) in a scene/blueprint
+  (cycle 32); a game summarizer / readiness QA report (cycle 33).
 
 > Check items off in this file as they land. Add new items as discovered.

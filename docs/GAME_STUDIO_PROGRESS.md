@@ -350,3 +350,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   devriye→patrol, takip→follow, zıpla→bounce resolve to real templates. +13 tests. Live-proved the
   generated AutopilotPatrol.cs + AutopilotFollower.cs + the empty backlog (pure, execute=False; no
   recompile triggered). — tests: 325 passed
+- [cycle 31] Chase blueprint — the 5th game type, and the first to put a cycle-30 behaviour to work in
+  a real game. `core/game_blueprint.plan_chase_game`: ground + a tagged WASD player carrying the score
+  HUD + N enemies that CHASE the player (each composes `follow` — FindWithTag + MoveTowards — with
+  `killzone`, the same two-behaviour trick the dodge game uses for moving hazards, so touching an enemy
+  respawns you) + a tighter ring of `collectible`s to grab while escaping (+1 each to the HUD) + a goal.
+  Registered in BLUEPRINTS as `chase`; `plan_unity_fast_action` routes "kovalamaca", "takip oyunu",
+  "chase game" → game_type=chase (the other game intents unchanged; behaviour-name `chase` and
+  game-type `chase` live in separate namespaces, no collision). Six unique scripts
+  (player/score/follow/killzone/collectible/goal) still collapse to a single recompile via
+  `group_execution_plan`. Doc §1 table row + §3 intent phrases (no-phantom guard still green). +8 tests
+  (structure, enemy follow+killzone combo, collectibles+goal, count clamp, catalog, grouping, intent
+  routing, other-intents-unchanged). Live-proved the plan + 4 intent phrases (pure, execute=False; no
+  recompile triggered). — tests: 333 passed

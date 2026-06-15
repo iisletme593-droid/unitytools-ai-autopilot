@@ -199,6 +199,68 @@ def plan_platformer_game(platform_count: int = 5, arena_size: float = 20.0) -> d
     }
 
 
+def plan_chase_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan a chase game: ground, a WASD+jump player with a score HUD, N enemies
+    that CHASE the player (follow + killzone — touch you and you respawn), and a
+    ring of collectibles to grab while you run. Showcases the new `follow`
+    behaviour combined with `killzone` (the same compose-two-behaviours trick the
+    dodge game uses for moving hazards). Same return schema as the others.
+    """
+    n = max(1, min(int(enemy_count), 30))
+    size = max(6.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) player: tagged, controllable, carrying the score HUD
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "score"}})
+
+    # 3) enemies: a ring of cubes that chase the player and respawn it on contact
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Cube",
+            "count": n,
+            "pattern": "circle",
+            "spacing": max(3.0, size / float(n)),
+            "name_prefix": "Enemy",
+        },
+    })
+    for i in range(n):
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "follow"}})
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "killzone"}})
+
+    # 4) collectibles: a tighter ring to grab while escaping (+1 each to the HUD)
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Sphere",
+            "count": n,
+            "pattern": "circle",
+            "spacing": max(2.0, size / (2.0 * float(n))),
+            "name_prefix": "Collectible",
+        },
+    })
+    for i in range(n):
+        steps.append({"script_behaviour": {"object": f"Collectible_{i}", "behaviour": "collectible"}})
+
+    # 5) goal zone
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_y": 0.5, "position_z": size / 2.0}})
+    steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
+
+    return {
+        "ok": True,
+        "game": "chase",
+        "summary": f"Chase: ground + WASD player + score HUD + {n} chasing enemies + {n} collectibles + goal ({len(steps)} steps).",
+        "enemy_count": n,
+        "steps": steps,
+    }
+
+
 def group_execution_plan(steps: list[dict[str, Any]]) -> dict[str, Any]:
     """Split a blueprint's steps for efficient execution.
 
@@ -229,6 +291,7 @@ BLUEPRINTS = {
     "dodge": plan_dodge_game,
     "survival": plan_survival_game,
     "platformer": plan_platformer_game,
+    "chase": plan_chase_game,
 }
 
 

@@ -24,7 +24,7 @@ def test_every_unity_tool_in_doc_is_registered():
 
 
 def test_documented_game_types_exist():
-    for gt in ("collectathon", "dodge", "survival", "platformer"):
+    for gt in ("collectathon", "dodge", "survival", "platformer", "chase"):
         assert gt in TEXT
         assert gt in BLUEPRINTS
 

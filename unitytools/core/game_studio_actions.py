@@ -259,7 +259,8 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     wants_game = (
         has("collectathon", "toplama oyunu", "oyun iskeleti", "dodge", "kacma oyunu", "kacis oyunu",
             "survival", "survive", "sag kalma", "hayatta kal",
-            "platformer", "platform oyunu", "zipla oyunu", "ziplama oyunu", "jump game")
+            "platformer", "platform oyunu", "zipla oyunu", "ziplama oyunu", "jump game",
+            "chase", "kovalamaca", "takip oyunu", "chase game")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:
@@ -269,6 +270,8 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             game_type = "survival"
         elif has("platformer", "platform", "zipla oyunu", "ziplama oyunu", "jump game"):
             game_type = "platformer"
+        elif has("chase", "kovalamaca", "takip oyunu", "takip"):
+            game_type = "chase"
         else:
             game_type = "collectathon"
         return {
