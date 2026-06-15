@@ -255,3 +255,11 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   pawn; flows through the existing unity_add_script_behaviour/unity_apply_script_behaviour. +5 tests;
   live proof: a compilable AutopilotPlayerController generated (Input.GetAxis, moveSpeed 6, balanced
   braces). The input/player layer of an actual game. — tests: 246 passed
+- [cycle 20] Win/lose trigger zones — the game-logic layer. Added `AutopilotCollectible` (pickup →
+  Destroy), `AutopilotGoalZone` (player enters → win flag), `AutopilotKillZone` (player enters →
+  respawn) OnTriggerEnter MonoBehaviours. Each `Reset()` auto-sets `collider.isTrigger=true` and
+  `[RequireComponent(Collider)]`, so the trigger works without manual editor setup. en+tr aliases
+  (toplanabilir/coin/pickup, hedef/win/finish, olum/lava/hazard/tuzak). +13 tests; live proof:
+  AutopilotCollectible source (OnTriggerEnter, CompareTag Player, Destroy, auto-isTrigger). With
+  physics + scripted movement + player controller + these triggers, the full gameplay building-block
+  set is in place. Cycle 21: assemble a playable game skeleton. — tests: 259 passed

@@ -171,7 +171,10 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
 - [x] Player controller / input primitive (cycle 19): `AutopilotPlayerController` MonoBehaviour
   template — WASD via Input.GetAxis + Space jump with gravity/ground handling, parametric moveSpeed.
   Mapped player/controller/oyuncu/karakter/pawn. 5 tests, source shown live (compilable, balanced).
-- [ ] Win/lose trigger zones (OnTriggerEnter) — collect/goal/death.
+- [x] Win/lose trigger zones (cycle 20): `AutopilotCollectible` / `AutopilotGoalZone` /
+  `AutopilotKillZone` OnTriggerEnter MonoBehaviours (pickup-destroy / win-flag / respawn). Each
+  `Reset()` auto-sets `collider.isTrigger=true` + `[RequireComponent(Collider)]`, so triggers work
+  with no manual setup. en+tr aliases (toplanabilir/coin, hedef/win, olum/lava). 13 tests.
 - [ ] Spawners / waves (compose with the arena-survivor ideas already on the Unreal side).
 
 > Check items off in this file as they land. Add new items as discovered.
