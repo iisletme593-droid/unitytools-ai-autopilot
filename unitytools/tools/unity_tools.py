@@ -1311,3 +1311,31 @@ def unity_export_game(game_type: str = "collectathon", collectible_count: int = 
     plan = plan_game(game_type, collectible_count)
     text = serialize_plan(plan, pretty=pretty)
     return {"ok": True, "game_type": plan.get("game", game_type), "step_count": len(plan.get("steps", [])), "json": text}
+
+
+@tool(description="Save a game to disk as JSON so it can be loaded later (no scene change, no bridge). Plans game_type at collectible_count and writes it under the saved-games directory as <name>.json (name sanitized to letters/numbers/-/_; path-traversal-guarded). game_type='collectathon'/'dodge'/'survival'/'platformer'/'chase'. name defaults to the game type. Returns {ok, name, path, step_count}.")
+def unity_save_game(game_type: str = "collectathon", name: str = "", collectible_count: int = 5) -> dict:
+    from ..core.game_blueprint import plan_game
+    from ..core.game_io import save_plan_to_file
+    plan = plan_game(game_type, collectible_count)
+    try:
+        return save_plan_to_file(plan, name or plan.get("game", game_type))
+    except (ValueError, OSError) as e:
+        return {"ok": False, "error": str(e)}
+
+
+@tool(description="Load a previously saved game from disk by name (no scene change, no bridge): returns its PLAN only (does not build it — call unity_build_simple_game/the executor to build). Returns {ok, plan, game, step_count} or {ok: False, error}.")
+def unity_load_game(name: str = "") -> dict:
+    from ..core.game_io import load_plan_from_file
+    try:
+        plan = load_plan_from_file(name)
+    except (ValueError, FileNotFoundError, OSError) as e:
+        return {"ok": False, "error": str(e)}
+    return {"ok": True, "plan": plan, "game": plan.get("game") or plan.get("decor"), "step_count": len(plan.get("steps", []))}
+
+
+@tool(description="List the names of all games saved to disk (no scene change, no bridge). Returns {ok, games:[names], count}.")
+def unity_list_saved_games() -> dict:
+    from ..core.game_io import list_saved_games
+    names = list_saved_games()
+    return {"ok": True, "games": names, "count": len(names)}

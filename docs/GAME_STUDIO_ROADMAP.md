@@ -303,5 +303,14 @@ parameter-tuning (needs persistence to store history), or a level editor (needs 
   only. New pure tool `unity_export_game(game_type)` (no bridge). Round-trips every blueprint + decor
   with zero loss. +15 tests. **Next:** save/load to disk via `safe_contained_path` (cycle 41); a saved-
   game library / list+load by name (cycle 42); `unity_import_game` + replay an imported plan.
+- [x] Disk save/load (cycle 41): `core/game_io.py` gained `save_plan_to_file(plan, name, root)`,
+  `load_plan_from_file(name, root)`, `list_saved_games(root)`, and `sanitize_game_name`/`default_games_dir`
+  (env `UNITYTOOLS_GAMES_DIR` else `.unitytools/games`). TWO-LAYER path-traversal defense: the name is
+  sanitized to a slug (alnum/-/_ only, `.`/`/`/`\` → `_`, empty rejected) AND the final path is re-guarded
+  with `safe_contained_path`, so no name can escape the games root. New tools `unity_save_game`,
+  `unity_load_game` (returns the plan only — does not build), `unity_list_saved_games` (all pure, no
+  bridge; saving never touches the scene). Verified disk round-trip, listing, missing-file errors, and
+  that `../../etc/passwd` lands inside the root. +17 tests. **Next:** saved-game library + NL intent
+  (kaydet/yükle/kayıtlı oyunlar) (cycle 42); `unity_import_game` + replay an imported plan (cycle 43).
 
 > Check items off in this file as they land. Add new items as discovered.

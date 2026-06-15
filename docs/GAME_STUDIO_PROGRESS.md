@@ -474,3 +474,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   rejection of junk/forged/future-version input, and an end-to-end export->load-back of a platformer.
   +15 tests. Roadmap P8 section added with the next steps (disk save/load via safe_contained_path,
   saved-game library, import+replay). Pure + deterministic, no disk, no scene changes. — tests: 439 passed
+- [cycle 41] P8 step 2: SAVE/LOAD to disk (safely). `core/game_io.py` gained `save_plan_to_file(plan,
+  name, root)`, `load_plan_from_file(name, root)`, `list_saved_games(root)`, plus `sanitize_game_name`
+  and `default_games_dir` (env UNITYTOOLS_GAMES_DIR else <cwd>/.unitytools/games). Path-traversal is
+  blocked by TWO independent layers: (1) the name is sanitized to a slug — every char outside
+  [A-Za-z0-9_-] (including '.', '/', '\\') becomes '_', leading/trailing '.'/'_' stripped, empty
+  rejected, capped at 64 — and (2) the resulting `<slug>.json` is re-resolved through the existing
+  `safe_contained_path`, which raises if it would land outside the games root. So "../../etc/passwd"
+  saves as "etc_passwd.json" INSIDE the root and ".." is rejected outright. New tools: `unity_save_game`
+  (plans + writes, no scene change), `unity_load_game` (returns the PLAN only — does NOT build/execute
+  it), `unity_list_saved_games` — all pure, no bridge. No file deletion this cycle (write/read/list
+  only). +17 tests (sanitization table, disk round-trip via tmp_path, sorted listing, missing->error,
+  traversal-stays-inside-root, env-pointed tool flow). Live-proved save->list->load round-trip and the
+  traversal defense. — tests: 456 passed
