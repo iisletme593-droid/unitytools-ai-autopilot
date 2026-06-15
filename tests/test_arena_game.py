@@ -26,20 +26,22 @@ def test_registered_as_seventh_game():
     assert len(BLUEPRINTS) == 7
 
 
-def test_player_is_armed_with_health_and_score():
+def test_player_is_armed_with_health_score_and_xp():
     plan = plan_arena_game(4)
-    assert _beh_of(plan, "Player") == {"player", "health", "attack", "score"}
+    assert _beh_of(plan, "Player") == {"player", "health", "attack", "score", "xp"}
     tags = {s["kwargs"]["tag"] for s in plan["steps"] if s.get("tool") == "unity_set_tag"
             and s["kwargs"]["name"] == "Player"}
     assert tags == {"Player"}
 
 
-def test_enemies_are_tagged_enemy_with_ai_and_health():
+def test_enemies_are_tagged_enemy_with_ai_and_reward():
     plan = plan_arena_game(5)
     enemy_tags = [s["kwargs"]["tag"] for s in plan["steps"] if s.get("tool") == "unity_set_tag"
                   and s["kwargs"]["name"].startswith("Enemy")]
     assert enemy_tags == ["Enemy"] * 5            # every enemy tagged Enemy
-    assert _beh_of(plan, "Enemy") == {"enemy", "health"}
+    # enemy AI + reward (its HP + XP loot); NOT health, so the player's attack does
+    # single damage to one TakeDamage receiver
+    assert _beh_of(plan, "Enemy") == {"enemy", "reward"}
 
 
 def test_mutual_combat_targets():
@@ -73,9 +75,10 @@ def test_enemy_count_clamped():
     assert plan_arena_game(99)["enemy_count"] == 30
 
 
-def test_groups_to_five_unique_scripts():
+def test_groups_to_seven_unique_scripts():
     grouped = group_execution_plan(plan_arena_game(4)["steps"])
-    assert set(grouped["script_behaviours"]) == {"player", "health", "attack", "score", "enemy"}
+    assert set(grouped["script_behaviours"]) == {
+        "player", "health", "attack", "score", "xp", "enemy", "reward"}
 
 
 def test_variations_work_for_arena():

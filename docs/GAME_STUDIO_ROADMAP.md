@@ -487,5 +487,16 @@ hack-and-slash prototype. Chosen as P11; it extends the existing behaviour catal
   HUD. Aliases xp/seviye/level/tecrübe/deneyim. Pure ASCII, balanced; no NEEDS_SCRIPT behaviour
   un-templated. +12 tests. **Next:** wire `xp` into the arena (player carries xp; enemy death grants XP
   via SendMessage) (cycle 57); then inventory/loot; ranged/projectile attack.
+- [x] XP wired into the arena via `reward` (cycle 57): new `reward` behaviour -> `AutopilotReward` — a
+  killable enemy's HP + loot in one: it receives `TakeDamage`, and when HP runs out it grants `xpReward`
+  to the Player (`SendMessage("AddXP")`, decoupled — no AutopilotXP reference) and destroys itself. The
+  arena now gives the player `xp` (a Lv/XP HUD) and each enemy `enemy` + `reward` (instead of `health`,
+  so the player's attack does single damage to one TakeDamage receiver). This CLOSES the combat loop:
+  player attack -> reward.TakeDamage -> enemy dies + SendMessage AddXP -> player xp levels up; and enemy
+  AI -> player health -> respawn. All fully decoupled SendMessage chains. Aliases ödül/reward/ganimet/
+  xpdrop. Pure ASCII (fixed a stray em-dash), balanced, no NEEDS_SCRIPT behaviour un-templated; arena
+  still valid/playable/deterministic. +8 tests (reward source/decoupled/ascii/aliases + the full
+  combat-loop chain). **Next:** inventory/loot (kill -> item drop -> pick up) (cycle 58), or a state
+  review on whether P11 is deep enough; ranged/projectile attack later.
 
 > Check items off in this file as they land. Add new items as discovered.

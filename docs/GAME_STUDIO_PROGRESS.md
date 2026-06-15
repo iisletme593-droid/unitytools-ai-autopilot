@@ -691,3 +691,18 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   left un-templated. +12 tests (5 arena integration + 7 xp source/level-up/aliases). Live-proved the
   arena save/load identity and the combat quartet (health/attack/enemy/xp). Generate-only; deterministic;
   no Math.random / new Date. — tests: 775 passed
+- [cycle 57] P11 step 7: wired XP into the arena via a new `reward` behaviour, CLOSING the combat loop.
+  `reward` -> AutopilotReward is a killable enemy's HP + loot in one: it receives SendMessage("TakeDamage"),
+  and when currentHP hits 0 it grants xpReward to the Player via SendMessage("AddXP", ...,
+  DontRequireReceiver) and Destroys itself — fully decoupled (no AutopilotXP reference). plan_arena_game
+  now gives the Player `xp` (the Lv/XP HUD) and each enemy `enemy` + `reward` instead of `enemy` +
+  `health` (so the player's attack hits a single TakeDamage receiver, no double damage). The full loop:
+  player attack (targetTag Enemy) -> reward.TakeDamage -> enemy dies + SendMessage AddXP -> player
+  AutopilotXP.AddXP -> level up at Level*100; meanwhile enemy AI -> player health -> respawn. All
+  decoupled SendMessage chains; no hard type references anywhere in the loop. Aliases odul/reward/
+  ganimet/xpdrop. Pure ASCII (fixed a stray em-dash in the comment), balanced; no NEEDS_SCRIPT behaviour
+  left un-templated; the arena stays valid/playable/deterministic (7 unique scripts). GAMES.md scripted
+  row + doc guard. Updated the arena tests (player has xp, enemies have enemy+reward, 7 unique scripts).
+  +8 tests. Live-proved the complete attack->reward-death->XP->level loop + NL arena build. Note: the
+  session-local ScheduleWakeup for cycle 57 (01:04) did not fire (machine asleep); ran it on the user's
+  return — nothing lost, every cycle is committed. — tests: 783 passed

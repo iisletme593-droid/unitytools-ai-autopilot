@@ -266,9 +266,10 @@ def plan_arena_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     first game to wire the action-RPG combat trio (health + attack + enemy).
 
     The player (tag Player) gets WASD movement, health, a melee attack (its default
-    targetTag is "Enemy"), and a score HUD. Each enemy (tag Enemy) gets the enemy AI
-    (chase + attack the Player) and its own health, so the player can kill them and
-    they can hurt the player back — mutual combat. There is no goal: you fight.
+    targetTag is "Enemy"), a score HUD, and xp/leveling. Each enemy (tag Enemy) gets
+    the enemy AI (chase + attack the Player) and a `reward` (its HP + XP loot): the
+    player can kill them — on death they grant XP to the player and are destroyed —
+    and they can hurt the player back. There is no goal: you fight and level up.
     Same step schema as the other blueprints; the seed (via plan_game) jitters the
     enemy ring.
     """
@@ -279,16 +280,19 @@ def plan_arena_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     # 1) ground
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
 
-    # 2) the armed player: movement + health + attack (hits "Enemy") + score HUD
+    # 2) the armed player: movement + health + attack (hits "Enemy") + score + xp
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
     steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "health"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "attack"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "score"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "xp"}})
 
     # 3) enemies: a ring of cubes tagged Enemy, each chasing+attacking the player and
-    #    carrying its own health so the player can defeat them
+    #    carrying a `reward` (their HP + XP loot) so the player can defeat them and
+    #    level up. Only `reward` (not `health`) is on the enemy, so the player's
+    #    attack does single damage to one TakeDamage receiver.
     steps.append({
         "tool": "unity_place_primitives",
         "kwargs": {
@@ -302,7 +306,7 @@ def plan_arena_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     for i in range(n):
         steps.append({"tool": "unity_set_tag", "kwargs": {"name": f"Enemy_{i}", "tag": "Enemy"}})
         steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "enemy"}})
-        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "health"}})
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "reward"}})
 
     return {
         "ok": True,

@@ -145,3 +145,48 @@ def test_xp_is_pure_ascii_and_balanced():
 def test_xp_aliases(alias):
     assert normalize_behaviour(alias) == "xp"
     assert generate_behaviour_script(alias)["class_name"] == "AutopilotXP"
+
+
+# --- reward (killable enemy that grants XP) ---------------------------------
+
+def test_reward_source():
+    s = generate_behaviour_script("reward")
+    assert s["ok"] is True and s["class_name"] == "AutopilotReward"
+    src = s["source"]
+    assert "public int xpReward" in src and "public int currentHP" in src
+    assert "public void TakeDamage(int amount)" in src     # killable (takes damage)
+    assert 'SendMessage("AddXP", xpReward' in src          # grants XP to the player
+    assert "Destroy(gameObject)" in src                    # dies
+
+
+def test_reward_is_decoupled_from_xp_type():
+    src = generate_behaviour_script("reward")["source"]
+    assert "AutopilotXP." not in src                       # grants via SendMessage, no hard ref
+    assert "GetComponent<AutopilotXP>" not in src
+
+
+def test_reward_is_pure_ascii_and_balanced():
+    src = generate_behaviour_script("reward")["source"]
+    assert all(ord(c) < 128 for c in src)
+    assert src.count("{") == src.count("}") and src.count("(") == src.count(")")
+    assert "__" not in src
+
+
+@pytest.mark.parametrize("alias", ["odul", "reward", "ganimet", "xpdrop"])
+def test_reward_aliases(alias):
+    assert normalize_behaviour(alias) == "reward"
+    assert generate_behaviour_script(alias)["class_name"] == "AutopilotReward"
+
+
+def test_combat_loop_chain_is_complete():
+    # player attack -> reward.TakeDamage -> SendMessage AddXP -> xp.AddXP; enemy -> player health
+    attack = generate_behaviour_script("attack")["source"]
+    reward = generate_behaviour_script("reward")["source"]
+    xp = generate_behaviour_script("xp")["source"]
+    enemy = generate_behaviour_script("enemy")["source"]
+    health = generate_behaviour_script("health")["source"]
+    assert 'targetTag = "Enemy"' in attack and 'SendMessage("TakeDamage"' in attack
+    assert "public void TakeDamage(int amount)" in reward and 'SendMessage("AddXP"' in reward
+    assert "void AddXP(int amount)" in xp
+    assert 'FindWithTag("Player")' in enemy and 'SendMessage("TakeDamage"' in enemy
+    assert "public void TakeDamage(int amount)" in health
