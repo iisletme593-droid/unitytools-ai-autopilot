@@ -391,3 +391,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   blueprints report playable=True (survival also warns "no goal" — correct, it's survive-don't-die);
   ambient decor correctly reports playable=False with player/goal warnings. +15 tests. Live-proved a
   readiness table for every game type + decor (pure). — tests: 357 passed
+- [cycle 34] Bound game QA to natural language. `plan_unity_fast_action` gained an assess branch:
+  "oyunu değerlendir", "analiz et", "oynanabilir mi", "oyun QA / QA yap", "assess the game", "is the
+  game playable", "hazır mı" -> unity_assess_game (read-only, pure). Crucially the assess branch is
+  evaluated BEFORE the build branch, because a prompt like "dodge oyununu değerlendir" contains both a
+  game type AND an assess verb — the user wants an analysis, not a rebuild; assess wins. It also
+  requires a game context ("oyun"/"game"), so scene-level "analiz" / "qa" / "performans" prompts (no
+  game) still fall through to the existing visual-QA (`unity_run_visual_qa`) and profiling
+  (`unity_profile_scene_performance`) branches — verified they are not hijacked. Refactor: the
+  game-type detection (dodge/survival/platformer/chase/collectathon) is now a shared
+  `detect_game_type()` closure used by BOTH the build and assess branches (replaced the duplicated
+  if/elif chain). Doc §3 assess note. +6 tests (assess routing + game_type extraction, assess-beats-
+  build, build-still-builds, scene-analysis-not-hijacked, read-only). Live-proved NL -> assess intent
+  -> real readiness report end-to-end (pure, no bridge). — tests: 368 passed

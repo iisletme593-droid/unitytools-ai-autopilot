@@ -255,6 +255,38 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     safety_notes: list[str] = []
     build_verb = has("kur", "olustur", "yap", "build", "create", "generate", "uret", "insa")
 
+    def detect_game_type() -> str:
+        if has("dodge", "kacma", "kacis"):
+            return "dodge"
+        if has("survival", "survive", "sag kalma", "hayatta kal"):
+            return "survival"
+        if has("platformer", "platform", "zipla oyunu", "ziplama oyunu", "jump game"):
+            return "platformer"
+        if has("chase", "kovalamaca", "takip oyunu", "takip"):
+            return "chase"
+        return "collectathon"
+
+    # Assess/QA intent must beat build-game: "dodge oyununu degerlendir" contains
+    # both "dodge" and "degerlendir" — the user wants an analysis, not a build. It
+    # also requires a game context ("oyun"/"game") so scene-level "analiz"/"qa"
+    # prompts still fall through to the visual-QA / profiling branches below.
+    assess_verb = (has("degerlendir", "analiz", "assess", "readiness")
+                   or has("oynanabilir mi", "oyun qa", "qa yap", "is the game playable", "hazir mi"))
+    if assess_verb and has("oyun", "game"):
+        gt = detect_game_type()
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_assess_game",
+                "kwargs": {"game_type": gt, "collectible_count": _infer_count(lower, 5)},
+                "write": False,
+                "note": f"assess the {gt} game (pure analysis: counts + playable verdict, no scene changes, no bridge)",
+            }],
+            "safety_notes": ["read-only QA; no scene changes"],
+            "reason": f"assess-game intent -> {gt}",
+        }
+
     # Build-a-game intent takes priority so "oyun" doesn't fall into scene branches.
     wants_game = (
         has("collectathon", "toplama oyunu", "oyun iskeleti", "dodge", "kacma oyunu", "kacis oyunu",
@@ -264,16 +296,7 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:
-        if has("dodge", "kacma", "kacis"):
-            game_type = "dodge"
-        elif has("survival", "survive", "sag kalma", "hayatta kal"):
-            game_type = "survival"
-        elif has("platformer", "platform", "zipla oyunu", "ziplama oyunu", "jump game"):
-            game_type = "platformer"
-        elif has("chase", "kovalamaca", "takip oyunu", "takip"):
-            game_type = "chase"
-        else:
-            game_type = "collectathon"
+        game_type = detect_game_type()
         return {
             "ok": True,
             "engine": "unity",

@@ -247,5 +247,12 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   the 5 blueprints reports playable=True; decor reports not-playable (correctly). +15 tests.
   **Remaining:** bind QA to the NL/master-planner intent (cycle 34); a game-variation generator
   (same type, different parameters) (cycle 35).
+- [x] Assess intent (cycle 34): `plan_unity_fast_action` now routes "oyunu değerlendir" / "analiz et"
+  / "oynanabilir mi" / "assess the game" / "is the game playable" → `unity_assess_game` (read-only).
+  The assess branch is checked **before** the build branch and requires a game context ("oyun"/"game"),
+  so "dodge oyununu değerlendir" is analysed (not rebuilt) while scene-level "analiz"/"qa"/"performans"
+  still reach the visual-QA / profiling branches. Refactor: the game-type detection is now a shared
+  `detect_game_type()` helper used by both the build and assess branches (de-dup). Doc §3 note + 6
+  tests. **Remaining:** a game-variation generator (same type, different parameters) (cycle 35).
 
 > Check items off in this file as they land. Add new items as discovered.

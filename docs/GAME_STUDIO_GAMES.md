@@ -69,6 +69,13 @@ plan automatically:
 
 A number in the prompt sets the count ("toplama oyunu yap 8 toplanabilir" → 8).
 
+**Assess (don't build):** "oyunu değerlendir", "dodge oyununu analiz et", "oynanabilir mi",
+"assess the game", "is the game playable" route to `unity_assess_game` instead — a read-only
+readiness report (counts + playable verdict + warnings, no scene changes, no bridge). The assess
+intent is checked *before* the build intent, so a prompt with both a game type and an assess verb
+("dodge oyununu değerlendir") is analysed, not rebuilt. Scene-level "analiz"/"qa"/"performans"
+(no game context) still route to the visual-QA / profiling tools.
+
 ## 4. execute=False vs execute=True (recompile note)
 
 - `execute=False` (default): returns the **step plan** only. No scene changes — safe to call
