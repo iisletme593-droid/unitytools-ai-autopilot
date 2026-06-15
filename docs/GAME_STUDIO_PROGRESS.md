@@ -600,3 +600,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   clamp + object-count bound, player/goal-not-in-wall, player/goal on entrance/exit cells, one-recompile
   grouping, variations). Live-rendered a 5x5 maze game with P at the entrance and G at the exit.
   — tests: 686 passed
+- [cycle 50] P10 step 3: maze natural-language intent + docs. `detect_game_type` gained a maze branch
+  (maze/labirent -> "maze") and `wants_game` learned "maze"/"labirent"/"maze game"/"labirent oyunu", so
+  "labirent oyunu kur" / "build me a maze game" route to a maze build. Because maze reuses the shared
+  detect_game_type, assess ("labirent oyununu degerlendir") and variations ("labirent varyasyonlari
+  goster") recognise it too. Size (collectible_count -> maze size) and seed work together: "labirent
+  oyunu kur 6 tohum 7" -> game_type=maze, size 6, seed 7 (extract_seed strips the seed so it is not read
+  as the size). GAME_STUDIO_GAMES.md §1 gained a maze row + intent phrases (no-phantom doc guard updated
+  to assert maze in BLUEPRINTS + doc). The code-derived build_game_capabilities_summary now reports "6
+  playable game types" and lists maze automatically (verified). The other five game intents are
+  unchanged. +10 tests (maze build per phrasing, size+seed together, seed-only, assess+variations,
+  others-unchanged, capability summary lists maze). Live-proved NL maze build (size+seed) end-to-end.
+  — tests: 696 passed

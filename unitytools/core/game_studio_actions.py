@@ -264,6 +264,8 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             return "platformer"
         if has("chase", "kovalamaca", "takip oyunu", "takip"):
             return "chase"
+        if has("maze", "labirent"):
+            return "maze"
         return "collectathon"
 
     def difficulty_count(default: int = 5, number_text: str | None = None) -> int:
@@ -405,7 +407,8 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         has("collectathon", "toplama oyunu", "oyun iskeleti", "dodge", "kacma oyunu", "kacis oyunu",
             "survival", "survive", "sag kalma", "hayatta kal",
             "platformer", "platform oyunu", "zipla oyunu", "ziplama oyunu", "jump game",
-            "chase", "kovalamaca", "takip oyunu", "chase game")
+            "chase", "kovalamaca", "takip oyunu", "chase game",
+            "maze", "labirent", "maze game", "labirent oyunu")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:

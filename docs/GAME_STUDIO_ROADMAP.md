@@ -411,5 +411,13 @@ level-pack (a thin layer over P8).
   doc (keeps the no-phantom guard green). +13 tests. **Next:** maze NL intent ("labirent oyunu kur" /
   "maze game" + size + seed) + GAMES.md/catalog maze row (cycle 50); maze × save/load × variations
   integration + state review (cycle 51).
+- [x] Maze NL intent + docs (cycle 50): `detect_game_type` gained a maze branch and `wants_game` learned
+  "maze"/"labirent"/"maze game"/"labirent oyunu", so "labirent oyunu kur" / "build me a maze game" route
+  to a maze build; size (collectible_count) and seed work together ("labirent oyunu kur 6 tohum 7" ->
+  maze, size 6, seed 7), and assess/variations also recognise maze (all via the shared detect_game_type).
+  GAMES.md §1 gained a maze row + intent phrases; the code-derived capability summary now reports 6 game
+  types and lists maze automatically. The other game intents are unchanged. +10 tests; the no-phantom doc
+  guard now asserts maze too. **Next:** maze × save/load × variations × assess end-to-end integration
+  (build -> save -> load -> identical maze) + state review (cycle 51).
 
 > Check items off in this file as they land. Add new items as discovered.
