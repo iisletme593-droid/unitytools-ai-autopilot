@@ -517,3 +517,13 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   valid / rejects bad-json + forged-tool; build-from-plan dry-run + real execute via a fake bridge).
   Live-proved import accepting a real game, rejecting a forged `os_system` step at index 1, and a
   save->load->validate->build dry-run. — tests: 497 passed
+- [cycle 44] P8 step 5: made the save/load/import capabilities visible everywhere. (a)
+  `game_qa.build_game_capabilities_summary()` now includes two lines for persistence — save ->
+  unity_save_game, load -> unity_load_game, list -> unity_list_saved_games, import (validated) ->
+  unity_import_game, build a saved game -> unity_build_loaded_game — so the LOCAL LLM master planner
+  (which is fed this block) knows games can be saved/loaded/imported. (b) `docs/GAME_STUDIO.md` landing
+  gained a "Persistence" section: NL examples (kaydet/yukle/kayitli oyunlar) plus the safety model
+  (sanitize + safe_contained_path two-layer traversal defense, validate_plan for external JSON,
+  execute=False default). (c) `GAME_STUDIO_TOOLS.md` got a persistence tool table. The capability-summary
+  and landing-doc guards were extended to assert the five persistence tool names are real (registry). All
+  references verified live. +1 test. Docs/summary only, no behaviour change. — tests: 498 passed

@@ -331,5 +331,12 @@ parameter-tuning (needs persistence to store history), or a level editor (needs 
   triggers a recompile). +20 tests (accepts all blueprints, rejects hostile input, import/build flow).
   **Next:** surface save/load/import in the master prompt + landing doc + capability summary (cycle 44);
   P8 wrap-up + pick P9 (cycle 45).
+- [x] Surface persistence (cycle 44): `build_game_capabilities_summary()` now lists the save/load/list/
+  import/build-loaded tools (so the master planner — which is fed this block — knows games can be
+  persisted), the landing doc (`GAME_STUDIO.md`) gained a "Persistence" section (NL examples + the
+  two-layer traversal defense + validate_plan + execute=False default), and `GAME_STUDIO_TOOLS.md` got a
+  persistence tool table. Capability + landing-doc guards updated to assert the new tool names are real.
+  +1 test. **Next:** P8 wrap-up + pick P9 (cycle 45) — multi-level/scene save, procedural seed
+  generator, autonomous parameter tuning, or a new game type.
 
 > Check items off in this file as they land. Add new items as discovered.

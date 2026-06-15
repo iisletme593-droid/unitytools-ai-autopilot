@@ -74,4 +74,17 @@ Natural-language "build me a game" and "animate the scene" requests route there 
 → Full reference (game types, behaviour catalog, example commands, recompile notes):
 **`GAME_STUDIO_GAMES.md`**.
 
+## Persistence (save / load / import) — pure, no bridge
+| Tool | What it does | Example command |
+|------|--------------|-----------------|
+| `unity_save_game` | Plan a game and write it to disk as JSON (name sanitized + traversal-guarded) | "dodge oyununu boss olarak kaydet" |
+| `unity_load_game` | Load a saved game by name — returns its plan only (does not build) | "boss oyununu yükle" |
+| `unity_list_saved_games` | List the names of games saved to disk | "kayıtlı oyunlar" |
+| `unity_export_game` | Serialize a game to portable, versioned JSON (for sharing) | "dodge oyununu dışa aktar" |
+| `unity_import_game` | Parse + **validate** external game JSON without building (never trusts it) | — |
+| `unity_build_loaded_game` | Load a saved game, re-validate, then build it (`execute=True` recompiles) | — |
+
+Two-layer path-traversal defense (sanitize + `safe_contained_path`) and a whitelist `validate_plan`
+keep save/load and external JSON safe. `execute=False` is the default everywhere.
+
 > See `GAME_STUDIO_ROADMAP.md` for the backlog and `GAME_STUDIO_PROGRESS.md` for the per-cycle log.

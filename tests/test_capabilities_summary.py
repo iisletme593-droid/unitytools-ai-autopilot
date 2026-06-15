@@ -22,6 +22,13 @@ def test_summary_names_the_routing_tools():
         assert tool in text, f"capability summary missing tool {tool}"
 
 
+def test_summary_names_the_persistence_tools():
+    text = build_game_capabilities_summary()
+    for tool in ("unity_save_game", "unity_load_game", "unity_list_saved_games",
+                 "unity_import_game", "unity_build_loaded_game"):
+        assert tool in text, f"capability summary missing persistence tool {tool}"
+
+
 def test_summary_is_code_derived_not_hardcoded():
     # the game count in the text must equal the live blueprint count
     text = build_game_capabilities_summary()

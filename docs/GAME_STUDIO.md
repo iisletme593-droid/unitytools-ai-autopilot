@@ -33,9 +33,29 @@ The deterministic fast-path (`plan_unity_fast_action`) routes plain commands to 
 | "dodge varyasyonları göster", "easy/medium/hard" | `unity_game_variations` |
 | "hangi oyunlar yapabilirsin", "what games" | `unity_game_catalog` |
 | "sahneyi canlandır", "animate the scene" | `unity_animate_group` |
+| "dodge oyununu boss olarak kaydet", "save as X" | `unity_save_game` |
+| "boss oyununu yükle", "load X" / "kayıtlı oyunlar" | `unity_load_game` / `unity_list_saved_games` |
 
 An explicit number always wins ("dodge oyunu yap 8" → 8). The local LLM master planner is also given a
 code-derived capability summary so it knows these games exist.
+
+## Persistence (save / load / import)
+
+Games are no longer ephemeral. A game's plan can be saved to disk as versioned JSON and loaded back
+exactly — so you can build a library, share games, or replay them.
+
+- **Save:** "… olarak kaydet" / "save as X" → `unity_save_game` writes `<name>.json` under the games
+  directory (`UNITYTOOLS_GAMES_DIR`, else `.unitytools/games`).
+- **Load / list:** "oyunu yükle X" → `unity_load_game` (returns the plan only), "kayıtlı oyunlar" →
+  `unity_list_saved_games`.
+- **Import / build:** `unity_import_game(json)` parses + **validates** external JSON;
+  `unity_build_loaded_game(name)` loads, re-validates, and (with `execute=True`) builds it.
+
+**Safety:** save names are sanitized to a slug **and** re-checked with `safe_contained_path`, so no
+name can escape the games root (two-layer path-traversal defense). External JSON is treated as
+untrusted: `validate_plan` rejects any step that isn't a whitelisted tool call or a real templated
+behaviour. Saving never changes the scene; loading returns a plan; building is `execute=False` by
+default.
 
 ## How it works (architecture)
 

@@ -154,6 +154,11 @@ def build_game_capabilities_summary() -> str:
         "- Difficulty variations ('varyasyon', 'zorluk secenekleri', 'easy/medium/hard')"
         " -> unity_game_variations(game_type).",
         "- List the catalog ('hangi oyunlar', 'neler yapabilirsin', 'what games') -> unity_game_catalog().",
+        "- Save a game to disk ('... olarak kaydet', 'save as X') -> unity_save_game(game_type, name);"
+        " load one back ('oyunu yukle X', 'load X') -> unity_load_game(name); list saves"
+        " ('kayitli oyunlar', 'saved games') -> unity_list_saved_games().",
+        "- Import external game JSON (validated, never trust it) -> unity_import_game(json_text);"
+        " build a saved game -> unity_build_loaded_game(name, execute).",
         f"Gameplay behaviours available: {', '.join(cat['unique_behaviours'])}.",
         "execute=False plans only (safe, no scene change); execute=True builds and triggers a Unity recompile.",
     ]
