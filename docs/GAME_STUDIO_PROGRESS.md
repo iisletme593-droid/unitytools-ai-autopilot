@@ -612,3 +612,18 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   unchanged. +10 tests (maze build per phrasing, size+seed together, seed-only, assess+variations,
   others-unchanged, capability summary lists maze). Live-proved NL maze build (size+seed) end-to-end.
   — tests: 696 passed
+- [cycle 51] P10 wrap-up (maze end-to-end) + new big goal P11 = action-RPG building blocks. (a)
+  Integration test: the maze works through the WHOLE pipeline — a natural-language intent ("labirent
+  oyunu kur 5 tohum 7") -> plan -> serialize + disk save/load returns an IDENTICAL plan; the same seed
+  rebuilds the same maze in "another session" (deterministic, shareable); plan_game_variations across
+  sizes 3/5/7 are all playable with monotonic object counts; assess reports playable+player+goal; a
+  re-imported maze plan validates. P10 (maze: generate_maze + blueprint + NL intent + integration) is
+  DONE. (b) STATE REVIEW: the user asked if the studio could make a Knight Online/V Rising/Remnant 2/
+  Valheim mix; gave the honest answer (a real game at that scale — MMO netcode, AAA art, streaming
+  terrain — is out of scope for primitive composition, but action-RPG-FLAVORED building blocks can be
+  added in the same deterministic template style). Picked P11 = combat/RPG building blocks. First step:
+  new scripted behaviour `health` -> AutopilotHealth MonoBehaviour (maxHP/currentHP, public
+  TakeDamage(int)/Heal(int) so attack scripts can call them, death->respawn at spawn or destroyOnDeath,
+  top-right HP HUD); aliases can/saglik/hp/health/canli. Pure ASCII, balanced, no NEEDS_SCRIPT behaviour
+  left un-templated. +10 tests (5 maze integration + 5 health). Live-proved the maze intent->save->load
+  identity and the health source. No Math.random / new Date; generate-only. — tests: 710 passed

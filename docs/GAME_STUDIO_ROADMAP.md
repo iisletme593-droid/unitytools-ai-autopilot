@@ -419,5 +419,25 @@ level-pack (a thin layer over P8).
   types and lists maze automatically. The other game intents are unchanged. +10 tests; the no-phantom doc
   guard now asserts maze too. **Next:** maze × save/load × variations × assess end-to-end integration
   (build -> save -> load -> identical maze) + state review (cycle 51).
+- [x] Maze end-to-end integration (cycle 51): a full-pipeline test proving the maze works through the
+  whole studio — NL intent ("labirent oyunu kur 5 tohum 7") -> plan -> serialize + disk save/load ->
+  IDENTICAL plan; the same seed rebuilds the same maze "in another session"; `plan_game_variations`
+  across sizes 3/5/7 are all playable with monotonic object counts; assess reports playable+player+goal;
+  a re-imported maze plan validates. **P10 (maze) is DONE.** +5 tests.
+
+### P11 — Action-RPG building blocks (combat / RPG flavor)
+**Why.** The user asked whether the studio could make a Knight Online / V Rising / Remnant 2 / Valheim
+mix. Honest answer (given to them): a real game at that scale — MMO netcode, AAA art/animation, large
+streaming terrain — is OUT of scope for this primitive-composition autopilot. But action-RPG-FLAVORED
+*building blocks* can be added in the same deterministic MonoBehaviour-template style, toward a blocky
+hack-and-slash prototype. Chosen as P11; it extends the existing behaviour catalog (no new architecture).
+
+- [x] Health behaviour (cycle 51): `health` scripted behaviour -> `AutopilotHealth` MonoBehaviour — a
+  maxHP/currentHP pair, `TakeDamage(int)` / `Heal(int)` (public, so attack scripts can call them, also
+  SendMessage-friendly), death -> respawn at spawn point (or `destroyOnDeath`), and a top-right HP HUD.
+  Aliases can/sağlık/hp/health/canlı. Pure ASCII, balanced, every NEEDS_SCRIPT behaviour still templated.
+  +5 tests. **Next:** `attack` (melee hit that calls TakeDamage on what it touches) (cycle 52); an enemy
+  AI that chases + attacks (follow + attack) (cycle 53); an `arena`/`brawler` blueprint composing player
+  + health + armed enemies (cycle 54); later inventory/loot + xp/level.
 
 > Check items off in this file as they land. Add new items as discovered.
