@@ -476,5 +476,16 @@ hack-and-slash prototype. Chosen as P11; it extends the existing behaviour catal
   guard; the code-derived capability summary now reports "7 playable game types" and lists arena. The
   other six game intents are unchanged. +10 tests. **Next:** arena × save/load × variations × assess
   end-to-end integration + state review (cycle 56); then inventory/loot + xp/level.
+- [x] Arena integration + `xp` behaviour (cycle 56): (a) end-to-end test — the arena combat game runs
+  through the whole pipeline (NL intent "arena oyunu kur 4 tohum 9" -> plan -> serialize + disk
+  save/load IDENTICAL; same seed rebuilds the same arena in another session; variations 2/4/6 all
+  playable; assess playable+player; re-imported plan validates). (b) State review: P11 combat has the
+  trio (health/attack/enemy) + the arena 7th game type + NL. Chose XP/leveling as the next building
+  block (the defining action-RPG progression feature; same pure-template pattern as score/health; ties
+  into arena via kill->XP). Shipped `xp` -> AutopilotXP MonoBehaviour: static XP/Level, `Add(int)` /
+  SendMessage `AddXP(int)`, level-up at Level*100 XP (carrying the remainder), top-right "Lv N - XP"
+  HUD. Aliases xp/seviye/level/tecrübe/deneyim. Pure ASCII, balanced; no NEEDS_SCRIPT behaviour
+  un-templated. +12 tests. **Next:** wire `xp` into the arena (player carries xp; enemy death grants XP
+  via SendMessage) (cycle 57); then inventory/loot; ranged/projectile attack.
 
 > Check items off in this file as they land. Add new items as discovered.

@@ -119,3 +119,29 @@ def test_enemy_is_pure_ascii_and_balanced():
 def test_enemy_aliases(alias):
     assert normalize_behaviour(alias) == "enemy"
     assert generate_behaviour_script(alias)["class_name"] == "AutopilotEnemy"
+
+
+# --- xp / leveling (RPG progression) ----------------------------------------
+
+def test_xp_source():
+    s = generate_behaviour_script("xp")
+    assert s["ok"] is True and s["class_name"] == "AutopilotXP"
+    src = s["source"]
+    assert "public static int XP" in src and "public static int Level" in src
+    assert "public static void Add(int amount)" in src     # direct helper
+    assert "void AddXP(int amount)" in src                  # SendMessage target
+    assert "Level++" in src and "Level * 100" in src        # level-up at a threshold
+    assert '"Lv "' in src                                   # the Lv/XP HUD
+
+
+def test_xp_is_pure_ascii_and_balanced():
+    src = generate_behaviour_script("xp")["source"]
+    assert all(ord(c) < 128 for c in src)
+    assert src.count("{") == src.count("}") and src.count("(") == src.count(")")
+    assert "__" not in src
+
+
+@pytest.mark.parametrize("alias", ["xp", "seviye", "level", "tecrube", "deneyim"])
+def test_xp_aliases(alias):
+    assert normalize_behaviour(alias) == "xp"
+    assert generate_behaviour_script(alias)["class_name"] == "AutopilotXP"

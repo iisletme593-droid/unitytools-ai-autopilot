@@ -677,3 +677,17 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   The other six game intents are unchanged. +10 tests (arena build per phrasing, size+seed,
   assess+variations, savas-vs-survival, others-unchanged, capability summary 7 games). Live-proved NL
   arena build + the 7-game summary. Generate-only; deterministic. — tests: 763 passed
+- [cycle 56] P11 step 6: arena end-to-end integration + state review + `xp` behaviour. (a) Integration
+  test: the arena combat game works through the whole studio — NL intent "arena oyunu kur 4 tohum 9" ->
+  plan -> serialize + disk save/load returns an IDENTICAL plan; the same seed rebuilds the same arena in
+  "another session"; plan_game_variations 2/4/6 all playable (monotonic objects); assess playable+player;
+  a re-imported arena plan validates. (b) STATE REVIEW: P11 combat now has the trio (health/attack/enemy)
+  + the arena 7th game type + full NL routing (tests 84->763). Chose XP/leveling as the next building
+  block over inventory/loot and ranged attack — leveling is the defining action-RPG progression feature,
+  follows the same pure-template pattern as score/health, and ties into the arena (kill enemy -> XP).
+  Shipped `xp` -> AutopilotXP MonoBehaviour: static XP/Level, public Add(int) helper + SendMessage target
+  AddXP(int), level-up at Level*100 XP carrying the remainder, top-right "Lv N - XP x/need" HUD (below
+  the HP HUD). Aliases xp/seviye/level/tecrube/deneyim. Pure ASCII, balanced; no NEEDS_SCRIPT behaviour
+  left un-templated. +12 tests (5 arena integration + 7 xp source/level-up/aliases). Live-proved the
+  arena save/load identity and the combat quartet (health/attack/enemy/xp). Generate-only; deterministic;
+  no Math.random / new Date. — tests: 775 passed
