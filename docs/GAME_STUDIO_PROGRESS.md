@@ -555,3 +555,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   monotone across 8 seeds, valid+playable for all 5 games x 8 seeds, object_count seed-independent,
   determinism, seed=None no-op). Live-proved different seeds give different layouts while all stay
   playable. Still no Math.random / new Date. — tests: 570 passed
+- [cycle 47] P9 step 3: seed in natural language + persistence. A pure `extract_seed(text)` helper in
+  game_studio_actions recognises "tohum 42" / "seed 42" / "seed:abc" / "seed=7" (keyword then value,
+  requiring a real separator so the Turkish possessive "tohumu" isn't split into "tohum"+"u") and "42
+  tohumu ile" / "forest tohumuyla" (value then keyword), returning (seed, text_with_seed_removed). The
+  build branch extracts the seed FIRST and feeds the seed-stripped text to difficulty_count, so a seed
+  digit is never mistaken for the count: "zor dodge oyunu kur tohum 7" -> dodge, count=8 (hard), seed=7;
+  "dodge oyunu yap 5 tohum 12" -> count=5, seed=12. The seed is added to unity_build_simple_game's kwargs
+  only when present. Confirmed the seed already travels inside the plan dict, so it survives both
+  serialize/deserialize and disk save/load with no extra work (round-trip tested). Capability summary
+  (so the master planner knows about seeds) + GAMES.md note added. +18 tests (extract_seed pattern table,
+  seed-vs-count separation, explicit-count+seed coexist, no-seed no-kwarg, word seeds, seed survives
+  serialize + disk round-trip). Live-proved NL "tohum 7" -> seed 7 (count 8), same seed -> same game,
+  seed preserved in JSON. Deterministic. — tests: 588 passed

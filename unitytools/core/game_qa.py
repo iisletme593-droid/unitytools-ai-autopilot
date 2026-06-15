@@ -147,8 +147,8 @@ def build_game_capabilities_summary() -> str:
         "=== GAME STUDIO CAPABILITIES ===",
         f"This studio can author {cat['game_count']} playable game types: {types}.",
         "Route game requests to these tools (deterministic, no guessing):",
-        "- Build a game ('... oyunu yap/kur', 'build me a X game', difficulty kolay/orta/zor sets the size)"
-        " -> unity_build_simple_game(game_type, collectible_count, execute).",
+        "- Build a game ('... oyunu yap/kur', 'build me a X game', difficulty kolay/orta/zor sets the size,"
+        " 'tohum 42'/'seed 42' makes it reproducible) -> unity_build_simple_game(game_type, collectible_count, seed, execute).",
         "- Assess / QA a game ('oyunu degerlendir', 'oynanabilir mi', 'is the game playable')"
         " -> unity_assess_game(game_type).",
         "- Difficulty variations ('varyasyon', 'zorluk secenekleri', 'easy/medium/hard')"

@@ -368,5 +368,13 @@ P8) and autonomous tuning (needs the seed/variety axis first); a new game type i
   seeds, valid+playable for all game×seed combos, count seed-independent, determinism, seed=None no-op).
   **Next:** seed NL intent ("tohum 42 ile dodge oyunu" / "seed 42") + include the seed in save/export
   (cycle 47); P9 wrap-up + pick P10 (cycle 48).
+- [x] Seed NL intent + persistence (cycle 47): a pure `extract_seed(text)` helper recognises "tohum 42"
+  / "seed 42" / "seed:abc" / "42 tohumuyla" and returns the seed plus the text WITH the seed span
+  removed, so the seed digit is never read as the object count (the build branch passes the seed-stripped
+  text to `difficulty_count`). "zor dodge oyunu kur tohum 7" → game_type=dodge, count=8 (hard), seed=7;
+  the Turkish possessive "tohumu" no longer mis-parses. The build branch adds `seed` to the
+  unity_build_simple_game kwargs only when present. Confirmed the seed already rides along in the plan
+  dict, so it survives serialize/deserialize AND disk save/load (round-trip tested). Capability summary +
+  GAMES.md note added. +18 tests. **Next:** P9 wrap-up + pick P10 (cycle 48).
 
 > Check items off in this file as they land. Add new items as discovered.

@@ -266,13 +266,15 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             return "chase"
         return "collectathon"
 
-    def difficulty_count(default: int = 5) -> int:
+    def difficulty_count(default: int = 5, number_text: str | None = None) -> int:
         # An explicit number always wins ("dodge oyunu yap 4 dusman" -> 4); only
         # when there is no number does a difficulty WORD set the count. ("cok" is
         # deliberately not a trigger — it's ambiguous, "cok dusman" is a count,
-        # not a difficulty; "cok zor" still matches "zor".)
-        if re.search(r"\b\d{1,3}\b", lower):
-            return _infer_count(lower, default)
+        # not a difficulty; "cok zor" still matches "zor".) number_text lets the
+        # caller search seed-stripped text so a seed digit isn't read as the count.
+        nt = number_text if number_text is not None else lower
+        if re.search(r"\b\d{1,3}\b", nt):
+            return _infer_count(nt, default)
         if has("kolay", "easy", "basit"):
             return 3
         if has("zor", "hard", "difficult", "zorlu"):
@@ -408,17 +410,22 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     )
     if wants_game:
         game_type = detect_game_type()
+        seed, count_text = extract_seed(lower)   # strip the seed so its digit isn't read as count
+        kwargs = {"game_type": game_type, "collectible_count": difficulty_count(5, count_text), "execute": False}
+        if seed:
+            kwargs["seed"] = seed
         return {
             "ok": True,
             "engine": "unity",
             "steps": [{
                 "tool": "unity_build_simple_game",
-                "kwargs": {"game_type": game_type, "collectible_count": difficulty_count(5), "execute": False},
+                "kwargs": kwargs,
                 "write": False,
-                "note": f"plan a {game_type} game (execute=False; real build needs execute=True + a Unity recompile)",
+                "note": f"plan a {game_type} game{f' (seed {seed})' if seed else ''}"
+                        " (execute=False; real build needs execute=True + a Unity recompile)",
             }],
             "safety_notes": ["game-build plan only (execute=False); building for real triggers Unity recompiles"],
-            "reason": f"build-game intent -> {game_type}",
+            "reason": f"build-game intent -> {game_type}" + (f" seed={seed}" if seed else ""),
         }
 
     # Decorative "living scene" intent (juice, not a game) -> animate a group.
@@ -1049,6 +1056,31 @@ def extract_game_name(text: str | None) -> str | None:
     if m and m.group(1) not in _NAME_STOP:
         return m.group(1)
     return None
+
+
+# words that follow "seed"/"tohum" but are not a seed value
+_SEED_STOP = frozenset({"ile", "oyun", "oyunu", "oyunlar", "game", "with", "ve", "and"})
+
+
+def extract_seed(text: str | None) -> tuple[str | None, str]:
+    """Pull a procedural seed out of a prompt, returning (seed, text_without_seed).
+
+    Recognizes "tohum 42" / "seed 42" / "seed:abc" / "seed=7" (keyword then value)
+    and "42 tohumu ile" / "abc tohumuyla" (value then keyword). The seed span is
+    removed from the returned text so a seed NUMBER is never mistaken for the
+    object count. Returns (None, text) when there is no seed.
+    """
+    s = text or ""
+    # keyword then value, requiring a real separator (space or :=) so the Turkish
+    # possessive "tohumu" ("its seed") is not split into keyword "tohum" + "u".
+    m = re.search(r"\b(?:tohum|seed)(?:\s*[:=]\s*|\s+)([a-z0-9][a-z0-9_\-]*)\b", s)
+    if m and m.group(1) not in _SEED_STOP:
+        return m.group(1), (s[:m.start()] + " " + s[m.end():])
+    # value then keyword: "42 tohumu ile", "forest tohumuyla"
+    m = re.search(r"\b([a-z0-9][a-z0-9_\-]*)\s+tohum\w*\b", s)
+    if m and m.group(1) not in _SEED_STOP:
+        return m.group(1), (s[:m.start()] + " " + s[m.end():])
+    return None, s
 
 
 def _plan_arena_survivor(lower: str, template: TemplateInfo) -> dict[str, Any]:

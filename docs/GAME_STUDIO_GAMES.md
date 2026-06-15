@@ -69,6 +69,12 @@ plan automatically:
 
 A number in the prompt sets the count ("toplama oyunu yap 8 toplanabilir" → 8).
 
+**Seed (reproducible variety):** add "tohum 42" / "seed 42" / "seed:abc" (or "42 tohumuyla") to a
+build to make the layout reproducible — the same seed always builds the same game, a different seed a
+different (but deterministic) one. The seed is recognised separately from the count, so "zor dodge
+oyunu kur tohum 7" is difficulty-hard (8) with seed 7. The seed is recorded in the plan and survives
+save/load and export, so seeded games are shareable.
+
 **Assess (don't build):** "oyunu değerlendir", "dodge oyununu analiz et", "oynanabilir mi",
 "assess the game", "is the game playable" route to `unity_assess_game` instead — a read-only
 readiness report (counts + playable verdict + warnings, no scene changes, no bridge). The assess
