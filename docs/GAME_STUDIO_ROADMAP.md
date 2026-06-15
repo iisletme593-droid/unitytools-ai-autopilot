@@ -425,7 +425,14 @@ level-pack (a thin layer over P8).
   across sizes 3/5/7 are all playable with monotonic object counts; assess reports playable+player+goal;
   a re-imported maze plan validates. **P10 (maze) is DONE.** +5 tests.
 
-### P11 — Action-RPG building blocks (combat / RPG flavor)
+### P11 — Action-RPG building blocks (combat / RPG flavor) — DONE (cycle 60)
+**Closed cycle 60.** A complete blocky action-RPG building-block set: health, attack (melee), ranged
+attack, enemy AI, xp/leveling, reward (kill→XP), loot, inventory — plus the `arena` game (7th type)
+wiring them into a working loop (armed player vs enemies, kill→XP→level, collect loot→items). Honestly
+delivers the action-RPG-FLAVORED prototype the user asked about (KO/V Rising/Remnant 2/Valheim); a real
+game at that scale (MMO netcode, AAA art, streaming terrain) stays out of scope, but the mechanics work,
+are deterministic, and save/load/seed like every other game.
+
 **Why.** The user asked whether the studio could make a Knight Online / V Rising / Remnant 2 / Valheim
 mix. Honest answer (given to them): a real game at that scale — MMO netcode, AAA art/animation, large
 streaming terrain — is OUT of scope for this primitive-composition autopilot. But action-RPG-FLAVORED
@@ -521,5 +528,12 @@ hack-and-slash prototype. Chosen as P11; it extends the existing behaviour catal
   a `ranged` attack (projectile/raycast) to round out melee+ranged (cycle 60) — then P11 is done and the
   next big goal (P12) broadens beyond combat (candidates: a level/wave campaign, title/menu UI, audio
   cues, or spreading combat into other game types).
+- [x] Ranged attack capstone (cycle 60): `ranged` -> AutopilotRanged — a long-reach attack (gun/bow):
+  every `cooldown` it Physics.OverlapSpheres a large `range`, picks the NEAREST object tagged `targetTag`,
+  aims at it (transform.forward) and damages it via `SendMessage("TakeDamage")` (decoupled). Differs from
+  melee `attack` by reach (12 vs 1.5) and single-nearest targeting. Aliases menzilli/nisan/ates/ranged/
+  shoot/mermi. Pure ASCII, balanced; no NEEDS_SCRIPT behaviour un-templated. GAMES.md row + doc guard.
+  +10 tests. **P11 (combat) is DONE.** **Next:** state review + pick P12 beyond combat (cycle 61) —
+  candidates: a level/wave campaign, a title/menu UI, audio cues, or spreading combat into other types.
 
 > Check items off in this file as they land. Add new items as discovered.

@@ -231,6 +231,44 @@ def test_loot_inventory_form_a_pickup_chain():
     assert "void AddItem(int amount)" in inv
 
 
+# --- ranged attack (combat capstone) ----------------------------------------
+
+def test_ranged_source():
+    s = generate_behaviour_script("ranged")
+    assert s["ok"] is True and s["class_name"] == "AutopilotRanged"
+    src = s["source"]
+    assert "Physics.OverlapSphere(transform.position, range)" in src
+    assert "transform.forward" in src                       # aims at the target
+    assert 'SendMessage("TakeDamage", damage' in src
+    assert "public float range" in src and "public float cooldown" in src
+
+
+def test_ranged_has_longer_reach_than_melee_attack():
+    ranged = generate_behaviour_script("ranged")["source"]
+    melee = generate_behaviour_script("attack")["source"]
+    assert "range = 12f" in ranged          # long reach
+    assert "range = 1.5f" in melee          # melee
+
+
+def test_ranged_is_decoupled_from_health_type():
+    src = generate_behaviour_script("ranged")["source"]
+    assert "AutopilotHealth." not in src
+    assert "GetComponent<AutopilotHealth>" not in src
+
+
+def test_ranged_is_pure_ascii_and_balanced():
+    src = generate_behaviour_script("ranged")["source"]
+    assert all(ord(c) < 128 for c in src)
+    assert src.count("{") == src.count("}") and src.count("(") == src.count(")")
+    assert "__" not in src
+
+
+@pytest.mark.parametrize("alias", ["menzilli", "nisan", "ates", "ranged", "shoot", "mermi"])
+def test_ranged_aliases(alias):
+    assert normalize_behaviour(alias) == "ranged"
+    assert generate_behaviour_script(alias)["class_name"] == "AutopilotRanged"
+
+
 def test_combat_loop_chain_is_complete():
     # player attack -> reward.TakeDamage -> SendMessage AddXP -> xp.AddXP; enemy -> player health
     attack = generate_behaviour_script("attack")["source"]

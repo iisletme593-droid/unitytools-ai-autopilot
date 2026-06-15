@@ -733,3 +733,14 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   Remnant 2/Valheim mix (a real game at that scale stays out of scope, but the mechanics work). Next: one
   combat capstone (a `ranged` attack) then P11 is done; P12 will broaden beyond combat. +1 test (arena
   scatters loot; updated player-behaviour and 9-unique-script assertions). — tests: 798 passed
+- [cycle 60] P11 capstone: `ranged` attack -> CLOSES P11 (combat). New scripted behaviour `ranged` ->
+  AutopilotRanged: a long-reach attack (gun/bow). Every `cooldown` it Physics.OverlapSpheres a large
+  `range`, finds the NEAREST object tagged `targetTag`, aims at it (transform.forward) and damages it via
+  SendMessage("TakeDamage", damage, DontRequireReceiver) — decoupled, no health-type reference. Differs
+  from melee `attack` by reach (range 12 vs 1.5) and by targeting the single nearest enemy. Aliases
+  menzilli/nisan/ates/ranged/shoot/mermi. Pure ASCII, brace/paren-balanced, placeholders substituted; no
+  NEEDS_SCRIPT behaviour left un-templated. GAME_STUDIO_GAMES.md scripted row (doc guard generates it).
+  +10 tests (source, longer-reach-than-melee, decoupled, ascii/balanced, aliases). With this, P11
+  (action-RPG combat) is DONE: health, attack (melee), ranged, enemy AI, xp/leveling, reward (kill->XP),
+  loot, inventory, and the arena game wiring them into a working loop. Generate-only; deterministic.
+  — tests: 808 passed
