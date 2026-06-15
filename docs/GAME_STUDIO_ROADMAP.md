@@ -456,5 +456,16 @@ hack-and-slash prototype. Chosen as P11; it extends the existing behaviour catal
   tests. **Next:** an `arena`/`brawler` blueprint — ground + WASD+attack player + health + N
   AutopilotEnemy enemies + score — as the 7th game type (cycle 54); arena NL intent + save/load/assess
   integration (cycle 55); later inventory/loot + xp/level.
+- [x] Arena blueprint (cycle 54): `plan_arena_game(enemy_count, arena_size, seed)` — the **7th game
+  type** and the first to wire the whole combat trio into a playable game. The player (tag Player) gets
+  player + health + attack + score; N enemies (tag Enemy, placed in a ring) get the enemy AI + their own
+  health — **mutual combat** (player's attack defaults to targetTag "Enemy"; the enemy AI targets the
+  Player). The `attack` default targetTag was flipped "Player"->"Enemy" (its real use is the player's
+  weapon), and `enemy` was added to `INTERACTIVE_BEHAVIOURS` so an arena (player + enemies, no goal)
+  assesses as playable. Registered in BLUEPRINTS (7 games); seeded via the shared `_apply_seed` (enemy
+  ring jitter); every seed validates + plays; variations work; a landing-doc row keeps the guard green.
+  +10 tests. **Next:** arena NL intent ("arena / dövüş / brawler / savaş oyunu" + size + seed) +
+  GAMES.md/catalog row (cycle 55); arena × save/load × variations integration + state review (cycle 56);
+  later inventory/loot + xp/level.
 
 > Check items off in this file as they land. Add new items as discovered.

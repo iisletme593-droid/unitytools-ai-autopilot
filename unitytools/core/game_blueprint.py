@@ -261,6 +261,58 @@ def plan_chase_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     }
 
 
+def plan_arena_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan an arena/brawler: an armed player versus N attacking enemies — the
+    first game to wire the action-RPG combat trio (health + attack + enemy).
+
+    The player (tag Player) gets WASD movement, health, a melee attack (its default
+    targetTag is "Enemy"), and a score HUD. Each enemy (tag Enemy) gets the enemy AI
+    (chase + attack the Player) and its own health, so the player can kill them and
+    they can hurt the player back — mutual combat. There is no goal: you fight.
+    Same step schema as the other blueprints; the seed (via plan_game) jitters the
+    enemy ring.
+    """
+    n = max(1, min(int(enemy_count), 30))
+    size = max(6.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) the armed player: movement + health + attack (hits "Enemy") + score HUD
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "health"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "attack"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "score"}})
+
+    # 3) enemies: a ring of cubes tagged Enemy, each chasing+attacking the player and
+    #    carrying its own health so the player can defeat them
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Cube",
+            "count": n,
+            "pattern": "circle",
+            "spacing": max(3.0, size / float(n)),
+            "name_prefix": "Enemy",
+        },
+    })
+    for i in range(n):
+        steps.append({"tool": "unity_set_tag", "kwargs": {"name": f"Enemy_{i}", "tag": "Enemy"}})
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "enemy"}})
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "health"}})
+
+    return {
+        "ok": True,
+        "game": "arena",
+        "summary": f"Arena: ground + armed WASD player (health+attack+score) + {n} enemies that chase and attack ({len(steps)} steps).",
+        "enemy_count": n,
+        "steps": steps,
+    }
+
+
 # Decorative (non-gameplay) scripted behaviours that give a scene "juice".
 DECOR_BEHAVIOURS = ["bob", "orbit", "rotate", "wander"]
 
@@ -403,6 +455,7 @@ BLUEPRINTS = {
     "platformer": plan_platformer_game,
     "chase": plan_chase_game,
     "maze": plan_maze_game,
+    "arena": plan_arena_game,
 }
 
 

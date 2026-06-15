@@ -650,3 +650,18 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   gained an enemy row (doc guard generates it). +7 tests (source: chase+attack+SendMessage,
   decoupled-no-hard-ref, ascii/balanced, aliases). Live-proved the enemy source. Generate-only; no
   Math.random / new Date. — tests: 727 passed
+- [cycle 54] P11 step 4: `arena` blueprint — the 7th game type, the first to wire the combat trio into a
+  playable game. `core/game_blueprint.plan_arena_game(enemy_count, arena_size, seed)`: ground + a player
+  (tag Player) with player + health + attack + score + N enemies (tag Enemy, placed in a ring via
+  place_primitives) each with the enemy AI + their own health. This is MUTUAL combat: the player's
+  attack defaults to targetTag "Enemy" (so the `attack` template default was flipped from "Player" to
+  "Enemy" — its real use is the player's weapon) and each enemy's AI FindWithTag("Player") attacks the
+  player, who can kill them (they have health) and be killed (player has health). There is no goal — you
+  fight; so `enemy` was added to game_qa.INTERACTIVE_BEHAVIOURS so an arena assesses as playable (player
+  + a threat). Registered in BLUEPRINTS (7 games: collectathon/dodge/survival/platformer/chase/maze/
+  arena); seeded through the shared _apply_seed (enemy-ring jitter), so every seed is deterministic,
+  validates (health/attack/enemy script steps + set_tag + place_primitives all whitelisted), and plays;
+  variations work. Added an arena row to the landing doc to keep the no-phantom guard green. +10 tests
+  (registration/7th, armed player, Enemy-tagged AI enemies, mutual-combat targets, enemy interactive,
+  valid+playable per seed, determinism, clamp, grouping, variations). Live-proved the arena structure +
+  mutual combat. Generate-only; deterministic. — tests: 753 passed

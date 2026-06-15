@@ -543,7 +543,7 @@ _ATTACK_TEMPLATE = """using UnityEngine;
 // reference to that type (decoupled), so it compiles and runs on its own.
 public class __CLASS__ : MonoBehaviour
 {
-    public string targetTag = "Player";
+    public string targetTag = "Enemy";
     public int damage = 10;
     public float range = 1.5f;
     public float cooldown = 1.0f;
