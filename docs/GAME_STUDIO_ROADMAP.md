@@ -321,5 +321,15 @@ parameter-tuning (needs persistence to store history), or a level editor (needs 
   not stolen. Doc §3 note. +21 tests. **Next:** `unity_import_game` (validate + load external JSON) +
   a build-from-plan path to actually construct a loaded game (cycle 43); add save/load to the master
   prompt summary + landing doc (cycle 44).
+- [x] Import + build-from-plan (cycle 43): `game_io.validate_plan(plan)` treats a plan as UNTRUSTED —
+  every step must be a whitelisted tool (`ALLOWED_PLAN_TOOLS`: create_primitive / place_primitives /
+  set_tag / add_gameplay_behaviour) with flat-primitive kwargs, or a real templated `script_behaviour`;
+  anything else (forged tool, nested kwargs, both/neither, unknown behaviour, >5000 steps) is rejected
+  with the offending index. New tools: `unity_import_game(json_text)` (deserialize + validate, returns
+  the plan WITHOUT building) and `unity_build_loaded_game(name, execute=False)` (load → re-validate →
+  build via the shared `_execute_grouped_behaviour_plan`; execute=False is a safe dry-run, execute=True
+  triggers a recompile). +20 tests (accepts all blueprints, rejects hostile input, import/build flow).
+  **Next:** surface save/load/import in the master prompt + landing doc + capability summary (cycle 44);
+  P8 wrap-up + pick P9 (cycle 45).
 
 > Check items off in this file as they land. Add new items as discovered.

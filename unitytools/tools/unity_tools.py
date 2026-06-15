@@ -1339,3 +1339,51 @@ def unity_list_saved_games() -> dict:
     from ..core.game_io import list_saved_games
     names = list_saved_games()
     return {"ok": True, "games": names, "count": len(names)}
+
+
+@tool(description="Import a game from external JSON text and validate it WITHOUT building it (pure, no bridge): parses the envelope and checks every step is a whitelisted tool call or a real templated behaviour, so a tampered/hostile file cannot make the studio call arbitrary tools. Returns {ok, plan, game, step_count} if valid, else {ok: False, error}. Build it with unity_build_loaded_game (after saving) once trusted.")
+def unity_import_game(json_text: str) -> dict:
+    from ..core.game_io import deserialize_plan, validate_plan
+    try:
+        plan = deserialize_plan(json_text)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    verdict = validate_plan(plan)
+    if not verdict["ok"]:
+        out = {"ok": False, "error": "invalid plan: " + verdict["error"]}
+        if "index" in verdict:
+            out["index"] = verdict["index"]
+        return out
+    return {"ok": True, "plan": plan, "game": plan.get("game") or plan.get("decor"), "step_count": verdict["step_count"]}
+
+
+@tool(description="Build a previously SAVED game by name. Loads it, re-validates the plan (defense in depth), then builds it. execute=False (default) validates and returns the plan WITHOUT touching the scene; execute=True builds the geometry and imports the behaviour scripts (triggers a Unity recompile — run with the editor in focus). Returns the build report or {ok: False, error}.")
+def unity_build_loaded_game(name: str = "", execute: bool = False) -> dict:
+    from ..core.game_io import load_plan_from_file, validate_plan
+    try:
+        plan = load_plan_from_file(name)
+    except (ValueError, FileNotFoundError, OSError) as e:
+        return {"ok": False, "error": str(e)}
+    verdict = validate_plan(plan)
+    if not verdict["ok"]:
+        return {"ok": False, "error": "invalid saved plan: " + verdict["error"]}
+    game = plan.get("game") or plan.get("decor")
+    if not execute:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "game": game,
+            "step_count": verdict["step_count"],
+            "note": "execute=False: validated plan only, not built. Set execute=True to build (triggers a Unity recompile).",
+        }
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    result = _execute_grouped_behaviour_plan(plan["steps"])
+    applied = result["applied"]
+    return {
+        "ok": all(a["ok"] for a in applied),
+        "game": game,
+        "executed": True,
+        "unique_scripts": result["unique_scripts"],
+        "applied": applied,
+    }

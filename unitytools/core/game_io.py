@@ -73,6 +73,66 @@ def deserialize_plan(text: str) -> dict[str, Any]:
     return plan
 
 
+# Tools a plan is allowed to invoke when built. An external/loaded plan must use
+# ONLY these — anything else is rejected so a tampered or hostile JSON file can't
+# make the studio call an arbitrary tool. Keep in sync with what the blueprints
+# emit (geometry + tag + physics behaviour); scripted behaviours go through
+# script_behaviour steps, validated against the template registry.
+ALLOWED_PLAN_TOOLS = frozenset({
+    "unity_create_primitive",
+    "unity_place_primitives",
+    "unity_set_tag",
+    "unity_add_gameplay_behaviour",
+})
+
+_PRIMITIVE = (str, int, float, bool)
+
+
+def validate_plan(plan: Any, *, max_steps: int = 5000) -> dict[str, Any]:
+    """Validate that a (possibly EXTERNAL) plan is structurally safe to build.
+
+    Every step must be exactly one of: a whitelisted ``tool`` call with a flat
+    ``kwargs`` dict of primitives, or a ``script_behaviour`` naming a real
+    templated behaviour. Returns {ok: True, step_count} or {ok: False, error,
+    index?} on the first problem. Pure — never builds anything. Treats the plan as
+    untrusted input: do not pass it to the executor until this returns ok.
+    """
+    if not isinstance(plan, dict):
+        return {"ok": False, "error": "plan is not an object"}
+    steps = plan.get("steps")
+    if not isinstance(steps, list):
+        return {"ok": False, "error": "plan has no steps list"}
+    if len(steps) > max_steps:
+        return {"ok": False, "error": f"too many steps ({len(steps)} > {max_steps})"}
+
+    from .gameplay import generate_behaviour_script
+
+    for i, step in enumerate(steps):
+        if not isinstance(step, dict):
+            return {"ok": False, "error": "step is not an object", "index": i}
+        has_tool = "tool" in step
+        has_sb = "script_behaviour" in step
+        if has_tool == has_sb:  # need exactly one
+            return {"ok": False, "error": "step must have exactly one of tool/script_behaviour", "index": i}
+        if has_tool:
+            tool = step.get("tool")
+            if tool not in ALLOWED_PLAN_TOOLS:
+                return {"ok": False, "error": f"tool not allowed: {tool!r}", "index": i}
+            kwargs = step.get("kwargs", {})
+            if not isinstance(kwargs, dict):
+                return {"ok": False, "error": "kwargs must be an object", "index": i}
+            for k, v in kwargs.items():
+                if not isinstance(k, str) or not isinstance(v, _PRIMITIVE):
+                    return {"ok": False, "error": f"kwargs must be flat str->primitive (bad entry {k!r})", "index": i}
+        else:
+            sb = step.get("script_behaviour")
+            if not isinstance(sb, dict) or not isinstance(sb.get("object"), str) or not isinstance(sb.get("behaviour"), str):
+                return {"ok": False, "error": "script_behaviour needs string object + behaviour", "index": i}
+            if not generate_behaviour_script(sb["behaviour"]).get("ok"):
+                return {"ok": False, "error": f"unknown behaviour: {sb['behaviour']!r}", "index": i}
+    return {"ok": True, "step_count": len(steps)}
+
+
 def plan_metadata(text: str) -> dict[str, Any]:
     """Read just the envelope metadata (schema/version/kind/name/step_count) without
     returning the full plan. Raises ValueError if the text is not a valid envelope.

@@ -501,3 +501,19 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   from "hangi oyunlar" (catalog). Doc §3 note. +21 tests (extract_game_name table, save/load/list
   routing, difficulty-on-save, no-collision, scene-not-hijacked). Live-proved NL kaydet->listele->yukle
   end-to-end. — tests: 477 passed
+- [cycle 43] P8 step 4: import + build-from-plan, treating external JSON as untrusted.
+  `game_io.validate_plan(plan, max_steps=5000)` structurally validates a (possibly hostile) plan: every
+  step must be exactly one of a WHITELISTED tool call (`ALLOWED_PLAN_TOOLS` = create_primitive /
+  place_primitives / set_tag / add_gameplay_behaviour) with a flat str->primitive kwargs dict, or a
+  `script_behaviour` whose behaviour has a real template; a forged/unknown tool, nested/non-primitive
+  kwargs, a step with both or neither key, an unknown behaviour, or too many steps is rejected with the
+  offending index. New tools: `unity_import_game(json_text)` (deserialize_plan + validate_plan, returns
+  the plan but never builds — so a malicious file cannot make the studio call arbitrary tools) and
+  `unity_build_loaded_game(name, execute=False)` which LOADS a saved game, RE-VALIDATES it (defense in
+  depth — even our own saves), then builds via the shared `_execute_grouped_behaviour_plan`;
+  execute=False (default) is a safe validated dry-run, execute=True builds and triggers the single
+  recompile. +20 tests (validate accepts all 5 blueprints + decor; rejects non-whitelisted tool,
+  unknown behaviour, non-primitive kwargs, both/neither, non-dict, missing steps, >max; import accepts
+  valid / rejects bad-json + forged-tool; build-from-plan dry-run + real execute via a fake bridge).
+  Live-proved import accepting a real game, rejecting a forged `os_system` step at index 1, and a
+  save->load->validate->build dry-run. — tests: 497 passed
