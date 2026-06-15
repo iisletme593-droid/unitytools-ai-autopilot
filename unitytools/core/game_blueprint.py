@@ -352,11 +352,36 @@ def list_blueprints() -> list[str]:
     return sorted(BLUEPRINTS)
 
 
-def plan_game(game_type: str = "collectathon", count: int = 5) -> dict[str, Any]:
-    """Dispatch to a blueprint planner by game_type (unknown -> collectathon)."""
+def _apply_seed(plan: dict[str, Any], game_type: str, count: int, seed: object) -> dict[str, Any]:
+    """Deterministically vary a plan from a seed, without editing any blueprint.
+
+    Records the seed on the plan and gives each placement step a reproducible
+    ``jitter`` (same seed -> same jitter). Pure: a None seed is a no-op, so the
+    plan is identical to the un-seeded one. Layout (counts, behaviours) is
+    unchanged — only the scatter is perturbed, so seeded games stay playable.
+    """
+    if seed is None:
+        return plan
+    from .procedural import seeded_rng
+
+    rng = seeded_rng(f"{game_type}:{count}:{seed}")
+    for step in plan.get("steps", []):
+        if step.get("tool") == "unity_place_primitives":
+            step["kwargs"]["jitter"] = round(rng.uniform(0.5, 2.0), 3)
+    plan["seed"] = seed
+    plan["summary"] = f"{plan.get('summary', '').rstrip('.')} [seed {seed}]."
+    return plan
+
+
+def plan_game(game_type: str = "collectathon", count: int = 5, seed: object = None) -> dict[str, Any]:
+    """Dispatch to a blueprint planner by game_type (unknown -> collectathon).
+
+    An optional ``seed`` makes the result reproducibly varied: the same seed
+    always yields the same plan; ``seed=None`` (default) is the plain blueprint.
+    """
     gt = (game_type or "collectathon").strip().lower()
     planner = BLUEPRINTS.get(gt, plan_collectathon_game)
-    return planner(count)
+    return _apply_seed(planner(count), gt, count, seed)
 
 
 def _difficulty_labels(n: int) -> list[str]:

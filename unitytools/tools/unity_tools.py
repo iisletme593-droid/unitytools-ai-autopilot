@@ -1221,10 +1221,10 @@ def _execute_grouped_behaviour_plan(steps: list) -> dict:
     return {"applied": applied, "unique_scripts": len(grouped["script_behaviours"])}
 
 
-@tool(description="Plan (and optionally build) a simple PLAYABLE game from the gameplay building blocks. game_type='collectathon' (ground + WASD player + N collectibles + goal) or 'dodge' (ground + WASD player + N moving hazards + goal). collectible_count is the count of the main repeated element. execute=False (default) returns the step plan without touching the scene; execute=True builds the geometry and imports the behaviour scripts (triggers Unity recompiles, so run with the editor in focus).")
-def unity_build_simple_game(collectible_count: int = 5, execute: bool = False, game_type: str = "collectathon") -> dict:
+@tool(description="Plan (and optionally build) a simple PLAYABLE game from the gameplay building blocks. game_type='collectathon'/'dodge'/'survival'/'platformer'/'chase'. collectible_count is the count of the main repeated element. An optional seed makes the layout reproducibly varied (same seed -> same game). execute=False (default) returns the step plan without touching the scene; execute=True builds the geometry and imports the behaviour scripts (triggers Unity recompiles, so run with the editor in focus).")
+def unity_build_simple_game(collectible_count: int = 5, execute: bool = False, game_type: str = "collectathon", seed: str = "") -> dict:
     from ..core.game_blueprint import plan_game
-    plan = plan_game(game_type, collectible_count)
+    plan = plan_game(game_type, collectible_count, seed=seed or None)
     if not execute:
         return {
             "ok": True,

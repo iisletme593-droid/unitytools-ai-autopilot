@@ -527,3 +527,18 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   execute=False default). (c) `GAME_STUDIO_TOOLS.md` got a persistence tool table. The capability-summary
   and landing-doc guards were extended to assert the five persistence tool names are real (registry). All
   references verified live. +1 test. Docs/summary only, no behaviour change. — tests: 498 passed
+- [cycle 45] STATE REVIEW + new big goal P9 = PROCEDURAL GENERATION. Reviewed P8 (save/load) — complete
+  across 5 steps (serialize/deserialize, safe disk save/load, NL intent, validated import, build-from-
+  plan, visibility); tests 424->498. Picked reproducible procedural variety as the next big goal: today
+  difficulty only changes the count and layouts are fixed, so games of the same type look alike. First
+  step shipped: `core/procedural.py` — `seeded_rng(seed)` is a pure splitmix64 RNG (SHA-256 the seed to a
+  64-bit state, then splitmix64; exposes random/uniform/randint(inclusive)/choice/shuffle), DETERMINISTIC
+  with NO system time or global random — so seeds are byte-for-byte reproducible and shareable.
+  `plan_game(game_type, count, seed=...)` now post-processes the plan (via a new `_apply_seed`, WITHOUT
+  editing any blueprint) to record the seed and give each placement step a reproducible `jitter`: same
+  seed ⇒ identical plan, different seed ⇒ different-but-deterministic, seed=None ⇒ the plain blueprint
+  (all existing blueprint tests unaffected). `unity_build_simple_game` gained a `seed` param. Seeded
+  plans still pass validate_plan (jitter is a primitive kwarg) and assess as playable. Roadmap P9 section
+  added. +14 tests (RNG determinism/bounds/coverage, choice/shuffle, seeded-plan reproducibility,
+  seed=None no-op, validate+playable, build tool). Live-proved same-seed-same-game across calls. No
+  Math.random / new Date — fully deterministic. — tests: 512 passed

@@ -339,4 +339,24 @@ parameter-tuning (needs persistence to store history), or a level editor (needs 
   +1 test. **Next:** P8 wrap-up + pick P9 (cycle 45) — multi-level/scene save, procedural seed
   generator, autonomous parameter tuning, or a new game type.
 
+### P9 — Procedural generation (reproducible variety)
+**Cycle-45 state review.** P8 (save/load) is complete across 5 steps — serialize/deserialize, safe disk
+save/load, NL intent, validated import, build-from-plan, and visibility (master prompt + docs). Tests
+grew 424 → 498. The studio can now build, assess, vary, persist, share, and rebuild games.
+
+Next gap: **variety is shallow** — difficulty just changes the count, and layouts are fixed. P9 adds
+*reproducible procedural variety*: a seed makes the same game come out the same every time and a
+different seed a different one, all **deterministically** (hash-based, no system random/time), so seeds
+are saveable/shareable and everything stays unit-testable. Chosen over a level-pack (a thin layer over
+P8) and autonomous tuning (needs the seed/variety axis first); a new game type is lower-leverage.
+
+- [x] Seeded RNG + seeded plans (cycle 45): `core/procedural.py` — `seeded_rng(seed)` is a pure
+  splitmix64 generator (SHA-256 the seed → splitmix64; random/uniform/randint/choice/shuffle), fully
+  deterministic with no system time. `plan_game(game_type, count, seed=...)` post-processes the plan
+  (without editing any blueprint) to record the seed and give placement steps reproducible jitter — same
+  seed ⇒ identical plan, different seed ⇒ different but deterministic, `seed=None` ⇒ the plain blueprint.
+  `unity_build_simple_game` gained a `seed` param. Seeded plans still validate + play. +14 tests.
+  **Next:** thread the seed into per-blueprint layout (positions/counts/arena), not just jitter (cycle
+  46); expose a seed NL intent ("tohum 42 ile dodge oyunu") + save/share seeds (cycle 47).
+
 > Check items off in this file as they land. Add new items as discovered.
