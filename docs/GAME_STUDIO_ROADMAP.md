@@ -175,6 +175,14 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   `AutopilotKillZone` OnTriggerEnter MonoBehaviours (pickup-destroy / win-flag / respawn). Each
   `Reset()` auto-sets `collider.isTrigger=true` + `[RequireComponent(Collider)]`, so triggers work
   with no manual setup. en+tr aliases (toplanabilir/coin, hedef/win, olum/lava). 13 tests.
-- [ ] Spawners / waves (compose with the arena-survivor ideas already on the Unreal side).
+- [x] **Playable game skeleton (cycle 21)** — `core/game_blueprint.plan_collectathon_game` composes
+  the building blocks into a full ordered plan (ground + tagged WASD player + N collectibles + goal);
+  `unity_build_simple_game` returns it (execute=False, safe) or builds it (execute=True, recompiles).
+  6 tests; live proof: a 12-step collect-a-thon plan for "build me a simple collect game". **The
+  first end-to-end self-makes-a-game capability** — the culmination of the cycle 15-21 gameplay arc.
+- [ ] Execute-path optimization: import each unique behaviour script ONCE (not per object) before
+  attaching, to collapse N recompiles into one.
+- [ ] More blueprints (platformer / dodge / survival) + spawners / waves (compose with the
+  arena-survivor ideas already on the Unreal side).
 
 > Check items off in this file as they land. Add new items as discovered.

@@ -1174,3 +1174,35 @@ def unity_apply_script_behaviour(object_name: str, behaviour: str = "rotate", sp
         "compiled_in_time": compiled,
         "add_component": add_res,
     }
+
+
+@tool(description="Plan (and optionally build) a simple PLAYABLE collect-a-thon game: ground + a tagged player with a WASD controller + N collectibles + a goal zone — composing the gameplay building blocks end to end. execute=False (default) returns the step plan without touching the scene; execute=True builds the geometry and imports the behaviour scripts (triggers Unity recompiles, so run with the editor in focus).")
+def unity_build_simple_game(collectible_count: int = 5, execute: bool = False) -> dict:
+    from ..core.game_blueprint import plan_collectathon_game
+    plan = plan_collectathon_game(collectible_count=collectible_count)
+    if not execute:
+        return {
+            "ok": True,
+            "dry_run": True,
+            **plan,
+            "note": "execute=False: plan only, no scene changes. Set execute=True to build (script behaviours trigger Unity recompiles).",
+        }
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    applied: list[dict] = []
+    for step in plan["steps"]:
+        if "tool" in step:
+            fn = globals().get(step["tool"])
+            res = fn(**step["kwargs"]) if callable(fn) else {"ok": False, "error": "tool unavailable"}
+            applied.append({"step": step["tool"], "ok": bool(isinstance(res, dict) and res.get("ok", True))})
+        elif "script_behaviour" in step:
+            sb = step["script_behaviour"]
+            fn = globals().get("unity_apply_script_behaviour")
+            res = fn(sb["object"], sb["behaviour"]) if callable(fn) else {"ok": False, "error": "tool unavailable"}
+            applied.append({"step": f"script:{sb['behaviour']}->{sb['object']}", "ok": bool(isinstance(res, dict) and res.get("ok"))})
+    return {
+        "ok": all(a["ok"] for a in applied),
+        "game": plan["game"],
+        "executed": True,
+        "applied": applied,
+    }

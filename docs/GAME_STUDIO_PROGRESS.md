@@ -263,3 +263,12 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   AutopilotCollectible source (OnTriggerEnter, CompareTag Player, Destroy, auto-isTrigger). With
   physics + scripted movement + player controller + these triggers, the full gameplay building-block
   set is in place. Cycle 21: assemble a playable game skeleton. — tests: 259 passed
+- [cycle 21] **MILESTONE — playable game skeleton.** `core/game_blueprint.plan_collectathon_game`
+  composes the building blocks into a complete ordered plan: ground → tagged WASD player → N
+  collectibles (each a pickup) → goal zone. `unity_build_simple_game` returns the plan (execute=False,
+  safe — no scene changes) or builds it (execute=True: geometry + script imports, triggers
+  recompiles). +6 tests; live proof: a 12-step collect-a-thon plan generated for "build me a simple
+  collect game". This is the first end-to-end "self-makes-a-game" capability — the culmination of the
+  cycle 15–21 gameplay arc (physics → scripted movement → player controller → triggers → full game).
+  In 21 cycles the studio went from "places trees" to "plans a playable game", all tested + deployed.
+  — tests: 265 passed
