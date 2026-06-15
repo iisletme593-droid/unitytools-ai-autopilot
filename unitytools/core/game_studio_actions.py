@@ -257,11 +257,17 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
 
     # Build-a-game intent takes priority so "oyun" doesn't fall into scene branches.
     wants_game = (
-        has("collectathon", "toplama oyunu", "oyun iskeleti", "dodge", "kacma oyunu", "kacis oyunu")
+        has("collectathon", "toplama oyunu", "oyun iskeleti", "dodge", "kacma oyunu", "kacis oyunu",
+            "survival", "survive", "sag kalma", "hayatta kal")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:
-        game_type = "dodge" if has("dodge", "kacma", "kacis") else "collectathon"
+        if has("dodge", "kacma", "kacis"):
+            game_type = "dodge"
+        elif has("survival", "survive", "sag kalma", "hayatta kal"):
+            game_type = "survival"
+        else:
+            game_type = "collectathon"
         return {
             "ok": True,
             "engine": "unity",

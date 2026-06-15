@@ -103,6 +103,43 @@ def plan_dodge_game(obstacle_count: int = 6, arena_size: float = 20.0) -> dict[s
     }
 
 
+def plan_survival_game(spawner_count: int = 3, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan a survival game: ground, a controllable player, M elevated spawners that
+    rain physics-cube hazards in waves. Survive the onslaught. Same return schema.
+    """
+    n = max(1, min(int(spawner_count), 20))
+    size = max(6.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
+
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Cube",
+            "count": n,
+            "pattern": "circle",
+            "spacing": max(4.0, size / float(n)),
+            "origin_y": 6.0,           # elevated so spawned cubes fall onto the arena
+            "name_prefix": "Spawner",
+        },
+    })
+    for i in range(n):
+        steps.append({"script_behaviour": {"object": f"Spawner_{i}", "behaviour": "spawner"}})
+
+    return {
+        "ok": True,
+        "game": "survival",
+        "summary": f"Survival: ground + WASD player + {n} hazard spawners ({len(steps)} steps).",
+        "spawner_count": n,
+        "steps": steps,
+    }
+
+
 def group_execution_plan(steps: list[dict[str, Any]]) -> dict[str, Any]:
     """Split a blueprint's steps for efficient execution.
 
@@ -131,6 +168,7 @@ def group_execution_plan(steps: list[dict[str, Any]]) -> dict[str, Any]:
 BLUEPRINTS = {
     "collectathon": plan_collectathon_game,
     "dodge": plan_dodge_game,
+    "survival": plan_survival_game,
 }
 
 

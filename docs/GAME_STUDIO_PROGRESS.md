@@ -298,3 +298,9 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   (orman kur, sahneyi listele) unaffected. +6 tests; live proof: "bana bir dodge oyunu kur" → dodge,
   "toplama oyunu yap 7..." → collectathon/7. In 25 cycles: from "places trees" to "understands
   'build me a dodge game' and plans it end-to-end". — tests: 285 passed
+- [cycle 26] Survival blueprint — a 3rd game type built on the spawner. `plan_survival_game`: ground
+  + WASD player + M elevated hazard spawners (raining physics cubes); registered in BLUEPRINTS;
+  build-game intent extended with survival/survive/sağ kalma/hayatta kal → game_type=survival. +6
+  tests; live proof: survival plan (2 unique scripts: player/spawner) + "sağ kalma oyunu kur" →
+  survival. Catalog now offers 3 games (collectathon, dodge, survival), all reachable by NL request.
+  — tests: 291 passed

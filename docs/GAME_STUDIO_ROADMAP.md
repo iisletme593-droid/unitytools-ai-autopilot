@@ -193,7 +193,9 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   `plan_game(game_type, count)` dispatcher; `plan_unity_fast_action` routes natural-language game
   requests ("bana bir dodge oyunu kur", "toplama oyunu yap", "build me a game") to
   `unity_build_simple_game` (execute=False, safe). 6 tests; live-proven. **Closes the intent→game
-  loop:** a Turkish/English request → the full plan for that game. **Remaining:** more blueprints
-  (survival via spawner), docs.
+  loop:** a Turkish/English request → the full plan for that game. Survival added (cycle 26):
+  `plan_survival_game` — ground + WASD player + M elevated hazard spawners; routed by intent (sağ
+  kalma / survive). Catalog now has 3 games (collectathon, dodge, survival). 6 tests. **Remaining:**
+  platformer blueprint, a games doc.
 
 > Check items off in this file as they land. Add new items as discovered.
