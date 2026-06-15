@@ -81,3 +81,28 @@ def test_tool_registered():
     import unitytools.tools  # noqa: F401
     from unitytools.core.tool_registry import get_tool
     assert get_tool("unity_build_simple_game") is not None
+
+
+# --- grouped execution (one recompile, not N) ------------------------------
+
+def test_group_execution_plan_dedupes_scripts():
+    from unitytools.core.game_blueprint import plan_collectathon_game, group_execution_plan
+    grouped = group_execution_plan(plan_collectathon_game(collectible_count=3)["steps"])
+    # 3 distinct behaviours even though there are 5 script steps (player + 3 collectible + goal)
+    assert grouped["script_behaviours"] == ["player", "collectible", "goal"]
+    assert len(grouped["attachments"]) == 5
+    assert all("tool" in s for s in grouped["geometry"])
+
+
+def test_execute_imports_each_unique_script_once(monkeypatch):
+    fb = _GameBridge()
+    monkeypatch.setattr(ut, "_UNITY", fb)
+    r = ut.unity_build_simple_game(collectible_count=4, execute=True)
+    # 3 unique scripts (player/collectible/goal) -> 3 imports, NOT 6 (one per script step)
+    assert fb.calls.count("import_asset") == 3
+    assert r["unique_scripts"] == 3
+    # 6 attachments: Player + 4 collectibles + Goal
+    assert fb.calls.count("add_component") == 6
+    # exactly one recompile wait phase (state polled, not once-per-script)
+    assert "get_editor_state" in fb.calls
+    assert r["executed"] is True

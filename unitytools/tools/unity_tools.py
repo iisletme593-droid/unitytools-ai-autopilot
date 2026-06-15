@@ -1178,7 +1178,7 @@ def unity_apply_script_behaviour(object_name: str, behaviour: str = "rotate", sp
 
 @tool(description="Plan (and optionally build) a simple PLAYABLE collect-a-thon game: ground + a tagged player with a WASD controller + N collectibles + a goal zone — composing the gameplay building blocks end to end. execute=False (default) returns the step plan without touching the scene; execute=True builds the geometry and imports the behaviour scripts (triggers Unity recompiles, so run with the editor in focus).")
 def unity_build_simple_game(collectible_count: int = 5, execute: bool = False) -> dict:
-    from ..core.game_blueprint import plan_collectathon_game
+    from ..core.game_blueprint import plan_collectathon_game, group_execution_plan
     plan = plan_collectathon_game(collectible_count=collectible_count)
     if not execute:
         return {
@@ -1189,20 +1189,44 @@ def unity_build_simple_game(collectible_count: int = 5, execute: bool = False) -
         }
     if _UNITY is None:
         return {"ok": False, "error": "UnityBridge is not initialized"}
+
+    grouped = group_execution_plan(plan["steps"])
     applied: list[dict] = []
-    for step in plan["steps"]:
-        if "tool" in step:
-            fn = globals().get(step["tool"])
-            res = fn(**step["kwargs"]) if callable(fn) else {"ok": False, "error": "tool unavailable"}
-            applied.append({"step": step["tool"], "ok": bool(isinstance(res, dict) and res.get("ok", True))})
-        elif "script_behaviour" in step:
-            sb = step["script_behaviour"]
-            fn = globals().get("unity_apply_script_behaviour")
-            res = fn(sb["object"], sb["behaviour"]) if callable(fn) else {"ok": False, "error": "tool unavailable"}
-            applied.append({"step": f"script:{sb['behaviour']}->{sb['object']}", "ok": bool(isinstance(res, dict) and res.get("ok"))})
+
+    # 1) geometry (so target objects exist before attaching)
+    for step in grouped["geometry"]:
+        fn = globals().get(step["tool"])
+        res = fn(**step["kwargs"]) if callable(fn) else {"ok": False, "error": "tool unavailable"}
+        applied.append({"step": step["tool"], "ok": bool(isinstance(res, dict) and res.get("ok", True))})
+
+    # 2) import each UNIQUE behaviour script once (one recompile, not one per object)
+    class_by_behaviour: dict[str, str] = {}
+    for behaviour in grouped["script_behaviours"]:
+        gen = unity_add_script_behaviour("", behaviour, auto_import=True)
+        cls = gen.get("class_name")
+        if cls:
+            class_by_behaviour[behaviour] = cls
+        applied.append({"step": f"import:{behaviour}", "ok": bool(gen.get("imported"))})
+
+    # 3) wait for the SINGLE recompile
+    import time
+    state_fn = globals().get("unity_get_editor_state")
+    wait_until_compiled(state_fn if callable(state_fn) else (lambda: {}), time.sleep, max_attempts=30, interval=2.0)
+
+    # 4) attach the compiled component to each target object
+    add_fn = globals().get("unity_add_component")
+    for att in grouped["attachments"]:
+        cls = class_by_behaviour.get(att["behaviour"])
+        if not cls or not callable(add_fn):
+            applied.append({"step": f"attach:{att['behaviour']}->{att['object']}", "ok": False, "error": "class unavailable"})
+            continue
+        res = add_fn(att["object"], cls)
+        applied.append({"step": f"attach:{cls}->{att['object']}", "ok": bool(isinstance(res, dict) and res.get("ok", True))})
+
     return {
         "ok": all(a["ok"] for a in applied),
         "game": plan["game"],
         "executed": True,
+        "unique_scripts": len(grouped["script_behaviours"]),
         "applied": applied,
     }

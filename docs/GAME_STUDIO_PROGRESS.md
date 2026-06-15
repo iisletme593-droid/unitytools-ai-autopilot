@@ -272,3 +272,9 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   cycle 15–21 gameplay arc (physics → scripted movement → player controller → triggers → full game).
   In 21 cycles the studio went from "places trees" to "plans a playable game", all tested + deployed.
   — tests: 265 passed
+- [cycle 22] Execute-path optimization (makes live game-build practical). `group_execution_plan`
+  (pure) splits a blueprint into geometry / distinct script behaviours / attachments;
+  `unity_build_simple_game` execute now imports each UNIQUE behaviour script once (→ one recompile
+  phase) then attaches the compiled component to every target — so a 5-collectible game drops from 7
+  script imports to 3 (player/collectible/goal), with the 5 collectibles sharing a single import. +2
+  tests; live proof: grouped plan shows 3 unique scripts for a 5-collectible game. — tests: 267 passed

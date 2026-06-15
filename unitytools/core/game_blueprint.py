@@ -58,3 +58,26 @@ def plan_collectathon_game(collectible_count: int = 5, arena_size: float = 20.0)
         "collectible_count": n,
         "steps": steps,
     }
+
+
+def group_execution_plan(steps: list[dict[str, Any]]) -> dict[str, Any]:
+    """Split a blueprint's steps for efficient execution.
+
+    Returns {geometry, script_behaviours, attachments}. ``script_behaviours`` is
+    the DISTINCT behaviour list (so each MonoBehaviour is imported once → a single
+    recompile, instead of one per object); ``attachments`` is every (object,
+    behaviour) to add as a component after compilation. Geometry runs first so the
+    target objects exist before attaching.
+    """
+    geometry: list[dict[str, Any]] = []
+    attachments: list[dict[str, str]] = []
+    script_behaviours: list[str] = []
+    for step in steps:
+        if "tool" in step:
+            geometry.append(step)
+        elif "script_behaviour" in step:
+            sb = step["script_behaviour"]
+            attachments.append({"object": sb["object"], "behaviour": sb["behaviour"]})
+            if sb["behaviour"] not in script_behaviours:
+                script_behaviours.append(sb["behaviour"])
+    return {"geometry": geometry, "script_behaviours": script_behaviours, "attachments": attachments}

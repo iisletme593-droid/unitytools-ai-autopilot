@@ -180,8 +180,10 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   `unity_build_simple_game` returns it (execute=False, safe) or builds it (execute=True, recompiles).
   6 tests; live proof: a 12-step collect-a-thon plan for "build me a simple collect game". **The
   first end-to-end self-makes-a-game capability** — the culmination of the cycle 15-21 gameplay arc.
-- [ ] Execute-path optimization: import each unique behaviour script ONCE (not per object) before
-  attaching, to collapse N recompiles into one.
+- [x] Execute-path optimization (cycle 22): `group_execution_plan` splits a blueprint into
+  geometry / distinct scripts / attachments; `unity_build_simple_game` execute now imports each
+  unique behaviour script ONCE (one recompile phase) then attaches to every target — a 5-collectible
+  game drops from 7 script imports to 3. 2 tests (incl. import-count assertion).
 - [ ] More blueprints (platformer / dodge / survival) + spawners / waves (compose with the
   arena-survivor ideas already on the Unreal side).
 
