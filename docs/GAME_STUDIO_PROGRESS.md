@@ -284,3 +284,8 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   handles the 2-behaviour-per-object hazards generically (4 unique scripts: player/mover/killzone/goal).
   +6 tests; live proof: a 15-step dodge plan for 4 moving hazards. Proves the blueprint pattern isn't
   tied to one game — the autopilot can plan different games from the same parts. — tests: 273 passed
+- [cycle 24] Spawner / wave behaviour. `AutopilotSpawner` MonoBehaviour template: `InvokeRepeating`
+  spawns physics cubes at a parametric `interval` up to `maxCount` (then `CancelInvoke`), placed at
+  the spawner's position. Mapped spawner/spawn/wave/dalga/uretici. The basis for waves / endless
+  generation (and a future survival blueprint). +6 tests; live proof: AutopilotSpawner source
+  (InvokeRepeating, CreatePrimitive, maxCount cap, balanced braces). — tests: 279 passed
