@@ -61,11 +61,13 @@ Give one object a behaviour with `unity_add_gameplay_behaviour(object, behaviour
 | `enemy` / `düşman` / `mob` | AutopilotEnemy | Chases the Player (MoveTowards) and, in `attackRange`, attacks on a cooldown (`SendMessage("TakeDamage")`) — chase + attack in one, decoupled |
 | `xp` / `seviye` / `level` / `tecrübe` | AutopilotXP | Experience + leveling: `Add(n)` static or `SendMessage("AddXP", n)`; levels up at `Level*100` XP; top-right "Lv N - XP" HUD |
 | `reward` / `ödül` / `ganimet` | AutopilotReward | A killable enemy's HP + loot: takes damage, and on death grants `xpReward` to the Player (`SendMessage("AddXP")`) and destroys itself |
+| `loot` / `item` / `eşya` | AutopilotLoot | An item pickup (trigger): on Player touch, `SendMessage("AddItem")` then destroy |
+| `inventory` / `envanter` / `çanta` | AutopilotInventory | Item count + HUD: `Add(n)` static or `SendMessage("AddItem", n)`; top-left "Items: N" |
 
 These are the **action-RPG combat & progression** building blocks (P11): `attack`/`enemy` deal damage
-that `health`/`reward` receive, a killed `reward` grants XP that `xp` levels up on — all fully decoupled
-(SendMessage, no hard type reference). The `arena` game wires the whole loop: attack → reward dies →
-XP → level up. Turkish/English aliases are accepted (fizik, ağır, oyuncu,
+that `health`/`reward` receive, a killed `reward` grants XP that `xp` levels up on, and `loot`/`inventory`
+add an item economy — all fully decoupled (SendMessage, no hard type reference). The `arena` game wires
+the combat loop: attack → reward dies → XP → level up. Turkish/English aliases are accepted (fizik, ağır, oyuncu,
 toplanabilir, hedef, ölüm/lava, dalga, devriye, takip, zıpla, can, saldırı, …). **Every behaviour
 listed here is templated** — each generates a compilable MonoBehaviour (`generate_behaviour_script`
 returns its source); none are stubs.

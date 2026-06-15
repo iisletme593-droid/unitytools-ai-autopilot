@@ -498,5 +498,15 @@ hack-and-slash prototype. Chosen as P11; it extends the existing behaviour catal
   still valid/playable/deterministic. +8 tests (reward source/decoupled/ascii/aliases + the full
   combat-loop chain). **Next:** inventory/loot (kill -> item drop -> pick up) (cycle 58), or a state
   review on whether P11 is deep enough; ranged/projectile attack later.
+- [x] Loot + inventory behaviours (cycle 58): two new scripted behaviours for an item economy. `loot`
+  -> AutopilotLoot — a trigger pickup that, on Player touch, `SendMessage("AddItem", amount)` and
+  destroys itself (decoupled — no inventory-type reference). `inventory` -> AutopilotInventory — a
+  static item count with `Add(int)` helper + `AddItem(int)` SendMessage target + a top-left "Items: N"
+  HUD (under the score). The pickup chain: loot touch -> AddItem -> inventory count. Aliases loot:
+  item/eşya/loot/drop; inventory: envanter/inventory/çanta/items — "ganimet" deliberately stays with
+  `reward` (no collision). Pure ASCII, balanced; no NEEDS_SCRIPT behaviour un-templated (7 action-RPG
+  blocks now: health/attack/enemy/xp/reward/loot/inventory). GAMES.md rows + doc guard. +14 tests.
+  **Next:** make a killed `reward` drop `loot` (kill -> item) and wire loot/inventory into the arena
+  (cycle 59); state review on P11 depth (ranged attack? or P12) — choose then.
 
 > Check items off in this file as they land. Add new items as discovered.

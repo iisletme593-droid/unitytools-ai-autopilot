@@ -706,3 +706,17 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   +8 tests. Live-proved the complete attack->reward-death->XP->level loop + NL arena build. Note: the
   session-local ScheduleWakeup for cycle 57 (01:04) did not fire (machine asleep); ran it on the user's
   return — nothing lost, every cycle is committed. — tests: 783 passed
+- [cycle 58] P11 step 8: loot + inventory behaviours (item economy). `loot` -> AutopilotLoot is a
+  trigger pickup: when the Player touches it, it `SendMessage("AddItem", amount,
+  SendMessageOptions.DontRequireReceiver)` and Destroys itself — decoupled, no reference to the
+  inventory type. `inventory` -> AutopilotInventory is a static item count: `public static int Items`,
+  a static `Add(int)` helper, an `AddItem(int)` SendMessage target, and a top-left "Items: N" OnGUI HUD
+  (at y=34, under the score HUD). The pickup chain mirrors the combat chain: loot touch -> SendMessage
+  AddItem -> AutopilotInventory.AddItem -> count/HUD. Aliases: loot = item/esya/loot/drop; inventory =
+  envanter/inventory/canta/items. "ganimet" deliberately stays mapped to `reward` (no alias collision).
+  Both pure ASCII, brace/paren-balanced, placeholders substituted; no NEEDS_SCRIPT behaviour left
+  un-templated — the action-RPG building blocks are now 7: health/attack/enemy/xp/reward/loot/inventory.
+  GAME_STUDIO_GAMES.md scripted rows for loot + inventory (doc guard generates them). +14 tests (loot/
+  inventory source, decoupled-no-hard-ref, ascii/balanced, alias table incl. ganimet-stays-reward,
+  pickup chain). Live-proved the loot->AddItem->inventory chain. Generate-only; deterministic.
+  — tests: 797 passed

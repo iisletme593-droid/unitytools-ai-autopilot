@@ -178,6 +178,59 @@ def test_reward_aliases(alias):
     assert generate_behaviour_script(alias)["class_name"] == "AutopilotReward"
 
 
+# --- loot + inventory (item pickups) ----------------------------------------
+
+def test_loot_source():
+    s = generate_behaviour_script("loot")
+    assert s["ok"] is True and s["class_name"] == "AutopilotLoot"
+    src = s["source"]
+    assert "OnTriggerEnter(Collider other)" in src and 'CompareTag("Player")' in src
+    assert 'SendMessage("AddItem", amount' in src          # adds to inventory
+    assert "Destroy(gameObject)" in src
+    assert "isTrigger = true" in src
+
+
+def test_inventory_source():
+    s = generate_behaviour_script("inventory")
+    assert s["ok"] is True and s["class_name"] == "AutopilotInventory"
+    src = s["source"]
+    assert "public static int Items" in src
+    assert "public static void Add(int amount)" in src      # static helper
+    assert "void AddItem(int amount)" in src                # SendMessage target
+    assert '"Items: "' in src                               # HUD
+
+
+def test_loot_is_decoupled_from_inventory_type():
+    src = generate_behaviour_script("loot")["source"]
+    assert "AutopilotInventory." not in src                 # signals via SendMessage
+    assert "GetComponent<AutopilotInventory>" not in src
+
+
+@pytest.mark.parametrize("behaviour", ["loot", "inventory"])
+def test_loot_inventory_pure_ascii_and_balanced(behaviour):
+    src = generate_behaviour_script(behaviour)["source"]
+    assert all(ord(c) < 128 for c in src)
+    assert src.count("{") == src.count("}") and src.count("(") == src.count(")")
+    assert "__" not in src
+
+
+@pytest.mark.parametrize("alias,expected", [
+    ("item", "loot"), ("esya", "loot"), ("loot", "loot"), ("drop", "loot"),
+    ("envanter", "inventory"), ("inventory", "inventory"), ("canta", "inventory"),
+    ("ganimet", "reward"),   # ganimet stays with reward — no collision
+])
+def test_loot_inventory_aliases(alias, expected):
+    assert normalize_behaviour(alias) == expected
+
+
+def test_loot_inventory_form_a_pickup_chain():
+    # loot SendMessage("AddItem") -> inventory AddItem(int)
+    loot = generate_behaviour_script("loot")["source"]
+    inv = generate_behaviour_script("inventory")["source"]
+    assert 'SendMessage("AddItem"' in loot
+    assert "void AddItem(int amount)" in inv
+
+
 def test_combat_loop_chain_is_complete():
     # player attack -> reward.TakeDamage -> SendMessage AddXP -> xp.AddXP; enemy -> player health
     attack = generate_behaviour_script("attack")["source"]
