@@ -639,3 +639,14 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   generates them too. +10 tests (attack source, decoupled-no-hard-ref, ASCII/balance, aliases,
   health+attack combat pair). Live-proved the attack source + the decoupled attack->health chain.
   — tests: 720 passed
+- [cycle 53] P11 step 3: `enemy` AI behaviour. New scripted behaviour `enemy` -> AutopilotEnemy
+  MonoBehaviour combining chase + attack: Start finds the Player by tag; Update measures
+  Vector3.Distance and, when farther than attackRange, chases with Vector3.MoveTowards(moveSpeed), else
+  attacks on attackCooldown by SendMessage("TakeDamage", damage, DontRequireReceiver) to the player. It
+  no-ops without a Player and holds NO code reference to AutopilotHealth (decoupled — works whether or
+  not the player has Health). Public fields moveSpeed/attackRange/attackCooldown/damage. Aliases
+  dusman/enemy/mob/canavar. Pure ASCII, balanced, placeholders substituted. The action-RPG combat TRIO
+  (health + attack + enemy) is now complete as building blocks. GAME_STUDIO_GAMES.md scripted table
+  gained an enemy row (doc guard generates it). +7 tests (source: chase+attack+SendMessage,
+  decoupled-no-hard-ref, ascii/balanced, aliases). Live-proved the enemy source. Generate-only; no
+  Math.random / new Date. — tests: 727 passed

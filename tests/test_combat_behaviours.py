@@ -87,3 +87,35 @@ def test_health_and_attack_form_a_combat_pair():
     health = generate_behaviour_script("health")["source"]
     assert 'SendMessage("TakeDamage"' in attack
     assert "public void TakeDamage(int amount)" in health
+
+
+# --- enemy (chase + attack in one) ------------------------------------------
+
+def test_enemy_source():
+    s = generate_behaviour_script("enemy")
+    assert s["ok"] is True and s["class_name"] == "AutopilotEnemy"
+    src = s["source"]
+    assert 'FindWithTag("Player")' in src                 # targets the player
+    assert "Vector3.MoveTowards" in src and "Vector3.Distance" in src  # chases
+    assert "attackRange" in src and "attackCooldown" in src
+    assert 'SendMessage("TakeDamage", damage' in src       # attacks in range
+    assert "if (target == null) return;" in src            # no-op without a player
+
+
+def test_enemy_is_decoupled_from_health_type():
+    src = generate_behaviour_script("enemy")["source"]
+    assert "AutopilotHealth." not in src
+    assert "GetComponent<AutopilotHealth>" not in src
+
+
+def test_enemy_is_pure_ascii_and_balanced():
+    src = generate_behaviour_script("enemy")["source"]
+    assert all(ord(c) < 128 for c in src)
+    assert src.count("{") == src.count("}") and src.count("(") == src.count(")")
+    assert "__" not in src
+
+
+@pytest.mark.parametrize("alias", ["dusman", "enemy", "mob", "canavar"])
+def test_enemy_aliases(alias):
+    assert normalize_behaviour(alias) == "enemy"
+    assert generate_behaviour_script(alias)["class_name"] == "AutopilotEnemy"

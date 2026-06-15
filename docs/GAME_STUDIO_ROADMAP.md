@@ -447,5 +447,14 @@ hack-and-slash prototype. Chosen as P11; it extends the existing behaviour catal
   table gained health + attack rows (doc guard now generates them too). +10 tests. **Next:** enemy AI
   (follow + attack) (cycle 53); an `arena`/`brawler` blueprint (player+health+armed enemies) as the 7th
   game type (cycle 54); later inventory/loot + xp/level.
+- [x] Enemy AI behaviour (cycle 53): `enemy` scripted behaviour -> `AutopilotEnemy` MonoBehaviour —
+  chase + attack in ONE: finds the Player by tag, MoveTowards it while out of range, and once within
+  `attackRange` stops and attacks on `attackCooldown` via `SendMessage("TakeDamage", damage)`. No-op
+  when there is no Player; fully decoupled from AutopilotHealth (no code reference). Public fields
+  moveSpeed/attackRange/attackCooldown/damage. Aliases düşman/enemy/mob/canavar. Pure ASCII, balanced.
+  The combat trio (health + attack + enemy) is now in place. GAMES.md scripted row + doc guard. +7
+  tests. **Next:** an `arena`/`brawler` blueprint — ground + WASD+attack player + health + N
+  AutopilotEnemy enemies + score — as the 7th game type (cycle 54); arena NL intent + save/load/assess
+  integration (cycle 55); later inventory/loot + xp/level.
 
 > Check items off in this file as they land. Add new items as discovered.

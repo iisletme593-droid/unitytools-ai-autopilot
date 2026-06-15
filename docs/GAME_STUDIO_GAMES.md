@@ -57,9 +57,10 @@ Give one object a behaviour with `unity_add_gameplay_behaviour(object, behaviour
 | `wander` | AutopilotWander | Drifts to random points near home, re-targeting on a timer |
 | `health` / `can` / `sağlık` / `hp` | AutopilotHealth | Hit points + `TakeDamage(n)`/`Heal(n)`; death → respawn (or destroy); top-right HP HUD |
 | `attack` / `saldırı` / `vur` / `hit` | AutopilotAttack | Damages a tagged target in `range` every `cooldown` via `SendMessage("TakeDamage")` — pairs with `health`, no hard reference |
+| `enemy` / `düşman` / `mob` | AutopilotEnemy | Chases the Player (MoveTowards) and, in `attackRange`, attacks on a cooldown (`SendMessage("TakeDamage")`) — chase + attack in one, decoupled |
 
-The last two are the start of the **action-RPG combat** building blocks (P11): `attack` deals damage
-that `health` receives, fully decoupled. Turkish/English aliases are accepted (fizik, ağır, oyuncu,
+These three are the start of the **action-RPG combat** building blocks (P11): `attack`/`enemy` deal
+damage that `health` receives, fully decoupled (SendMessage, no hard type reference). Turkish/English aliases are accepted (fizik, ağır, oyuncu,
 toplanabilir, hedef, ölüm/lava, dalga, devriye, takip, zıpla, can, saldırı, …). **Every behaviour
 listed here is templated** — each generates a compilable MonoBehaviour (`generate_behaviour_script`
 returns its source); none are stubs.
