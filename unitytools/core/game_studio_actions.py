@@ -255,6 +255,26 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     safety_notes: list[str] = []
     build_verb = has("kur", "olustur", "yap", "build", "create", "generate", "uret", "insa")
 
+    # Build-a-game intent takes priority so "oyun" doesn't fall into scene branches.
+    wants_game = (
+        has("collectathon", "toplama oyunu", "oyun iskeleti", "dodge", "kacma oyunu", "kacis oyunu")
+        or ((has("oyun", "game") and build_verb))
+    )
+    if wants_game:
+        game_type = "dodge" if has("dodge", "kacma", "kacis") else "collectathon"
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_build_simple_game",
+                "kwargs": {"game_type": game_type, "collectible_count": _infer_count(lower, 5), "execute": False},
+                "write": False,
+                "note": f"plan a {game_type} game (execute=False; real build needs execute=True + a Unity recompile)",
+            }],
+            "safety_notes": ["game-build plan only (execute=False); building for real triggers Unity recompiles"],
+            "reason": f"build-game intent -> {game_type}",
+        }
+
     if has("snapshot", "yedek", "backup", "geri yukle", "restore point"):
         steps.append({"tool": "unity_create_scene_snapshot", "kwargs": {"label": "fast_action"},
                       "write": True, "note": "save a restore point before edits"})

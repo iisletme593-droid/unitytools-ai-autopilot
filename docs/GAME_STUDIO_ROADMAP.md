@@ -188,7 +188,12 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   hazards (mover + killzone composed) + goal; `unity_build_simple_game(game_type='dodge')`. Proves the
   blueprint pattern generalizes (same blocks → a different game). 6 tests. Spawner/wave added (cycle
   24): `AutopilotSpawner` MonoBehaviour — InvokeRepeating spawns physics cubes at a parametric
-  interval up to maxCount (with CancelInvoke), aliases spawn/wave/dalga. 6 tests. **Remaining:**
-  platformer/survival blueprints, intent→blueprint mapping (cycle 25).
+  interval up to maxCount (with CancelInvoke), aliases spawn/wave/dalga. 6 tests.
+- [x] **Blueprint catalog + "build me a game" intent (cycle 25)** — `BLUEPRINTS` registry +
+  `plan_game(game_type, count)` dispatcher; `plan_unity_fast_action` routes natural-language game
+  requests ("bana bir dodge oyunu kur", "toplama oyunu yap", "build me a game") to
+  `unity_build_simple_game` (execute=False, safe). 6 tests; live-proven. **Closes the intent→game
+  loop:** a Turkish/English request → the full plan for that game. **Remaining:** more blueprints
+  (survival via spawner), docs.
 
 > Check items off in this file as they land. Add new items as discovered.

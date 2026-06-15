@@ -289,3 +289,12 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   the spawner's position. Mapped spawner/spawn/wave/dalga/uretici. The basis for waves / endless
   generation (and a future survival blueprint). +6 tests; live proof: AutopilotSpawner source
   (InvokeRepeating, CreatePrimitive, maxCount cap, balanced braces). — tests: 279 passed
+- [cycle 25] **Blueprint catalog + "build me a game" intent — closes the intent→game loop.**
+  `core/game_blueprint.BLUEPRINTS` registry (game_type→planner) + `plan_game`/`list_blueprints`
+  dispatcher; `unity_build_simple_game` refactored onto it (backward compatible). Added a top-priority
+  build-game intent to `plan_unity_fast_action`: "oyun kur/yap", "toplama oyunu", "dodge/kaçma oyunu",
+  "build me a game" → a `unity_build_simple_game` step (execute=False, write=False — safe plan;
+  game_type inferred). Ordered first so "oyun" doesn't fall into scene branches; non-game prompts
+  (orman kur, sahneyi listele) unaffected. +6 tests; live proof: "bana bir dodge oyunu kur" → dodge,
+  "toplama oyunu yap 7..." → collectathon/7. In 25 cycles: from "places trees" to "understands
+  'build me a dodge game' and plans it end-to-end". — tests: 285 passed

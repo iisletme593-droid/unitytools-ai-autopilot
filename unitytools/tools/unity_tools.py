@@ -1178,12 +1178,8 @@ def unity_apply_script_behaviour(object_name: str, behaviour: str = "rotate", sp
 
 @tool(description="Plan (and optionally build) a simple PLAYABLE game from the gameplay building blocks. game_type='collectathon' (ground + WASD player + N collectibles + goal) or 'dodge' (ground + WASD player + N moving hazards + goal). collectible_count is the count of the main repeated element. execute=False (default) returns the step plan without touching the scene; execute=True builds the geometry and imports the behaviour scripts (triggers Unity recompiles, so run with the editor in focus).")
 def unity_build_simple_game(collectible_count: int = 5, execute: bool = False, game_type: str = "collectathon") -> dict:
-    from ..core.game_blueprint import plan_collectathon_game, plan_dodge_game, group_execution_plan
-    gt = (game_type or "collectathon").strip().lower()
-    if gt == "dodge":
-        plan = plan_dodge_game(obstacle_count=collectible_count)
-    else:
-        plan = plan_collectathon_game(collectible_count=collectible_count)
+    from ..core.game_blueprint import plan_game, group_execution_plan
+    plan = plan_game(game_type, collectible_count)
     if not execute:
         return {
             "ok": True,

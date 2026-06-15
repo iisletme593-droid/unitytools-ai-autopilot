@@ -124,3 +124,22 @@ def group_execution_plan(steps: list[dict[str, Any]]) -> dict[str, Any]:
             if sb["behaviour"] not in script_behaviours:
                 script_behaviours.append(sb["behaviour"])
     return {"geometry": geometry, "script_behaviours": script_behaviours, "attachments": attachments}
+
+
+# Registry of game blueprints (game_type -> planner). Each planner takes the count
+# of its main repeated element and returns {ok, game, summary, steps, ...}.
+BLUEPRINTS = {
+    "collectathon": plan_collectathon_game,
+    "dodge": plan_dodge_game,
+}
+
+
+def list_blueprints() -> list[str]:
+    return sorted(BLUEPRINTS)
+
+
+def plan_game(game_type: str = "collectathon", count: int = 5) -> dict[str, Any]:
+    """Dispatch to a blueprint planner by game_type (unknown -> collectathon)."""
+    gt = (game_type or "collectathon").strip().lower()
+    planner = BLUEPRINTS.get(gt, plan_collectathon_game)
+    return planner(count)
