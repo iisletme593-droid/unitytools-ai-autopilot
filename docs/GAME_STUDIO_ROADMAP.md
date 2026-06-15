@@ -254,5 +254,11 @@ The studio can place/decorate but not yet author gameplay. This is the road to "
   still reach the visual-QA / profiling branches. Refactor: the game-type detection is now a shared
   `detect_game_type()` helper used by both the build and assess branches (de-dup). Doc §3 note + 6
   tests. **Remaining:** a game-variation generator (same type, different parameters) (cycle 35).
+- [x] Game variations (cycle 35): `plan_game_variations(game_type, counts, arena_size)` builds the
+  same game at several counts (default 3/5/8 → easy/medium/hard) and attaches a readiness summary to
+  each — difficulty options the studio can offer before building. Counts are deduped/clamped/sorted so
+  difficulty rises monotonically (more objects). New pure tool `unity_game_variations` (no bridge).
+  Every variation of every blueprint is playable. Doc §6 + 14 tests. **Remaining:** bind difficulty
+  to NL ("kolay/zor oyun") (cycle 36); a one-glance catalog report (all types + readiness) (cycle 37).
 
 > Check items off in this file as they land. Add new items as discovered.

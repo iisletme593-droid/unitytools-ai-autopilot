@@ -404,3 +404,14 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   if/elif chain). Doc §3 assess note. +6 tests (assess routing + game_type extraction, assess-beats-
   build, build-still-builds, scene-analysis-not-hijacked, read-only). Live-proved NL -> assess intent
   -> real readiness report end-to-end (pure, no bridge). — tests: 368 passed
+- [cycle 35] Game variation generator. `core/game_blueprint.plan_game_variations(game_type, counts,
+  arena_size)` builds the SAME game type at several counts and attaches a readiness summary to each, so
+  the studio can offer difficulty options (default counts 3/5/8 -> easy/medium/hard labels) before
+  committing to a build. Counts are deduped, clamped (>=1) and sorted ascending so difficulty rises
+  monotonically — more enemies/collectibles means strictly more objects. Each variation reports
+  {label, params:{count, arena_size}, summary, object_count, unique_scripts, playable, warnings}; it
+  reuses game_qa.assess_game_readiness (lazy import to avoid the game_blueprint<->game_qa import cycle).
+  New pure tool `unity_game_variations(game_type, counts="3,5,8", arena_size)` exposes it with NO bridge.
+  Verified every variation of all 5 blueprints is playable and object counts increase strictly with
+  count. Doc §6 "Difficulty variations". +14 tests. Live-proved 3 variations each for chase/collectathon
+  + a custom dodge 2/5/10 sweep (pure, no bridge). — tests: 382 passed

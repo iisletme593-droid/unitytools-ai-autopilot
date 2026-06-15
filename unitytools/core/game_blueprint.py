@@ -357,3 +357,50 @@ def plan_game(game_type: str = "collectathon", count: int = 5) -> dict[str, Any]
     gt = (game_type or "collectathon").strip().lower()
     planner = BLUEPRINTS.get(gt, plan_collectathon_game)
     return planner(count)
+
+
+def _difficulty_labels(n: int) -> list[str]:
+    """Human difficulty tags for n variations, easy -> hard."""
+    presets = {1: ["standard"], 2: ["easy", "hard"], 3: ["easy", "medium", "hard"],
+               4: ["easy", "medium", "hard", "extreme"]}
+    return presets.get(n, [f"level-{i + 1}" for i in range(n)])
+
+
+def plan_game_variations(
+    game_type: str = "collectathon",
+    counts: list[int] | None = None,
+    arena_size: float = 20.0,
+) -> dict[str, Any]:
+    """Generate several variations of ONE game type at different difficulties.
+
+    For each count (sorted ascending so easy->hard is monotonic) it builds the
+    plan and attaches a readiness summary from game_qa. Pure + deterministic; no
+    bridge, no scene changes. Returns {ok, game_type, count, variations:[{label,
+    params, summary, object_count, unique_scripts, playable, warnings}]}.
+    """
+    from .game_qa import assess_game_readiness  # lazy: game_qa imports this module
+
+    gt = (game_type or "collectathon").strip().lower()
+    if gt not in BLUEPRINTS:
+        gt = "collectathon"
+    planner = BLUEPRINTS[gt]
+
+    raw = counts if counts else [3, 5, 8]
+    clean = sorted({max(1, int(c)) for c in raw})         # dedupe + clamp + ascending
+    labels = _difficulty_labels(len(clean))
+
+    variations: list[dict[str, Any]] = []
+    for label, c in zip(labels, clean):
+        plan = planner(c, arena_size)
+        report = assess_game_readiness(plan)
+        variations.append({
+            "label": label,
+            "params": {"count": c, "arena_size": float(arena_size)},
+            "summary": plan.get("summary", ""),
+            "object_count": report["object_count"],
+            "unique_scripts": report["unique_scripts"],
+            "playable": report["playable"],
+            "warnings": report["warnings"],
+        })
+
+    return {"ok": True, "game_type": gt, "count": len(variations), "variations": variations}

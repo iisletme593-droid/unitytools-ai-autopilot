@@ -1289,3 +1289,10 @@ def unity_assess_game(game_type: str = "collectathon", collectible_count: int = 
     report = assess_game_readiness(plan)
     report["summary"] = plan.get("summary", "")
     return report
+
+
+@tool(description="Generate several difficulty variations of ONE game type WITHOUT touching the scene (pure, no bridge): same game at different counts (easy/medium/hard) each with a readiness summary. game_type='collectathon'/'dodge'/'survival'/'platformer'/'chase'. counts is an optional comma-separated list (e.g. '3,5,8'); empty uses the default. Use to offer the user difficulty options before building.")
+def unity_game_variations(game_type: str = "collectathon", counts: str = "", arena_size: float = 20.0) -> dict:
+    from ..core.game_blueprint import plan_game_variations
+    count_list = [int(c) for c in counts.replace(" ", "").split(",") if c.strip().isdigit()] or None
+    return plan_game_variations(game_type, counts=count_list, arena_size=arena_size)

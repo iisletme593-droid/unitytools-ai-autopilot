@@ -93,7 +93,16 @@ intent is checked *before* the build intent, so a prompt with both a game type a
 3. Add an intent trigger to `plan_unity_fast_action`'s build-game block.
 4. Add a row to the table in §1 and a test.
 
-## 6. Living scenes (decorative, not a game)
+## 6. Difficulty variations
+
+`unity_game_variations(game_type, counts="3,5,8")` builds the **same** game at several counts and
+attaches a readiness summary to each — easy/medium/hard difficulty options the studio can offer
+before committing to a build. Pure analysis (no scene changes, no bridge); the pure planner is
+`core/game_blueprint.plan_game_variations`. Counts are deduped, clamped (≥1) and sorted ascending
+so difficulty rises monotonically (more enemies/collectibles → more objects). Each entry reports
+`{label, params, summary, object_count, unique_scripts, playable, warnings}`.
+
+## 7. Living scenes (decorative, not a game)
 
 Not every scene is a game. `unity_animate_group` brings a scene to life: it places N props
 and gives each a **decorative** scripted behaviour (`bob` / `orbit` / `rotate` / `wander`,
