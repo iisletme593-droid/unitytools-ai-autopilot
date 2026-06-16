@@ -613,5 +613,24 @@ template that applies to all types). Title/menu UI and audio cues follow.
   Kept behaviour-only this cycle (not wired into a blueprint) to avoid retest churn — wiring is a tiny
   follow-up. **Next:** state review (cycle 67) — P13 game-feel now has win/lose + title; decide audio
   cues vs. declaring P13 done and picking the next big goal (all-capabilities studio report / new type).
+- [x] **State review + title wired into the flagship games (cycle 67).** Verdict: the `title` behaviour
+  from cycle 66 was an orphan (no game used it), so the highest-value move was the "tiny follow-up" —
+  wire it in. Both `plan_arena_game` and `plan_horde_game` now add `title` to their hidden GameManager
+  alongside `gameover`, so the manager **bookends** the game: TITLE (start screen, paused) -> PLAY ->
+  WIN/LOSE -> R restarts. Position-independent (screen-space OnGUI + global timeScale + Input), so the
+  y=-10 hidden cube is fine for both. This exercises last cycle's Awake/Start ordering fix in a real
+  game: gameover.Awake (timeScale=1) runs before title.Start (timeScale=0), so the game reliably starts
+  paused on the title screen. arena now 11 unique scripts, horde 13. Both stay valid/playable/
+  deterministic. Tests updated (manager bookend = {title, gameover}, arena 11-unique). 879 passed.
+  - **Audio — honestly deferred, not faked.** P13 originally listed audio cues. But this studio is
+    generate-only (it never imports real assets), and a sound cue needs an AudioClip. Rather than
+    generate code referencing a fake/missing clip, the honest path (for a future cycle) is a procedural
+    `AutopilotSound` that builds its clip at runtime via `AudioClip.Create` + a deterministic sine
+    waveform (no external asset, no Math.random) and plays it on a decoupled `SendMessage("PlayCue")`.
+    Deferred deliberately — recorded here so it isn't lost. **P13 game-feel is otherwise complete:
+    win/lose + title, both wired into real games.**
+  - **Next big goal (P14, cycle 68+):** with the per-game-feel loop complete, broaden the studio.
+    Candidates: a procedural `AutopilotSound` (above), a fresh game type, or a consolidated
+    "studio capabilities" report/landing refresh that reflects all 8 types + the full feel loop.
 
 > Check items off in this file as they land. Add new items as discovered.

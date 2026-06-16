@@ -821,3 +821,14 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   (decoupled). Pure ASCII, balanced; title row added to GAME_STUDIO_GAMES.md + doc-guard list. Kept
   behaviour-only (not wired into a blueprint yet) to avoid retest churn. Live-proved the generated
   AutopilotTitle.cs (ascii/balanced/no-Awake/aliases). Generate-only; deterministic. — tests: 879 passed
+- [cycle 67] State review + wired `title` into the flagship games. Verdict: cycle 66's `title` was an
+  orphan (no game used it), so the highest-value move was the planned "tiny follow-up" — wire it in.
+  `plan_arena_game` + `plan_horde_game` now add `title` to their hidden GameManager next to `gameover`,
+  so the manager **bookends** the game: TITLE (paused start screen) -> PLAY -> WIN/LOSE -> R restart.
+  This runs cycle 66's Awake/Start ordering fix in a real game (gameover.Awake timeScale=1 before
+  title.Start timeScale=0 -> starts paused on title). arena 11 unique scripts, horde 13; both stay
+  valid/playable/deterministic. Tests updated (manager bookend = {title, gameover}; arena 11-unique).
+  **Audio honestly deferred** (not faked): generate-only can't ship a real AudioClip; the honest future
+  path is a procedural AutopilotSound (AudioClip.Create + sine wave, no asset) — recorded in roadmap.
+  P13 game-feel is otherwise complete (win/lose + title, both in real games). Live-proved the bookend +
+  validity + determinism for arena & horde. Generate-only; deterministic. — tests: 879 passed
