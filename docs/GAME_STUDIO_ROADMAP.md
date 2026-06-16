@@ -536,4 +536,22 @@ hack-and-slash prototype. Chosen as P11; it extends the existing behaviour catal
   +10 tests. **P11 (combat) is DONE.** **Next:** state review + pick P12 beyond combat (cycle 61) —
   candidates: a level/wave campaign, a title/menu UI, audio cues, or spreading combat into other types.
 
+### P12 — Waves & horde mode (survival-brawler depth)
+**Cycle-61 state review.** P0–P11 done: 7 game types, persistence (save/load/import), procedural seeds,
+and the full action-RPG combat set + arena. Tests 84 → 808. Chose **waves / horde mode** as P12 — it
+turns the arena into a real survival-brawler (action-RPG "horde" endgame), reuses the existing combat
+trio (enemy + reward), and is the most natural deepening of what's there. Picked over audio (polish,
+not depth), title/menu UI (polish), spreading combat to other types (incremental), and procedural
+terrain (a big separate effort).
+
+- [x] Horde / wave behaviour (cycle 61): `horde` -> AutopilotHorde — a survival-brawler driver that
+  spawns ESCALATING waves of enemies: every `waveInterval` it spawns `baseCount + (wave-1)*waveGrowth`
+  enemy cubes (tagged Enemy, with `AddComponent<AutopilotEnemy>` + `AddComponent<AutopilotReward>`) in a
+  ring, up to `maxWaves`. Deterministic ring placement (Mathf, no RNG). It necessarily AddComponents
+  AutopilotEnemy/Reward (a spawner can't be type-decoupled), so it ships in a combat game that has them.
+  Named `horde` (key + aliases akın/dalgalar/sürüsel) to avoid the existing `wave`/`dalga`->`spawner`
+  aliases (verified unchanged). Pure ASCII, balanced; no NEEDS_SCRIPT behaviour un-templated. GAMES.md
+  row + doc guard. +7 tests. **Next:** a horde/`arena` survival mode — an arena variant driven by the
+  horde spawner instead of a fixed enemy ring (cycle 62); NL intent + integration (cycle 63).
+
 > Check items off in this file as they land. Add new items as discovered.

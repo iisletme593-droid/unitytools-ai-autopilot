@@ -269,6 +269,39 @@ def test_ranged_aliases(alias):
     assert generate_behaviour_script(alias)["class_name"] == "AutopilotRanged"
 
 
+# --- horde / wave spawner (P12) ---------------------------------------------
+
+def test_horde_source():
+    s = generate_behaviour_script("horde")
+    assert s["ok"] is True and s["class_name"] == "AutopilotHorde"
+    src = s["source"]
+    assert "InvokeRepeating(nameof(SpawnWave)" in src
+    assert "baseCount + (wave - 1) * waveGrowth" in src      # escalating count
+    assert "AddComponent<AutopilotEnemy>" in src and "AddComponent<AutopilotReward>" in src
+    assert 'e.tag = "Enemy"' in src
+    assert "maxWaves" in src
+
+
+def test_horde_is_deterministic_no_random():
+    src = generate_behaviour_script("horde")["source"]
+    assert "Random" not in src                               # ring placement, no RNG
+    assert all(ord(c) < 128 for c in src)
+    assert src.count("{") == src.count("}") and src.count("(") == src.count(")")
+    assert "__" not in src
+
+
+@pytest.mark.parametrize("alias", ["horde", "akin", "dalgalar", "surusel"])
+def test_horde_aliases(alias):
+    assert normalize_behaviour(alias) == "horde"
+    assert generate_behaviour_script(alias)["class_name"] == "AutopilotHorde"
+
+
+def test_wave_dalga_still_map_to_spawner():
+    # the new horde behaviour must not steal the existing spawner aliases
+    assert normalize_behaviour("wave") == "spawner"
+    assert normalize_behaviour("dalga") == "spawner"
+
+
 def test_combat_loop_chain_is_complete():
     # player attack -> reward.TakeDamage -> SendMessage AddXP -> xp.AddXP; enemy -> player health
     attack = generate_behaviour_script("attack")["source"]

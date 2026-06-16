@@ -744,3 +744,17 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   (action-RPG combat) is DONE: health, attack (melee), ranged, enemy AI, xp/leveling, reward (kill->XP),
   loot, inventory, and the arena game wiring them into a working loop. Generate-only; deterministic.
   — tests: 808 passed
+- [cycle 61] STATE REVIEW + new big goal P12 = WAVES / HORDE MODE. Reviewed P0-P11 (7 game types,
+  persistence, procedural seeds, full combat + arena; tests 84->808). Chose waves/horde mode as P12 — it
+  turns the arena into a real survival-brawler (the action-RPG "horde" endgame), reuses the combat trio,
+  and is the most natural deepening (over audio/menu polish, spreading combat, or procedural terrain).
+  First step: `horde` -> AutopilotHorde MonoBehaviour — a survival-brawler driver that spawns ESCALATING
+  waves: every waveInterval seconds it spawns baseCount + (wave-1)*waveGrowth enemy cubes (tagged Enemy,
+  via AddComponent<AutopilotEnemy> + AddComponent<AutopilotReward>) in a deterministic ring (Mathf, no
+  Random), up to maxWaves. It necessarily AddComponents the enemy/reward types (a spawner cannot be
+  type-decoupled), so it ships in a combat game that has them — honestly documented. Named `horde` (key +
+  aliases akin/dalgalar/surusel) specifically to avoid the existing `wave`/`dalga`->`spawner` aliases
+  (verified those still map to spawner). Pure ASCII, balanced, placeholders substituted; no NEEDS_SCRIPT
+  behaviour left un-templated. GAME_STUDIO_GAMES.md scripted row + doc guard. +7 tests (source, escalating
+  count, spawns-enemy+reward, deterministic-no-random, aliases, wave/dalga-still-spawner). Roadmap P12
+  section added. Generate-only; deterministic; no Math.random / new Date. — tests: 815 passed
