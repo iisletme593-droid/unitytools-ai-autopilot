@@ -612,6 +612,8 @@ def compose_custom_game(
     hazard: int = 0,
     goal: bool = False,
     timer: bool = False,
+    spawner: int = 0,
+    ranged: bool = False,
     arena_size: float = 20.0,
     seed: object = None,
 ) -> dict[str, Any]:
@@ -619,13 +621,16 @@ def compose_custom_game(
 
     This is the studio's first step from "pick a preset" to "assemble what you asked
     for": given how many of each element the player wants (enemies / collectibles /
-    hazards, plus optional goal and timer), it builds a valid, playable plan from the
-    same building blocks the blueprints use, wiring the sensible couplings:
+    hazards / wave spawners, plus optional goal, timer, and a ranged weapon), it builds
+    a valid, playable plan from the same building blocks the blueprints use, wiring the
+    sensible couplings:
       - a `player` controller (tagged Player) whenever player=True;
       - if there are enemies, the player gains `health` + `attack` and a hidden
         GameManager runs the win/lose `gameover` (WIN clears enemies, LOSE on death);
+      - ranged=True also gives the player a `ranged` weapon (auto-hits the nearest enemy);
       - a `score` HUD when there are collectibles or enemies;
-      - collectibles (`collectible`), hazards (`killzone`), an optional `goal` zone;
+      - collectibles (`collectible`), hazards (`killzone`), wave `spawner`s (raining
+        hazards, survival-style), an optional `goal` zone;
       - if timer=True, the GameManager runs a `timer` -> outlast the clock to WIN
         (Survived), and gets a title + sound for feel.
     Pure + deterministic; same step schema as the blueprints, so it validates, assesses
@@ -634,6 +639,7 @@ def compose_custom_game(
     enemy = max(0, min(int(enemy), 30))
     collectible = max(0, min(int(collectible), 30))
     hazard = max(0, min(int(hazard), 30))
+    spawner = max(0, min(int(spawner), 20))
     size = max(6.0, float(arena_size))
     steps: list[dict[str, Any]] = []
 
@@ -647,6 +653,8 @@ def compose_custom_game(
         player_behaviours = ["player"]
         if enemy > 0:
             player_behaviours += ["health", "attack"]            # so the fight works both ways
+        if ranged:
+            player_behaviours.append("ranged")                   # a long-range weapon too
         if collectible > 0 or enemy > 0:
             player_behaviours.append("score")                    # a HUD to read
         for behaviour in player_behaviours:
@@ -678,6 +686,14 @@ def compose_custom_game(
         for i in range(hazard):
             steps.append({"script_behaviour": {"object": f"Hazard_{i}", "behaviour": "killzone"}})
 
+    # 5b) wave spawners: elevated cubes that rain physics-cube hazards (survival-style)
+    if spawner:
+        steps.append({"tool": "unity_place_primitives", "kwargs": {
+            "type": "Cube", "count": spawner, "pattern": "circle",
+            "spacing": max(4.0, size / float(spawner)), "origin_y": 6.0, "name_prefix": "Spawner"}})
+        for i in range(spawner):
+            steps.append({"script_behaviour": {"object": f"Spawner_{i}", "behaviour": "spawner"}})
+
     # 6) an optional goal zone
     if goal:
         steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_y": 0.5, "position_z": size / 2.0}})
@@ -693,11 +709,13 @@ def compose_custom_game(
             steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
 
     spec = {"player": bool(player), "enemy": enemy, "collectible": collectible,
-            "hazard": hazard, "goal": bool(goal), "timer": bool(timer)}
+            "hazard": hazard, "goal": bool(goal), "timer": bool(timer),
+            "spawner": spawner, "ranged": bool(ranged)}
     parts = []
     if player:
-        parts.append("a player")
-    for label, c in (("enemies", enemy), ("collectibles", collectible), ("hazards", hazard)):
+        parts.append("a ranged player" if ranged else "a player")
+    for label, c in (("enemies", enemy), ("collectibles", collectible),
+                     ("hazards", hazard), ("wave spawners", spawner)):
         if c:
             parts.append(f"{c} {label}")
     if goal:
@@ -713,7 +731,7 @@ def compose_custom_game(
     }
     # an optional seed jitters the placed-element layout (deterministic), reusing the
     # same machinery the blueprints use; seed=None is a no-op (the plain plan)
-    return _apply_seed(plan, "custom", enemy + collectible + hazard, seed)
+    return _apply_seed(plan, "custom", enemy + collectible + hazard + spawner, seed)
 
 
 # Decorative (non-gameplay) scripted behaviours that give a scene "juice".

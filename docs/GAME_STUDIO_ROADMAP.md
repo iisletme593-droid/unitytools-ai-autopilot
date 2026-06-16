@@ -738,5 +738,13 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   `unity_assess_game`). All 11 shipped blueprints produce ZERO notes (no false positives -- a regression
   guard for future blueprints), while incoherent composer specs (e.g. player+timer, no enemies) get an
   honest note. +21 tests. 1069 passed. The studio can now critique a game, not just pass/fail it.
+- [x] **Composer element richness (cycle 78).** Two new optional elements on `compose_custom_game`,
+  reusing existing behaviours: `spawner` (int, clamped [0,20]) -> elevated wave spawners that rain
+  hazards (survival-style, playable on their own), and `ranged` (bool) -> the player also gets a `ranged`
+  weapon (auto-hits the nearest enemy). `parse_custom_spec` learns them (spawner/uretici/dalga/wave;
+  menzilli/nisan/ranged/tufek) and the keyword-less gate counts them as elements. The design critique
+  stays coherent across the new combos -- "ranged with no enemies" is flagged, spawner-only is clean and
+  playable, ranged+enemies is clean. Seed determinism extends to the new elements. Verified the spawner
+  words can't steal the horde preset ("dalga modu" -> horde). +7 tests. 1076 passed.
 
 > Check items off in this file as they land. Add new items as discovered.

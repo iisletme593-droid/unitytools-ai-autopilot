@@ -450,7 +450,7 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     seed_for_custom, lower_no_seed = extract_seed(lower)
     spec = parse_custom_spec(lower_no_seed)
     has_elements = bool(spec["enemy"] or spec["collectible"] or spec["hazard"]
-                        or spec["timer"] or spec["goal"])
+                        or spec["timer"] or spec["goal"] or spec["spawner"] or spec["ranged"])
     custom_framing = has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun",
                          "kendi oyun", "kendi oyunu", "karisik oyun", "kendine gore oyun")
     keywordless_custom = (build_verb and has_elements
@@ -1100,11 +1100,13 @@ _SPEC_ELEMENT_WORDS = {
     "enemy": ("dusman", "enemy", "enemies", "mob", "canavar"),
     "collectible": ("toplanabilir", "coin", "collectible", "altin", "elmas", "pickup"),
     "hazard": ("engel", "tuzak", "hazard", "tehlike", "diken"),
+    "spawner": ("spawner", "uretici", "dalga", "wave"),
 }
 # presence-only flags (no count) -> the compose_custom_game bool arg
 _SPEC_FLAG_WORDS = {
     "goal": ("hedef", "goal", "kapi"),
     "timer": ("sayac", "sure", "zaman", "countdown", "gerisayim", "kronometre"),
+    "ranged": ("menzilli", "nisan", "ranged", "tufek"),
 }
 
 

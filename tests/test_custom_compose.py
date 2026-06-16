@@ -84,7 +84,7 @@ def test_compose_player_only_is_an_honest_sandbox():
 def test_parse_counts_and_flags():
     spec = parse_custom_spec("ozel oyun: 5 dusman 3 toplanabilir ve bir sayac olsun")
     assert spec == {"player": True, "enemy": 5, "collectible": 3, "hazard": 0,
-                    "goal": False, "timer": True}
+                    "goal": False, "timer": True, "spawner": 0, "ranged": False}
 
 
 def test_parse_number_words_and_goal():
@@ -180,3 +180,57 @@ def test_compose_seed_is_deterministic_and_varies_layout():
     assert a != compose_custom_game(enemy=5, collectible=3)                # seeded differs from plain
     # a seeded compose is still valid + playable
     assert validate_plan(a)["ok"] is True and assess_game_readiness(a)["playable"] is True
+
+
+# --- cycle 78: spawner + ranged elements ------------------------------------
+
+def test_compose_spawners_are_wave_sources():
+    plan = compose_custom_game(player=True, spawner=3)
+    spw = [s["script_behaviour"]["object"] for s in plan["steps"]
+           if s.get("script_behaviour", {}).get("behaviour") == "spawner"]
+    assert spw == [f"Spawner_{i}" for i in range(3)]
+    # spawners make a playable survival-style game on their own, with no design notes
+    r = assess_game_readiness(plan)
+    assert r["playable"] is True and r["design_notes"] == []
+    assert plan["spec"]["spawner"] == 3
+
+
+def test_compose_ranged_gives_the_player_a_weapon():
+    plan = compose_custom_game(player=True, enemy=4, ranged=True)
+    assert "ranged" in _beh_of(plan, "Player")
+    assert plan["spec"]["ranged"] is True
+    assert assess_game_readiness(plan)["design_notes"] == []   # ranged + enemies is coherent
+
+
+def test_compose_ranged_without_enemies_is_flagged_by_the_critique():
+    plan = compose_custom_game(player=True, ranged=True)
+    notes = assess_game_readiness(plan)["design_notes"]
+    assert any("no enemies in range" in n for n in notes)
+
+
+def test_compose_new_elements_valid_playable_deterministic():
+    plan = compose_custom_game(player=True, enemy=3, ranged=True, spawner=2, seed="w")
+    assert validate_plan(plan)["ok"] is True
+    assert assess_game_readiness(plan)["playable"] is True
+    assert plan == compose_custom_game(player=True, enemy=3, ranged=True, spawner=2, seed="w")
+
+
+def test_compose_spawner_count_clamped():
+    assert compose_custom_game(spawner=99)["spec"]["spawner"] == 20
+
+
+def test_parse_recognizes_spawner_and_ranged():
+    spec = parse_custom_spec("ozel oyun 4 dusman menzilli ve 2 uretici")
+    assert spec["enemy"] == 4 and spec["spawner"] == 2 and spec["ranged"] is True
+
+
+def test_spawner_ranged_route_keywordless_without_stealing_horde():
+    def route(p):
+        s = plan_unity_fast_action(p)["steps"][0]
+        return (s["tool"], s["kwargs"].get("game_type"))
+    # a keyword-less spawner list composes...
+    t, _ = route("3 uretici olan oyun yap")
+    assert t == "unity_compose_game"
+    # ...but the horde preset ("dalga modu") is NOT stolen by the spawner word "dalga"
+    assert route("dalga modu oyunu kur") == ("unity_build_simple_game", "horde")
+    assert route("horde oyunu kur") == ("unity_build_simple_game", "horde")

@@ -943,3 +943,13 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   ZERO notes (no false positives -- a parametrized regression guard for future blueprints), while
   incoherent composer specs (player+timer with no enemies) get an honest note. Live-proved presets clean
   + edge cases critiqued + tool flow. Generate-only; deterministic. -- tests: 1069 passed
+- [cycle 78] Composer element richness: two new optional elements on compose_custom_game, reusing
+  existing behaviours. (1) spawner (int, clamped [0,20]) -> elevated wave spawners that rain hazards
+  (survival-style; playable on their own). (2) ranged (bool) -> the player also gets a `ranged` weapon
+  (auto-hits the nearest enemy). parse_custom_spec learns them (spawner/uretici/dalga/wave;
+  menzilli/nisan/ranged/tufek) and the keyword-less gate counts them as elements. The design critique
+  stays coherent across the new combos -- ranged-with-no-enemies is flagged, spawner-only is clean and
+  playable, ranged+enemies is clean. Seed determinism extends to the new elements (count includes
+  spawner). Verified the spawner word "dalga" can't steal the horde preset ("dalga modu" -> horde).
+  Updated the cycle-75 exact-spec parse test for the two new keys. Live-proved compose+parse+critique +
+  no preset theft. Generate-only; deterministic. -- tests: 1076 passed
