@@ -22,6 +22,15 @@ def test_health_source():
     assert '"HP: "' in src                                      # HP HUD
 
 
+def test_health_signals_a_gameover_manager_on_death():
+    # on death health tells a "GameManager" (by name, decoupled) so a win/lose
+    # screen can react; no-op when there is no manager (DontRequireReceiver)
+    src = generate_behaviour_script("health")["source"]
+    assert 'GameObject.Find("GameManager")' in src
+    assert 'SendMessage("PlayerDied"' in src
+    assert "DontRequireReceiver" in src
+
+
 def test_health_is_pure_ascii_and_balanced():
     src = generate_behaviour_script("health")["source"]
     assert all(ord(c) < 128 for c in src)

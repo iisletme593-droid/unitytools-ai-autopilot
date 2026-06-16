@@ -800,3 +800,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   win/bitis->goal aliases (verified those still map to goal). Pure ASCII, balanced; no NEEDS_SCRIPT
   behaviour left un-templated. GAME_STUDIO_GAMES.md scripted row + doc guard. +13 tests (5 horde
   integration + 8 gameover). Roadmap P13 section added. Generate-only; deterministic. — tests: 864 passed
+- [cycle 65] P13 step 2: wired win/lose into the combat games. `plan_arena_game` and `plan_horde_game`
+  now add a hidden `GameManager` cube (position_y=-10) running the `gameover` behaviour, so the game
+  actually ENDS: WIN once all Enemy-tagged objects are cleared, LOSE when the player dies. The lose path
+  is fully decoupled: the player's `health` Die() now does
+  `GameObject.Find("GameManager")?.SendMessage("PlayerDied", SendMessageOptions.DontRequireReceiver)`
+  before respawning/destroying — it finds the manager by NAME (no type reference) and is a no-op in games
+  without a manager (all the non-combat games, whose players carry no health anyway). The rest of health
+  (TakeDamage/Heal/respawn/HP HUD) is unchanged, so existing health tests still pass. arena and horde stay
+  valid/playable/deterministic (arena now 10 unique scripts, horde 12; the hidden manager adds one object
+  + one script). +5 tests (arena GameManager + 10-unique, horde GameManager, health-signals-PlayerDied).
+  Live-proved the full win (clear enemies) / lose (player death -> PlayerDied) loop. Generate-only;
+  deterministic. — tests: 867 passed

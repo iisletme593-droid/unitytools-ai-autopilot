@@ -46,6 +46,11 @@ def test_horde_is_an_interactive_behaviour():
     assert "horde" in INTERACTIVE_BEHAVIOURS
 
 
+def test_has_gameover_manager():
+    plan = plan_horde_game(4)
+    assert _beh_of(plan, "GameManager") == {"gameover"}      # win when all waves cleared
+
+
 def test_loot_scattered():
     plan = plan_horde_game(5)
     loot = [s["script_behaviour"]["object"] for s in plan["steps"]

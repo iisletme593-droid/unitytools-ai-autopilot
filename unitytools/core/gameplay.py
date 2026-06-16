@@ -527,6 +527,10 @@ public class __CLASS__ : MonoBehaviour
 
     void Die()
     {
+        // tell a game-state manager, if one is in the scene (decoupled: found by
+        // name, no hard reference; a no-op when there is no GameManager)
+        GameObject manager = GameObject.Find("GameManager");
+        if (manager != null) manager.SendMessage("PlayerDied", SendMessageOptions.DontRequireReceiver);
         if (destroyOnDeath)
         {
             Destroy(gameObject);

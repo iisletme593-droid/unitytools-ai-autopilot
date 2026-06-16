@@ -590,5 +590,15 @@ template that applies to all types). Title/menu UI and audio cues follow.
   Pure ASCII, balanced; no NEEDS_SCRIPT behaviour un-templated. GAMES.md row + doc guard. +8 tests.
   **Next:** wire `gameover` into the combat games (arena/horde manager object; player health death ->
   SendMessage PlayerDied) (cycle 65); then title/menu UI + audio.
+- [x] Win/lose wired into combat games (cycle 65): the arena and horde blueprints now add a hidden
+  `GameManager` cube (at y=-10) running the `gameover` behaviour, so the game ENDS — WIN when all
+  Enemy-tagged objects are cleared, LOSE when the player dies. The lose path is decoupled: the player's
+  `health` Die() now does `GameObject.Find("GameManager")?.SendMessage("PlayerDied", DontRequireReceiver)`
+  before respawning (finds the manager by NAME, no type reference; a no-op in games without a manager,
+  which is all the non-combat games — their players have no health anyway). Existing health behaviour
+  (TakeDamage/Heal/respawn/HUD) is unchanged. arena/horde stay valid/playable/deterministic (arena now
+  10 unique scripts, horde 12). +5 tests (arena/horde GameManager, health-signals-PlayerDied, updated
+  unique-script counts). **Next:** title/menu UI behaviour (AutopilotTitle: title + "Press Space to
+  start") + integration (cycle 66); audio cues; state review (cycle 67).
 
 > Check items off in this file as they land. Add new items as discovered.

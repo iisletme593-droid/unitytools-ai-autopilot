@@ -324,6 +324,11 @@ def plan_arena_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     for i in range(n):
         steps.append({"script_behaviour": {"object": f"Loot_{i}", "behaviour": "loot"}})
 
+    # 5) a hidden GameManager that ends the game: WIN when all enemies are cleared,
+    #    LOSE when the player dies (its health signals "PlayerDied" to this object)
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    steps.append({"script_behaviour": {"object": "GameManager", "behaviour": "gameover"}})
+
     return {
         "ok": True,
         "game": "arena",
@@ -382,6 +387,11 @@ def plan_horde_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     })
     for i in range(n):
         steps.append({"script_behaviour": {"object": f"Loot_{i}", "behaviour": "loot"}})
+
+    # 6) a hidden GameManager: WIN when all waves are cleared, LOSE when the player
+    #    dies (its health signals "PlayerDied" to this object)
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    steps.append({"script_behaviour": {"object": "GameManager", "behaviour": "gameover"}})
 
     return {
         "ok": True,
