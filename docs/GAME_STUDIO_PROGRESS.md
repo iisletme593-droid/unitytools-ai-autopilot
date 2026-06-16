@@ -886,3 +886,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   unity_game_catalog, an existing test). A `_BEHAVIOUR_CATEGORIES` drift guard asserts every unique
   MonoBehaviour class is categorized exactly once. Live-proved the full report (9 types, accurate feel
   membership, code-derived counts). Pure ASCII; generate-only; deterministic. +14 tests. — tests: 952 passed
+- [cycle 73] P14 10th game type: TOWER-DEFENSE, built ENTIRELY from existing blocks (no new behaviour,
+  pure recomposition). The trick: enemies' target is a stationary Base tagged Player + health -- the
+  existing enemy AI (FindWithTag Player) marches to it; when it falls -> SendMessage PlayerDied ->
+  gameover LOSE. Defended by a line of `ranged` towers (auto-target nearest Enemy) + a mobile hero
+  carrying the `player` controller (so the scene assesses playable) who is NOT tagged Player, so enemies
+  head for the base not the hero. WIN clears all enemies. New plan_tower_defense_game registered as
+  `tower_defense` (10th in BLUEPRINTS); towers scale max(2,(n+1)//2). Intent: detect_game_type +
+  wants_game route "tower defense / tower-defense / kule savunma / td" (distinct phrases + the "td"
+  token, can't steal other types -- verified arena/dodge/runner/collectathon unchanged). The
+  code-derived studio report + capabilities auto-grew to 10 game types (drift guard green; reuses only
+  existing behaviours so no new category). Docs: GAME_STUDIO.md (Nine->Ten + row) + GAME_STUDIO_GAMES.md
+  (game row + intent lines). Live-proved valid/playable/has_player/deterministic + the win/lose loops +
+  report growth. Generate-only; deterministic. -- tests: 985 passed

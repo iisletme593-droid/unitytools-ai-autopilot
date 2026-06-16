@@ -21,6 +21,7 @@ optionally builds) a complete playable game by composing the building blocks bel
 | `arena` | A blocky **brawler**: an armed player (health + attack + score) versus N enemies that chase and attack back (each with health) — mutual combat, no goal | "arena oyunu kur" / "dövüş oyunu yap" / "build me a brawler" |
 | `horde` | A **survival-brawler**: a fully-armed player (health/attack/ranged/xp/inventory) vs **escalating waves** of enemies from a central spawner + scattered loot | "horde oyunu kur" / "dalga modu" / "akın oyunu" / "survival brawler" |
 | `runner` | An **endless runner** (the first non-arena-style type): an **auto-running** player (forward +Z, A/D strafe, Space jump) + a distance **score** it feeds itself + N weaving `killzone` obstacles that snap you back to the start on touch. Endless — no goal/win, get as far as you can | "runner oyunu kur" / "endless runner yap" / "koşu oyunu" |
+| `tower_defense` | A **tower-defense**, all from existing blocks: enemies march to a **Base** (tagged Player + `health`, so the existing enemy AI targets it; it falls → **lose**), defended by a line of `ranged` **towers** (auto-target the nearest enemy) + a mobile **hero** (`player`+`attack`, not tagged Player so enemies ignore it). **Win** when all enemies are cleared. title/win-lose/sound | "tower defense oyunu kur" / "kule savunma yap" / "td oyunu" |
 
 `collectible_count` is the count of the main repeated element (collectibles / hazards /
 spawners / platforms / enemies). The blueprint registry is `core/game_blueprint.BLUEPRINTS`;
@@ -85,8 +86,8 @@ returns its source); none are stubs.
 `plan_unity_fast_action` (and the Unity fast-path) route these to a `unity_build_simple_game`
 plan automatically:
 
-- tr: "oyun kur", "oyun yap", "toplama oyunu", "dodge/kaçma oyunu", "sağ kalma / hayatta kalma oyunu", "platform / zıplama oyunu", "kovalamaca / takip oyunu", "labirent oyunu", "arena / dövüş / savaş oyunu", "horde / dalga modu / akın / survival brawler", "runner / koşu oyunu / endless", "oyun iskeleti"
-- en: "build me a game", "make a collectathon/dodge/survival/platformer/chase/maze/arena/horde/runner game"
+- tr: "oyun kur", "oyun yap", "toplama oyunu", "dodge/kaçma oyunu", "sağ kalma / hayatta kalma oyunu", "platform / zıplama oyunu", "kovalamaca / takip oyunu", "labirent oyunu", "arena / dövüş / savaş oyunu", "horde / dalga modu / akın / survival brawler", "runner / koşu oyunu / endless", "tower defense / kule savunma / td", "oyun iskeleti"
+- en: "build me a game", "make a collectathon/dodge/survival/platformer/chase/maze/arena/horde/runner/tower_defense game"
 
 A number in the prompt sets the count ("toplama oyunu yap 8 toplanabilir" → 8).
 

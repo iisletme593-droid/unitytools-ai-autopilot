@@ -256,8 +256,12 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     build_verb = has("kur", "olustur", "yap", "build", "create", "generate", "uret", "insa")
 
     def detect_game_type() -> str:
-        # runner first: its terms ("kosu/kosma/endless") are distinct from every other
-        # type, so an early return can't shadow anything (and "endless runner" is clear)
+        # tower-defense first: keyed on distinct multi-word phrases (+ the "td" token)
+        # so plain "savunma" / "tower" can't shadow it or be stolen by other intents
+        if has("tower defense", "tower-defense", "kule savunma", "kule savunmasi", "td"):
+            return "tower_defense"
+        # runner: its terms ("kosu/kosma/endless") are distinct from every other type,
+        # so an early return can't shadow anything (and "endless runner" is clear)
         if has("runner", "endless", "kosu oyunu", "kosma oyunu", "sonsuz kosu"):
             return "runner"
         if has("dodge", "kacma", "kacis"):
@@ -438,7 +442,8 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "maze", "labirent", "maze game", "labirent oyunu",
             "arena", "dovus", "brawler", "savas oyunu", "arena oyunu", "dovus oyunu",
             "horde", "akin oyunu", "dalga modu", "horde oyunu", "survival brawler",
-            "runner", "endless", "kosu oyunu", "kosma oyunu", "sonsuz kosu", "runner oyunu")
+            "runner", "endless", "kosu oyunu", "kosma oyunu", "sonsuz kosu", "runner oyunu",
+            "tower defense", "tower-defense", "kule savunma", "kule savunmasi", "td oyunu")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:

@@ -464,6 +464,91 @@ def plan_runner_game(obstacle_count: int = 8, arena_size: float = 20.0) -> dict[
     }
 
 
+def plan_tower_defense_game(enemy_count: int = 6, arena_size: float = 24.0) -> dict[str, Any]:
+    """Plan a tower-defense -- the 10th game type, all from existing building blocks.
+
+    The twist that makes the existing combat parts behave like a TD: the enemies'
+    target is a stationary BASE (tagged Player, so the existing enemy AI -- which
+    FindWithTag("Player") -- marches to it) carrying `health`; when the base falls it
+    SendMessages "PlayerDied" and the game is LOST. Defending it: a fixed line of
+    `ranged` towers (they already auto-target the nearest "Enemy") plus a mobile hero
+    (the `player` controller, so the scene has a controllable avatar and assesses as
+    playable) who is deliberately NOT tagged Player, so the enemies ignore the hero
+    and head for the base. WIN when every enemy is cleared (gameover). Reuses
+    health/player/attack/score/ranged/enemy/reward/title/gameover/sound -- no new
+    behaviour. Same step schema; the seed jitters the tower line and enemy wave.
+    """
+    n = max(1, min(int(enemy_count), 30))
+    towers = max(2, (n + 1) // 2)
+    size = max(8.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) the Base the enemies march to: tagged Player (so the enemy AI targets it) +
+    #    health -> when it falls it SendMessages "PlayerDied" and the game is LOST
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Base", "position_y": 0.5, "position_z": -size / 2.0}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Base", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Base", "behaviour": "health"}})
+
+    # 3) a mobile defender hero: WASD + a melee attack (hits "Enemy") + a score HUD.
+    #    Carries the player controller (so the scene has a controllable avatar and
+    #    assesses playable); NOT tagged Player, so the enemies head for the Base.
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Hero", "position_y": 0.5, "position_z": -size / 2.0 + 3.0}})
+    steps.append({"script_behaviour": {"object": "Hero", "behaviour": "player"}})
+    steps.append({"script_behaviour": {"object": "Hero", "behaviour": "attack"}})
+    steps.append({"script_behaviour": {"object": "Hero", "behaviour": "score"}})
+
+    # 4) defensive towers: a line of stationary pillars with a `ranged` auto-attack
+    #    (each already locks the nearest "Enemy" in range and damages it)
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Cylinder",
+            "count": towers,
+            "pattern": "line",
+            "spacing": max(3.0, size / float(towers)),
+            "name_prefix": "Tower",
+        },
+    })
+    for i in range(towers):
+        steps.append({"script_behaviour": {"object": f"Tower_{i}", "behaviour": "ranged"}})
+
+    # 5) the enemy wave: cubes tagged Enemy that march to the Base and can be killed
+    #    (enemy AI + reward = their HP, destroyed on death so WIN can trigger)
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Cube",
+            "count": n,
+            "pattern": "grid",
+            "spacing": max(2.0, size / float(n)),
+            "name_prefix": "Enemy",
+        },
+    })
+    for i in range(n):
+        steps.append({"tool": "unity_set_tag", "kwargs": {"name": f"Enemy_{i}", "tag": "Enemy"}})
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "enemy"}})
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "reward"}})
+
+    # 6) GameManager bookend: title start screen + gameover (WIN clear enemies / LOSE
+    #    base falls) + a sound cue
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    steps.append({"script_behaviour": {"object": "GameManager", "behaviour": "title"}})
+    steps.append({"script_behaviour": {"object": "GameManager", "behaviour": "gameover"}})
+    steps.append({"script_behaviour": {"object": "GameManager", "behaviour": "sound"}})
+
+    return {
+        "ok": True,
+        "game": "tower_defense",
+        "summary": f"Tower Defense: ground + a Base (enemies' target, lose if it falls) + a mobile hero + {towers} ranged towers + {n} marching enemies + title/win-lose/sound ({len(steps)} steps).",
+        "enemy_count": n,
+        "tower_count": towers,
+        "steps": steps,
+    }
+
+
 # Decorative (non-gameplay) scripted behaviours that give a scene "juice".
 DECOR_BEHAVIOURS = ["bob", "orbit", "rotate", "wander"]
 
@@ -609,6 +694,7 @@ BLUEPRINTS = {
     "arena": plan_arena_game,
     "horde": plan_horde_game,
     "runner": plan_runner_game,
+    "tower_defense": plan_tower_defense_game,
 }
 
 

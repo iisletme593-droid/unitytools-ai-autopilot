@@ -686,5 +686,15 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   drift guard test asserts every unique MonoBehaviour class is categorized exactly once, so adding a
   behaviour forces it into the report. +14 tests. 952 passed. The studio can now describe itself
   accurately and on demand.
+- [x] **Tower-defense -- the 10th game type (cycle 73)**, built ENTIRELY from existing blocks (no new
+  behaviour). The trick that makes the combat parts act like a TD: the enemies' target is a stationary
+  **Base** tagged Player + `health` -- the existing enemy AI (`FindWithTag("Player")`) marches to it,
+  and when it falls it SendMessages PlayerDied -> gameover **LOSE**. Defending it: a line of `ranged`
+  towers (already auto-target the nearest Enemy) + a mobile **hero** carrying the `player` controller
+  (so the scene assesses playable) who is deliberately NOT tagged Player, so enemies head for the base,
+  not the hero. **WIN** clears all enemies. `plan_tower_defense_game` registered as `tower_defense`
+  (10th in BLUEPRINTS); intent routes "tower defense / tower-defense / kule savunma / td" (distinct
+  phrases, can't steal other types). The code-derived studio report + capabilities auto-grew to 10
+  types (drift guard green; no new behaviour, no new category). +33 tests. 985 passed.
 
 > Check items off in this file as they land. Add new items as discovered.
