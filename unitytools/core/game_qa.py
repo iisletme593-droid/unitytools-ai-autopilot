@@ -50,13 +50,47 @@ def summarize_plan(plan: dict[str, Any]) -> dict[str, Any]:
     return {"object_count": object_count, "behaviour_counts": behaviour_counts}
 
 
+def critique_design(behaviour_counts: dict[str, int]) -> list[str]:
+    """An HONEST design critique derived purely from the plan's behaviour counts --
+    no simulation, no faked playtest. It flags coherence/balance gaps that a plan can
+    have even while being structurally "playable": a fight with no lose condition, a
+    win/lose manager with no way to win, a countdown you can't actually lose, an attack
+    with nothing to hit. Returns a list of plain-language notes (empty == no issues
+    found). The same reasoning the studio would use to review its own output.
+    """
+    c = behaviour_counts.get
+    enemy, health, attack = c("enemy", 0), c("health", 0), c("attack", 0)
+    timer, gameover, ranged = c("timer", 0), c("gameover", 0), c("ranged", 0)
+    notes: list[str] = []
+
+    if enemy > 0 and health == 0:
+        notes.append("enemies are present but nothing has health, so the player cannot be "
+                     "defeated -- the fight has no lose condition")
+    if enemy > 0 and attack == 0 and ranged == 0:
+        notes.append("the player faces enemies but has no attack, so they can only flee -- "
+                     "combat is one-sided")
+    if attack > 0 and enemy == 0:
+        notes.append("the player can attack but there are no enemies to fight")
+    if ranged > 0 and enemy == 0:
+        notes.append("a ranged attacker has no enemies in range to target")
+    if gameover > 0 and enemy == 0 and timer == 0:
+        notes.append("the win/lose manager has no WIN trigger (no enemies to clear and no "
+                     "survival timer) -- the game can only be lost")
+    if timer > 0 and (enemy == 0 or health == 0):
+        notes.append("the countdown can be outlasted but there is no combat lose path -- the "
+                     "game cannot actually be lost")
+    return notes
+
+
 def assess_game_readiness(plan: dict[str, Any]) -> dict[str, Any]:
     """Analyse a plan and judge whether it is a playable game. Pure, no bridge.
 
     Returns {ok, game, object_count, behaviour_counts, unique_scripts, has_player,
-    has_goal, has_score, collectible_count, hazard_count, playable, warnings}.
-    ``playable`` is True when there is a player AND at least one interactive element
-    (objective / threat / reactive motion). ``warnings`` lists what is missing.
+    has_goal, has_score, collectible_count, hazard_count, playable, warnings,
+    design_notes}. ``playable`` is True when there is a player AND at least one
+    interactive element (objective / threat / reactive motion). ``warnings`` lists
+    structural gaps; ``design_notes`` is the deeper design critique (see
+    ``critique_design``) -- coherence issues a structurally-playable game can still have.
     """
     steps = plan.get("steps", []) if isinstance(plan, dict) else []
     summary = summarize_plan(plan)
@@ -99,6 +133,7 @@ def assess_game_readiness(plan: dict[str, Any]) -> dict[str, Any]:
         "hazard_count": hazard_count,
         "playable": playable,
         "warnings": warnings,
+        "design_notes": critique_design(behaviour_counts),
     }
 
 

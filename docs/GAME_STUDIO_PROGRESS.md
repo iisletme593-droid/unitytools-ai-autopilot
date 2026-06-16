@@ -933,3 +933,13 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   deterministically (seed=None = plain plan); the intent extracts "tohum 7" via extract_seed and passes
   it through. Live-proved keyword-less '5 dusman 3 toplanabilir oyun yap'->compose + 7 presets untouched
   + seed determinism. +6 tests. Generate-only; deterministic. -- tests: 1048 passed
+- [cycle 77] State review -> built the DESIGN CRITIQUE (the studio reviewing its own output beyond
+  "is it playable"). critique_design(behaviour_counts) in game_qa.py is an HONEST linter derived purely
+  from the plan's counts (NO faked simulation): it flags coherence/balance gaps a structurally-playable
+  game can still have -- enemies but nothing with health (no lose condition), enemies but no player
+  attack (one-sided), an attack/ranged with no enemies to hit, a win/lose manager with no WIN trigger
+  (no enemies + no timer), a countdown with no combat lose path. Surfaced as a new design_notes key in
+  assess_game_readiness (so it flows through unity_assess_game too). All 11 shipped blueprints produce
+  ZERO notes (no false positives -- a parametrized regression guard for future blueprints), while
+  incoherent composer specs (player+timer with no enemies) get an honest note. Live-proved presets clean
+  + edge cases critiqued + tool flow. Generate-only; deterministic. -- tests: 1069 passed

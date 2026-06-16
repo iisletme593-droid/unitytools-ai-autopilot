@@ -729,5 +729,14 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   deterministically (seed=None is the plain plan); the intent extracts "tohum 7" via extract_seed and
   passes it through. +6 tests (keyword-less routing, broad preset-protection, seed determinism). 1048
   passed.
+- [x] **Design critique -- the studio reviews its own output (cycle 77).** State-review pick: an HONEST
+  design linter, `critique_design(behaviour_counts)`, derived purely from the plan's counts (no faked
+  simulation). It flags coherence/balance gaps a structurally-"playable" game can still have: enemies but
+  nothing with health (no lose condition), enemies but no player attack (one-sided), an attack/ranged
+  with no enemies to hit, a win/lose manager with no WIN trigger (no enemies + no timer), a countdown with
+  no combat lose path. Surfaced as `design_notes` in `assess_game_readiness` (and so in
+  `unity_assess_game`). All 11 shipped blueprints produce ZERO notes (no false positives -- a regression
+  guard for future blueprints), while incoherent composer specs (e.g. player+timer, no enemies) get an
+  honest note. +21 tests. 1069 passed. The studio can now critique a game, not just pass/fail it.
 
 > Check items off in this file as they land. Add new items as discovered.
