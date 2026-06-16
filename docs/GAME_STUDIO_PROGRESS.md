@@ -812,3 +812,12 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   + one script). +5 tests (arena GameManager + 10-unique, horde GameManager, health-signals-PlayerDied).
   Live-proved the full win (clear enemies) / lose (player death -> PlayerDied) loop. Generate-only;
   deterministic. — tests: 867 passed
+- [cycle 66] P13 step 3 — title / start screen. Added `title` -> AutopilotTitle to `core/gameplay.py`:
+  draws `titleText` (default "GAME") + "Press SPACE to start" centered via OnGUI, holds the game paused
+  until Space, then resumes and hides. Aliases title/başlık/menu/anaekran/başlangıç/startscreen.
+  **timeScale ordering conflict resolved:** gameover un-pauses (timeScale=1) in *Awake*; title pauses
+  (timeScale=0) in **Start** — Unity runs all Awakes before any Start, so title's Start always runs last
+  and the game reliably begins on the title screen even with a game-over manager present. No shared type
+  (decoupled). Pure ASCII, balanced; title row added to GAME_STUDIO_GAMES.md + doc-guard list. Kept
+  behaviour-only (not wired into a blueprint yet) to avoid retest churn. Live-proved the generated
+  AutopilotTitle.cs (ascii/balanced/no-Awake/aliases). Generate-only; deterministic. — tests: 879 passed

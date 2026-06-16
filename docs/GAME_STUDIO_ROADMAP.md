@@ -600,5 +600,18 @@ template that applies to all types). Title/menu UI and audio cues follow.
   10 unique scripts, horde 12). +5 tests (arena/horde GameManager, health-signals-PlayerDied, updated
   unique-script counts). **Next:** title/menu UI behaviour (AutopilotTitle: title + "Press Space to
   start") + integration (cycle 66); audio cues; state review (cycle 67).
+- [x] Title / start screen (cycle 66): `title` -> AutopilotTitle — a start screen. Draws `titleText`
+  (default "GAME") + "Press SPACE to start" centered via OnGUI, holds the game **paused** until Space,
+  then resumes (timeScale=1) and hides itself. Aliases title/başlık/menu/anaekran/başlangıç/startscreen.
+  **timeScale conflict resolved:** gameover sets `Time.timeScale = 1` in its *Awake* (un-pause after an
+  R-restart); a naive title would set 0 in Awake and race it (Unity's Awake order across objects is
+  undefined). Fix: title sets `timeScale = 0` in **Start**, not Awake — Unity runs *every* Awake before
+  *any* Start, so the title's Start always runs after gameover's Awake and the game reliably begins on
+  the title screen, paused. Both behaviours are fully decoupled (no shared type). Pure ASCII, balanced,
+  generate-only. title row added to GAME_STUDIO_GAMES.md scripted table + doc-guard generate list.
+  +12 tests (source/timeScale-in-Start/hide-after-start/ascii/aliases/registered/no-collision-with-gameover).
+  Kept behaviour-only this cycle (not wired into a blueprint) to avoid retest churn — wiring is a tiny
+  follow-up. **Next:** state review (cycle 67) — P13 game-feel now has win/lose + title; decide audio
+  cues vs. declaring P13 done and picking the next big goal (all-capabilities studio report / new type).
 
 > Check items off in this file as they land. Add new items as discovered.
