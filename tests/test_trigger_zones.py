@@ -33,6 +33,14 @@ def test_kill_zone_source():
     assert "other.transform.position = spawnPoint" in src
 
 
+def test_kill_zone_emits_a_decoupled_hit_cue():
+    # on a hit it SendMessages "PlayCue" to the PLAYER (not itself), so a player that
+    # carries an AutopilotSound beeps; a no-op for players without one (the default)
+    src = generate_behaviour_script("killzone")["source"]
+    assert 'other.SendMessage("PlayCue"' in src
+    assert "DontRequireReceiver" in src
+
+
 @pytest.mark.parametrize("alias,cls", [
     ("toplanabilir", "AutopilotCollectible"),
     ("coin", "AutopilotCollectible"),

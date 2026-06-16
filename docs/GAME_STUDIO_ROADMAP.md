@@ -644,6 +644,15 @@ template that applies to all types). Title/menu UI and audio cues follow.
   Kept behaviour-only this cycle (wiring into a game is a small follow-up). **This closes P13's audio
   item honestly — P13 game-feel is fully complete: win/lose + title + sound.**
 
+- [x] **Runner polished to a full-feel game (cycle 71).** Brought the P13 feel loop into a non-combat
+  game. `plan_runner_game` now (a) adds a `sound` cue to the player and a hidden `GameManager` running
+  `title`, so the run **begins paused on a title screen** (Space starts) and (b) the `killzone` template
+  now `other.SendMessage("PlayCue", 200f, DontRequireReceiver)` on a hit — so hitting an obstacle
+  **beeps** (the player carries a sound) before snapping back to start. The killzone change is decoupled
+  and a no-op for every other game (dodge/chase/arena players have no sound) — all verified still
+  valid/playable/deterministic. +2 tests (title-screen, killzone-hit-cue), updated player-set test.
+  938 passed. The runner now has title -> auto-run + score -> hit = sound + restart.
+
 ### P14 — Broaden the studio (next)
 With the full per-game feel loop done (title -> play -> win/lose, + a procedural sound cue), the next
 arc widens coverage rather than depth. Candidates, pick highest-value per cycle:

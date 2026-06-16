@@ -865,3 +865,12 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   (header Five->Nine) + GAME_STUDIO_GAMES.md (game + behaviour tables + intent lines) + doc-guard list.
   Live-proved plan_game('runner') valid/playable/deterministic + NL intent for 4 phrasings. +43 tests.
   Generate-only; deterministic. -- tests: 935 passed
+- [cycle 71] Polished the runner to a full-feel game (the P13 feel loop, now in a non-combat game).
+  plan_runner_game now adds a `sound` cue to the player + a hidden GameManager running `title`, so the
+  run BEGINS PAUSED on a title screen (Space starts). The `killzone` template now
+  other.SendMessage("PlayCue", 200f, DontRequireReceiver) on a hit, so hitting an obstacle BEEPS (the
+  runner player carries a sound) before snapping back to start. The killzone change is decoupled and a
+  no-op for every other game (dodge/chase/arena players have no sound) — all verified still
+  valid/playable/deterministic. Live-proved runner Player={runner,score,sound}, GameManager={title},
+  killzone emits the cue, dodge/chase/arena intact. +2 tests (title-screen, killzone-hit-cue), updated
+  player-set test. Generate-only; deterministic. — tests: 938 passed

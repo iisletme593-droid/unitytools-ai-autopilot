@@ -433,11 +433,13 @@ def plan_runner_game(obstacle_count: int = 8, arena_size: float = 20.0) -> dict[
     # 1) ground
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
 
-    # 2) player at the start: auto-runs forward (+ a distance score HUD it feeds)
+    # 2) player at the start: auto-runs forward, feeds a distance score HUD, and carries
+    #    a sound cue so an obstacle hit beeps (killzone SendMessages "PlayCue" to it)
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
     steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "runner"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "score"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "sound"}})
 
     # 3) a weaving lane of killzone obstacles ahead (each snaps the player to start on touch)
     for i in range(n):
@@ -448,10 +450,15 @@ def plan_runner_game(obstacle_count: int = 8, arena_size: float = 20.0) -> dict[
                                  "position_z": oz, "position_x": ox}})
         steps.append({"script_behaviour": {"object": f"Obstacle_{i}", "behaviour": "killzone"}})
 
+    # 4) a hidden GameManager with a title/start screen: the run begins paused on the
+    #    title and starts on Space (title pauses in Start; position is irrelevant for it)
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    steps.append({"script_behaviour": {"object": "GameManager", "behaviour": "title"}})
+
     return {
         "ok": True,
         "game": "runner",
-        "summary": f"Runner: ground + auto-running player (distance score) + {n} weaving killzone obstacles ({len(steps)} steps).",
+        "summary": f"Runner: ground + auto-running player (distance score + hit sound) + {n} weaving killzone obstacles + title screen ({len(steps)} steps).",
         "obstacle_count": n,
         "steps": steps,
     }

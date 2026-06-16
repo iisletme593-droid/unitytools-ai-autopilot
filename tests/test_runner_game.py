@@ -66,12 +66,19 @@ def test_registered_as_ninth_game():
     assert len(BLUEPRINTS) >= 9
 
 
-def test_player_auto_runs_and_scores_distance():
+def test_player_auto_runs_scores_distance_and_carries_a_hit_sound():
     plan = plan_runner_game(6)
-    assert _beh_of(plan, "Player") == {"runner", "score"}       # auto-run + distance HUD
+    # auto-run + distance HUD + a sound cue so an obstacle hit beeps (killzone -> PlayCue)
+    assert _beh_of(plan, "Player") == {"runner", "score", "sound"}
     tags = {s["kwargs"]["tag"] for s in plan["steps"] if s.get("tool") == "unity_set_tag"
             and s["kwargs"]["name"] == "Player"}
     assert tags == {"Player"}
+
+
+def test_runner_opens_on_a_title_screen():
+    plan = plan_runner_game(6)
+    # a hidden GameManager runs the title start screen (run begins paused, Space starts)
+    assert _beh_of(plan, "GameManager") == {"title"}
 
 
 def test_obstacles_are_killzones_along_the_track():

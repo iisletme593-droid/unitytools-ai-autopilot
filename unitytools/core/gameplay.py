@@ -302,6 +302,8 @@ public class __CLASS__ : MonoBehaviour
         {
             Debug.Log("Player died - respawning.");
             other.transform.position = spawnPoint;
+            // decoupled hit cue: plays only if the player carries an AutopilotSound
+            other.SendMessage("PlayCue", 200f, SendMessageOptions.DontRequireReceiver);
         }
     }
 }
