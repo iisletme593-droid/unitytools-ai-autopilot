@@ -656,8 +656,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   stay valid/playable/deterministic. The end of a combat game now has audio feedback. +1 test
   (gameover-fires-sound), updated manager-set + unique-count tests. 892 passed. `sound` is no longer
   an orphan — it mirrors how `title` got wired in cycle 67.
-- [ ] A fresh **game type** (9th blueprint) — e.g. a tower-defense, a runner, or a twin-stick shooter,
-  reusing the existing combat/spawner/score/gameover building blocks.
+- [x] A fresh **game type** — the **endless runner** (9th blueprint, cycle 70). The first type that
+  ISN'T arena/collectathon-style, so it's a real variety addition. New `runner` behaviour
+  (AutopilotRunner): auto-runs the player FORWARD (+Z), A/D strafe, Space jump (gravity arc, no
+  Rigidbody), and feeds its own distance score via a decoupled `SendMessage("AddScore", 1)` each
+  second (no-op without a score HUD). `plan_runner_game` lays a weaving lane of `killzone` obstacles
+  (each snaps the player to the start on touch) — endless, so no goal/gameover. `_apply_seed` now also
+  shifts `Obstacle_` lanes laterally (forward spacing kept), so seeds vary the weave. Intent:
+  `detect_game_type` returns runner for runner/endless/koşu/koşma/sonsuz koşu (distinct terms, can't
+  shadow others — "koşma" is NOT read as dodge's "kaçma"). Brittle exact-count tests loosened
+  (`len(BLUEPRINTS) >= 8`, capabilities count is now code-derived). +43 tests. 935 passed.
 - [ ] A consolidated **"studio capabilities" report / landing refresh** reflecting all 8 (9?) types +
   the full feel loop + persistence + procedural/seeded layout, code-derived so it can't drift.
 

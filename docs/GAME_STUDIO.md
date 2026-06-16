@@ -9,7 +9,7 @@ This page is the one-screen tour; every section links to the deep doc.
 
 ## What it makes
 
-Five playable game types, each composed from the same gameplay building blocks:
+Nine playable game types, each composed from the same gameplay building blocks:
 
 | game_type | One-liner |
 |-----------|-----------|
@@ -21,6 +21,7 @@ Five playable game types, each composed from the same gameplay building blocks:
 | `maze` | Escape a deterministic, always-solvable procedural labyrinth (seeded) |
 | `arena` | A blocky brawler: an armed player (health + attack) vs N enemies that chase and attack back |
 | `horde` | A survival-brawler: a fully-armed player vs escalating waves of enemies from a central spawner |
+| `runner` | An endless runner: an auto-running player dodging a weaving lane of obstacles, distance is the score |
 
 Plus **living scenes** — decorative `bob`/`orbit`/`rotate`/`wander` motion as scene juice (not a game).
 

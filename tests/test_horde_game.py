@@ -17,10 +17,10 @@ def _beh_of(plan, obj):
             if s.get("script_behaviour", {}).get("object") == obj}
 
 
-def test_registered_as_eighth_game():
+def test_registered_in_catalog():
     assert "horde" in BLUEPRINTS
     assert plan_game("horde", 4)["game"] == "horde"
-    assert len(BLUEPRINTS) == 8
+    assert len(BLUEPRINTS) >= 8           # horde was the 8th; more types may follow
 
 
 def test_player_is_fully_armed():

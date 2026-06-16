@@ -852,3 +852,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   deterministic. Live-proved the manager set {title,gameover,sound} + gameover firing 2 PlayCue sends +
   validity/determinism. +1 test (gameover-fires-sound), updated manager-set + unique-count tests.
   Generate-only; deterministic. — tests: 892 passed
+- [cycle 70] P14 9th game type: the ENDLESS RUNNER -- the first non-arena/collectathon-style type, a
+  real variety addition. New `runner` behaviour (AutopilotRunner): auto-runs the player FORWARD (+Z),
+  A/D strafe, Space jump (gravity arc, no Rigidbody), and feeds its own distance score via a decoupled
+  SendMessage("AddScore", 1) each second (no-op without a score HUD). New `plan_runner_game` blueprint
+  (9th in BLUEPRINTS): ground + auto-running player (runner+score) + N weaving `killzone` obstacles that
+  snap the player to start on touch. Endless -- no goal/gameover. `_apply_seed` now also shifts
+  Obstacle_ lanes laterally (forward spacing intact) so seeds vary the weave. Intent: detect_game_type
+  returns runner for runner/endless/kosu/kosma/sonsuz kosu (distinct terms; "kosma" is NOT read as
+  dodge). game_qa `has_player` now also recognizes the `runner` controller. Brittle exact-count tests
+  loosened (len(BLUEPRINTS) >= 8; capabilities count code-derived). Docs: runner rows in GAME_STUDIO.md
+  (header Five->Nine) + GAME_STUDIO_GAMES.md (game + behaviour tables + intent lines) + doc-guard list.
+  Live-proved plan_game('runner') valid/playable/deterministic + NL intent for 4 phrasings. +43 tests.
+  Generate-only; deterministic. -- tests: 935 passed

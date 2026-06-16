@@ -415,6 +415,48 @@ def plan_horde_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     }
 
 
+def plan_runner_game(obstacle_count: int = 8, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan an endless runner: the first non-arena-style game type.
+
+    The player auto-runs FORWARD (the `runner` behaviour) and dodges a weaving lane
+    of obstacles by strafing (A/D) and jumping (Space). Distance is the score: the
+    runner SendMessages "AddScore" each second to its own `score` HUD (decoupled).
+    Each obstacle is a `killzone` trigger — touching one snaps the player back to the
+    start (lose your run), so the goal is to get as far as possible. Endless: there is
+    no win condition, so no goal/gameover. Same return schema as the other blueprints.
+    """
+    n = max(1, min(int(obstacle_count), 50))
+    gap = max(3.0, float(arena_size) / 4.0)   # spacing between obstacles along the track
+    lanes = (-2.5, 0.0, 2.5)                   # deterministic weave; seed can shift it
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) player at the start: auto-runs forward (+ a distance score HUD it feeds)
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "runner"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "score"}})
+
+    # 3) a weaving lane of killzone obstacles ahead (each snaps the player to start on touch)
+    for i in range(n):
+        oz = (i + 1) * gap
+        ox = lanes[i % len(lanes)]
+        steps.append({"tool": "unity_create_primitive",
+                      "kwargs": {"type": "Cube", "name": f"Obstacle_{i}", "position_y": 0.5,
+                                 "position_z": oz, "position_x": ox}})
+        steps.append({"script_behaviour": {"object": f"Obstacle_{i}", "behaviour": "killzone"}})
+
+    return {
+        "ok": True,
+        "game": "runner",
+        "summary": f"Runner: ground + auto-running player (distance score) + {n} weaving killzone obstacles ({len(steps)} steps).",
+        "obstacle_count": n,
+        "steps": steps,
+    }
+
+
 # Decorative (non-gameplay) scripted behaviours that give a scene "juice".
 DECOR_BEHAVIOURS = ["bob", "orbit", "rotate", "wander"]
 
@@ -559,6 +601,7 @@ BLUEPRINTS = {
     "maze": plan_maze_game,
     "arena": plan_arena_game,
     "horde": plan_horde_game,
+    "runner": plan_runner_game,
 }
 
 
@@ -597,6 +640,10 @@ def _apply_seed(plan: dict[str, Any], game_type: str, count: int, seed: object) 
             # lateral shift only — keep position_y / position_z (the climb) intact
             last_platform_x = round(rng.uniform(-2.5, 2.5), 3)
             step["kwargs"]["position_x"] = last_platform_x
+        elif tool == "unity_create_primitive" and str(step["kwargs"].get("name", "")).startswith("Obstacle_"):
+            # a runner's track: shift each obstacle laterally (within strafe range) so the
+            # weave differs per seed; position_z (the forward spacing) is left intact
+            step["kwargs"]["position_x"] = round(rng.uniform(-2.5, 2.5), 3)
 
     # keep a platformer's goal sitting on the highest platform after the x-shift
     for step in plan.get("steps", []):

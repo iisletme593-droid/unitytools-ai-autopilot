@@ -58,6 +58,8 @@ def test_other_game_intents_unchanged():
     assert _kw("toplama oyunu yap")["game_type"] == "collectathon"
 
 
-def test_capabilities_summary_lists_horde_and_eight_games():
+def test_capabilities_summary_lists_horde_and_all_games():
+    from unitytools.core.game_blueprint import BLUEPRINTS
     text = build_game_capabilities_summary()
-    assert "horde" in text and "8 playable game types" in text
+    # code-derived count, so it can't drift as new game types are added
+    assert "horde" in text and f"{len(BLUEPRINTS)} playable game types" in text

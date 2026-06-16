@@ -64,7 +64,9 @@ def assess_game_readiness(plan: dict[str, Any]) -> dict[str, Any]:
     behaviour_counts = summary["behaviour_counts"]
     unique_scripts = len(group_execution_plan(steps)["script_behaviours"])
 
-    has_player = behaviour_counts.get("player", 0) > 0
+    # a "player" is anything that gives the user a controllable avatar: the WASD
+    # `player` controller or the endless-runner's auto-run `runner` controller
+    has_player = behaviour_counts.get("player", 0) > 0 or behaviour_counts.get("runner", 0) > 0
     has_goal = behaviour_counts.get("goal", 0) > 0
     has_score = behaviour_counts.get("score", 0) > 0
     collectible_count = behaviour_counts.get("collectible", 0)

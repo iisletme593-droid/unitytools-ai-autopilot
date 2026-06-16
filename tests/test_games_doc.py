@@ -9,7 +9,7 @@ import re
 import unitytools.tools  # noqa: F401 - register all tools
 from unitytools.core.tool_registry import get_all_tools
 from unitytools.core.game_blueprint import BLUEPRINTS
-from unitytools.core.gameplay import GAMEPLAY_BEHAVIOURS, generate_behaviour_script
+from unitytools.core.gameplay import GAMEPLAY_BEHAVIOURS, generate_behaviour_script, _SCRIPT_TEMPLATES
 
 DOC = pathlib.Path(__file__).resolve().parents[1] / "docs" / "GAME_STUDIO_GAMES.md"
 TEXT = DOC.read_text(encoding="utf-8")
@@ -35,9 +35,22 @@ def test_documented_physics_behaviours_exist():
         assert b in GAMEPLAY_BEHAVIOURS
 
 
+def test_every_generated_source_is_pure_ascii_and_balanced():
+    # generated C# must be pure ASCII (a stray em-dash in a comment broke this in the
+    # killzone template for ~50 cycles); a global guard so no template can regress
+    for behaviour in sorted(_SCRIPT_TEMPLATES):
+        src = generate_behaviour_script(behaviour)["source"]
+        nonascii = [hex(ord(c)) for c in src if ord(c) >= 128]
+        assert nonascii == [], f"{behaviour} source has non-ASCII chars: {nonascii}"
+        assert src.count("{") == src.count("}"), f"{behaviour} has unbalanced braces"
+        assert src.count("(") == src.count(")"), f"{behaviour} has unbalanced parens"
+        assert "__" not in src, f"{behaviour} has unsubstituted placeholders"
+
+
 def test_documented_scripted_behaviours_generate():
     for b in ("rotate", "move", "player", "collectible", "goal", "killzone", "spawner", "score",
               "bob", "bounce", "patrol", "follow", "chase", "orbit", "wander", "health", "attack",
-              "enemy", "xp", "reward", "loot", "inventory", "ranged", "horde", "gameover", "title", "sound"):
+              "enemy", "xp", "reward", "loot", "inventory", "ranged", "horde", "gameover", "title", "sound",
+              "runner"):
         assert b in TEXT
         assert generate_behaviour_script(b)["ok"] is True
