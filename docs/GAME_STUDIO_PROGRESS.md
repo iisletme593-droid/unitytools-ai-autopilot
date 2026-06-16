@@ -990,3 +990,13 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   (3 wins @880 + 1 lose @160) -- updated that test. Docs Eleven->Twelve + rows; detector in doc-guard +
   drift category; report auto-grew to 12. Live-proved the detector.cs + win/lose loop + all-clean
   critique + report. Generate-only; deterministic. -- tests: 1150 passed
+- [cycle 82] State review (health check green) -> CAMPAIGN + PERSISTENCE, completing the campaign story
+  (parallel to cycle 79's composer+persistence). New unity_save_campaign(game_type, levels, name, seed):
+  plans an increasing-difficulty campaign and writes each level as <name>_L1.json .. <name>_LN.json
+  (path-traversal-guarded via the existing save_plan_to_file), so the whole progression reloads + builds
+  level by level. A campaign-save sub-branch in the save intent routes "X kampanyasini Y olarak kaydet"
+  / "3 seviyeli arena kampanyasini kaydet" there, checked FIRST in the save branch so a plain preset
+  save ("dodge oyununu kaydet"), a composed save ("ozel oyunu X kaydet"), a bare named save ("kaydet
+  boss"), and a campaign PLAN ("arena kampanyasi kur", no kaydet) are all unaffected. Live-proved the
+  full flow (plan campaign -> save L1..L3 -> list -> reload L2 == original; difficulty climbs 2/4/6) +
+  intent routing with no theft. +6 tests. Generate-only; deterministic. -- tests: 1156 passed

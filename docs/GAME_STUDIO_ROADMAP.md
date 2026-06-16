@@ -778,5 +778,14 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   enemy/timer is now coherent, not "can only be lost"); all 12 blueprints stay clean. Intent routes
   stealth/gizlilik/gizli gec/sneak. Docs (Eleven->Twelve + rows), drift/ASCII guards green; report
   auto-grew to 12. +41 tests. 1150 passed.
+- [x] **Campaign + persistence (cycle 82, state review).** Health check first, then completed the
+  campaign story (parallel to cycle 79's composer+persistence). `unity_save_campaign(game_type, levels,
+  name, seed)` plans an increasing-difficulty campaign and writes each level as `<name>_L1.json ..
+  <name>_LN.json` (path-traversal-guarded via the existing save_plan_to_file), so the whole progression
+  can be reloaded and built level by level. A campaign-save sub-branch in the save intent routes "X
+  kampanyasini Y olarak kaydet" / "3 seviyeli arena kampanyasini kaydet" there, checked FIRST in the
+  save branch so a plain preset save ("dodge oyununu kaydet"), a composed save ("ozel oyunu X kaydet"),
+  and a campaign PLAN ("arena kampanyasi kur", no "kaydet") are all unaffected. +6 tests. 1156 passed.
+  The studio can now keep a whole progression, not just one game.
 
 > Check items off in this file as they land. Add new items as discovered.

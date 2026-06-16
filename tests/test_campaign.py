@@ -92,3 +92,46 @@ def test_campaign_does_not_steal_build_or_variations():
     assert tool("arena oyunu kur") == "unity_build_simple_game"      # plain build unaffected
     assert tool("arena varyasyonlari goster") == "unity_game_variations"
     assert tool("dodge oyunu yap") == "unity_build_simple_game"
+
+
+# --- cycle 82: saving a whole campaign --------------------------------------
+
+def test_campaign_levels_save_and_reload(tmp_path):
+    from unitytools.core.game_io import (save_plan_to_file, load_plan_from_file,
+                                         list_saved_games)
+    camp = plan_campaign("arena", 3, seed="c")
+    for lv in camp["levels"]:
+        save_plan_to_file(lv["plan"], f"boss_L{lv['level']}", root=tmp_path)
+    assert list_saved_games(root=tmp_path) == ["boss_L1", "boss_L2", "boss_L3"]
+    l2 = load_plan_from_file("boss_L2", root=tmp_path)
+    assert validate_plan(l2)["ok"] is True
+    assert assess_game_readiness(l2)["playable"] is True
+    assert l2 == camp["levels"][1]["plan"]          # exact reload of level 2
+
+
+def test_save_campaign_tool_is_registered():
+    assert {t.name for t in get_all_tools()} >= {"unity_save_campaign"}
+
+
+@pytest.mark.parametrize("prompt,gt,name,levels", [
+    ("arena kampanyasini boss olarak kaydet", "arena", "boss", 3),
+    ("3 seviyeli dodge kampanyasini kaydet", "dodge", "dodge_campaign", 3),
+    ("5 seviyeli horde kampanyasini zindan olarak kaydet", "horde", "zindan", 5),
+])
+def test_campaign_save_intent_routes(prompt, gt, name, levels):
+    step = plan_unity_fast_action(prompt)["steps"][0]
+    assert step["tool"] == "unity_save_campaign", prompt
+    assert step["kwargs"]["game_type"] == gt
+    assert step["kwargs"]["name"] == name
+    assert step["kwargs"]["levels"] == levels
+
+
+def test_campaign_save_does_not_steal_other_saves():
+    def tool(p):
+        return plan_unity_fast_action(p)["steps"][0]["tool"]
+    # a plain preset save, a composed save, and a bare named save are all unaffected
+    assert tool("dodge oyununu kaydet") == "unity_save_game"
+    assert tool("ozel oyunu boss olarak kaydet") == "unity_save_composed_game"
+    assert tool("kaydet boss") == "unity_save_game"
+    # and planning a campaign (no "kaydet") still plans, not saves
+    assert tool("arena kampanyasi kur") == "unity_plan_campaign"

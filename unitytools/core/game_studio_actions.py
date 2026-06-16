@@ -353,6 +353,30 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     # even without an explicit "oyun"/"game" word ("kaydet boss").
     save_name = extract_game_name(lower)
     if has("kaydet", "save") and (game_context or save_name):
+        # (a-campaign) save a whole campaign: "X kampanyasini Y olarak kaydet" / "3
+        # seviyeli arena kampanyasini kaydet" -> save all N levels as <name>_L1.._LN.
+        # Checked first so the campaign words beat the composed/preset save below.
+        _camp_level = re.search(r"(\d{1,2})\s*(?:seviye|level)", lower)
+        if has("kampanya", "campaign") or _camp_level:
+            gt = detect_game_type()
+            levels = max(1, min(int(_camp_level.group(1)), 10)) if _camp_level else 3
+            camp_seed, _ = extract_seed(lower)
+            kwargs = {"game_type": gt, "levels": levels, "name": save_name or f"{gt}_campaign"}
+            if camp_seed:
+                kwargs["seed"] = camp_seed
+            return {
+                "ok": True,
+                "engine": "unity",
+                "steps": [{
+                    "tool": "unity_save_campaign",
+                    "kwargs": kwargs,
+                    "write": True,
+                    "note": f"save a {levels}-level {gt} campaign to disk as '{kwargs['name']}_L1..L{levels}' (writes files; no scene change)",
+                }],
+                "safety_notes": ["writes save files to the games directory; no scene changes"],
+                "reason": f"campaign-save intent -> {levels}-level {gt} as '{kwargs['name']}'",
+            }
+
         # (a0) composed save: a custom/freeform creation -> save the composed plan, not
         # a preset. Same safe gate as the composer intent (explicit "ozel/custom" framing
         # OR a freeform element list with no preset matched), so "dodge oyununu kaydet"

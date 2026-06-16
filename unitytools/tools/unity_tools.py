@@ -1388,6 +1388,24 @@ def unity_save_composed_game(name: str = "", player: bool = True, enemy: int = 0
         return {"ok": False, "error": str(e)}
 
 
+@tool(description="Save a whole multi-level CAMPAIGN to disk (no scene change, no bridge): plans an increasing-difficulty campaign of `levels` levels of game_type and writes each level as <name>_L1.json .. <name>_LN.json (names sanitized; path-traversal-guarded), so the progression can be reloaded and built level by level. For 'X kampanyasini Y olarak kaydet'. Returns {ok, name, game_type, level_count, saved:[names]} or {ok: False, error}.")
+def unity_save_campaign(game_type: str = "collectathon", levels: int = 3,
+                        name: str = "", seed: str = "") -> dict:
+    from ..core.game_blueprint import plan_campaign
+    from ..core.game_io import save_plan_to_file
+    camp = plan_campaign(game_type, levels=levels, seed=seed or None)
+    base = name or f"{camp['game_type']}_campaign"
+    saved = []
+    try:
+        for lv in camp["levels"]:
+            res = save_plan_to_file(lv["plan"], f"{base}_L{lv['level']}")
+            saved.append(res["name"])
+    except (ValueError, OSError) as e:
+        return {"ok": False, "error": str(e), "saved": saved}
+    return {"ok": True, "name": base, "game_type": camp["game_type"],
+            "level_count": camp["level_count"], "saved": saved}
+
+
 @tool(description="Load a previously saved game from disk by name (no scene change, no bridge): returns its PLAN only (does not build it — call unity_build_simple_game/the executor to build). Returns {ok, plan, game, step_count} or {ok: False, error}.")
 def unity_load_game(name: str = "") -> dict:
     from ..core.game_io import load_plan_from_file
