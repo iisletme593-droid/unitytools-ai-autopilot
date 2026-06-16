@@ -269,6 +269,12 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         # horde BEFORE survival so "survival brawler" -> horde, not survival
         if has("horde", "dalga modu", "akin", "survival brawler"):
             return "horde"
+        # time_survival BEFORE survival: keyed on time-specific phrases so plain
+        # "hayatta kal / survival" still routes to survival, but "outlast the clock"
+        # variants ("zamana karsi", "sureli hayatta kalma") win the countdown game
+        if has("zamana karsi", "survive the clock", "sureli hayatta", "sureli sag kalma",
+               "time survival", "time-survival", "gerisayim oyunu", "sayac oyunu"):
+            return "time_survival"
         if has("survival", "survive", "sag kalma", "hayatta kal"):
             return "survival"
         if has("platformer", "platform", "zipla oyunu", "ziplama oyunu", "jump game"):
@@ -443,7 +449,8 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "arena", "dovus", "brawler", "savas oyunu", "arena oyunu", "dovus oyunu",
             "horde", "akin oyunu", "dalga modu", "horde oyunu", "survival brawler",
             "runner", "endless", "kosu oyunu", "kosma oyunu", "sonsuz kosu", "runner oyunu",
-            "tower defense", "tower-defense", "kule savunma", "kule savunmasi", "td oyunu")
+            "tower defense", "tower-defense", "kule savunma", "kule savunmasi", "td oyunu",
+            "zamana karsi", "survive the clock", "sureli hayatta", "time survival", "gerisayim oyunu")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:

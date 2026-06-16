@@ -696,5 +696,17 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   (10th in BLUEPRINTS); intent routes "tower defense / tower-defense / kule savunma / td" (distinct
   phrases, can't steal other types). The code-derived studio report + capabilities auto-grew to 10
   types (drift guard green; no new behaviour, no new category). +33 tests. 985 passed.
+- [x] **`timer` mechanic + time_survival -- the 11th game type (cycle 74).** First new MECHANIC since
+  the feel loop: `timer` (AutopilotTimer) counts a `duration` down, draws the remaining seconds, and on
+  zero fires a decoupled `SendMessage("Survived")` (freezes while paused, since it reads Time.deltaTime).
+  `gameover` gains a `Survived()` WIN hook (mirrors PlayerDied but Won=true), so an "outlast the clock"
+  game is won by surviving -- the existing enemy-clear WIN and PlayerDied LOSE still work, Survived is a
+  third end path. `plan_time_survival_game` (11th type): armed player vs N enemies + a GameManager
+  running title+gameover+sound+timer; WIN by surviving the countdown (or clearing enemies), LOSE on
+  death. Distinct from `survival` (which never ends). Intent routes time-specific phrases ("zamana
+  karsi / sureli hayatta kalma / survive the clock") BEFORE survival, so plain "hayatta kal / survival"
+  still routes to survival. timer added to `_BEHAVIOUR_CATEGORIES` (game feel) so the report drift guard
+  stays green; report auto-grew to 11 types. Caught + avoided an alias collision (`sayac` stays score).
+  +40 tests. 1025 passed (crossed 1000).
 
 > Check items off in this file as they land. Add new items as discovered.

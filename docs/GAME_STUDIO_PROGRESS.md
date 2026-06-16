@@ -899,3 +899,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   existing behaviours so no new category). Docs: GAME_STUDIO.md (Nine->Ten + row) + GAME_STUDIO_GAMES.md
   (game row + intent lines). Live-proved valid/playable/has_player/deterministic + the win/lose loops +
   report growth. Generate-only; deterministic. -- tests: 985 passed
+- [cycle 74] P14 new MECHANIC + 11th type: the `timer` countdown + time_survival. AutopilotTimer counts
+  a `duration` down (Time.deltaTime, freezes while paused), draws the remaining seconds top-right, and on
+  zero fires ONCE a decoupled SendMessage("Survived"). The `gameover` template gains a Survived() WIN
+  hook (mirrors PlayerDied but Won=true), so "outlast the clock" games are won by surviving -- the
+  existing enemy-clear WIN and PlayerDied LOSE are untouched, Survived is a third end path (so 3 PlayCue
+  cues now: 2 wins @880 + 1 lose @160). New plan_time_survival_game (11th in BLUEPRINTS): armed player +
+  N enemies + GameManager(title+gameover+sound+timer); WIN by surviving the countdown or clearing
+  enemies, LOSE on death. Intent routes "zamana karsi / sureli hayatta kalma / survive the clock" BEFORE
+  survival so plain "hayatta kal / survival" still routes to survival. timer added to
+  _BEHAVIOUR_CATEGORIES (drift guard); report/capabilities auto-grew to 11 types. Caught + avoided an
+  alias collision (sayac stays score). Live-proved AutopilotTimer.cs + the Survived hook + the blueprint
+  + report growth. Pure ASCII; generate-only; deterministic. -- tests: 1025 passed

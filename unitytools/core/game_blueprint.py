@@ -549,6 +549,62 @@ def plan_tower_defense_game(enemy_count: int = 6, arena_size: float = 24.0) -> d
     }
 
 
+def plan_time_survival_game(enemy_count: int = 5, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan an outlast-the-clock survival -- the 11th type, showing the new `timer`
+    mechanic. Distinct from `survival` (which never ends): here the win is TIME.
+
+    An armed player (player + health + attack + score) faces N enemies (enemy AI +
+    reward, tag Enemy). The hidden GameManager runs title + gameover + sound + a
+    `timer`: when the countdown ends the timer SendMessages "Survived" and gameover
+    declares a WIN -- you outlasted the clock. LOSE if the player dies first
+    (health Die -> PlayerDied). Clearing every enemy early still wins (gameover's
+    enemy-clear path), so both "survive" and "win the fight" lead to victory. Same
+    step schema; the seed jitters the enemy ring.
+    """
+    n = max(1, min(int(enemy_count), 30))
+    size = max(6.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) the armed player: movement + health (death -> lose) + attack + score
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    for behaviour in ("player", "health", "attack", "score"):
+        steps.append({"script_behaviour": {"object": "Player", "behaviour": behaviour}})
+
+    # 3) enemies: a ring tagged Enemy, each chasing+attacking the player, killable
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Cube",
+            "count": n,
+            "pattern": "circle",
+            "spacing": max(3.0, size / float(n)),
+            "name_prefix": "Enemy",
+        },
+    })
+    for i in range(n):
+        steps.append({"tool": "unity_set_tag", "kwargs": {"name": f"Enemy_{i}", "tag": "Enemy"}})
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "enemy"}})
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "reward"}})
+
+    # 4) GameManager: title + gameover + sound + a timer. WIN when the timer ends
+    #    (Survived) OR all enemies fall; LOSE when the player dies (PlayerDied).
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    for behaviour in ("title", "gameover", "sound", "timer"):
+        steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
+
+    return {
+        "ok": True,
+        "game": "time_survival",
+        "summary": f"Time Survival: ground + armed player + {n} enemies + a countdown -- outlast the clock to WIN, die to LOSE ({len(steps)} steps).",
+        "enemy_count": n,
+        "steps": steps,
+    }
+
+
 # Decorative (non-gameplay) scripted behaviours that give a scene "juice".
 DECOR_BEHAVIOURS = ["bob", "orbit", "rotate", "wander"]
 
@@ -695,6 +751,7 @@ BLUEPRINTS = {
     "horde": plan_horde_game,
     "runner": plan_runner_game,
     "tower_defense": plan_tower_defense_game,
+    "time_survival": plan_time_survival_game,
 }
 
 

@@ -9,7 +9,7 @@ This page is the one-screen tour; every section links to the deep doc.
 
 ## What it makes
 
-Ten playable game types, each composed from the same gameplay building blocks:
+Eleven playable game types, each composed from the same gameplay building blocks:
 
 | game_type | One-liner |
 |-----------|-----------|
@@ -23,6 +23,7 @@ Ten playable game types, each composed from the same gameplay building blocks:
 | `horde` | A survival-brawler: a fully-armed player vs escalating waves of enemies from a central spawner |
 | `runner` | An endless runner: an auto-running player dodging a weaving lane of obstacles, distance is the score |
 | `tower_defense` | Ranged towers + a mobile hero defend a base from waves of enemies that march to it; lose if the base falls |
+| `time_survival` | Outlast the clock: an armed player fights N enemies and wins by surviving the countdown (or clearing them), loses on death |
 
 Plus **living scenes** — decorative `bob`/`orbit`/`rotate`/`wander` motion as scene juice (not a game).
 
