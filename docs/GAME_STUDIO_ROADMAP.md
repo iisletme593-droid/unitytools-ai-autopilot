@@ -757,5 +757,15 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   assesses playable + is buildable. +11 tests. 1087 passed. (Known minor limitation: a save NAME that
   itself contains a preset keyword, e.g. "arena2", is read as that preset by detect_game_type -- ordinary
   names are unaffected.)
+- [x] **Multi-level campaigns (cycle 80, milestone state review).** Health check first (1087 green,
+  import OK), then a new STRUCTURAL axis: `plan_campaign(game_type, levels, seed)` builds an ordered,
+  increasing-difficulty sequence (element count climbs 2,4,6,...) of N FULL playable levels -- each with
+  a difficulty label, a readiness check (design_notes too), and its complete plan, so levels can be
+  built or saved (unlike `plan_game_variations`, which returns only summaries). An optional seed gives
+  each level a distinct reproducible per-level seed. `unity_plan_campaign` returns a lean glanceable
+  view (drops the full step plans). Intent: "X kampanyasi / 3 seviyeli X / campaign" -> a campaign,
+  checked before the build/composer intents so "arena kampanyasi" plans a campaign while "arena oyunu
+  kur" still builds one and "arena varyasyonlari" still lists variations. Works for all 11 blueprints
+  (parametrized test). +22 tests. 1109 passed. The studio can now plan a progression, not just one game.
 
 > Check items off in this file as they land. Add new items as discovered.

@@ -38,6 +38,7 @@ The deterministic fast-path (`plan_unity_fast_action`) routes plain commands to 
 | "zor dodge oyunu yap" (kolay/orta/zor → 3/5/8) | `unity_build_simple_game` (sized) |
 | "oyunu değerlendir", "is the game playable" | `unity_assess_game` |
 | "dodge varyasyonları göster", "easy/medium/hard" | `unity_game_variations` |
+| "arena kampanyası", "3 seviyeli dodge", "horde campaign" | `unity_plan_campaign` |
 | "hangi oyunlar yapabilirsin", "what games" | `unity_game_catalog` |
 | "özel oyun: 5 düşman 3 toplanabilir bir sayaç", "custom game" | `unity_compose_game` |
 | "studio raporu", "yeteneklerin", "capabilities", "what can you do" | `unity_studio_report` |

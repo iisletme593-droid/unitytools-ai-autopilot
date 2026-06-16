@@ -308,7 +308,8 @@ def build_studio_report() -> str:
     tool_names = _registered_tool_names()
     if tool_names:
         game_tools = sorted(t for t in tool_names
-                            if "game" in t or t in ("unity_animate_group", "unity_studio_report"))
+                            if "game" in t or t in ("unity_animate_group", "unity_studio_report",
+                                                    "unity_plan_campaign"))
         lines.append(f"## Tools ({len(tool_names)} registered)")
         lines.append("Game-studio tools: " + ", ".join(game_tools) + ".")
         lines.append("")

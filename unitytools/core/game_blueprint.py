@@ -994,3 +994,49 @@ def plan_game_variations(
         })
 
     return {"ok": True, "game_type": gt, "count": len(variations), "variations": variations}
+
+
+def plan_campaign(
+    game_type: str = "collectathon",
+    levels: int = 3,
+    arena_size: float = 20.0,
+    seed: object = None,
+) -> dict[str, Any]:
+    """An ordered, increasing-difficulty CAMPAIGN of one game type: N levels whose
+    element count climbs (2, 4, 6, ...), each a FULL playable plan you can build or
+    save, with a difficulty label and a readiness check. Unlike plan_game_variations
+    (which returns only summaries), a campaign carries each level's plan so the levels
+    can be persisted or built. An optional ``seed`` makes each level reproducibly
+    varied (a distinct per-level seed derived from it). Pure + deterministic.
+    """
+    gt = (game_type or "collectathon").strip().lower()
+    if gt not in BLUEPRINTS:
+        gt = "collectathon"
+    n = max(1, min(int(levels), 10))
+    labels = _difficulty_labels(n)
+    counts = [2 + i * 2 for i in range(n)]                 # 2, 4, 6, ... -- climbing
+
+    from .game_qa import assess_game_readiness             # lazy: game_qa imports this module
+    level_plans: list[dict[str, Any]] = []
+    for i, c in enumerate(counts):
+        level_seed = f"{seed}-L{i + 1}" if seed is not None else None
+        plan = plan_game(gt, c, seed=level_seed)
+        report = assess_game_readiness(plan)
+        level_plans.append({
+            "level": i + 1,
+            "label": labels[i] if i < len(labels) else f"level-{i + 1}",
+            "count": c,
+            "summary": plan.get("summary", ""),
+            "playable": report["playable"],
+            "design_notes": report["design_notes"],
+            "plan": plan,
+        })
+
+    return {
+        "ok": True,
+        "kind": "campaign",
+        "game_type": gt,
+        "level_count": n,
+        "all_playable": all(lv["playable"] for lv in level_plans),
+        "levels": level_plans,
+    }

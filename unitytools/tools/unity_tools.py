@@ -1330,6 +1330,16 @@ def unity_game_variations(game_type: str = "collectathon", counts: str = "", are
     return plan_game_variations(game_type, counts=count_list, arena_size=arena_size)
 
 
+@tool(description="Plan a multi-level CAMPAIGN of one game type WITHOUT touching the scene (pure, no bridge): an ordered sequence of `levels` levels at climbing difficulty (element count 2,4,6,...), each a full playable level with a difficulty label and a readiness check. Build a level with unity_build_simple_game(game_type, count). For 'X kampanyasi', '3 seviyeli arena'. seed makes each level reproducibly varied. Returns {ok, kind:'campaign', game_type, level_count, all_playable, levels:[{level,label,count,summary,playable,design_notes}]}.")
+def unity_plan_campaign(game_type: str = "collectathon", levels: int = 3, seed: str = "") -> dict:
+    from ..core.game_blueprint import plan_campaign
+    result = plan_campaign(game_type, levels=levels, seed=seed or None)
+    # return a lean, glanceable view (drop each level's full step plan)
+    lean = {k: v for k, v in result.items() if k != "levels"}
+    lean["levels"] = [{k: v for k, v in lv.items() if k != "plan"} for lv in result["levels"]]
+    return lean
+
+
 @tool(description="List every game the studio can make, at a glance, WITHOUT touching the scene (pure, no bridge): each game type's summary, object/script counts, playable verdict, and warnings, plus the full set of behaviours used. A 'what can I build?' report. Use to answer 'hangi oyunlar / what games can you make'.")
 def unity_game_catalog(count: int = 5) -> dict:
     from ..core.game_qa import summarize_catalog

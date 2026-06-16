@@ -468,6 +468,30 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "reason": f"assess-game intent -> {gt}",
         }
 
+    # Multi-level campaign intent: "X kampanyasi" / "3 seviyeli arena" -> an ordered
+    # increasing-difficulty sequence of levels. Checked before the build/composer intents
+    # so "arena kampanyasi" plans a campaign rather than building a single arena.
+    _level_match = re.search(r"(\d{1,2})\s*(?:seviye|level)", lower)
+    if has("kampanya", "campaign") or _level_match:
+        gt = detect_game_type()
+        levels = max(1, min(int(_level_match.group(1)), 10)) if _level_match else 3
+        camp_seed, _ = extract_seed(lower)
+        kwargs = {"game_type": gt, "levels": levels}
+        if camp_seed:
+            kwargs["seed"] = camp_seed
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_plan_campaign",
+                "kwargs": kwargs,
+                "write": False,
+                "note": f"plan a {levels}-level {gt} campaign (pure, no scene changes, no bridge)",
+            }],
+            "safety_notes": ["read-only; no scene changes"],
+            "reason": f"campaign intent -> {levels}-level {gt}",
+        }
+
     # Freeform custom-game composer -> compose a game from the described element mix
     # (parse_custom_spec). Fires in TWO safe ways, both checked BEFORE the preset build
     # intent below so they can never steal a preset blueprint:

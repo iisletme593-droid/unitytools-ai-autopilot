@@ -965,3 +965,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   buildable. Live-proved the full disk round-trip (compose -> save -> list -> load == composed) + intent
   routing. +11 tests. Known minor limitation: a save NAME containing a preset keyword ("arena2") is read
   as that preset (ordinary names fine). Generate-only; deterministic. -- tests: 1087 passed
+- [cycle 80] MILESTONE state review (1087 green + import OK health check) -> built MULTI-LEVEL CAMPAIGNS,
+  a new structural axis. plan_campaign(game_type, levels, seed) in game_blueprint.py builds an ordered,
+  increasing-difficulty sequence (element count climbs 2,4,6,...) of N FULL playable levels -- each with
+  a difficulty label (easy/medium/hard/...), a readiness check (incl. design_notes), and its complete
+  plan, so levels can be built or saved (unlike plan_game_variations which returns only summaries). An
+  optional seed gives each level a distinct reproducible per-level seed (f"{seed}-L{i}"). unity_plan_campaign
+  tool returns a lean glanceable view (drops the full step plans). Intent: "X kampanyasi / 3 seviyeli X /
+  campaign" routes to a campaign, checked BEFORE the build/composer intents so "arena kampanyasi" plans a
+  campaign while "arena oyunu kur" still builds one and "arena varyasyonlari" still lists variations.
+  Works for all 11 blueprints (parametrized). Added unity_plan_campaign to the studio-report game-tools
+  filter. Live-proved the climbing campaign + determinism + intent + no theft. Generate-only;
+  deterministic. -- tests: 1109 passed
