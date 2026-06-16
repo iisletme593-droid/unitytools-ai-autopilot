@@ -9,7 +9,8 @@ This page is the one-screen tour; every section links to the deep doc.
 
 ## What it makes
 
-Eleven playable game types, each composed from the same gameplay building blocks:
+Eleven playable game types (plus a freeform **custom composer** — describe an element mix and it
+assembles a custom game from the same blocks), each composed from the same gameplay building blocks:
 
 | game_type | One-liner |
 |-----------|-----------|
@@ -38,6 +39,7 @@ The deterministic fast-path (`plan_unity_fast_action`) routes plain commands to 
 | "oyunu değerlendir", "is the game playable" | `unity_assess_game` |
 | "dodge varyasyonları göster", "easy/medium/hard" | `unity_game_variations` |
 | "hangi oyunlar yapabilirsin", "what games" | `unity_game_catalog` |
+| "özel oyun: 5 düşman 3 toplanabilir bir sayaç", "custom game" | `unity_compose_game` |
 | "studio raporu", "yeteneklerin", "capabilities", "what can you do" | `unity_studio_report` |
 | "sahneyi canlandır", "animate the scene" | `unity_animate_group` |
 | "dodge oyununu boss olarak kaydet", "save as X" | `unity_save_game` |

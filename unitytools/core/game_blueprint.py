@@ -605,6 +605,113 @@ def plan_time_survival_game(enemy_count: int = 5, arena_size: float = 20.0) -> d
     }
 
 
+def compose_custom_game(
+    player: bool = True,
+    enemy: int = 0,
+    collectible: int = 0,
+    hazard: int = 0,
+    goal: bool = False,
+    timer: bool = False,
+    arena_size: float = 20.0,
+) -> dict[str, Any]:
+    """Compose a CUSTOM game from a described element mix -- not a fixed blueprint.
+
+    This is the studio's first step from "pick a preset" to "assemble what you asked
+    for": given how many of each element the player wants (enemies / collectibles /
+    hazards, plus optional goal and timer), it builds a valid, playable plan from the
+    same building blocks the blueprints use, wiring the sensible couplings:
+      - a `player` controller (tagged Player) whenever player=True;
+      - if there are enemies, the player gains `health` + `attack` and a hidden
+        GameManager runs the win/lose `gameover` (WIN clears enemies, LOSE on death);
+      - a `score` HUD when there are collectibles or enemies;
+      - collectibles (`collectible`), hazards (`killzone`), an optional `goal` zone;
+      - if timer=True, the GameManager runs a `timer` -> outlast the clock to WIN
+        (Survived), and gets a title + sound for feel.
+    Pure + deterministic; same step schema as the blueprints, so it validates, assesses
+    and persists exactly like them. Counts are clamped to [0, 30].
+    """
+    enemy = max(0, min(int(enemy), 30))
+    collectible = max(0, min(int(collectible), 30))
+    hazard = max(0, min(int(hazard), 30))
+    size = max(6.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) player + the couplings its companions imply
+    if player:
+        steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
+        steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+        player_behaviours = ["player"]
+        if enemy > 0:
+            player_behaviours += ["health", "attack"]            # so the fight works both ways
+        if collectible > 0 or enemy > 0:
+            player_behaviours.append("score")                    # a HUD to read
+        for behaviour in player_behaviours:
+            steps.append({"script_behaviour": {"object": "Player", "behaviour": behaviour}})
+
+    # 3) enemies: tagged Enemy, chase+attack the player, killable
+    if enemy:
+        steps.append({"tool": "unity_place_primitives", "kwargs": {
+            "type": "Cube", "count": enemy, "pattern": "circle",
+            "spacing": max(3.0, size / float(enemy)), "name_prefix": "Enemy"}})
+        for i in range(enemy):
+            steps.append({"tool": "unity_set_tag", "kwargs": {"name": f"Enemy_{i}", "tag": "Enemy"}})
+            steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "enemy"}})
+            steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "reward"}})
+
+    # 4) collectibles
+    if collectible:
+        steps.append({"tool": "unity_place_primitives", "kwargs": {
+            "type": "Sphere", "count": collectible, "pattern": "scatter",
+            "spacing": max(2.0, size / (2.0 * float(collectible))), "name_prefix": "Collectible"}})
+        for i in range(collectible):
+            steps.append({"script_behaviour": {"object": f"Collectible_{i}", "behaviour": "collectible"}})
+
+    # 5) hazards: killzone cubes (touch -> respawn the player)
+    if hazard:
+        steps.append({"tool": "unity_place_primitives", "kwargs": {
+            "type": "Cube", "count": hazard, "pattern": "scatter",
+            "spacing": max(2.0, size / float(hazard)), "name_prefix": "Hazard"}})
+        for i in range(hazard):
+            steps.append({"script_behaviour": {"object": f"Hazard_{i}", "behaviour": "killzone"}})
+
+    # 6) an optional goal zone
+    if goal:
+        steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_y": 0.5, "position_z": size / 2.0}})
+        steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
+
+    # 7) a feel/win-lose GameManager when there are enemies or a timer
+    if enemy or timer:
+        steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+        manager = ["title", "gameover", "sound"]
+        if timer:
+            manager.append("timer")                              # outlast the clock -> WIN (Survived)
+        for behaviour in manager:
+            steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
+
+    spec = {"player": bool(player), "enemy": enemy, "collectible": collectible,
+            "hazard": hazard, "goal": bool(goal), "timer": bool(timer)}
+    parts = []
+    if player:
+        parts.append("a player")
+    for label, c in (("enemies", enemy), ("collectibles", collectible), ("hazards", hazard)):
+        if c:
+            parts.append(f"{c} {label}")
+    if goal:
+        parts.append("a goal")
+    if timer:
+        parts.append("a countdown")
+    return {
+        "ok": True,
+        "game": "custom",
+        "summary": f"Custom game: ground + {', '.join(parts) if parts else 'an empty field'} ({len(steps)} steps).",
+        "spec": spec,
+        "steps": steps,
+    }
+
+
 # Decorative (non-gameplay) scripted behaviours that give a scene "juice".
 DECOR_BEHAVIOURS = ["bob", "orbit", "rotate", "wander"]
 

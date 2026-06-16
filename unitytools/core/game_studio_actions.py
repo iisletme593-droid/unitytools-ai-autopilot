@@ -439,6 +439,26 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "reason": f"assess-game intent -> {gt}",
         }
 
+    # Freeform custom-game composer: explicit "ozel / custom / kendi / karisik oyun"
+    # framing -> compose a game from the described element mix (parse_custom_spec).
+    # Gated on the custom keyword (checked BEFORE the preset build intent below) so it
+    # can never steal a preset blueprint -- "toplama oyunu" still builds a collectathon.
+    if has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun", "kendi oyun",
+           "kendi oyunu", "karisik oyun", "kendine gore oyun"):
+        spec = parse_custom_spec(lower)
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_compose_game",
+                "kwargs": {**spec, "execute": False},
+                "write": False,
+                "note": "compose a custom game from the described element mix (pure, no scene changes)",
+            }],
+            "safety_notes": ["read-only; no scene changes"],
+            "reason": "custom-compose intent -> unity_compose_game",
+        }
+
     # Build-a-game intent takes priority so "oyun" doesn't fall into scene branches.
     wants_game = (
         has("collectathon", "toplama oyunu", "oyun iskeleti", "dodge", "kacma oyunu", "kacis oyunu",
@@ -1052,6 +1072,54 @@ def _infer_placement_category(lower: str) -> str:
     if has_rock:
         return "rock"
     return "tree"
+
+
+# --- custom-game spec parsing (the freeform composer) ----------------------
+_SPEC_NUM_WORDS = {
+    "bir": 1, "iki": 2, "uc": 3, "dort": 4, "bes": 5, "alti": 6, "yedi": 7,
+    "sekiz": 8, "dokuz": 9, "on": 10,
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+    "eight": 8, "nine": 9, "ten": 10,
+}
+# element words (normalized, accent-folded) -> the compose_custom_game count arg
+_SPEC_ELEMENT_WORDS = {
+    "enemy": ("dusman", "enemy", "enemies", "mob", "canavar"),
+    "collectible": ("toplanabilir", "coin", "collectible", "altin", "elmas", "pickup"),
+    "hazard": ("engel", "tuzak", "hazard", "tehlike", "diken"),
+}
+# presence-only flags (no count) -> the compose_custom_game bool arg
+_SPEC_FLAG_WORDS = {
+    "goal": ("hedef", "goal", "kapi"),
+    "timer": ("sayac", "sure", "zaman", "countdown", "gerisayim", "kronometre"),
+}
+
+
+def _spec_count_before(lower: str, words: tuple[str, ...]) -> int:
+    """Count for an element: a digit or number-word right before any of ``words``,
+    else 1 if a word is present bare, else 0. Counts clamp to [1, 30]."""
+    for w in words:
+        m = re.search(r"(\d{1,3})\s*" + re.escape(w), lower)
+        if m:
+            return max(1, min(30, int(m.group(1))))
+        m = re.search(r"\b([a-z]+)\s+" + re.escape(w), lower)
+        if m and m.group(1) in _SPEC_NUM_WORDS:
+            return _SPEC_NUM_WORDS[m.group(1)]
+    for w in words:
+        if re.search(r"\b" + re.escape(w), lower):
+            return 1
+    return 0
+
+
+def parse_custom_spec(lower: str) -> dict[str, object]:
+    """Parse a freeform element mix ("5 dusman, 3 toplanabilir ve bir sayac") into
+    compose_custom_game kwargs. A player is always included. Pure; operates on the
+    already-normalized (lower, accent-folded) text."""
+    spec: dict[str, object] = {"player": True}
+    for key, words in _SPEC_ELEMENT_WORDS.items():
+        spec[key] = _spec_count_before(lower, words)
+    for key, words in _SPEC_FLAG_WORDS.items():
+        spec[key] = any(re.search(r"\b" + re.escape(w), lower) for w in words)
+    return spec
 
 
 def _infer_count(lower: str, default: int) -> int:

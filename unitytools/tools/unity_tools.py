@@ -1246,6 +1246,36 @@ def unity_build_simple_game(collectible_count: int = 5, execute: bool = False, g
     }
 
 
+@tool(description="Compose a CUSTOM game from a described element MIX instead of a preset blueprint: choose how many enemies/collectibles/hazards plus optional goal and timer, and it assembles a valid, playable plan from the same building blocks, wiring the sensible couplings (enemies -> player gets health+attack + a win/lose manager; collectibles/enemies -> a score HUD; timer -> outlast-the-clock win). For 'kendi oyununu tarif et / ozel oyun / custom game: 1 player, 5 enemies, 3 collectibles, a timer'. execute=False (default) returns the plan + assessment without touching the scene; execute=True builds it (script behaviours trigger Unity recompiles).")
+def unity_compose_game(player: bool = True, enemy: int = 0, collectible: int = 0,
+                       hazard: int = 0, goal: bool = False, timer: bool = False,
+                       execute: bool = False) -> dict:
+    from ..core.game_blueprint import compose_custom_game
+    from ..core.game_qa import assess_game_readiness
+    plan = compose_custom_game(player=player, enemy=enemy, collectible=collectible,
+                               hazard=hazard, goal=goal, timer=timer)
+    if not execute:
+        return {
+            "ok": True,
+            "dry_run": True,
+            **plan,
+            "assessment": assess_game_readiness(plan),
+            "note": "execute=False: plan only, no scene changes. Set execute=True to build (script behaviours trigger Unity recompiles).",
+        }
+    if _UNITY is None:
+        return {"ok": False, "error": "UnityBridge is not initialized"}
+    result = _execute_grouped_behaviour_plan(plan["steps"])
+    applied = result["applied"]
+    return {
+        "ok": all(a["ok"] for a in applied),
+        "game": plan["game"],
+        "spec": plan["spec"],
+        "executed": True,
+        "unique_scripts": result["unique_scripts"],
+        "applied": applied,
+    }
+
+
 @tool(description="Bring a scene to life: place N props (Sphere/Cube/...) and give each a DECORATIVE scripted behaviour (bob/orbit/rotate/wander, cycled) so the scene breathes — juice, not a game (no player/goal). behaviours is an optional comma-separated subset (e.g. 'bob,rotate'). execute=False (default) returns the step plan without touching the scene; execute=True builds it and imports the scripts (triggers a Unity recompile, so run with the editor in focus). 'sahneyi canlandir', 'yasayan sahne', 'animate the scene'.")
 def unity_animate_group(
     count: int = 8,

@@ -708,5 +708,18 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   still routes to survival. timer added to `_BEHAVIOUR_CATEGORIES` (game feel) so the report drift guard
   stays green; report auto-grew to 11 types. Caught + avoided an alias collision (`sayac` stays score).
   +40 tests. 1025 passed (crossed 1000).
+- [x] **Freeform game composer (cycle 75)** -- the biggest step from "pick a preset" to "assemble what
+  you described." `compose_custom_game(player, enemy, collectible, hazard, goal, timer)` builds a valid,
+  playable plan from the same building blocks, wiring the sensible couplings automatically: enemies ->
+  the player gains health+attack and a win/lose GameManager appears; collectibles/enemies -> a score
+  HUD; a timer -> an outlast-the-clock manager; plus optional hazards (killzone) and a goal zone. Counts
+  clamp to [0,30]; a player-only request is an honest sandbox (assesses not playable). `parse_custom_spec`
+  turns a freeform description ("5 dusman, 3 toplanabilir ve bir sayac") into those kwargs (digits +
+  TR/EN number words + bare-word=1). Exposed as `unity_compose_game` (execute-free by default) + an
+  intent gated on explicit "ozel / custom / kendi / karisik oyun" framing, checked BEFORE the preset
+  build intent so it can NEVER steal a blueprint ("toplama oyunu" still builds a collectathon -- verified).
+  The studio report gained a code-derived "Custom composition" section. +17 tests. 1042 passed. **Next
+  (cycle 76):** enrich the composer -- freeform element lists WITHOUT the custom keyword (safely), more
+  element types, or a seed for layout variety.
 
 > Check items off in this file as they land. Add new items as discovered.

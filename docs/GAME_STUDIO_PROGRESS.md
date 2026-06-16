@@ -911,3 +911,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   _BEHAVIOUR_CATEGORIES (drift guard); report/capabilities auto-grew to 11 types. Caught + avoided an
   alias collision (sayac stays score). Live-proved AutopilotTimer.cs + the Survived hook + the blueprint
   + report growth. Pure ASCII; generate-only; deterministic. -- tests: 1025 passed
+- [cycle 75] State review -> built the FREEFORM GAME COMPOSER (the biggest step toward real autonomy:
+  from "pick a preset" to "assemble what you described"). compose_custom_game(player, enemy, collectible,
+  hazard, goal, timer) in game_blueprint.py builds a valid/playable plan from the same building blocks,
+  auto-wiring couplings: enemies -> player gains health+attack + a win/lose GameManager; collectibles/
+  enemies -> a score HUD; timer -> outlast-the-clock manager; plus hazards (killzone) + optional goal.
+  Counts clamp [0,30]; player-only is an honest sandbox (not playable). parse_custom_spec turns a
+  freeform description ("5 dusman 3 toplanabilir ve bir sayac") into kwargs (digits + TR/EN number words
+  + bare-word=1). Exposed as unity_compose_game (execute-free default) + an intent gated on explicit
+  "ozel/custom/kendi/karisik oyun" framing, checked BEFORE the preset build intent so it can NEVER steal
+  a blueprint (verified toplama->collectathon, arena->arena, kule savunma->tower_defense). Studio report
+  gained a code-derived "Custom composition" section. Live-proved compose+parse+intent + no preset theft.
+  Generate-only; deterministic. -- tests: 1042 passed

@@ -247,6 +247,15 @@ def build_studio_report() -> str:
         lines.append(f"- {feel}: {where}")
     lines.append("")
 
+    # (c2) freeform composition -- beyond the presets (only if the tool is registered)
+    if "unity_compose_game" in _registered_tool_names():
+        lines.append("## Custom composition")
+        lines.append("Beyond the fixed game types, describe an element mix ('a player, 5 enemies, 3 "
+                     "collectibles, a timer') and the studio composes a valid, playable plan from the "
+                     "same building blocks (unity_compose_game) -- enemies pull in health/attack + a "
+                     "win/lose manager, a timer makes it outlast-the-clock.")
+        lines.append("")
+
     # (d) persistence
     lines.append("## Persistence")
     lines.append("Games save/load to disk as validated JSON (path-traversal-guarded, tool-whitelisted): "
