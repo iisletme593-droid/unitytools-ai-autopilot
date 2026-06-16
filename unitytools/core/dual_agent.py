@@ -411,17 +411,17 @@ class DualAgentOrchestrator:
         self.engine_context = (engine_context or "auto").lower()
 
         # Reader orchestrator (fast context interpretation, no writes)
-        reader_config = self._clone_config(config, reader_model)
+        reader_config = self._clone_config(config, reader_model, role="reader")
         self.reader = Orchestrator(reader_config)
         self.reader.max_tokens = 2048
 
         # Master orchestrator (planning, no tools)
-        master_config = self._clone_config(config, master_model)
+        master_config = self._clone_config(config, master_model, role="master")
         self.master = Orchestrator(master_config)
         self.master.max_tokens = 2048  # Keep local master planning responsive.
 
         # Worker orchestrator (execution, with tools)
-        worker_config = self._clone_config(config, worker_model)
+        worker_config = self._clone_config(config, worker_model, role="worker")
         self.worker = Orchestrator(worker_config)
         self.worker.max_tokens = 8192  # Worker needs more for tool results
         
@@ -715,11 +715,19 @@ Eğer hata varsa, ne olduğunu açıkla.
         return {}
 
     @staticmethod
-    def _clone_config(config: Config, model: str) -> Config:
-        """Clone config with different model."""
+    def _clone_config(config: Config, model: str, role: str = "") -> Config:
+        """Clone config with a per-agent model. For Ollama, the role's ollama_model is
+        used. For Cloudflare, each role gets the model that fits its job via the model
+        router (master=reasoning, worker=tool-capable general, reader=fast); per-message
+        auto-routing is turned off inside a role so its assigned model is authoritative.
+        """
         import copy
         new_config = copy.deepcopy(config)
         new_config.ollama_model = model
+        if role and (getattr(config, "provider", "") or "").lower() == "cloudflare":
+            from .model_router import model_for_role
+            new_config.cloudflare_model = model_for_role(role)
+            new_config.cloudflare_auto_route = False
         return new_config
     
     def _build_master_prompt(

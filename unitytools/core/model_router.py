@@ -181,6 +181,19 @@ def select_model(text: str, needs_tools: bool = False, config: Any = None) -> di
             "reason": f"auto-detected '{task}' from the message"}
 
 
+# dual-agent role -> task. Each agent gets the model that fits its job: the Master
+# plans (reasoning), the Worker executes tools (a tool-capable general model), the
+# Reader does fast context interpretation (a cheap fast model).
+_ROLE_TO_TASK = {"master": "reasoning", "worker": "general", "reader": "fast"}
+
+
+def model_for_role(role: str) -> str:
+    """The Cloudflare model best suited to a dual-agent role (master/worker/reader).
+    Unknown roles fall back to the default. The Worker's model is always tool-capable."""
+    task = _ROLE_TO_TASK.get((role or "").strip().lower(), DEFAULT_TASK)
+    return MODEL_CATALOG[task]["model"]
+
+
 def list_models(live_only: bool = False) -> list[dict[str, Any]]:
     """The catalog as a flat list (for tools/reports). live_only drops vision/image."""
     out = []

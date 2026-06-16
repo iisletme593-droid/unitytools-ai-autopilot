@@ -1011,3 +1011,12 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   the blueprint (verified no theft). Fixed a self-inflicted test-helper bug (exact-match _beh_of vs
   Guard_0..N). Live-proved compose+parse+critique+intent. +6 tests. Generate-only; deterministic. --
   tests: 1202 passed
+- [cycle 84] MULTI-AGENT ROLE MODELS -- the dual-agent roles each use the model that fits their job,
+  completing the cycle-83 Cloudflare model-router. model_for_role() in core/model_router.py: Master ->
+  reasoning (gpt-oss-120b), Worker -> a tool-capable general model (llama-3.3-70b-fp8-fast), Reader ->
+  fast (llama-3.1-8b-instruct-fast). DualAgentOrchestrator._clone_config(role=...) sets each role's
+  cloudflare_model from the router AND turns off per-message auto-routing inside the role, so the role's
+  assigned model is authoritative (no mid-role switching). Verified: Ollama mode + no-role/non-cloudflare
+  clones are untouched (cf model preserved); the Worker's model is always tool-capable so its tool-loop
+  works. Live-proved model_for_role + the per-role cloudflare clone + the untouched paths. Updated
+  docs/LLM_MODEL_ROUTING.md with the role table. +4 tests. Generate-only; deterministic. -- tests: 1206 passed

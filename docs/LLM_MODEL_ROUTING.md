@@ -48,6 +48,20 @@ the tool-capable default rather than break tool-calling; the live loop never rou
   `"hizli model ile ozetle"`.
 - The model is fixed for the whole tool-loop of one turn (no mid-turn switching).
 
+## Multi-agent role models
+
+When the **dual-agent** mode runs on Cloudflare, each agent gets the model that fits its
+job (via `model_for_role()`), and per-message auto-routing is turned off inside a role so
+its assigned model is authoritative:
+
+| agent | job | model |
+|-------|-----|-------|
+| Master | plan / reason (no tools) | `@cf/openai/gpt-oss-120b` (reasoning) |
+| Worker | execute tools | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (tool-capable general) |
+| Reader | fast context interpretation | `@cf/meta/llama-3.1-8b-instruct-fast` (fast) |
+
+The Worker's model is always tool-capable so the tool-loop works.
+
 ## Config
 
 - `CLOUDFLARE_MODEL` — the configured default / the model used when auto-routing is off.

@@ -796,5 +796,12 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   the keyword-less gate + composed-save both count guards. Seed determinism extends to the guard
   placement. "3 muhafiz olan oyun yap" composes a stealth-style custom game; the stealth PRESET keywords
   ("gizli gec / stealth") still build the blueprint (no theft). +6 tests. 1202 passed.
+- [x] **Multi-agent role models (cycle 84)** -- the dual-agent roles now each use the model that fits
+  their job (completes the cycle-83 model-router work). `model_for_role()` in the router: Master ->
+  reasoning (`gpt-oss-120b`), Worker -> a tool-capable general model (`llama-3.3-70b`), Reader -> fast
+  (`llama-3.1-8b-fast`). `DualAgentOrchestrator._clone_config(role=...)` sets each role's
+  `cloudflare_model` from the router AND turns off per-message auto-routing inside the role, so a role's
+  assigned model is authoritative. Ollama mode and no-role/non-cloudflare clones are untouched; the
+  Worker's model is always tool-capable so its tool-loop works. +4 tests. 1206 passed.
 
 > Check items off in this file as they land. Add new items as discovered.

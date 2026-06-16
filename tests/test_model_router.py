@@ -206,6 +206,51 @@ def test_orchestrator_routes_a_tool_turn_to_the_tool_capable_model():
     assert captured["model"] == "@cf/openai/gpt-oss-120b"   # tool-capable, verified
 
 
+# --- dual-agent role -> model ----------------------------------------------
+
+def test_model_for_role_maps_each_agent_to_a_fitting_model():
+    from unitytools.core.model_router import model_for_role
+    assert model_for_role("master") == "@cf/openai/gpt-oss-120b"            # reasoning
+    assert model_for_role("worker") == "@cf/meta/llama-3.3-70b-instruct-fp8-fast"  # general
+    assert model_for_role("reader") == "@cf/meta/llama-3.1-8b-instruct-fast"       # fast
+    assert model_for_role("bogus") == DEFAULT_MODEL                          # fallback
+
+
+def test_worker_role_model_is_tool_capable():
+    # the Worker executes tools, so its model MUST support tool-calling
+    from unitytools.core.model_router import model_for_role
+    worker = model_for_role("worker")
+    spec = next(s for s in MODEL_CATALOG.values() if s["model"] == worker)
+    assert spec["tools"] is True
+
+
+def test_dual_agent_clone_assigns_role_models_on_cloudflare():
+    from unitytools.core.config import Config
+    from unitytools.core.dual_agent import DualAgentOrchestrator
+    c = Config()
+    c.provider = "cloudflare"
+    clone = DualAgentOrchestrator._clone_config
+    for role, expected in [("master", "@cf/openai/gpt-oss-120b"),
+                           ("worker", "@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
+                           ("reader", "@cf/meta/llama-3.1-8b-instruct-fast")]:
+        cc = clone(c, "qwen2.5:14b-instruct", role=role)
+        assert cc.cloudflare_model == expected
+        assert cc.cloudflare_auto_route is False      # the role model is authoritative
+        assert cc.ollama_model == "qwen2.5:14b-instruct"   # ollama still set too
+
+
+def test_dual_agent_clone_leaves_cloudflare_alone_without_a_role_or_provider():
+    from unitytools.core.config import Config
+    from unitytools.core.dual_agent import DualAgentOrchestrator
+    clone = DualAgentOrchestrator._clone_config
+    # no role -> cloudflare untouched
+    c = Config(); c.provider = "cloudflare"; c.cloudflare_model = "@cf/keep/me"
+    assert clone(c, "m").cloudflare_model == "@cf/keep/me"
+    # role but provider is ollama -> cloudflare untouched
+    c2 = Config(); c2.provider = "ollama"; c2.cloudflare_model = "@cf/keep/me"
+    assert clone(c2, "m", role="master").cloudflare_model == "@cf/keep/me"
+
+
 def test_orchestrator_respects_auto_route_off():
     o = _orch()
     o.config.cloudflare_auto_route = False
