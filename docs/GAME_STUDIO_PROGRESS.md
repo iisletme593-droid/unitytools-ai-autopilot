@@ -923,3 +923,13 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   a blueprint (verified toplama->collectathon, arena->arena, kule savunma->tower_defense). Studio report
   gained a code-derived "Custom composition" section. Live-proved compose+parse+intent + no preset theft.
   Generate-only; deterministic. -- tests: 1042 passed
+- [cycle 76] Enriched the composer, both upgrades keeping every preset safe. (1) KEYWORD-LESS routing:
+  a freeform element list now reaches the composer WITHOUT the "ozel/custom" keyword ("5 dusman 3
+  toplanabilir oyun yap" -> compose). The gate is tight: build_verb + parse_custom_spec finds >=1 element
+  + detect_game_type()=="collectathon" (no preset matched) + no "toplama/collectathon" keyword -- so
+  "toplama oyunu" still builds a collectathon, a bare "oyun yap" (no elements) still defaults to
+  collectathon, and arena/dodge/horde/maze/tower_defense/runner/time_survival all still win. (2) SEED:
+  compose_custom_game(..., seed=...) reuses _apply_seed to jitter the placed-element layout
+  deterministically (seed=None = plain plan); the intent extracts "tohum 7" via extract_seed and passes
+  it through. Live-proved keyword-less '5 dusman 3 toplanabilir oyun yap'->compose + 7 presets untouched
+  + seed determinism. +6 tests. Generate-only; deterministic. -- tests: 1048 passed

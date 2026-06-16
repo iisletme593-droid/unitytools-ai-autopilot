@@ -1249,11 +1249,11 @@ def unity_build_simple_game(collectible_count: int = 5, execute: bool = False, g
 @tool(description="Compose a CUSTOM game from a described element MIX instead of a preset blueprint: choose how many enemies/collectibles/hazards plus optional goal and timer, and it assembles a valid, playable plan from the same building blocks, wiring the sensible couplings (enemies -> player gets health+attack + a win/lose manager; collectibles/enemies -> a score HUD; timer -> outlast-the-clock win). For 'kendi oyununu tarif et / ozel oyun / custom game: 1 player, 5 enemies, 3 collectibles, a timer'. execute=False (default) returns the plan + assessment without touching the scene; execute=True builds it (script behaviours trigger Unity recompiles).")
 def unity_compose_game(player: bool = True, enemy: int = 0, collectible: int = 0,
                        hazard: int = 0, goal: bool = False, timer: bool = False,
-                       execute: bool = False) -> dict:
+                       seed: str = "", execute: bool = False) -> dict:
     from ..core.game_blueprint import compose_custom_game
     from ..core.game_qa import assess_game_readiness
     plan = compose_custom_game(player=player, enemy=enemy, collectible=collectible,
-                               hazard=hazard, goal=goal, timer=timer)
+                               hazard=hazard, goal=goal, timer=timer, seed=seed or None)
     if not execute:
         return {
             "ok": True,

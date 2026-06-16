@@ -439,19 +439,33 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "reason": f"assess-game intent -> {gt}",
         }
 
-    # Freeform custom-game composer: explicit "ozel / custom / kendi / karisik oyun"
-    # framing -> compose a game from the described element mix (parse_custom_spec).
-    # Gated on the custom keyword (checked BEFORE the preset build intent below) so it
-    # can never steal a preset blueprint -- "toplama oyunu" still builds a collectathon.
-    if has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun", "kendi oyun",
-           "kendi oyunu", "karisik oyun", "kendine gore oyun"):
-        spec = parse_custom_spec(lower)
+    # Freeform custom-game composer -> compose a game from the described element mix
+    # (parse_custom_spec). Fires in TWO safe ways, both checked BEFORE the preset build
+    # intent below so they can never steal a preset blueprint:
+    #   1) explicit "ozel / custom / kendi / karisik oyun" framing, OR
+    #   2) keyword-less: a build verb + a freeform element list ("5 dusman 3
+    #      toplanabilir oyun yap") when NO preset was detected and there is no
+    #      collectathon keyword -- so "toplama oyunu" still builds a collectathon and a
+    #      bare "oyun yap" (no elements) still falls through to the default.
+    seed_for_custom, lower_no_seed = extract_seed(lower)
+    spec = parse_custom_spec(lower_no_seed)
+    has_elements = bool(spec["enemy"] or spec["collectible"] or spec["hazard"]
+                        or spec["timer"] or spec["goal"])
+    custom_framing = has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun",
+                         "kendi oyun", "kendi oyunu", "karisik oyun", "kendine gore oyun")
+    keywordless_custom = (build_verb and has_elements
+                          and detect_game_type() == "collectathon"
+                          and not has("toplama", "collectathon"))
+    if custom_framing or keywordless_custom:
+        kwargs = {**spec, "execute": False}
+        if seed_for_custom:
+            kwargs["seed"] = seed_for_custom
         return {
             "ok": True,
             "engine": "unity",
             "steps": [{
                 "tool": "unity_compose_game",
-                "kwargs": {**spec, "execute": False},
+                "kwargs": kwargs,
                 "write": False,
                 "note": "compose a custom game from the described element mix (pure, no scene changes)",
             }],

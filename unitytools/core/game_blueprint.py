@@ -613,6 +613,7 @@ def compose_custom_game(
     goal: bool = False,
     timer: bool = False,
     arena_size: float = 20.0,
+    seed: object = None,
 ) -> dict[str, Any]:
     """Compose a CUSTOM game from a described element mix -- not a fixed blueprint.
 
@@ -703,13 +704,16 @@ def compose_custom_game(
         parts.append("a goal")
     if timer:
         parts.append("a countdown")
-    return {
+    plan = {
         "ok": True,
         "game": "custom",
         "summary": f"Custom game: ground + {', '.join(parts) if parts else 'an empty field'} ({len(steps)} steps).",
         "spec": spec,
         "steps": steps,
     }
+    # an optional seed jitters the placed-element layout (deterministic), reusing the
+    # same machinery the blueprints use; seed=None is a no-op (the plain plan)
+    return _apply_seed(plan, "custom", enemy + collectible + hazard, seed)
 
 
 # Decorative (non-gameplay) scripted behaviours that give a scene "juice".

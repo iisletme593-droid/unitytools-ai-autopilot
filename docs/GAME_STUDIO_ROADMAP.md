@@ -718,8 +718,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   TR/EN number words + bare-word=1). Exposed as `unity_compose_game` (execute-free by default) + an
   intent gated on explicit "ozel / custom / kendi / karisik oyun" framing, checked BEFORE the preset
   build intent so it can NEVER steal a blueprint ("toplama oyunu" still builds a collectathon -- verified).
-  The studio report gained a code-derived "Custom composition" section. +17 tests. 1042 passed. **Next
-  (cycle 76):** enrich the composer -- freeform element lists WITHOUT the custom keyword (safely), more
-  element types, or a seed for layout variety.
+  The studio report gained a code-derived "Custom composition" section. +17 tests. 1042 passed.
+- [x] **Composer enriched (cycle 76).** Two upgrades, both keeping every preset safe: (1) **keyword-less
+  routing** -- a freeform element list now reaches the composer WITHOUT the "ozel/custom" keyword
+  ("5 dusman 3 toplanabilir oyun yap" -> compose). The gate is tight: a build verb + parse_custom_spec
+  finds >=1 element + `detect_game_type()=="collectathon"` (no preset matched) + no "toplama/collectathon"
+  keyword -- so "toplama oyunu" still builds a collectathon, a bare "oyun yap" (no elements) still
+  defaults, and arena/dodge/horde/maze/tower_defense/runner/time_survival all still win. (2) **seed** --
+  `compose_custom_game(..., seed=...)` reuses `_apply_seed` to jitter the placed-element layout
+  deterministically (seed=None is the plain plan); the intent extracts "tohum 7" via extract_seed and
+  passes it through. +6 tests (keyword-less routing, broad preset-protection, seed determinism). 1048
+  passed.
 
 > Check items off in this file as they land. Add new items as discovered.

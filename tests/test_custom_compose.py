@@ -134,3 +134,49 @@ def test_compose_intent_does_not_steal_presets():
     assert gt("arena oyunu kur 6 dusman") == "arena"
     assert gt("kule savunma yap") == "tower_defense"
     assert gt("dodge oyunu yap") == "dodge"
+
+
+# --- cycle 76: keyword-less routing + seed ---------------------------------
+
+@pytest.mark.parametrize("prompt,expect", [
+    ("5 dusman 3 toplanabilir oyun yap", {"enemy": 5, "collectible": 3}),
+    ("bir oyuncu 4 dusman ve bir sayac olsun oyun kur", {"enemy": 4, "timer": True}),
+    ("8 engel olan oyun yap", {"hazard": 8}),
+])
+def test_keywordless_freeform_routes_to_composer(prompt, expect):
+    step = plan_unity_fast_action(prompt)["steps"][0]
+    assert step["tool"] == "unity_compose_game", prompt
+    for k, v in expect.items():
+        assert step["kwargs"][k] == v, (prompt, k)
+
+
+def test_keywordless_does_not_steal_presets_or_bare_build():
+    def tool(p):
+        return plan_unity_fast_action(p)["steps"][0]["tool"]
+    def gt(p):
+        return plan_unity_fast_action(p)["steps"][0]["kwargs"].get("game_type")
+    # a bare build with NO elements still falls through to the default collectathon
+    assert tool("oyun yap") == "unity_build_simple_game" and gt("oyun yap") == "collectathon"
+    assert gt("bir oyun kur") == "collectathon"
+    # explicit "toplama" still builds a collectathon even though it looks element-ish
+    assert tool("toplama oyunu yap") == "unity_build_simple_game"
+    # every other preset still wins over the keyword-less composer
+    for p, expected in [("zamana karsi oyun kur", "time_survival"), ("labirent oyunu kur", "maze"),
+                        ("horde oyunu kur", "horde"), ("runner oyunu kur", "runner"),
+                        ("platform oyunu yap", "platformer"), ("kovalamaca oyunu", "chase")]:
+        assert gt(p) == expected, p
+
+
+def test_keywordless_extracts_seed():
+    kw = plan_unity_fast_action("oyun yap 6 dusman tohum 7")["steps"][0]["kwargs"]
+    assert kw["enemy"] == 6 and kw["seed"] == "7"
+
+
+def test_compose_seed_is_deterministic_and_varies_layout():
+    a = compose_custom_game(enemy=5, collectible=3, seed="7")
+    assert a == compose_custom_game(enemy=5, collectible=3, seed="7")      # reproducible
+    assert a != compose_custom_game(enemy=5, collectible=3, seed="9")      # seed matters
+    assert compose_custom_game(enemy=5, seed=None) == compose_custom_game(enemy=5)  # None = plain
+    assert a != compose_custom_game(enemy=5, collectible=3)                # seeded differs from plain
+    # a seeded compose is still valid + playable
+    assert validate_plan(a)["ok"] is True and assess_game_readiness(a)["playable"] is True
