@@ -1304,6 +1304,12 @@ def unity_game_catalog(count: int = 5) -> dict:
     return summarize_catalog(count)
 
 
+@tool(description="Describe the whole studio in one comprehensive, code-derived report WITHOUT touching the scene (pure, no bridge): all game types + summaries, the behaviour catalog by category (scripted + physics), which games have title/win-lose/sound, persistence, procedural/seeded determinism, and the registered tool count. Everything is read from the live registries so it never drifts. Use to answer 'studio raporu / neler yapabilirsin / what can you do / capabilities'. Returns {ok, report} (markdown).")
+def unity_studio_report() -> dict:
+    from ..core.game_qa import build_studio_report
+    return {"ok": True, "report": build_studio_report()}
+
+
 @tool(description="Export a game as portable, versioned JSON WITHOUT touching the scene (pure, no bridge): serialize a game_type's plan so it can be saved, shared, or replayed later. game_type='collectathon'/'dodge'/'survival'/'platformer'/'chase'. Returns {ok, game_type, json, step_count}. The JSON round-trips back via the game_io loader.")
 def unity_export_game(game_type: str = "collectathon", collectible_count: int = 5, pretty: bool = True) -> dict:
     from ..core.game_blueprint import plan_game

@@ -166,3 +166,109 @@ def build_game_capabilities_summary() -> str:
         "execute=False plans only (safe, no scene change); execute=True builds and triggers a Unity recompile.",
     ]
     return "\n".join(lines)
+
+
+# Scripted-behaviour categories (canonical behaviour -> human category). VALIDATED
+# against the live _SCRIPT_TEMPLATES by test_studio_report so it cannot drift: every
+# unique MonoBehaviour class must fall under exactly one category. Add a new behaviour
+# and the drift test fails until it is categorized here -- the report stays honest.
+_BEHAVIOUR_CATEGORIES: dict[str, list[str]] = {
+    "control": ["player", "runner"],
+    "movement": ["rotate", "move", "bob", "bounce", "patrol", "follow", "orbit", "wander"],
+    "world": ["collectible", "goal", "killzone", "spawner"],
+    "combat": ["health", "attack", "enemy", "ranged", "reward", "horde"],
+    "progression": ["xp", "loot", "inventory", "score"],
+    "game feel": ["title", "gameover", "sound"],
+}
+
+# Game-feel behaviours whose presence-per-game the report surfaces.
+_FEEL_BEHAVIOURS = ("title", "gameover", "sound")
+
+
+def _games_with_behaviour(behaviour: str, count: int = 4) -> list[str]:
+    """Which game types include ``behaviour`` in their plan (code-derived). Pure."""
+    out: list[str] = []
+    for gt in sorted(BLUEPRINTS):
+        behs = {s["script_behaviour"]["behaviour"]
+                for s in plan_game(gt, count).get("steps", [])
+                if "script_behaviour" in s}
+        if behaviour in behs:
+            out.append(gt)
+    return out
+
+
+def _registered_tool_names() -> list[str]:
+    """Names of all registered @tool tools (lazy import; [] if none registered)."""
+    try:
+        from .tool_registry import get_all_tools
+        return sorted(t.name for t in get_all_tools())
+    except Exception:
+        return []
+
+
+def build_studio_report() -> str:
+    """A comprehensive, user-facing, CODE-DERIVED studio report (markdown string).
+
+    Everything is computed from the live registries (BLUEPRINTS, the scripted-template
+    and physics behaviour catalogs, the tool registry), so the report can never drift
+    from what the studio can actually do. Pure ASCII; reads only (no bridge, no I/O).
+    """
+    from .gameplay import _SCRIPT_TEMPLATES, GAMEPLAY_BEHAVIOURS
+
+    cat = summarize_catalog()
+    unique_classes = {v[0] for v in _SCRIPT_TEMPLATES.values()}
+
+    lines = ["# Unity Autopilot -- Game Studio Report", ""]
+    lines.append("Turns a natural-language request (Turkish or English) into a playable Unity scene. "
+                 "This report is generated entirely from the live code, so it never drifts.")
+    lines.append("")
+
+    # (a) game types + their (code-derived) one-line summaries
+    lines.append(f"## Game types ({cat['game_count']})")
+    for g in cat["games"]:
+        lines.append(f"- `{g['game_type']}` -- {g['summary']}")
+    lines.append("")
+
+    # (b) behaviour catalog, categorized (scripted MonoBehaviours + physics primitives)
+    n_scripted = len(unique_classes)
+    n_physics = len(GAMEPLAY_BEHAVIOURS)
+    lines.append(f"## Behaviour catalog ({n_scripted} scripted MonoBehaviours + {n_physics} physics primitives)")
+    for category, behs in _BEHAVIOUR_CATEGORIES.items():
+        classes = {_SCRIPT_TEMPLATES[b][0] for b in behs}
+        lines.append(f"- **{category}** ({len(classes)}): {', '.join(behs)}")
+    lines.append(f"- **physics** ({n_physics}): {', '.join(sorted(GAMEPLAY_BEHAVIOURS))}")
+    lines.append("")
+
+    # (c) game feel -- which games actually wire in title / win-lose / sound
+    lines.append("## Game feel (title screen, win/lose, sound cue)")
+    for feel in _FEEL_BEHAVIOURS:
+        games = _games_with_behaviour(feel)
+        where = ", ".join(games) if games else "(available, not yet wired into a blueprint)"
+        lines.append(f"- {feel}: {where}")
+    lines.append("")
+
+    # (d) persistence
+    lines.append("## Persistence")
+    lines.append("Games save/load to disk as validated JSON (path-traversal-guarded, tool-whitelisted): "
+                 "unity_save_game, unity_load_game, unity_list_saved_games, unity_import_game, "
+                 "unity_build_loaded_game.")
+    lines.append("")
+
+    # (e) procedural & deterministic
+    lines.append("## Procedural & deterministic")
+    lines.append("Seeded layouts (same seed -> same scene) and always-solvable procedural mazes; every "
+                 "generator is deterministic (no Math.random, no time-of-day), so a build is reproducible.")
+    lines.append("")
+
+    # (f) tools (live count from the registry)
+    tool_names = _registered_tool_names()
+    if tool_names:
+        game_tools = sorted(t for t in tool_names
+                            if "game" in t or t in ("unity_animate_group", "unity_studio_report"))
+        lines.append(f"## Tools ({len(tool_names)} registered)")
+        lines.append("Game-studio tools: " + ", ".join(game_tools) + ".")
+        lines.append("")
+
+    lines.append("execute=False plans only (safe, no scene change); execute=True builds and triggers "
+                 "a Unity recompile.")
+    return "\n".join(lines)

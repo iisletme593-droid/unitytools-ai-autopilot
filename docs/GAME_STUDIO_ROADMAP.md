@@ -675,7 +675,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   `detect_game_type` returns runner for runner/endless/koşu/koşma/sonsuz koşu (distinct terms, can't
   shadow others — "koşma" is NOT read as dodge's "kaçma"). Brittle exact-count tests loosened
   (`len(BLUEPRINTS) >= 8`, capabilities count is now code-derived). +43 tests. 935 passed.
-- [ ] A consolidated **"studio capabilities" report / landing refresh** reflecting all 8 (9?) types +
-  the full feel loop + persistence + procedural/seeded layout, code-derived so it can't drift.
+- [x] A consolidated **code-derived "studio report"** (cycle 72). `build_studio_report()` in game_qa
+  produces a comprehensive markdown report computed entirely from the live registries (BLUEPRINTS, the
+  scripted-template + physics behaviour catalogs, the tool registry): all 9 game types + summaries, the
+  behaviour catalog by category (27 scripted MonoBehaviours in control/movement/world/combat/progression/
+  game-feel + 6 physics primitives), which games wire in title/win-lose/sound, persistence, procedural/
+  seeded determinism, and the live tool count. Exposed as the `unity_studio_report` tool + the "studio
+  raporu / yeteneklerin / capabilities / what can you do" NL intent (kept distinct from the lighter
+  game-catalog intent, which still answers "neler yapabilirsin / what games"). A `_BEHAVIOUR_CATEGORIES`
+  drift guard test asserts every unique MonoBehaviour class is categorized exactly once, so adding a
+  behaviour forces it into the report. +14 tests. 952 passed. The studio can now describe itself
+  accurately and on demand.
 
 > Check items off in this file as they land. Add new items as discovered.

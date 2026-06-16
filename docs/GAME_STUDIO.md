@@ -36,6 +36,7 @@ The deterministic fast-path (`plan_unity_fast_action`) routes plain commands to 
 | "oyunu değerlendir", "is the game playable" | `unity_assess_game` |
 | "dodge varyasyonları göster", "easy/medium/hard" | `unity_game_variations` |
 | "hangi oyunlar yapabilirsin", "what games" | `unity_game_catalog` |
+| "studio raporu", "yeteneklerin", "capabilities", "what can you do" | `unity_studio_report` |
 | "sahneyi canlandır", "animate the scene" | `unity_animate_group` |
 | "dodge oyununu boss olarak kaydet", "save as X" | `unity_save_game` |
 | "boss oyununu yükle", "load X" / "kayıtlı oyunlar" | `unity_load_game` / `unity_list_saved_games` |

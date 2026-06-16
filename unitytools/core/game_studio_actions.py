@@ -371,6 +371,24 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "reason": f"load-game intent -> '{name}'",
         }
 
+    # Studio-report intent ("describe the whole studio") -> the richer, code-derived
+    # report. Keyed on report-specific phrases so it doesn't steal the game-catalog
+    # intent's "neler yapabilirsin / what games" (that still lists the games).
+    if has("studio raporu", "studio report", "yeteneklerin", "yetenekleri", "yetenek raporu",
+           "capabilities", "what can you do", "tum yetenek", "kapsamli rapor"):
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_studio_report",
+                "kwargs": {},
+                "write": False,
+                "note": "comprehensive code-derived studio report (pure, no scene changes, no bridge)",
+            }],
+            "safety_notes": ["read-only; no scene changes"],
+            "reason": "studio-report intent -> unity_studio_report",
+        }
+
     # Game-catalog intent ("what games can you make?") — must be specific enough
     # that bare "katalog"/"catalog" (the SCENE catalog) is not stolen, so it keys
     # on game-scoped phrases only.

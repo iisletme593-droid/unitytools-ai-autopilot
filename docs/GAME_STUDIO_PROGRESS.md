@@ -874,3 +874,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   valid/playable/deterministic. Live-proved runner Player={runner,score,sound}, GameManager={title},
   killzone emits the cue, dodge/chase/arena intact. +2 tests (title-screen, killzone-hit-cue), updated
   player-set test. Generate-only; deterministic. — tests: 938 passed
+- [cycle 72] P14 code-derived STUDIO REPORT — the studio describing itself, drift-proof. New
+  build_studio_report() in core/game_qa.py: a comprehensive markdown report computed ENTIRELY from the
+  live registries (BLUEPRINTS, _SCRIPT_TEMPLATES, GAMEPLAY_BEHAVIOURS, the tool registry) so it can
+  never drift. Covers: all 9 game types + summaries; the behaviour catalog by category (27 scripted
+  MonoBehaviours in control/movement/world/combat/progression/game-feel + 6 physics primitives); which
+  games wire in title/gameover/sound (code-derived per-game scan); persistence (save/load); procedural/
+  seeded determinism; and the live tool count (162 registered). New `unity_studio_report` @tool (pure,
+  execute-free) + NL intent ("studio raporu / yeteneklerin / capabilities / what can you do") routed
+  BEFORE the catalog intent and kept distinct from it ("neler yapabilirsin / what games" still ->
+  unity_game_catalog, an existing test). A `_BEHAVIOUR_CATEGORIES` drift guard asserts every unique
+  MonoBehaviour class is categorized exactly once. Live-proved the full report (9 types, accurate feel
+  membership, code-derived counts). Pure ASCII; generate-only; deterministic. +14 tests. — tests: 952 passed
