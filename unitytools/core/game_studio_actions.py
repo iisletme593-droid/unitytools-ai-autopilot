@@ -258,6 +258,9 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     def detect_game_type() -> str:
         if has("dodge", "kacma", "kacis"):
             return "dodge"
+        # horde BEFORE survival so "survival brawler" -> horde, not survival
+        if has("horde", "dalga modu", "akin", "survival brawler"):
+            return "horde"
         if has("survival", "survive", "sag kalma", "hayatta kal"):
             return "survival"
         if has("platformer", "platform", "zipla oyunu", "ziplama oyunu", "jump game"):
@@ -411,7 +414,8 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "platformer", "platform oyunu", "zipla oyunu", "ziplama oyunu", "jump game",
             "chase", "kovalamaca", "takip oyunu", "chase game",
             "maze", "labirent", "maze game", "labirent oyunu",
-            "arena", "dovus", "brawler", "savas oyunu", "arena oyunu", "dovus oyunu")
+            "arena", "dovus", "brawler", "savas oyunu", "arena oyunu", "dovus oyunu",
+            "horde", "akin oyunu", "dalga modu", "horde oyunu", "survival brawler")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:

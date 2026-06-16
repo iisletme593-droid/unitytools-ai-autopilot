@@ -563,5 +563,14 @@ terrain (a big separate effort).
   variations work; landing-doc row keeps the guard green. The code-derived capability summary now reports
   8 game types automatically. +10 tests. **Next:** horde NL intent ("horde / survival brawler / dalga
   modu / akın oyunu" + size + seed) + GAMES.md/catalog row (cycle 63); state review (cycle 64).
+- [x] Horde NL intent + docs (cycle 63): `detect_game_type` gained a horde branch
+  (horde/dalga modu/akın/survival brawler -> "horde") placed BEFORE the survival branch, so "survival
+  brawler" routes to horde while plain "sağ kalma"/"hayatta kalma"/"survival" still route to survival
+  (the key disambiguation, tested). `wants_game` learned horde/"akın oyunu"/"dalga modu"/"horde oyunu"/
+  "survival brawler"; size+seed work ("horde oyunu kur 6 tohum 5" -> horde, size 6, seed 5). assess +
+  variations recognise horde. GAMES.md §1 row + intent phrases (doc guard asserts horde); the capability
+  summary reports 8 game types and lists horde. The other seven game intents are unchanged. +10 tests.
+  **Next:** horde × save/load × variations integration + state review on P12 direction (cycle 64) —
+  title/menu UI, audio cues, or another direction.
 
 > Check items off in this file as they land. Add new items as discovered.

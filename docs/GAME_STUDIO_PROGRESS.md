@@ -774,3 +774,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   horde-interactive, loot scattered, valid+playable per seed, determinism, clamp, variations). Also
   loosened two brittle exact-game-count assertions (arena tests) to survive catalog growth. Live-proved
   the horde structure + the 8-game summary. Generate-only; deterministic. — tests: 841 passed
+- [cycle 63] P12 step 3: horde natural-language intent + docs. `detect_game_type` gained a horde branch
+  (horde/dalga modu/akin/survival brawler -> "horde") placed BEFORE the survival branch, which is the
+  key disambiguation: "survival brawler" must route to horde, but plain "sag kalma"/"hayatta kalma"/
+  "survival" must still route to survival (checked first since survival is the more specific intent for
+  those words; horde uses the specific phrase "survival brawler"). `wants_game` learned horde/"akin
+  oyunu"/"dalga modu"/"horde oyunu"/"survival brawler", so "horde oyunu kur" / "dalga modu oyunu yap" /
+  "build me a horde game" route to a horde build; size+seed work together ("horde oyunu kur 6 tohum 5"
+  -> horde, size 6, seed 5). assess + variations recognise horde via the shared detect_game_type.
+  GAME_STUDIO_GAMES.md §1 row + intent phrases (no-phantom doc guard asserts horde); the code-derived
+  capability summary reports "8 playable game types" and lists horde. The other seven game intents are
+  unchanged. +10 tests (horde build per phrasing, size+seed, survival-vs-horde distinction,
+  assess+variations, others-unchanged, capability summary 8 games). Live-proved horde routing and the
+  survival distinction. Generate-only; deterministic. — tests: 851 passed
