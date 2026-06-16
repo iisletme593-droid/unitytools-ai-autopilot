@@ -632,5 +632,26 @@ template that applies to all types). Title/menu UI and audio cues follow.
   - **Next big goal (P14, cycle 68+):** with the per-game-feel loop complete, broaden the studio.
     Candidates: a procedural `AutopilotSound` (above), a fresh game type, or a consolidated
     "studio capabilities" report/landing refresh that reflects all 8 types + the full feel loop.
+- [x] **Audio cue — done honestly (cycle 68).** Added `sound` -> AutopilotSound. The studio is
+  generate-only (it never imports real assets), so faking an AudioClip / `Resources.Load("clip")` would
+  be a lie. Instead AutopilotSound **builds its clip at runtime**: `AudioClip.Create` + `SetData` filled
+  with a **deterministic** `Mathf.Sin` sine wave (frequency * 2*PI * t, with a short linear fade-out so
+  it doesn't click) — no external asset, no `Math.random`, fully reproducible. Decoupled: `PlayCue()` /
+  `PlayCue(float freq)` fire via `SendMessage("PlayCue", DontRequireReceiver)`, so any behaviour can
+  trigger a cue without a hard type reference. Aliases sound/ses/audio/beep/sfx/sescue. Pure ASCII,
+  balanced, generate-only. sound row added to GAME_STUDIO_GAMES.md + doc-guard list. +12 tests
+  (procedural-not-fake / decoupled / deterministic / ascii / aliases / registered). 891 passed.
+  Kept behaviour-only this cycle (wiring into a game is a small follow-up). **This closes P13's audio
+  item honestly — P13 game-feel is fully complete: win/lose + title + sound.**
+
+### P14 — Broaden the studio (next)
+With the full per-game feel loop done (title -> play -> win/lose, + a procedural sound cue), the next
+arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
+- [ ] Wire `sound` cues into the games decoupled (e.g. GameManager fans `SendMessage("PlayCue")` on
+  win/lose; pickups/attacks emit cues) — small, exercises the decoupled trigger in a real game.
+- [ ] A fresh **game type** (9th blueprint) — e.g. a tower-defense, a runner, or a twin-stick shooter,
+  reusing the existing combat/spawner/score/gameover building blocks.
+- [ ] A consolidated **"studio capabilities" report / landing refresh** reflecting all 8 (9?) types +
+  the full feel loop + persistence + procedural/seeded layout, code-derived so it can't drift.
 
 > Check items off in this file as they land. Add new items as discovered.
