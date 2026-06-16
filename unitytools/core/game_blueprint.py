@@ -1068,6 +1068,7 @@ def plan_game_variations(
             "unique_scripts": report["unique_scripts"],
             "playable": report["playable"],
             "warnings": report["warnings"],
+            "design_notes": report["design_notes"],
         })
 
     return {"ok": True, "game_type": gt, "count": len(variations), "variations": variations}

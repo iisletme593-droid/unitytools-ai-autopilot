@@ -25,6 +25,15 @@ def test_every_variation_is_playable(game_type):
         assert v["playable"] is True, f"{game_type}/{v['label']} not playable: {v['warnings']}"
 
 
+@pytest.mark.parametrize("game_type", sorted(BLUEPRINTS))
+def test_every_variation_carries_a_coherent_design_critique(game_type):
+    # the design critique rides along with each variation (consistent self-review), and
+    # every shipped blueprint is coherent so the notes are empty
+    out = plan_game_variations(game_type)
+    for v in out["variations"]:
+        assert "design_notes" in v and v["design_notes"] == []
+
+
 def test_difficulty_is_monotonic_in_objects():
     out = plan_game_variations("chase", counts=[2, 4, 6, 9])
     counts = [v["params"]["count"] for v in out["variations"]]

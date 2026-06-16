@@ -1020,3 +1020,12 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   clones are untouched (cf model preserved); the Worker's model is always tool-capable so its tool-loop
   works. Live-proved model_for_role + the per-role cloudflare clone + the untouched paths. Updated
   docs/LLM_MODEL_ROUTING.md with the role table. +4 tests. Generate-only; deterministic. -- tests: 1206 passed
+- [cycle 85] SELF-CRITICISM EVERYWHERE -- the design critique is now consistent across all the studio's
+  reporting surfaces (it was only in assess + campaign). New studio_health(count) in core/game_qa.py: a
+  code-derived self-audit that builds every blueprint and checks VALID (validate_plan: whitelisted tools,
+  no traversal) + PLAYABLE (assess) + COHERENT (critique_design has no notes), returning a per-game
+  verdict and a `flagged` list (empty when all clean). build_studio_report() gained a "Studio health: OK
+  (N/N)" section -- a built-in self-test of the whole catalog that flips to a flagged list if anything
+  regresses. plan_game_variations now carries design_notes on each variation too. All 12 game types
+  audit clean (valid+playable+coherent). Live-proved studio_health (12/12), the report health line, and
+  variations carrying design_notes. Generate-only; deterministic; pure ASCII. +14 tests. -- tests: 1220 passed

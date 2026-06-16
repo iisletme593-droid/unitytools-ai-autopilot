@@ -803,5 +803,13 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   `cloudflare_model` from the router AND turns off per-message auto-routing inside the role, so a role's
   assigned model is authoritative. Ollama mode and no-role/non-cloudflare clones are untouched; the
   Worker's model is always tool-capable so its tool-loop works. +4 tests. 1206 passed.
+- [x] **Self-criticism everywhere (cycle 85)** -- the design critique is now consistent across all the
+  studio's reporting surfaces. New `studio_health()` in game_qa: a code-derived self-audit that builds
+  every blueprint and checks it is VALID (whitelisted tools, no traversal), PLAYABLE, and COHERENT (no
+  design-critique notes), returning a per-game verdict + a `flagged` list (empty when all clean). The
+  studio report gained a "Studio health: OK (N/N)" section (or a flagged list if something regresses --
+  a built-in self-test of the whole catalog). `plan_game_variations` now also carries `design_notes` on
+  each variation, so difficulty options get the same self-review as a single build. All 12 game types
+  audit clean. +14 tests. The studio reviews not just one game but its entire output, everywhere.
 
 > Check items off in this file as they land. Add new items as discovered.

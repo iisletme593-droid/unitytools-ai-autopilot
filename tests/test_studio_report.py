@@ -8,7 +8,7 @@ as the `unity_studio_report` tool and the "studio raporu / capabilities" NL inte
 import pytest
 
 import unitytools.tools  # noqa: F401 - register all @tools so the report can count them
-from unitytools.core.game_qa import build_studio_report, _BEHAVIOUR_CATEGORIES
+from unitytools.core.game_qa import build_studio_report, studio_health, _BEHAVIOUR_CATEGORIES
 from unitytools.core.game_blueprint import BLUEPRINTS
 from unitytools.core.gameplay import _SCRIPT_TEMPLATES, GAMEPLAY_BEHAVIOURS
 from unitytools.core.game_studio_actions import plan_unity_fast_action
@@ -23,6 +23,23 @@ def test_report_lists_every_game_type():
         assert f"`{gt}`" in REPORT, f"report missing game type {gt}"
     # the heading count is code-derived from BLUEPRINTS
     assert f"## Game types ({len(BLUEPRINTS)})" in REPORT
+
+
+def test_studio_health_audits_every_blueprint_clean():
+    h = studio_health()
+    assert h["game_count"] == len(BLUEPRINTS)
+    assert h["all_valid"] and h["all_playable"] and h["all_coherent"]
+    assert h["flagged"] == []                         # no game type has issues
+    for g in h["games"]:
+        assert g["valid"] and g["playable"] and g["coherent"]
+        assert g["design_notes"] == []
+
+
+def test_report_shows_an_ok_health_section():
+    # the report surfaces the self-audit; with all games clean it reads OK N/N
+    n = len(BLUEPRINTS)
+    assert f"## Studio health: OK ({n}/{n})" in REPORT
+    assert "passes the design critique" in REPORT
 
 
 def test_report_counts_are_code_derived():

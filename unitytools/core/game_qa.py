@@ -242,6 +242,38 @@ def _registered_tool_names() -> list[str]:
         return []
 
 
+def studio_health(count: int = 4) -> dict[str, Any]:
+    """A CODE-DERIVED self-audit of the whole catalog: build every blueprint and check
+    it is VALID (whitelisted tools, no traversal), PLAYABLE (player + interactive), and
+    COHERENT (no design-critique notes). Pure; the studio auditing its own output, the
+    same checks a human reviewer would run. Returns {ok, game_count, all_valid,
+    all_playable, all_coherent, games:[...], flagged:[...]} -- flagged is empty when
+    every game is clean.
+    """
+    from .game_io import validate_plan                       # lazy: avoids an import cycle
+    games: list[dict[str, Any]] = []
+    flagged: list[dict[str, Any]] = []
+    all_valid = all_playable = all_coherent = True
+    for gt in sorted(BLUEPRINTS):
+        plan = plan_game(gt, count)
+        report = assess_game_readiness(plan)
+        valid = bool(validate_plan(plan)["ok"])
+        playable = bool(report["playable"])
+        notes = report["design_notes"]
+        coherent = not notes
+        games.append({"game_type": gt, "valid": valid, "playable": playable,
+                      "coherent": coherent, "design_notes": notes})
+        all_valid = all_valid and valid
+        all_playable = all_playable and playable
+        all_coherent = all_coherent and coherent
+        if not (valid and playable and coherent):
+            flagged.append({"game_type": gt, "valid": valid, "playable": playable,
+                            "design_notes": notes})
+    return {"ok": True, "game_count": len(games), "all_valid": all_valid,
+            "all_playable": all_playable, "all_coherent": all_coherent,
+            "games": games, "flagged": flagged}
+
+
 def build_studio_report() -> str:
     """A comprehensive, user-facing, CODE-DERIVED studio report (markdown string).
 
@@ -263,6 +295,25 @@ def build_studio_report() -> str:
     lines.append(f"## Game types ({cat['game_count']})")
     for g in cat["games"]:
         lines.append(f"- `{g['game_type']}` -- {g['summary']}")
+    lines.append("")
+
+    # (a2) self-audit: every blueprint must be valid + playable + coherent
+    health = studio_health()
+    if health["all_valid"] and health["all_playable"] and health["all_coherent"]:
+        lines.append(f"## Studio health: OK ({health['game_count']}/{health['game_count']})")
+        lines.append("Every game type builds valid (whitelisted tools, no traversal), playable "
+                     "(a player + something to do), and coherent (passes the design critique).")
+    else:
+        lines.append("## Studio health: NEEDS ATTENTION")
+        for f in health["flagged"]:
+            issues = []
+            if not f["valid"]:
+                issues.append("invalid")
+            if not f["playable"]:
+                issues.append("not playable")
+            if f["design_notes"]:
+                issues.append("; ".join(f["design_notes"]))
+            lines.append(f"- `{f['game_type']}`: {', '.join(issues)}")
     lines.append("")
 
     # (b) behaviour catalog, categorized (scripted MonoBehaviours + physics primitives)
