@@ -27,6 +27,9 @@ class Config:
     cloudflare_account_id: str = ""
     cloudflare_api_token: str = ""
     cloudflare_model: str = "@cf/openai/gpt-oss-120b"
+    # Otomatik model yonlendirme: gorev tipine gore en uygun CF modelini sec
+    # (kapaliyken her zaman cloudflare_model kullanilir). Bkz. core/model_router.py
+    cloudflare_auto_route: bool = True
 
     # Güvenlik: kopru/chat-server paylasilan token + uzak baglanti izni
     bridge_token: str = ""
@@ -75,6 +78,8 @@ class Config:
             cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID", ""),
             cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN", ""),
             cloudflare_model=os.getenv("CLOUDFLARE_MODEL", "@cf/openai/gpt-oss-120b"),
+            cloudflare_auto_route=os.getenv("CLOUDFLARE_AUTO_ROUTE", "1").strip().lower()
+            not in {"0", "false", "no", "off", "hayir", "kapali"},
             max_tokens=_int_env("UNITYTOOLS_MAX_TOKENS", 8192),
             history_turn_limit=_int_env("UNITYTOOLS_HISTORY_LIMIT", 40),
             unity_bridge_port=_int_env("UNITY_BRIDGE_PORT", 7777),

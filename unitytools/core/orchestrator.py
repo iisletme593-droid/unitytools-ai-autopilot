@@ -535,11 +535,17 @@ class Orchestrator:
         final_text = ""
         tool_calls_log: list[dict[str, Any]] = []
         tools = self._select_ollama_tools(user_message)
+        # Pick the best Cloudflare model for this turn (deterministic, code-derived).
+        # Tool-requiring turns always get a verified tool-capable model so the loop is
+        # never broken; the choice is fixed for the whole tool-loop of this turn.
+        from .model_router import select_model
+        _route = select_model(user_message, needs_tools=bool(tools), config=self.config)
+        _turn_model = _route["model"]
         _last_calls_sig: str | None = None
 
         for _ in range(max_iterations):
             self._trim_ollama_history()
-            response = self._cloudflare_chat(self.ollama_messages, tools=tools)
+            response = self._cloudflare_chat(self.ollama_messages, tools=tools, model=_turn_model)
             message = response.get("message") or {}
             content = message.get("content") or ""
             tool_calls = message.get("tool_calls") or []
@@ -659,17 +665,19 @@ class Orchestrator:
         )
 
     def _cloudflare_chat(
-        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]],
+        model: str | None = None,
     ) -> dict[str, Any]:
         """Cloudflare Workers AI native /ai/run endpoint cagrisi.
 
         Yaniti Ollama benzeri {"message": {"content", "tool_calls"}} sekline
         normalize eder; boylece _chat_cloudflare dongusu degismeden calisir.
         CF tool_calls formati: [{"name": ..., "arguments": {...}}].
+        ``model`` verilirse onu kullanir (model_router secimi); yoksa config modeli.
         """
         account = (getattr(self.config, "cloudflare_account_id", "") or "").strip()
         token = (getattr(self.config, "cloudflare_api_token", "") or "").strip()
-        model = (getattr(self.config, "cloudflare_model", "") or "@cf/openai/gpt-oss-120b").strip()
+        model = (model or getattr(self.config, "cloudflare_model", "") or "@cf/openai/gpt-oss-120b").strip()
         if not account or not token:
             raise RuntimeError(
                 "Cloudflare ayarlari eksik: CLOUDFLARE_ACCOUNT_ID ve CLOUDFLARE_API_TOKEN .env'de olmali."

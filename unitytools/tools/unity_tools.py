@@ -1352,6 +1352,12 @@ def unity_studio_report() -> dict:
     return {"ok": True, "report": build_studio_report()}
 
 
+@tool(description="Show which Cloudflare Workers AI models the studio routes between and how (pure, no bridge): the task->model catalog (reasoning/general/coding/creative/fast + vision/image), which support tool-calling, and how a model is chosen per turn (auto-detect + chat override). Use to answer 'hangi modeller var / model raporu / which models / model routing'. Returns {ok, report} (markdown).")
+def unity_model_report() -> dict:
+    from ..core.model_router import build_model_router_report, list_models
+    return {"ok": True, "report": build_model_router_report(), "models": list_models()}
+
+
 @tool(description="Export a game as portable, versioned JSON WITHOUT touching the scene (pure, no bridge): serialize a game_type's plan so it can be saved, shared, or replayed later. game_type='collectathon'/'dodge'/'survival'/'platformer'/'chase'. Returns {ok, game_type, json, step_count}. The JSON round-trips back via the game_io loader.")
 def unity_export_game(game_type: str = "collectathon", collectible_count: int = 5, pretty: bool = True) -> dict:
     from ..core.game_blueprint import plan_game

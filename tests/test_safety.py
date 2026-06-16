@@ -86,6 +86,6 @@ def test_snapshot_flag_resets_each_chat(monkeypatch):
     o._snapshot_taken = True
     # a fresh chat() turn must reset the flag so the next turn can snapshot again
     o._select_ollama_tools = lambda msg: []
-    o._cloudflare_chat = lambda messages, tools: {"message": {"content": "ok", "tool_calls": []}}
+    o._cloudflare_chat = lambda messages, tools, model=None: {"message": {"content": "ok", "tool_calls": []}}
     o.chat("merhaba", max_iterations=1)
     assert o._snapshot_taken is False

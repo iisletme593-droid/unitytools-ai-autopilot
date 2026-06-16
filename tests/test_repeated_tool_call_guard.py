@@ -15,7 +15,7 @@ def test_repeated_identical_tool_calls_stop():
     o = _orch_cloudflare()
     o._select_ollama_tools = lambda msg: []
     # Backend her seferinde AYNI tool cagrisini ister (donguye giren model).
-    o._cloudflare_chat = lambda messages, tools: {
+    o._cloudflare_chat = lambda messages, tools, model=None: {
         "message": {"content": "", "tool_calls": [{"name": "noop_tool", "arguments": {"x": 1}}]}
     }
     calls = {"n": 0}
@@ -42,7 +42,7 @@ def test_distinct_tool_calls_not_blocked():
     ]
     box = {"k": 0}
 
-    def backend(messages, tools):
+    def backend(messages, tools, model=None):
         out = seq[min(box["k"], len(seq) - 1)]
         box["k"] += 1
         return out
