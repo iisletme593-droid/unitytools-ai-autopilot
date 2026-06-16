@@ -260,6 +260,9 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         # so plain "savunma" / "tower" can't shadow it or be stolen by other intents
         if has("tower defense", "tower-defense", "kule savunma", "kule savunmasi", "td"):
             return "tower_defense"
+        # stealth: distinct terms, can't shadow anything else
+        if has("stealth", "gizlilik", "gizli gec", "gizlice", "sneak", "sinsi"):
+            return "stealth"
         # runner: its terms ("kosu/kosma/endless") are distinct from every other type,
         # so an early return can't shadow anything (and "endless runner" is clear)
         if has("runner", "endless", "kosu oyunu", "kosma oyunu", "sonsuz kosu"):
@@ -537,7 +540,8 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "horde", "akin oyunu", "dalga modu", "horde oyunu", "survival brawler",
             "runner", "endless", "kosu oyunu", "kosma oyunu", "sonsuz kosu", "runner oyunu",
             "tower defense", "tower-defense", "kule savunma", "kule savunmasi", "td oyunu",
-            "zamana karsi", "survive the clock", "sureli hayatta", "time survival", "gerisayim oyunu")
+            "zamana karsi", "survive the clock", "sureli hayatta", "time survival", "gerisayim oyunu",
+            "stealth", "gizlilik", "gizli gec", "sneak", "gizlilik oyunu")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:

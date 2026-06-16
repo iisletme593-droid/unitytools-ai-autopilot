@@ -977,3 +977,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   Works for all 11 blueprints (parametrized). Added unity_plan_campaign to the studio-report game-tools
   filter. Live-proved the climbing campaign + determinism + intent + no theft. Generate-only;
   deterministic. -- tests: 1109 passed
+- [cycle 81] 12th game type: STEALTH -- the first won by AVOIDING combat. New `detector` behaviour
+  (AutopilotDetector: each frame finds the Player; within sightRange SendMessages "PlayerDied" to the
+  GameManager -> caught/LOSE; decoupled by name, fires once). gameover gains a third WIN hook
+  ReachedGoal() (mirrors Survived), and the goal template now also SendMessages "ReachedGoal" to a
+  GameManager on entry (decoupled; no-op without one, so collectathon/dodge/chase/platformer/maze are
+  unaffected). plan_stealth_game (12th in BLUEPRINTS): player + a goal exit + N patrolling guards (patrol
+  + detector), deliberately NOT tagged Enemy so the clear-all WIN can't mis-fire -- the only win is
+  reaching the exit. critique_design updated: a goal now counts as a WIN trigger (gameover + goal + no
+  enemy/timer is coherent, not "can only be lost"); all 12 blueprints stay clean (no design notes).
+  Intent routes stealth/gizlilik/gizli gec/sneak (distinct, no theft). gameover now fires 4 PlayCue cues
+  (3 wins @880 + 1 lose @160) -- updated that test. Docs Eleven->Twelve + rows; detector in doc-guard +
+  drift category; report auto-grew to 12. Live-proved the detector.cs + win/lose loop + all-clean
+  critique + report. Generate-only; deterministic. -- tests: 1150 passed

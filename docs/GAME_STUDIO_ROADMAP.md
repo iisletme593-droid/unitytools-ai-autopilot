@@ -767,5 +767,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   checked before the build/composer intents so "arena kampanyasi" plans a campaign while "arena oyunu
   kur" still builds one and "arena varyasyonlari" still lists variations. Works for all 11 blueprints
   (parametrized test). +22 tests. 1109 passed. The studio can now plan a progression, not just one game.
+- [x] **Stealth -- the 12th game type, the first won by AVOIDING combat (cycle 81).** New `detector`
+  behaviour (AutopilotDetector: each frame finds the Player; within `sightRange` it SendMessages
+  "PlayerDied" to the GameManager -> caught/LOSE; decoupled, by name, fires once). A third gameover WIN
+  hook `ReachedGoal()` (mirrors Survived), and the `goal` zone now also SendMessages "ReachedGoal" to a
+  GameManager on entry (decoupled, no-op without one -- the other goal-using games are unaffected).
+  `plan_stealth_game` (12th type): player + a goal exit + N patrolling guards (`patrol` + `detector`),
+  deliberately NOT tagged Enemy so the clear-all-enemies WIN can't mis-fire -- the only win is reaching
+  the exit. The design critique was updated so a goal counts as a WIN trigger (gameover + goal + no
+  enemy/timer is now coherent, not "can only be lost"); all 12 blueprints stay clean. Intent routes
+  stealth/gizlilik/gizli gec/sneak. Docs (Eleven->Twelve + rows), drift/ASCII guards green; report
+  auto-grew to 12. +41 tests. 1150 passed.
 
 > Check items off in this file as they land. Add new items as discovered.

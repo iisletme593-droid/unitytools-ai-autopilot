@@ -61,6 +61,7 @@ def critique_design(behaviour_counts: dict[str, int]) -> list[str]:
     c = behaviour_counts.get
     enemy, health, attack = c("enemy", 0), c("health", 0), c("attack", 0)
     timer, gameover, ranged = c("timer", 0), c("gameover", 0), c("ranged", 0)
+    goal = c("goal", 0)
     notes: list[str] = []
 
     if enemy > 0 and health == 0:
@@ -73,9 +74,9 @@ def critique_design(behaviour_counts: dict[str, int]) -> list[str]:
         notes.append("the player can attack but there are no enemies to fight")
     if ranged > 0 and enemy == 0:
         notes.append("a ranged attacker has no enemies in range to target")
-    if gameover > 0 and enemy == 0 and timer == 0:
-        notes.append("the win/lose manager has no WIN trigger (no enemies to clear and no "
-                     "survival timer) -- the game can only be lost")
+    if gameover > 0 and enemy == 0 and timer == 0 and goal == 0:
+        notes.append("the win/lose manager has no WIN trigger (no enemies to clear, no "
+                     "survival timer, no goal to reach) -- the game can only be lost")
     if timer > 0 and (enemy == 0 or health == 0):
         notes.append("the countdown can be outlasted but there is no combat lose path -- the "
                      "game cannot actually be lost")
@@ -210,7 +211,7 @@ def build_game_capabilities_summary() -> str:
 _BEHAVIOUR_CATEGORIES: dict[str, list[str]] = {
     "control": ["player", "runner"],
     "movement": ["rotate", "move", "bob", "bounce", "patrol", "follow", "orbit", "wander"],
-    "world": ["collectible", "goal", "killzone", "spawner"],
+    "world": ["collectible", "goal", "killzone", "spawner", "detector"],
     "combat": ["health", "attack", "enemy", "ranged", "reward", "horde"],
     "progression": ["xp", "loot", "inventory", "score"],
     "game feel": ["title", "gameover", "sound", "timer"],

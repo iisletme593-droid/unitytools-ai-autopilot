@@ -605,6 +605,62 @@ def plan_time_survival_game(enemy_count: int = 5, arena_size: float = 20.0) -> d
     }
 
 
+def plan_stealth_game(guard_count: int = 4, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan a stealth game -- the 12th type, and the first won by AVOIDING combat.
+
+    Slip past N patrolling guards (each `patrol` movement + a `detector` line of sight)
+    and reach the goal at the far end. A detector SendMessages "PlayerDied" to the
+    GameManager if it sees you (caught -> LOSE); reaching the goal SendMessages
+    "ReachedGoal" (-> WIN). The guards are deliberately NOT tagged Enemy, so gameover's
+    clear-all-enemies WIN never fires -- the only way to win is to reach the exit. Same
+    step schema; the seed jitters the guard placement.
+    """
+    n = max(1, min(int(guard_count), 30))
+    size = max(8.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) player at the near end
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5, "position_z": -size / 2.0}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
+
+    # 3) the exit to slip through to (reaching it -> WIN via gameover.ReachedGoal)
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_y": 0.5, "position_z": size / 2.0}})
+    steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
+
+    # 4) patrolling guards with a line-of-sight detector, NOT tagged Enemy (so clearing
+    #    them is neither possible nor a win -- you must avoid them, not fight them)
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Capsule",
+            "count": n,
+            "pattern": "scatter",
+            "spacing": max(3.0, size / float(n)),
+            "name_prefix": "Guard",
+        },
+    })
+    for i in range(n):
+        steps.append({"script_behaviour": {"object": f"Guard_{i}", "behaviour": "patrol"}})
+        steps.append({"script_behaviour": {"object": f"Guard_{i}", "behaviour": "detector"}})
+
+    # 5) GameManager: title + gameover (WIN on ReachedGoal, LOSE on PlayerDied) + sound
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    for behaviour in ("title", "gameover", "sound"):
+        steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
+
+    return {
+        "ok": True,
+        "game": "stealth",
+        "summary": f"Stealth: ground + player + a goal exit + {n} patrolling guards (line-of-sight) -- reach the exit unseen to WIN, get spotted to LOSE ({len(steps)} steps).",
+        "guard_count": n,
+        "steps": steps,
+    }
+
+
 def compose_custom_game(
     player: bool = True,
     enemy: int = 0,
@@ -881,6 +937,7 @@ BLUEPRINTS = {
     "runner": plan_runner_game,
     "tower_defense": plan_tower_defense_game,
     "time_survival": plan_time_survival_game,
+    "stealth": plan_stealth_game,
 }
 
 

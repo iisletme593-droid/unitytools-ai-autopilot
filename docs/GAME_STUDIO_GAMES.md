@@ -23,6 +23,7 @@ optionally builds) a complete playable game by composing the building blocks bel
 | `runner` | An **endless runner** (the first non-arena-style type): an **auto-running** player (forward +Z, A/D strafe, Space jump) + a distance **score** it feeds itself + N weaving `killzone` obstacles that snap you back to the start on touch. Endless — no goal/win, get as far as you can | "runner oyunu kur" / "endless runner yap" / "koşu oyunu" |
 | `tower_defense` | A **tower-defense**, all from existing blocks: enemies march to a **Base** (tagged Player + `health`, so the existing enemy AI targets it; it falls → **lose**), defended by a line of `ranged` **towers** (auto-target the nearest enemy) + a mobile **hero** (`player`+`attack`, not tagged Player so enemies ignore it). **Win** when all enemies are cleared. title/win-lose/sound | "tower defense oyunu kur" / "kule savunma yap" / "td oyunu" |
 | `time_survival` | **Outlast the clock**: an armed player vs N enemies + a GameManager `timer`. When the countdown ends the timer SendMessages "Survived" and `gameover` declares a **WIN** (you survived); clearing every enemy early also wins; dying **loses**. Distinct from `survival` (which never ends) | "zamana karşı oyun" / "süreli hayatta kalma" / "survive the clock" |
+| `stealth` | A **stealth** game, the first won by **avoiding** combat: slip past N patrolling guards (`patrol` + a `detector` line-of-sight) and reach the **goal** exit. A detector that sees you SendMessages "PlayerDied" (**LOSE**); reaching the goal SendMessages "ReachedGoal" (**WIN**). Guards are NOT tagged Enemy, so you can't (and needn't) fight them | "stealth oyunu kur" / "gizlilik oyunu" / "gizli geç" |
 
 `collectible_count` is the count of the main repeated element (collectibles / hazards /
 spawners / platforms / enemies). The blueprint registry is `core/game_blueprint.BLUEPRINTS`;
@@ -74,6 +75,7 @@ Give one object a behaviour with `unity_add_gameplay_behaviour(object, behaviour
 | `sound` / `ses` / `audio` / `beep` / `sfx` | AutopilotSound | A **procedural** sound cue, honest about being generate-only: ships **no** audio asset and loads nothing from Resources — it **builds** its clip at runtime via `AudioClip.Create` + a deterministic `Mathf.Sin` sine wave. Decoupled: fire it with `SendMessage("PlayCue")` (optionally a frequency). `arena`/`horde` wire the `title`/`gameover` bookends; `sound` is available as a cue for any object |
 | `runner` / `koşu` / `endless` | AutopilotRunner | An endless-runner controller: **auto-runs forward** (+Z) at `runSpeed`, A/D strafe, Space jump (gravity arc, no Rigidbody). Decoupled distance score: every `scoreInterval` it `SendMessage("AddScore", 1)` to itself so an `AutopilotScore` on the same object ticks up (no-op without one). Deterministic — no `Math.random` |
 | `timer` / `süre` / `zaman` / `countdown` | AutopilotTimer | A **countdown** timer + HUD: counts `duration` seconds down (freezes while paused), draws the remaining time top-right, and on zero fires once a decoupled `SendMessage("Survived")` — a **win signal** `AutopilotGameOver` reacts to ("outlast the clock"). Deterministic (reads only `Time.deltaTime`) |
+| `detector` / `dedektör` / `görüş` / `nöbetçi` | AutopilotDetector | A guard's **line-of-sight**: each frame finds the Player and, if within `sightRange`, SendMessages "PlayerDied" to the `GameManager` (caught → **lose**) — decoupled, by name, fires once. Pair with `patrol` for a moving guard (the `stealth` game does). Deterministic (only distance) |
 
 These are the **action-RPG combat & progression** building blocks (P11): `attack`/`enemy` deal damage
 that `health`/`reward` receive, a killed `reward` grants XP that `xp` levels up on, and `loot`/`inventory`
@@ -88,8 +90,8 @@ returns its source); none are stubs.
 `plan_unity_fast_action` (and the Unity fast-path) route these to a `unity_build_simple_game`
 plan automatically:
 
-- tr: "oyun kur", "oyun yap", "toplama oyunu", "dodge/kaçma oyunu", "sağ kalma / hayatta kalma oyunu", "platform / zıplama oyunu", "kovalamaca / takip oyunu", "labirent oyunu", "arena / dövüş / savaş oyunu", "horde / dalga modu / akın / survival brawler", "runner / koşu oyunu / endless", "tower defense / kule savunma / td", "zamana karşı / süreli hayatta kalma", "oyun iskeleti"
-- en: "build me a game", "make a collectathon/dodge/survival/platformer/chase/maze/arena/horde/runner/tower_defense/time_survival game"
+- tr: "oyun kur", "oyun yap", "toplama oyunu", "dodge/kaçma oyunu", "sağ kalma / hayatta kalma oyunu", "platform / zıplama oyunu", "kovalamaca / takip oyunu", "labirent oyunu", "arena / dövüş / savaş oyunu", "horde / dalga modu / akın / survival brawler", "runner / koşu oyunu / endless", "tower defense / kule savunma / td", "zamana karşı / süreli hayatta kalma", "stealth / gizlilik / gizli geç", "oyun iskeleti"
+- en: "build me a game", "make a collectathon/dodge/survival/platformer/chase/maze/arena/horde/runner/tower_defense/time_survival/stealth game"
 
 A number in the prompt sets the count ("toplama oyunu yap 8 toplanabilir" → 8).
 

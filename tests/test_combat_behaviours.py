@@ -327,11 +327,11 @@ def test_gameover_source():
 
 def test_gameover_fires_a_decoupled_sound_cue_on_each_transition():
     # each end transition SendMessage("PlayCue") ONCE (no-op without a sound component);
-    # wins are higher-pitched than losses. Decoupled, no hard type ref. Three end paths:
-    # enemy-clear WIN (880), PlayerDied LOSE (160), and the timer Survived WIN (880).
+    # wins are higher-pitched than losses. Decoupled, no hard type ref. Four end paths:
+    # enemy-clear WIN (880), PlayerDied LOSE (160), Survived WIN (880), ReachedGoal WIN (880).
     src = generate_behaviour_script("gameover")["source"]
-    assert src.count('SendMessage("PlayCue"') == 3          # enemy-clear win, lose, survived win
-    assert src.count("880f") == 2 and "160f" in src         # two wins (880) + one lose (160)
+    assert src.count('SendMessage("PlayCue"') == 4          # three wins + one lose
+    assert src.count("880f") == 3 and "160f" in src         # three wins (880) + one lose (160)
     assert "DontRequireReceiver" in src                     # no-op if no AutopilotSound
     # every end hook is guarded so it can't re-fire after the game is already over
     assert "if (IsOver) return;" in src
