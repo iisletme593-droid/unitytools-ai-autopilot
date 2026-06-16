@@ -669,7 +669,7 @@ class Orchestrator:
         """
         account = (getattr(self.config, "cloudflare_account_id", "") or "").strip()
         token = (getattr(self.config, "cloudflare_api_token", "") or "").strip()
-        model = (getattr(self.config, "cloudflare_model", "") or "@cf/meta/llama-3.3-70b-instruct-fp8-fast").strip()
+        model = (getattr(self.config, "cloudflare_model", "") or "@cf/openai/gpt-oss-120b").strip()
         if not account or not token:
             raise RuntimeError(
                 "Cloudflare ayarlari eksik: CLOUDFLARE_ACCOUNT_ID ve CLOUDFLARE_API_TOKEN .env'de olmali."

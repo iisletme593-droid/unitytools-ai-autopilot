@@ -26,7 +26,7 @@ class Config:
     # Cloudflare Workers AI (bulut LLM — yerel GPU gerektirmez)
     cloudflare_account_id: str = ""
     cloudflare_api_token: str = ""
-    cloudflare_model: str = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+    cloudflare_model: str = "@cf/openai/gpt-oss-120b"
 
     # Güvenlik: kopru/chat-server paylasilan token + uzak baglanti izni
     bridge_token: str = ""
@@ -74,7 +74,7 @@ class Config:
             ollama_model=os.getenv("OLLAMA_MODEL", "qwen2.5:14b-instruct"),
             cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID", ""),
             cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN", ""),
-            cloudflare_model=os.getenv("CLOUDFLARE_MODEL", "@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
+            cloudflare_model=os.getenv("CLOUDFLARE_MODEL", "@cf/openai/gpt-oss-120b"),
             max_tokens=_int_env("UNITYTOOLS_MAX_TOKENS", 8192),
             history_turn_limit=_int_env("UNITYTOOLS_HISTORY_LIMIT", 40),
             unity_bridge_port=_int_env("UNITY_BRIDGE_PORT", 7777),

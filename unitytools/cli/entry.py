@@ -502,7 +502,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
 
 def cmd_dual_chat(args: argparse.Namespace) -> int:
     config, blender, unity = _bootstrap()
-    # Dual-agent yerel (ollama) ya da Cloudflare 70B ile calisir.
+    # Dual-agent yerel (ollama) ya da Cloudflare gpt-oss-120b ile calisir.
     if config.provider not in {"ollama", "cloudflare"}:
         console.print("[red]Dual-agent mode requires UNITYTOOLS_PROVIDER=ollama veya cloudflare[/red]")
         return 1
