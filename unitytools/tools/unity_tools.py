@@ -1362,6 +1362,22 @@ def unity_save_game(game_type: str = "collectathon", name: str = "", collectible
         return {"ok": False, "error": str(e)}
 
 
+@tool(description="Save a CUSTOM (composed) game to disk as JSON so it can be reloaded and built later (no scene change, no bridge): composes the described element mix (same args as unity_compose_game) and writes it under the saved-games directory as <name>.json (name sanitized; path-traversal-guarded). This is how a freeform 'ozel oyunu X olarak kaydet' creation is kept. Returns {ok, name, path, step_count} or {ok: False, error}.")
+def unity_save_composed_game(name: str = "", player: bool = True, enemy: int = 0,
+                             collectible: int = 0, hazard: int = 0, goal: bool = False,
+                             timer: bool = False, spawner: int = 0, ranged: bool = False,
+                             seed: str = "") -> dict:
+    from ..core.game_blueprint import compose_custom_game
+    from ..core.game_io import save_plan_to_file
+    plan = compose_custom_game(player=player, enemy=enemy, collectible=collectible,
+                               hazard=hazard, goal=goal, timer=timer, spawner=spawner,
+                               ranged=ranged, seed=seed or None)
+    try:
+        return save_plan_to_file(plan, name or "custom")
+    except (ValueError, OSError) as e:
+        return {"ok": False, "error": str(e)}
+
+
 @tool(description="Load a previously saved game from disk by name (no scene change, no bridge): returns its PLAN only (does not build it — call unity_build_simple_game/the executor to build). Returns {ok, plan, game, step_count} or {ok: False, error}.")
 def unity_load_game(name: str = "") -> dict:
     from ..core.game_io import load_plan_from_file

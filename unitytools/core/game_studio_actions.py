@@ -350,6 +350,35 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     # even without an explicit "oyun"/"game" word ("kaydet boss").
     save_name = extract_game_name(lower)
     if has("kaydet", "save") and (game_context or save_name):
+        # (a0) composed save: a custom/freeform creation -> save the composed plan, not
+        # a preset. Same safe gate as the composer intent (explicit "ozel/custom" framing
+        # OR a freeform element list with no preset matched), so "dodge oyununu kaydet"
+        # still saves a dodge and "kaydet boss" still saves a collectathon.
+        save_seed, save_lower_no_seed = extract_seed(lower)
+        save_spec = parse_custom_spec(save_lower_no_seed)
+        save_has_elements = bool(save_spec["enemy"] or save_spec["collectible"] or save_spec["hazard"]
+                                 or save_spec["timer"] or save_spec["goal"] or save_spec["spawner"]
+                                 or save_spec["ranged"])
+        save_custom_framing = has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun",
+                                  "kendi oyun", "kendi oyunu", "karisik oyun", "kendine gore oyun")
+        if save_custom_framing or (save_has_elements and detect_game_type() == "collectathon"
+                                   and not has("toplama", "collectathon")):
+            kwargs = {**save_spec, "name": save_name or "custom"}
+            if save_seed:
+                kwargs["seed"] = save_seed
+            return {
+                "ok": True,
+                "engine": "unity",
+                "steps": [{
+                    "tool": "unity_save_composed_game",
+                    "kwargs": kwargs,
+                    "write": True,
+                    "note": f"compose and save a custom game to disk as '{kwargs['name']}' (writes a file; no scene change)",
+                }],
+                "safety_notes": ["writes a save file to the games directory; no scene changes"],
+                "reason": f"composed-save intent -> custom as '{kwargs['name']}'",
+            }
+
         gt = detect_game_type()
         name = save_name or gt
         return {

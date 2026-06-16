@@ -953,3 +953,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   spawner). Verified the spawner word "dalga" can't steal the horde preset ("dalga modu" -> horde).
   Updated the cycle-75 exact-spec parse test for the two new keys. Live-proved compose+parse+critique +
   no preset theft. Generate-only; deterministic. -- tests: 1076 passed
+- [cycle 79] Composer + persistence -- the composer story end to end (describe -> keep -> reload ->
+  build). Verified a composed plan (game='custom' + spec) already round-trips through game_io cleanly
+  (serialize/deserialize/validate/assess; steps + spec preserved -- no fix needed). Added
+  unity_save_composed_game (composes the element mix + writes it under the saved-games dir,
+  path-traversal-guarded via the existing sanitize + safe_contained_path) and a composed-save sub-branch
+  in the save intent: a freeform "ozel oyunu X olarak kaydet" / "5 dusman 3 toplanabilir oyununu boss
+  olarak kaydet" saves the COMPOSED plan, gated exactly like the composer intent so "dodge oyununu
+  kaydet" still saves a dodge and "kaydet boss" still saves a collectathon. Loading is already generic
+  (a custom plan is just a plan) -- verified a loaded custom game validates + assesses playable + is
+  buildable. Live-proved the full disk round-trip (compose -> save -> list -> load == composed) + intent
+  routing. +11 tests. Known minor limitation: a save NAME containing a preset keyword ("arena2") is read
+  as that preset (ordinary names fine). Generate-only; deterministic. -- tests: 1087 passed

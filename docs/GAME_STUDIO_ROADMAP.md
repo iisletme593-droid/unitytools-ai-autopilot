@@ -746,5 +746,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   stays coherent across the new combos -- "ranged with no enemies" is flagged, spawner-only is clean and
   playable, ranged+enemies is clean. Seed determinism extends to the new elements. Verified the spawner
   words can't steal the horde preset ("dalga modu" -> horde). +7 tests. 1076 passed.
+- [x] **Composer + persistence (cycle 79)** -- the composer story end to end: describe -> keep -> reload
+  -> build. Verified a composed plan (game='custom', with its spec) already round-trips through game_io
+  cleanly (serialize/deserialize/validate/assess; steps + spec preserved). Added `unity_save_composed_game`
+  (composes the element mix + writes it under the saved-games dir, path-traversal-guarded) and a
+  composed-save sub-branch in the save intent: a freeform "ozel oyunu X olarak kaydet" / "5 dusman 3
+  toplanabilir oyununu boss olarak kaydet" saves the COMPOSED plan, gated exactly like the composer
+  intent so "dodge oyununu kaydet" still saves a dodge and "kaydet boss" still saves a collectathon.
+  Loading is already generic (a custom plan is just a plan) -- verified a loaded custom game validates +
+  assesses playable + is buildable. +11 tests. 1087 passed. (Known minor limitation: a save NAME that
+  itself contains a preset keyword, e.g. "arena2", is read as that preset by detect_game_type -- ordinary
+  names are unaffected.)
 
 > Check items off in this file as they land. Add new items as discovered.
