@@ -1352,6 +1352,12 @@ def unity_studio_report() -> dict:
     return {"ok": True, "report": build_studio_report()}
 
 
+@tool(description="Run a self-audit of the whole game catalog WITHOUT touching the scene (pure, no bridge): build every game type and check it is VALID (whitelisted tools, no path traversal), PLAYABLE (a player + something to do), and COHERENT (passes the design critique). Use to answer 'studio sagligi / saglik denetimi / studio health / is everything healthy'. Returns {ok, game_count, all_valid, all_playable, all_coherent, games:[...], flagged:[...]} -- flagged is empty when every game is clean.")
+def unity_studio_health() -> dict:
+    from ..core.game_qa import studio_health
+    return studio_health()
+
+
 @tool(description="Show which Cloudflare Workers AI models the studio routes between and how (pure, no bridge): the task->model catalog (reasoning/general/coding/creative/fast + vision/image), which support tool-calling, and how a model is chosen per turn (auto-detect + chat override). Use to answer 'hangi modeller var / model raporu / which models / model routing'. Returns {ok, report} (markdown).")
 def unity_model_report() -> dict:
     from ..core.model_router import build_model_router_report, list_models

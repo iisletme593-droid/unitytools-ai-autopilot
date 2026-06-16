@@ -35,6 +35,26 @@ def test_studio_health_audits_every_blueprint_clean():
         assert g["design_notes"] == []
 
 
+def test_studio_health_tool_and_intent():
+    # the self-audit is queryable from chat via its own tool + intent
+    tool = {t.name: t for t in get_all_tools()}.get("unity_studio_health")
+    assert tool is not None
+    out = tool.fn()
+    assert out["game_count"] == len(BLUEPRINTS)
+    assert out["all_valid"] and out["all_playable"] and out["all_coherent"] and out["flagged"] == []
+    for prompt in ("studio sagligi nasil", "saglik denetimi yap", "studio health",
+                   "her sey yolunda mi", "oyunlar saglikli mi"):
+        assert plan_unity_fast_action(prompt)["steps"][0]["tool"] == "unity_studio_health", prompt
+
+
+def test_health_intent_does_not_steal_the_report_intent():
+    def tool(p):
+        return plan_unity_fast_action(p)["steps"][0]["tool"]
+    assert tool("studio raporu ver") == "unity_studio_report"
+    assert tool("neler yapabilirsin") == "unity_game_catalog"
+    assert tool("yeteneklerin neler") == "unity_studio_report"
+
+
 def test_report_shows_an_ok_health_section():
     # the report surfaces the self-audit; with all games clean it reads OK N/N
     n = len(BLUEPRINTS)

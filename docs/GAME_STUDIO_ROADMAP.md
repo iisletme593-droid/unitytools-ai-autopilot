@@ -821,5 +821,10 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   puzzle assesses playable; both behaviours categorised in the report drift guard. Intent routes
   puzzle/sokoban/bulmaca/kutu-itme (no theft). studio_health now audits 13/13 valid+playable+coherent.
   Docs Twelve->Thirteen + rows. +40 tests. 1260 passed.
+- [x] **Self-audit exposed as a tool (cycle 87).** `studio_health()` was only inside the report; now it's
+  directly queryable. New `unity_studio_health` tool returns the full self-audit (every game type valid +
+  playable + coherent, with a `flagged` list), and an NL intent routes "studio sagligi / saglik denetimi
+  / studio health / her sey yolunda mi / oyunlar saglikli mi" to it -- checked before and kept distinct
+  from the studio-report intent ("studio raporu" still -> the descriptive report). +2 tests. 1262 passed.
 
 > Check items off in this file as they land. Add new items as discovered.

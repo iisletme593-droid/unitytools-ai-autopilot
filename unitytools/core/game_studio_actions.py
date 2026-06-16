@@ -443,6 +443,24 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     # Studio-report intent ("describe the whole studio") -> the richer, code-derived
     # report. Keyed on report-specific phrases so it doesn't steal the game-catalog
     # intent's "neler yapabilirsin / what games" (that still lists the games).
+    # Studio-health intent ("is everything OK?") -> the self-audit. Keyed on health
+    # phrases (distinct from "studio raporu"), checked before the report intent so
+    # "studio sagligi" runs the audit rather than the descriptive report.
+    if has("studio sagligi", "saglik denetimi", "saglik kontrolu", "studio health",
+           "health check", "her sey yolunda", "oyunlar saglikli", "saglikli mi"):
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_studio_health",
+                "kwargs": {},
+                "write": False,
+                "note": "self-audit: every game type valid + playable + coherent (pure, no scene changes)",
+            }],
+            "safety_notes": ["read-only; no scene changes"],
+            "reason": "studio-health intent -> unity_studio_health",
+        }
+
     if has("studio raporu", "studio report", "yeteneklerin", "yetenekleri", "yetenek raporu",
            "capabilities", "what can you do", "tum yetenek", "kapsamli rapor"):
         return {

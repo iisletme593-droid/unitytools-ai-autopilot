@@ -1041,3 +1041,10 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   studio_health now audits 13/13 valid+playable+coherent (the new type passes the self-audit). Docs
   Twelve->Thirteen + game/behaviour rows + doc-guard list. Live-proved the sources (ascii/decoupled/
   name-based) + blueprint + health + intent. Generate-only; deterministic. +40 tests. -- tests: 1260 passed
+- [cycle 87] Exposed the self-audit as a tool. studio_health() was only embedded in build_studio_report;
+  now it's directly queryable. New unity_studio_health @tool returns the full audit (every game type
+  valid+playable+coherent + a flagged list). NL intent routes "studio sagligi / saglik denetimi / studio
+  health / her sey yolunda mi / oyunlar saglikli mi" to it, checked BEFORE and kept distinct from the
+  studio-report intent so "studio raporu" still -> the descriptive report (verified no theft; "neler
+  yapabilirsin" still -> game catalog). Landing-doc intent row added. Live-proved the tool (13/13) +
+  intent routing + no theft. Generate-only; deterministic. +2 tests. -- tests: 1262 passed
