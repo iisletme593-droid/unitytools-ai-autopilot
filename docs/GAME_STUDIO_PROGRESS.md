@@ -1048,3 +1048,14 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   studio-report intent so "studio raporu" still -> the descriptive report (verified no theft; "neler
   yapabilirsin" still -> game catalog). Landing-doc intent row added. Live-proved the tool (13/13) +
   intent routing + no theft. Generate-only; deterministic. +2 tests. -- tests: 1262 passed
+- [cycle 88] Composer gains SOKOBAN CRATES -- the newest mechanic (puzzle) wired into the freeform
+  composer, mirroring cycle-83 guards. compose_custom_game(..., crate=N) places N `pushable` crates + N
+  Target_* markers and adds the `puzzle` win-manager to the GameManager (push every crate onto a target
+  to win). Manager coupling restructured cleanly: title+sound always; gameover for enemy/guard/timer;
+  timer for timer; puzzle for crates (gameover and puzzle can coexist). parse_custom_spec learns
+  kutu/crate/sandik/kasa; the keyword-less gate + composed-save count crates; seed determinism covers
+  crate placement. Intent collision resolved with care: removed "crate" from the puzzle-preset
+  detect_game_type trigger so a freeform "3 kutu olan oyun yap" composes (crate=3), while the push
+  phrasing "kutu it(me)" + sokoban/bulmaca/puzzle still build the PRESET (verified both directions, no
+  theft). Updated the cycle-75 exact-spec parse test for the new crate key. Live-proved compose+parse+
+  intent + coherence. Generate-only; deterministic. +5 tests. -- tests: 1267 passed

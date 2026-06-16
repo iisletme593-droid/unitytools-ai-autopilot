@@ -1250,12 +1250,12 @@ def unity_build_simple_game(collectible_count: int = 5, execute: bool = False, g
 def unity_compose_game(player: bool = True, enemy: int = 0, collectible: int = 0,
                        hazard: int = 0, goal: bool = False, timer: bool = False,
                        spawner: int = 0, ranged: bool = False, guard: int = 0,
-                       seed: str = "", execute: bool = False) -> dict:
+                       crate: int = 0, seed: str = "", execute: bool = False) -> dict:
     from ..core.game_blueprint import compose_custom_game
     from ..core.game_qa import assess_game_readiness
     plan = compose_custom_game(player=player, enemy=enemy, collectible=collectible,
                                hazard=hazard, goal=goal, timer=timer, spawner=spawner,
-                               ranged=ranged, guard=guard, seed=seed or None)
+                               ranged=ranged, guard=guard, crate=crate, seed=seed or None)
     if not execute:
         return {
             "ok": True,

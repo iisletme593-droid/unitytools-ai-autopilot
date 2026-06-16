@@ -84,7 +84,7 @@ def test_compose_player_only_is_an_honest_sandbox():
 def test_parse_counts_and_flags():
     spec = parse_custom_spec("ozel oyun: 5 dusman 3 toplanabilir ve bir sayac olsun")
     assert spec == {"player": True, "enemy": 5, "collectible": 3, "hazard": 0,
-                    "goal": False, "timer": True, "spawner": 0, "ranged": False, "guard": 0}
+                    "goal": False, "timer": True, "spawner": 0, "ranged": False, "guard": 0, "crate": 0}
 
 
 def test_parse_number_words_and_goal():
@@ -273,6 +273,51 @@ def test_guard_routes_keywordless_to_composer_without_stealing_stealth():
     # ...but the stealth PRESET keywords still build the stealth blueprint
     assert route("gizli gec oyunu kur") == ("unity_build_simple_game", "stealth")
     assert route("stealth oyunu yap") == ("unity_build_simple_game", "stealth")
+
+
+def test_compose_crates_make_a_sokoban_style_game():
+    plan = compose_custom_game(player=True, crate=3)
+    # N pushable crates + N Target_* markers + a puzzle win manager
+    assert _beh_of(plan, "Crate_0") == {"pushable"}
+    crates = [s["script_behaviour"]["object"] for s in plan["steps"]
+              if s.get("script_behaviour", {}).get("behaviour") == "pushable"]
+    assert crates == [f"Crate_{i}" for i in range(3)]
+    targets = [s for s in plan["steps"] if s.get("tool") == "unity_place_primitives"
+               and s["kwargs"]["name_prefix"] == "Target"]
+    assert targets and targets[0]["kwargs"]["count"] == 3
+    assert "puzzle" in _beh_of(plan, "GameManager")
+    assert plan["spec"]["crate"] == 3
+
+
+def test_compose_crate_game_is_coherent_valid_playable_deterministic():
+    plan = compose_custom_game(player=True, crate=4, seed="box")
+    assert validate_plan(plan)["ok"] is True
+    r = assess_game_readiness(plan)
+    assert r["playable"] is True and r["design_notes"] == []     # puzzle win, no false flags
+    assert plan == compose_custom_game(player=True, crate=4, seed="box")
+
+
+def test_compose_crate_count_clamped():
+    assert compose_custom_game(crate=99)["spec"]["crate"] == 20
+
+
+def test_parse_recognizes_crate():
+    spec = parse_custom_spec("ozel oyun 4 kutu")
+    assert spec["crate"] == 4
+
+
+def test_crate_routes_keywordless_to_composer_but_sokoban_keeps_the_preset():
+    def route(p):
+        s = plan_unity_fast_action(p)["steps"][0]
+        return (s["tool"], s["kwargs"].get("game_type"))
+    # a freeform crate count composes (crate is no longer a preset trigger on its own)...
+    t, _ = route("3 kutu olan oyun yap")
+    assert t == "unity_compose_game"
+    assert plan_unity_fast_action("3 kutu olan oyun yap")["steps"][0]["kwargs"]["crate"] == 3
+    # ...but the push phrasing / sokoban / bulmaca still build the puzzle PRESET
+    assert route("sokoban yap") == ("unity_build_simple_game", "puzzle")
+    assert route("kutu itme oyunu yap") == ("unity_build_simple_game", "puzzle")
+    assert route("bulmaca oyunu kur") == ("unity_build_simple_game", "puzzle")
 
 
 def test_spawner_ranged_route_keywordless_without_stealing_horde():

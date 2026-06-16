@@ -720,6 +720,7 @@ def compose_custom_game(
     spawner: int = 0,
     ranged: bool = False,
     guard: int = 0,
+    crate: int = 0,
     arena_size: float = 20.0,
     seed: object = None,
 ) -> dict[str, Any]:
@@ -740,6 +741,8 @@ def compose_custom_game(
       - stealth `guard`s (`patrol` + `detector` line-of-sight, NOT tagged Enemy) that
         make it a 'sneak past them' game: any guard or timer also creates the GameManager,
         and guards imply a goal to reach (auto-added if none) so there IS a way to win;
+      - sokoban `crate`s (`pushable`) + the same number of `Target_*` markers + a `puzzle`
+        win manager on the GameManager (push every crate onto a target to win);
       - if timer=True, the GameManager runs a `timer` -> outlast the clock to WIN
         (Survived), and gets a title + sound for feel.
     Pure + deterministic; same step schema as the blueprints, so it validates, assesses
@@ -750,6 +753,7 @@ def compose_custom_game(
     hazard = max(0, min(int(hazard), 30))
     spawner = max(0, min(int(spawner), 20))
     guard = max(0, min(int(guard), 30))
+    crate = max(0, min(int(crate), 20))
     # stealth guards need a goal to slip through to, so there is a real win condition;
     # add one if the user didn't ask for it (mirrors enemy -> health+attack coupling)
     if guard > 0 and not goal:
@@ -818,29 +822,47 @@ def compose_custom_game(
             steps.append({"script_behaviour": {"object": f"Guard_{i}", "behaviour": "patrol"}})
             steps.append({"script_behaviour": {"object": f"Guard_{i}", "behaviour": "detector"}})
 
+    # 5d) sokoban crates (pushable) + the same number of Target_* markers; the puzzle
+    #     manager (added below) wins once every target has a crate on it
+    if crate:
+        steps.append({"tool": "unity_place_primitives", "kwargs": {
+            "type": "Cube", "count": crate, "pattern": "scatter",
+            "spacing": max(2.5, size / float(crate)), "name_prefix": "Crate"}})
+        for i in range(crate):
+            steps.append({"script_behaviour": {"object": f"Crate_{i}", "behaviour": "pushable"}})
+        steps.append({"tool": "unity_place_primitives", "kwargs": {
+            "type": "Cylinder", "count": crate, "pattern": "circle",
+            "spacing": max(3.0, size / float(crate)), "name_prefix": "Target"}})
+
     # 6) an optional goal zone (auto-added above when there are guards)
     if goal:
         steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_y": 0.5, "position_z": size / 2.0}})
         steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
 
-    # 7) a feel/win-lose GameManager when there are enemies, guards, or a timer (so the
-    #    detector's "PlayerDied" + the goal's "ReachedGoal" + a timer's "Survived" land)
-    if enemy or timer or guard:
+    # 7) a GameManager when there is anything to win or lose. `gameover` lands the
+    #    enemy/guard/timer win-lose signals; `puzzle` lands the sokoban win; `timer`
+    #    runs the countdown. title + sound give it feel.
+    if enemy or timer or guard or crate:
         steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
-        manager = ["title", "gameover", "sound"]
+        manager = ["title", "sound"]
+        if enemy or timer or guard:
+            manager.append("gameover")
         if timer:
             manager.append("timer")                              # outlast the clock -> WIN (Survived)
+        if crate:
+            manager.append("puzzle")                             # all crates on targets -> WIN
         for behaviour in manager:
             steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
 
     spec = {"player": bool(player), "enemy": enemy, "collectible": collectible,
             "hazard": hazard, "goal": bool(goal), "timer": bool(timer),
-            "spawner": spawner, "ranged": bool(ranged), "guard": guard}
+            "spawner": spawner, "ranged": bool(ranged), "guard": guard, "crate": crate}
     parts = []
     if player:
         parts.append("a ranged player" if ranged else "a player")
     for label, c in (("enemies", enemy), ("collectibles", collectible),
-                     ("hazards", hazard), ("wave spawners", spawner), ("stealth guards", guard)):
+                     ("hazards", hazard), ("wave spawners", spawner), ("stealth guards", guard),
+                     ("pushable crates", crate)):
         if c:
             parts.append(f"{c} {label}")
     if goal:
@@ -856,7 +878,7 @@ def compose_custom_game(
     }
     # an optional seed jitters the placed-element layout (deterministic), reusing the
     # same machinery the blueprints use; seed=None is a no-op (the plain plan)
-    return _apply_seed(plan, "custom", enemy + collectible + hazard + spawner + guard, seed)
+    return _apply_seed(plan, "custom", enemy + collectible + hazard + spawner + guard + crate, seed)
 
 
 # Decorative (non-gameplay) scripted behaviours that give a scene "juice".

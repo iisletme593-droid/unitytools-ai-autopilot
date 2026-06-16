@@ -263,8 +263,10 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         # stealth: distinct terms, can't shadow anything else
         if has("stealth", "gizlilik", "gizli gec", "gizlice", "sneak", "sinsi"):
             return "stealth"
-        # puzzle/sokoban: distinct push-the-crate terms
-        if has("puzzle", "bulmaca", "sokoban", "kutu it", "kutu itme", "crate"):
+        # puzzle/sokoban: distinct push-the-crate terms. ("crate"/"kutu" alone are NOT
+        # here -- they route a freeform count to the composer's crate element instead;
+        # the PUSH phrasing "kutu it(me)" / sokoban / bulmaca picks the preset.)
+        if has("puzzle", "bulmaca", "sokoban", "kutu it", "kutu itme", "kutu-itme"):
             return "puzzle"
         # runner: its terms ("kosu/kosma/endless") are distinct from every other type,
         # so an early return can't shadow anything (and "endless runner" is clear)
@@ -388,7 +390,7 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         save_spec = parse_custom_spec(save_lower_no_seed)
         save_has_elements = bool(save_spec["enemy"] or save_spec["collectible"] or save_spec["hazard"]
                                  or save_spec["timer"] or save_spec["goal"] or save_spec["spawner"]
-                                 or save_spec["ranged"] or save_spec["guard"])
+                                 or save_spec["ranged"] or save_spec["guard"] or save_spec["crate"])
         save_custom_framing = has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun",
                                   "kendi oyun", "kendi oyunu", "karisik oyun", "kendine gore oyun")
         if save_custom_framing or (save_has_elements and detect_game_type() == "collectathon"
@@ -552,7 +554,7 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     spec = parse_custom_spec(lower_no_seed)
     has_elements = bool(spec["enemy"] or spec["collectible"] or spec["hazard"]
                         or spec["timer"] or spec["goal"] or spec["spawner"] or spec["ranged"]
-                        or spec["guard"])
+                        or spec["guard"] or spec["crate"])
     custom_framing = has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun",
                          "kendi oyun", "kendi oyunu", "karisik oyun", "kendine gore oyun")
     keywordless_custom = (build_verb and has_elements
@@ -1206,6 +1208,7 @@ _SPEC_ELEMENT_WORDS = {
     "hazard": ("engel", "tuzak", "hazard", "tehlike", "diken"),
     "spawner": ("spawner", "uretici", "dalga", "wave"),
     "guard": ("muhafiz", "guard", "nobetci", "koruma", "bekci"),
+    "crate": ("kutu", "crate", "sandik", "kasa"),
 }
 # presence-only flags (no count) -> the compose_custom_game bool arg
 _SPEC_FLAG_WORDS = {

@@ -826,5 +826,13 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   playable + coherent, with a `flagged` list), and an NL intent routes "studio sagligi / saglik denetimi
   / studio health / her sey yolunda mi / oyunlar saglikli mi" to it -- checked before and kept distinct
   from the studio-report intent ("studio raporu" still -> the descriptive report). +2 tests. 1262 passed.
+- [x] **Composer gains sokoban crates (cycle 88)** -- the newest mechanic (puzzle) wired into the
+  freeform composer, mirroring the cycle-83 guards. `compose_custom_game(..., crate=N)` places N
+  `pushable` crates + N `Target_*` markers and adds the `puzzle` win-manager to the GameManager (push
+  every crate onto a target). Coupling is clean: the manager runs `gameover` for enemy/guard/timer
+  and/or `puzzle` for crates (both can coexist). `parse_custom_spec` learns kutu/crate/sandik/kasa.
+  Intent collision resolved carefully: "crate" is no longer a puzzle-preset trigger on its own, so a
+  freeform "3 kutu olan oyun" composes while the push phrasing ("kutu itme") and sokoban/bulmaca/puzzle
+  still build the PRESET (verified both ways). +5 tests. 1267 passed.
 
 > Check items off in this file as they land. Add new items as discovered.
