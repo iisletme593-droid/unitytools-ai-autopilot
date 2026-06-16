@@ -9,7 +9,7 @@ This page is the one-screen tour; every section links to the deep doc.
 
 ## What it makes
 
-Twelve playable game types (plus a freeform **custom composer** — describe an element mix and it
+Thirteen playable game types (plus a freeform **custom composer** — describe an element mix and it
 assembles a custom game from the same blocks), each composed from the same gameplay building blocks:
 
 | game_type | One-liner |
@@ -26,6 +26,7 @@ assembles a custom game from the same blocks), each composed from the same gamep
 | `tower_defense` | Ranged towers + a mobile hero defend a base from waves of enemies that march to it; lose if the base falls |
 | `time_survival` | Outlast the clock: an armed player fights N enemies and wins by surviving the countdown (or clearing them), loses on death |
 | `stealth` | Slip past N patrolling guards (line-of-sight) and reach the exit unseen to win; get spotted to lose. The first type won by avoiding combat |
+| `puzzle` | A sokoban: push N crates onto N targets; solve them all to win. A push mechanic, no combat or timer |
 
 Plus **living scenes** — decorative `bob`/`orbit`/`rotate`/`wander` motion as scene juice (not a game).
 

@@ -1029,3 +1029,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   regresses. plan_game_variations now carries design_notes on each variation too. All 12 game types
   audit clean (valid+playable+coherent). Live-proved studio_health (12/12), the report health line, and
   variations carrying design_notes. Generate-only; deterministic; pure ASCII. +14 tests. -- tests: 1220 passed
+- [cycle 86] 13th game type: PUZZLE/SOKOBAN -- the first with a PUSH mechanic, no combat/timer. Two new
+  behaviours: pushable (AutopilotPushable -- a crate slides AWAY when the Player comes within pushRange;
+  decoupled FindWithTag, deterministic, no physics tuning, no custom tags) and puzzle (AutopilotPuzzle --
+  a win manager that scans Crate_*/Target_* BY NAME, so no custom Unity tags and no hard type references
+  are needed; draws "Crates: covered/total"; WINS once every target is covered; pauses + decoupled
+  PlayCue + R restart). plan_puzzle_game (13th in BLUEPRINTS): WASD player + N pushable crates + N target
+  markers on an open floor (always solvable) + GameManager(puzzle+title+sound). pushable added to
+  INTERACTIVE_BEHAVIOURS (so the puzzle assesses playable); both new behaviours categorised in the report
+  drift guard. Intent routes puzzle/sokoban/bulmaca/kutu-itme (verified no theft of other types).
+  studio_health now audits 13/13 valid+playable+coherent (the new type passes the self-audit). Docs
+  Twelve->Thirteen + game/behaviour rows + doc-guard list. Live-proved the sources (ascii/decoupled/
+  name-based) + blueprint + health + intent. Generate-only; deterministic. +40 tests. -- tests: 1260 passed

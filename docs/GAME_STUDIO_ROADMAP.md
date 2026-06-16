@@ -811,5 +811,15 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   a built-in self-test of the whole catalog). `plan_game_variations` now also carries `design_notes` on
   each variation, so difficulty options get the same self-review as a single build. All 12 game types
   audit clean. +14 tests. The studio reviews not just one game but its entire output, everywhere.
+- [x] **Puzzle / sokoban -- the 13th game type (cycle 86)**, the first with a PUSH mechanic and no
+  combat/timer. Two new behaviours: `pushable` (AutopilotPushable -- a crate slides AWAY from the
+  approaching Player; decoupled by tag, deterministic, no physics tuning) and `puzzle` (AutopilotPuzzle
+  -- a win manager that finds `Crate_*`/`Target_*` **by name**, so NO custom Unity tags and NO hard type
+  references are needed, draws "Crates: covered/total", and WINS once every target has a crate on it).
+  `plan_puzzle_game`: a WASD player + N pushable crates + N target markers (open arena, so always
+  solvable) + a GameManager running puzzle+title+sound. `pushable` added to INTERACTIVE_BEHAVIOURS so the
+  puzzle assesses playable; both behaviours categorised in the report drift guard. Intent routes
+  puzzle/sokoban/bulmaca/kutu-itme (no theft). studio_health now audits 13/13 valid+playable+coherent.
+  Docs Twelve->Thirteen + rows. +40 tests. 1260 passed.
 
 > Check items off in this file as they land. Add new items as discovered.

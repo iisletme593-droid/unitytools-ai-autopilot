@@ -661,6 +661,55 @@ def plan_stealth_game(guard_count: int = 4, arena_size: float = 20.0) -> dict[st
     }
 
 
+def plan_puzzle_game(crate_count: int = 3, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan a sokoban puzzle -- the 13th type, and the first with a PUSH mechanic and no
+    combat/timer. Push N crates onto N targets; solve them all to WIN.
+
+    The player (a normal WASD controller) shoves crates by walking into them: each crate
+    has the `pushable` behaviour (slides away from the player). N flat `Target_*` markers
+    sit on the floor; the hidden GameManager runs `puzzle` (a name-based win manager that
+    wins once every target has a crate on it -- no custom Unity tags, no hard type refs)
+    plus title + sound. The arena is open (no walls), so every crate can reach every
+    target and the puzzle is always solvable. Same step schema; the seed jitters layout.
+    """
+    n = max(1, min(int(crate_count), 20))
+    size = max(8.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) player (WASD) -- pushes crates by walking into them
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
+
+    # 3) N pushable crates (named Crate_* so the puzzle manager scores them)
+    steps.append({"tool": "unity_place_primitives", "kwargs": {
+        "type": "Cube", "count": n, "pattern": "scatter",
+        "spacing": max(2.5, size / float(n)), "name_prefix": "Crate"}})
+    for i in range(n):
+        steps.append({"script_behaviour": {"object": f"Crate_{i}", "behaviour": "pushable"}})
+
+    # 4) N target markers in a ring (named Target_* -- plain, no script needed)
+    steps.append({"tool": "unity_place_primitives", "kwargs": {
+        "type": "Cylinder", "count": n, "pattern": "circle",
+        "spacing": max(3.0, size / float(n)), "name_prefix": "Target"}})
+
+    # 5) GameManager: the puzzle win manager (all crates on targets) + title + sound
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    for behaviour in ("puzzle", "title", "sound"):
+        steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
+
+    return {
+        "ok": True,
+        "game": "puzzle",
+        "summary": f"Puzzle (sokoban): ground + player + {n} pushable crates + {n} targets -- push every crate onto a target to solve ({len(steps)} steps).",
+        "crate_count": n,
+        "steps": steps,
+    }
+
+
 def compose_custom_game(
     player: bool = True,
     enemy: int = 0,
@@ -958,6 +1007,7 @@ BLUEPRINTS = {
     "tower_defense": plan_tower_defense_game,
     "time_survival": plan_time_survival_game,
     "stealth": plan_stealth_game,
+    "puzzle": plan_puzzle_game,
 }
 
 

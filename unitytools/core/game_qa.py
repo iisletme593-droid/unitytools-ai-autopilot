@@ -16,7 +16,7 @@ from .game_blueprint import group_execution_plan, BLUEPRINTS, plan_game
 # not a game.
 INTERACTIVE_BEHAVIOURS = frozenset({
     "goal", "collectible", "killzone", "mover", "follow", "chase", "spawner", "patrol",
-    "enemy", "horde",
+    "enemy", "horde", "pushable",
 })
 
 
@@ -211,7 +211,7 @@ def build_game_capabilities_summary() -> str:
 _BEHAVIOUR_CATEGORIES: dict[str, list[str]] = {
     "control": ["player", "runner"],
     "movement": ["rotate", "move", "bob", "bounce", "patrol", "follow", "orbit", "wander"],
-    "world": ["collectible", "goal", "killzone", "spawner", "detector"],
+    "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle"],
     "combat": ["health", "attack", "enemy", "ranged", "reward", "horde"],
     "progression": ["xp", "loot", "inventory", "score"],
     "game feel": ["title", "gameover", "sound", "timer"],
