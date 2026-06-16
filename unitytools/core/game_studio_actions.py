@@ -385,7 +385,7 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         save_spec = parse_custom_spec(save_lower_no_seed)
         save_has_elements = bool(save_spec["enemy"] or save_spec["collectible"] or save_spec["hazard"]
                                  or save_spec["timer"] or save_spec["goal"] or save_spec["spawner"]
-                                 or save_spec["ranged"])
+                                 or save_spec["ranged"] or save_spec["guard"])
         save_custom_framing = has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun",
                                   "kendi oyun", "kendi oyunu", "karisik oyun", "kendine gore oyun")
         if save_custom_framing or (save_has_elements and detect_game_type() == "collectathon"
@@ -530,7 +530,8 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     seed_for_custom, lower_no_seed = extract_seed(lower)
     spec = parse_custom_spec(lower_no_seed)
     has_elements = bool(spec["enemy"] or spec["collectible"] or spec["hazard"]
-                        or spec["timer"] or spec["goal"] or spec["spawner"] or spec["ranged"])
+                        or spec["timer"] or spec["goal"] or spec["spawner"] or spec["ranged"]
+                        or spec["guard"])
     custom_framing = has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun",
                          "kendi oyun", "kendi oyunu", "karisik oyun", "kendine gore oyun")
     keywordless_custom = (build_verb and has_elements
@@ -1182,6 +1183,7 @@ _SPEC_ELEMENT_WORDS = {
     "collectible": ("toplanabilir", "coin", "collectible", "altin", "elmas", "pickup"),
     "hazard": ("engel", "tuzak", "hazard", "tehlike", "diken"),
     "spawner": ("spawner", "uretici", "dalga", "wave"),
+    "guard": ("muhafiz", "guard", "nobetci", "koruma", "bekci"),
 }
 # presence-only flags (no count) -> the compose_custom_game bool arg
 _SPEC_FLAG_WORDS = {

@@ -1000,3 +1000,14 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   boss"), and a campaign PLAN ("arena kampanyasi kur", no kaydet) are all unaffected. Live-proved the
   full flow (plan campaign -> save L1..L3 -> list -> reload L2 == original; difficulty climbs 2/4/6) +
   intent routing with no theft. +6 tests. Generate-only; deterministic. -- tests: 1156 passed
+- [cycle 83] Composer gains STEALTH GUARDS -- the newest game type (stealth) wired into the freeform
+  composer. compose_custom_game(..., guard=N) places N patrolling Capsule guards (patrol + detector
+  line-of-sight, NOT tagged Enemy, so you slip past them rather than fight). Coherent couplings mirroring
+  enemy->health+attack: any guard creates the win/lose GameManager, and guards auto-add a goal to reach
+  (if none was asked) so there is a real win path -- the design critique then stays clean (no false "can
+  only be lost"). parse_custom_spec learns guard/muhafiz/nobetci/koruma/bekci; the keyword-less gate +
+  composed-save both count guards; seed determinism extends to guard placement. "3 muhafiz olan oyun
+  yap" composes a stealth-style custom game while the stealth PRESET ("gizli gec / stealth") still builds
+  the blueprint (verified no theft). Fixed a self-inflicted test-helper bug (exact-match _beh_of vs
+  Guard_0..N). Live-proved compose+parse+critique+intent. +6 tests. Generate-only; deterministic. --
+  tests: 1202 passed

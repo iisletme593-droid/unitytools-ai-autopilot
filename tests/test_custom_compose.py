@@ -84,7 +84,7 @@ def test_compose_player_only_is_an_honest_sandbox():
 def test_parse_counts_and_flags():
     spec = parse_custom_spec("ozel oyun: 5 dusman 3 toplanabilir ve bir sayac olsun")
     assert spec == {"player": True, "enemy": 5, "collectible": 3, "hazard": 0,
-                    "goal": False, "timer": True, "spawner": 0, "ranged": False}
+                    "goal": False, "timer": True, "spawner": 0, "ranged": False, "guard": 0}
 
 
 def test_parse_number_words_and_goal():
@@ -222,6 +222,57 @@ def test_compose_spawner_count_clamped():
 def test_parse_recognizes_spawner_and_ranged():
     spec = parse_custom_spec("ozel oyun 4 dusman menzilli ve 2 uretici")
     assert spec["enemy"] == 4 and spec["spawner"] == 2 and spec["ranged"] is True
+
+
+def test_compose_guards_make_a_stealth_style_game():
+    plan = compose_custom_game(player=True, guard=3)
+    # guards patrol + detect, are NOT tagged Enemy, and auto-add a goal + a manager so
+    # there is a real win (reach the goal) / lose (get caught) loop
+    guard_objs = [s["script_behaviour"]["object"] for s in plan["steps"]
+                  if s.get("script_behaviour", {}).get("behaviour") == "detector"]
+    assert guard_objs == [f"Guard_{i}" for i in range(3)]
+    assert _beh_of(plan, "Guard_0") == {"patrol", "detector"}
+    assert plan["spec"]["guard"] == 3 and plan["spec"]["goal"] is True
+    assert _beh_of(plan, "Goal") == {"goal"}
+    assert _beh_of(plan, "GameManager") == {"title", "gameover", "sound"}
+    enemy_tags = [s for s in plan["steps"] if s.get("tool") == "unity_set_tag"
+                  and s["kwargs"]["tag"] == "Enemy"]
+    assert enemy_tags == []                                    # guards are not enemies
+
+
+def test_compose_guard_game_is_coherent_no_design_notes():
+    # goal-win + detector-lose with a gameover manager must NOT be flagged "can only be lost"
+    plan = compose_custom_game(player=True, guard=4)
+    r = assess_game_readiness(plan)
+    assert r["playable"] is True and r["design_notes"] == []
+
+
+def test_compose_guard_valid_playable_deterministic_with_seed():
+    plan = compose_custom_game(player=True, guard=3, hazard=2, seed="sneak")
+    assert validate_plan(plan)["ok"] is True
+    assert assess_game_readiness(plan)["playable"] is True
+    assert plan == compose_custom_game(player=True, guard=3, hazard=2, seed="sneak")
+
+
+def test_compose_guard_count_clamped():
+    assert compose_custom_game(guard=99)["spec"]["guard"] == 30
+
+
+def test_parse_recognizes_guard():
+    spec = parse_custom_spec("ozel oyun 3 muhafiz ve bir hedef")
+    assert spec["guard"] == 3 and spec["goal"] is True
+
+
+def test_guard_routes_keywordless_to_composer_without_stealing_stealth():
+    def route(p):
+        s = plan_unity_fast_action(p)["steps"][0]
+        return (s["tool"], s["kwargs"].get("game_type"))
+    # a freeform guard count (no stealth keyword) composes a custom game...
+    t, _ = route("3 muhafiz olan oyun yap")
+    assert t == "unity_compose_game"
+    # ...but the stealth PRESET keywords still build the stealth blueprint
+    assert route("gizli gec oyunu kur") == ("unity_build_simple_game", "stealth")
+    assert route("stealth oyunu yap") == ("unity_build_simple_game", "stealth")
 
 
 def test_spawner_ranged_route_keywordless_without_stealing_horde():

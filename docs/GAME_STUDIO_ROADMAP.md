@@ -787,5 +787,14 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   save branch so a plain preset save ("dodge oyununu kaydet"), a composed save ("ozel oyunu X kaydet"),
   and a campaign PLAN ("arena kampanyasi kur", no "kaydet") are all unaffected. +6 tests. 1156 passed.
   The studio can now keep a whole progression, not just one game.
+- [x] **Composer gains stealth guards (cycle 83)** -- the newest game type wired into the freeform
+  composer. `compose_custom_game(..., guard=N)` places N patrolling `Capsule` guards (`patrol` +
+  `detector` line-of-sight, NOT tagged Enemy, so they can't be cleared -- you slip past them).
+  Coherent couplings, mirroring `enemy -> health+attack`: any guard creates the win/lose GameManager,
+  and guards imply a goal to reach (auto-added if the user didn't ask for one) so there IS a way to win
+  -- the design critique then stays clean. `parse_custom_spec` learns guard/muhafiz/nobetci/koruma/bekci;
+  the keyword-less gate + composed-save both count guards. Seed determinism extends to the guard
+  placement. "3 muhafiz olan oyun yap" composes a stealth-style custom game; the stealth PRESET keywords
+  ("gizli gec / stealth") still build the blueprint (no theft). +6 tests. 1202 passed.
 
 > Check items off in this file as they land. Add new items as discovered.

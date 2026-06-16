@@ -670,6 +670,7 @@ def compose_custom_game(
     timer: bool = False,
     spawner: int = 0,
     ranged: bool = False,
+    guard: int = 0,
     arena_size: float = 20.0,
     seed: object = None,
 ) -> dict[str, Any]:
@@ -677,9 +678,9 @@ def compose_custom_game(
 
     This is the studio's first step from "pick a preset" to "assemble what you asked
     for": given how many of each element the player wants (enemies / collectibles /
-    hazards / wave spawners, plus optional goal, timer, and a ranged weapon), it builds
-    a valid, playable plan from the same building blocks the blueprints use, wiring the
-    sensible couplings:
+    hazards / wave spawners / stealth guards, plus optional goal, timer, and a ranged
+    weapon), it builds a valid, playable plan from the same building blocks the
+    blueprints use, wiring the sensible couplings:
       - a `player` controller (tagged Player) whenever player=True;
       - if there are enemies, the player gains `health` + `attack` and a hidden
         GameManager runs the win/lose `gameover` (WIN clears enemies, LOSE on death);
@@ -687,6 +688,9 @@ def compose_custom_game(
       - a `score` HUD when there are collectibles or enemies;
       - collectibles (`collectible`), hazards (`killzone`), wave `spawner`s (raining
         hazards, survival-style), an optional `goal` zone;
+      - stealth `guard`s (`patrol` + `detector` line-of-sight, NOT tagged Enemy) that
+        make it a 'sneak past them' game: any guard or timer also creates the GameManager,
+        and guards imply a goal to reach (auto-added if none) so there IS a way to win;
       - if timer=True, the GameManager runs a `timer` -> outlast the clock to WIN
         (Survived), and gets a title + sound for feel.
     Pure + deterministic; same step schema as the blueprints, so it validates, assesses
@@ -696,6 +700,11 @@ def compose_custom_game(
     collectible = max(0, min(int(collectible), 30))
     hazard = max(0, min(int(hazard), 30))
     spawner = max(0, min(int(spawner), 20))
+    guard = max(0, min(int(guard), 30))
+    # stealth guards need a goal to slip through to, so there is a real win condition;
+    # add one if the user didn't ask for it (mirrors enemy -> health+attack coupling)
+    if guard > 0 and not goal:
+        goal = True
     size = max(6.0, float(arena_size))
     steps: list[dict[str, Any]] = []
 
@@ -750,13 +759,24 @@ def compose_custom_game(
         for i in range(spawner):
             steps.append({"script_behaviour": {"object": f"Spawner_{i}", "behaviour": "spawner"}})
 
-    # 6) an optional goal zone
+    # 5c) stealth guards: patrolling capsules with a line-of-sight `detector` (catch ->
+    #     LOSE). NOT tagged Enemy, so they can't be cleared -- you slip past them.
+    if guard:
+        steps.append({"tool": "unity_place_primitives", "kwargs": {
+            "type": "Capsule", "count": guard, "pattern": "scatter",
+            "spacing": max(3.0, size / float(guard)), "name_prefix": "Guard"}})
+        for i in range(guard):
+            steps.append({"script_behaviour": {"object": f"Guard_{i}", "behaviour": "patrol"}})
+            steps.append({"script_behaviour": {"object": f"Guard_{i}", "behaviour": "detector"}})
+
+    # 6) an optional goal zone (auto-added above when there are guards)
     if goal:
         steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_y": 0.5, "position_z": size / 2.0}})
         steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
 
-    # 7) a feel/win-lose GameManager when there are enemies or a timer
-    if enemy or timer:
+    # 7) a feel/win-lose GameManager when there are enemies, guards, or a timer (so the
+    #    detector's "PlayerDied" + the goal's "ReachedGoal" + a timer's "Survived" land)
+    if enemy or timer or guard:
         steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
         manager = ["title", "gameover", "sound"]
         if timer:
@@ -766,12 +786,12 @@ def compose_custom_game(
 
     spec = {"player": bool(player), "enemy": enemy, "collectible": collectible,
             "hazard": hazard, "goal": bool(goal), "timer": bool(timer),
-            "spawner": spawner, "ranged": bool(ranged)}
+            "spawner": spawner, "ranged": bool(ranged), "guard": guard}
     parts = []
     if player:
         parts.append("a ranged player" if ranged else "a player")
     for label, c in (("enemies", enemy), ("collectibles", collectible),
-                     ("hazards", hazard), ("wave spawners", spawner)):
+                     ("hazards", hazard), ("wave spawners", spawner), ("stealth guards", guard)):
         if c:
             parts.append(f"{c} {label}")
     if goal:
@@ -787,7 +807,7 @@ def compose_custom_game(
     }
     # an optional seed jitters the placed-element layout (deterministic), reusing the
     # same machinery the blueprints use; seed=None is a no-op (the plain plan)
-    return _apply_seed(plan, "custom", enemy + collectible + hazard + spawner, seed)
+    return _apply_seed(plan, "custom", enemy + collectible + hazard + spawner + guard, seed)
 
 
 # Decorative (non-gameplay) scripted behaviours that give a scene "juice".
