@@ -572,5 +572,23 @@ terrain (a big separate effort).
   summary reports 8 game types and lists horde. The other seven game intents are unchanged. +10 tests.
   **Next:** horde × save/load × variations integration + state review on P12 direction (cycle 64) —
   title/menu UI, audio cues, or another direction.
+- [x] Horde integration (cycle 64): a full-pipeline test — the horde game runs through NL intent ->
+  serialize + disk save/load IDENTICAL; same seed rebuilds the same horde; variations 2/4/6 all playable;
+  assess playable+player; re-imported plan validates. **P12 (horde mode) is DONE.** +5 tests.
+
+### P13 — Game feel: win/lose state, then title/menu & audio
+**Cycle-64 state review.** The studio has 8 game types + persistence + procedural + full combat/horde —
+but the games never END. P13 adds game *feel*: a win/lose state + end screen (chosen over title/menu and
+audio first, because an ending is the missing piece that makes every game a real game, and it is a pure
+template that applies to all types). Title/menu UI and audio cues follow.
+
+- [x] Win/lose state (cycle 64): `gameover` -> AutopilotGameOver — a win/lose manager + end screen.
+  WIN once no objects tagged `Enemy` remain (after at least one existed); LOSE when something
+  `SendMessage("PlayerDied")`s to it. It pauses (Time.timeScale=0), draws a centered "YOU WIN" /
+  "GAME OVER", and reloads the scene on R. Static `IsOver`/`Won`. Aliases gameover/oyunsonu/sonekran/
+  winlose/kazankaybet (chosen to avoid the existing `win`/`bitiş`->`goal` aliases, verified unchanged).
+  Pure ASCII, balanced; no NEEDS_SCRIPT behaviour un-templated. GAMES.md row + doc guard. +8 tests.
+  **Next:** wire `gameover` into the combat games (arena/horde manager object; player health death ->
+  SendMessage PlayerDied) (cycle 65); then title/menu UI + audio.
 
 > Check items off in this file as they land. Add new items as discovered.

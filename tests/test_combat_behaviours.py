@@ -302,6 +302,39 @@ def test_wave_dalga_still_map_to_spawner():
     assert normalize_behaviour("dalga") == "spawner"
 
 
+# --- gameover (win/lose state + end screen, P13) ----------------------------
+
+def test_gameover_source():
+    s = generate_behaviour_script("gameover")
+    assert s["ok"] is True and s["class_name"] == "AutopilotGameOver"
+    src = s["source"]
+    assert "public static bool IsOver" in src and "public static bool Won" in src
+    assert 'FindGameObjectsWithTag("Enemy")' in src        # WIN when none remain
+    assert "void PlayerDied()" in src                       # LOSE hook (SendMessage)
+    assert "Time.timeScale = 0f" in src                     # pauses
+    assert "KeyCode.R" in src and "LoadScene" in src        # restart
+    assert '"YOU WIN"' in src and '"GAME OVER"' in src      # end screen
+
+
+def test_gameover_is_pure_ascii_and_balanced():
+    src = generate_behaviour_script("gameover")["source"]
+    assert all(ord(c) < 128 for c in src)
+    assert src.count("{") == src.count("}") and src.count("(") == src.count(")")
+    assert "__" not in src
+
+
+@pytest.mark.parametrize("alias", ["gameover", "oyunsonu", "sonekran", "winlose", "kazankaybet"])
+def test_gameover_aliases(alias):
+    assert normalize_behaviour(alias) == "gameover"
+    assert generate_behaviour_script(alias)["class_name"] == "AutopilotGameOver"
+
+
+def test_win_bitis_still_map_to_goal():
+    # gameover must not steal the existing goal aliases
+    assert normalize_behaviour("win") == "goal"
+    assert normalize_behaviour("bitis") == "goal"
+
+
 def test_combat_loop_chain_is_complete():
     # player attack -> reward.TakeDamage -> SendMessage AddXP -> xp.AddXP; enemy -> player health
     attack = generate_behaviour_script("attack")["source"]

@@ -66,6 +66,7 @@ Give one object a behaviour with `unity_add_gameplay_behaviour(object, behaviour
 | `inventory` / `envanter` / `çanta` | AutopilotInventory | Item count + HUD: `Add(n)` static or `SendMessage("AddItem", n)`; top-left "Items: N" |
 | `ranged` / `menzilli` / `nişan` / `ateş` | AutopilotRanged | A ranged attack (gun/bow): every `cooldown`, hits the **nearest** tagged target within a long `range` via `SendMessage("TakeDamage")`, aiming at it |
 | `horde` / `akın` | AutopilotHorde | A survival-brawler driver: spawns **escalating waves** of enemies (Enemy tag + enemy AI + reward) over time, up to `maxWaves` (needs AutopilotEnemy + AutopilotReward in the project) |
+| `gameover` / `oyunsonu` / `sonekran` | AutopilotGameOver | Win/lose state + end screen: **WIN** when no `Enemy` remain, **LOSE** on `SendMessage("PlayerDied")`; pauses and shows "YOU WIN"/"GAME OVER", press R to restart |
 
 These are the **action-RPG combat & progression** building blocks (P11): `attack`/`enemy` deal damage
 that `health`/`reward` receive, a killed `reward` grants XP that `xp` levels up on, and `loot`/`inventory`

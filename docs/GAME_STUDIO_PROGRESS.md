@@ -787,3 +787,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   unchanged. +10 tests (horde build per phrasing, size+seed, survival-vs-horde distinction,
   assess+variations, others-unchanged, capability summary 8 games). Live-proved horde routing and the
   survival distinction. Generate-only; deterministic. — tests: 851 passed
+- [cycle 64] P12 horde integration (DONE) + new goal P13 = game feel (win/lose). (a) Integration test:
+  the horde game runs through the whole studio — NL intent "horde oyunu kur 4 tohum 9" -> plan ->
+  serialize + disk save/load IDENTICAL; same seed rebuilds the same horde; variations 2/4/6 all playable;
+  assess playable+player; re-imported plan validates. P12 (horde mode: horde behaviour + plan_horde_game
+  8th type + NL) is DONE. (b) STATE REVIEW: the 8 games never END — chose a win/lose state + end screen as
+  P13 (over title/menu and audio, since an ending is the missing piece that makes a game a game, and it's
+  a pure template applying to all types). First step: `gameover` -> AutopilotGameOver: WIN once no objects
+  tagged Enemy remain (after at least one existed); LOSE when something SendMessage("PlayerDied")s to it;
+  it pauses (Time.timeScale=0), draws a centered "YOU WIN"/"GAME OVER", and reloads the scene on R. Static
+  IsOver/Won. Aliases gameover/oyunsonu/sonekran/winlose/kazankaybet — chosen to avoid the existing
+  win/bitis->goal aliases (verified those still map to goal). Pure ASCII, balanced; no NEEDS_SCRIPT
+  behaviour left un-templated. GAME_STUDIO_GAMES.md scripted row + doc guard. +13 tests (5 horde
+  integration + 8 gameover). Roadmap P13 section added. Generate-only; deterministic. — tests: 864 passed
