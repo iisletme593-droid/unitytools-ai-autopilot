@@ -46,10 +46,11 @@ def test_horde_is_an_interactive_behaviour():
     assert "horde" in INTERACTIVE_BEHAVIOURS
 
 
-def test_manager_bookends_with_title_and_gameover():
+def test_manager_bookends_with_title_gameover_and_sound():
     plan = plan_horde_game(4)
-    # the hidden GameManager runs both bookends: title (start screen) + gameover (win when waves cleared)
-    assert _beh_of(plan, "GameManager") == {"title", "gameover"}
+    # the hidden GameManager runs the bookends (title + gameover) plus a sound cue that
+    # gameover SendMessages "PlayCue" to on the win (waves cleared) / lose transition
+    assert _beh_of(plan, "GameManager") == {"title", "gameover", "sound"}
 
 
 def test_loot_scattered():

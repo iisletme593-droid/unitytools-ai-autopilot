@@ -647,8 +647,15 @@ template that applies to all types). Title/menu UI and audio cues follow.
 ### P14 — Broaden the studio (next)
 With the full per-game feel loop done (title -> play -> win/lose, + a procedural sound cue), the next
 arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
-- [ ] Wire `sound` cues into the games decoupled (e.g. GameManager fans `SendMessage("PlayCue")` on
-  win/lose; pickups/attacks emit cues) — small, exercises the decoupled trigger in a real game.
+- [x] Wire `sound` cues into the games decoupled (cycle 69). Both `plan_arena_game` and
+  `plan_horde_game` now add `sound` to the hidden GameManager, so it runs title + gameover + sound.
+  The `gameover` template now `SendMessage("PlayCue", freq, DontRequireReceiver)` **once on each
+  transition** — 880f on win (after IsOver flips), 160f on lose (PlayerDied, now guarded with
+  `if (IsOver) return;` so it can't re-fire). Fully decoupled: no hard type ref, a no-op when no
+  AutopilotSound is present (all the non-combat games). arena now 12 unique scripts, horde 14; both
+  stay valid/playable/deterministic. The end of a combat game now has audio feedback. +1 test
+  (gameover-fires-sound), updated manager-set + unique-count tests. 892 passed. `sound` is no longer
+  an orphan — it mirrors how `title` got wired in cycle 67.
 - [ ] A fresh **game type** (9th blueprint) — e.g. a tower-defense, a runner, or a twin-stick shooter,
   reusing the existing combat/spawner/score/gameover building blocks.
 - [ ] A consolidated **"studio capabilities" report / landing refresh** reflecting all 8 (9?) types +

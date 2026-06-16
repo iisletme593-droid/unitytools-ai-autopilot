@@ -81,17 +81,18 @@ def test_enemy_count_clamped():
     assert plan_arena_game(99)["enemy_count"] == 30
 
 
-def test_manager_bookends_with_title_and_gameover():
+def test_manager_bookends_with_title_gameover_and_sound():
     plan = plan_arena_game(4)
-    # the hidden GameManager runs both bookends: title (start screen) + gameover (win/lose)
-    assert _beh_of(plan, "GameManager") == {"title", "gameover"}
+    # the hidden GameManager runs the bookends (title start screen + gameover win/lose)
+    # plus a sound cue gameover SendMessages "PlayCue" to on the win/lose transition
+    assert _beh_of(plan, "GameManager") == {"title", "gameover", "sound"}
 
 
-def test_groups_to_eleven_unique_scripts():
+def test_groups_to_twelve_unique_scripts():
     grouped = group_execution_plan(plan_arena_game(4)["steps"])
     assert set(grouped["script_behaviours"]) == {
         "player", "health", "attack", "score", "xp", "inventory",
-        "enemy", "reward", "loot", "title", "gameover"}
+        "enemy", "reward", "loot", "title", "gameover", "sound"}
 
 
 def test_variations_work_for_arena():

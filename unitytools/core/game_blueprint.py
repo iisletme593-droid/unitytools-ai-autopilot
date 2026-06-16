@@ -332,6 +332,9 @@ def plan_arena_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
     steps.append({"script_behaviour": {"object": "GameManager", "behaviour": "title"}})
     steps.append({"script_behaviour": {"object": "GameManager", "behaviour": "gameover"}})
+    # a procedural sound cue on the same object: gameover SendMessages "PlayCue" on the
+    # win/lose transition (decoupled, no-op if absent), so the end has audio feedback
+    steps.append({"script_behaviour": {"object": "GameManager", "behaviour": "sound"}})
 
     return {
         "ok": True,
@@ -399,6 +402,9 @@ def plan_horde_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
     steps.append({"script_behaviour": {"object": "GameManager", "behaviour": "title"}})
     steps.append({"script_behaviour": {"object": "GameManager", "behaviour": "gameover"}})
+    # a procedural sound cue on the same object: gameover SendMessages "PlayCue" on the
+    # win/lose transition (decoupled, no-op if absent), so the end has audio feedback
+    steps.append({"script_behaviour": {"object": "GameManager", "behaviour": "sound"}})
 
     return {
         "ok": True,

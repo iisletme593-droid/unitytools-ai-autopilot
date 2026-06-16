@@ -877,14 +877,19 @@ public class __CLASS__ : MonoBehaviour
             Won = true;
             IsOver = true;
             Time.timeScale = 0f;
+            // fire-once cue on the win transition; no-op if no AutopilotSound is present
+            SendMessage("PlayCue", 880f, SendMessageOptions.DontRequireReceiver);
         }
     }
 
     void PlayerDied()
     {
+        if (IsOver) return;
         Won = false;
         IsOver = true;
         Time.timeScale = 0f;
+        // fire-once cue on the lose transition (lower pitch); no-op without AutopilotSound
+        SendMessage("PlayCue", 160f, SendMessageOptions.DontRequireReceiver);
     }
 
     void OnGUI()

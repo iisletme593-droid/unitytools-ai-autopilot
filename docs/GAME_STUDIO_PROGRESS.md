@@ -843,3 +843,12 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   (AudioClip.Create + Mathf.Sin present, NO Resources.Load / Random). This closes P13's audio item —
   P13 game-feel is now fully complete (win/lose + title + sound). Generate-only; deterministic. —
   tests: 891 passed
+- [cycle 69] Wired `sound` into the flagship games (decoupled) so it isn't an orphan — mirrors how
+  `title` got wired in cycle 67. `plan_arena_game` + `plan_horde_game` now add `sound` to the hidden
+  GameManager (title + gameover + sound). The `gameover` template now SendMessage("PlayCue", freq,
+  DontRequireReceiver) ONCE on each transition: 880f on win, 160f on lose (PlayerDied now guarded with
+  `if (IsOver) return;` so it can't re-fire). Decoupled (no hard type ref); a no-op when no AutopilotSound
+  is present (all non-combat games). arena 12 unique scripts, horde 14; both stay valid/playable/
+  deterministic. Live-proved the manager set {title,gameover,sound} + gameover firing 2 PlayCue sends +
+  validity/determinism. +1 test (gameover-fires-sound), updated manager-set + unique-count tests.
+  Generate-only; deterministic. — tests: 892 passed
