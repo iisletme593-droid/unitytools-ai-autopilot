@@ -20,6 +20,7 @@ Five playable game types, each composed from the same gameplay building blocks:
 | `chase` | Outrun enemies that hunt the player while you grab collectibles |
 | `maze` | Escape a deterministic, always-solvable procedural labyrinth (seeded) |
 | `arena` | A blocky brawler: an armed player (health + attack) vs N enemies that chase and attack back |
+| `horde` | A survival-brawler: a fully-armed player vs escalating waves of enemies from a central spawner |
 
 Plus **living scenes** — decorative `bob`/`orbit`/`rotate`/`wander` motion as scene juice (not a game).
 

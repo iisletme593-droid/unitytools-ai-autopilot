@@ -758,3 +758,19 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   behaviour left un-templated. GAME_STUDIO_GAMES.md scripted row + doc guard. +7 tests (source, escalating
   count, spawns-enemy+reward, deterministic-no-random, aliases, wave/dalga-still-spawner). Roadmap P12
   section added. Generate-only; deterministic; no Math.random / new Date. — tests: 815 passed
+- [cycle 62] P12 step 2: `horde` blueprint — the 8th game type, a survival-brawler.
+  `core/game_blueprint.plan_horde_game(enemy_count, arena_size, seed)`: ground + a fully-armed player
+  (tag Player; player + health + attack + ranged + score + xp + inventory) off to one side, a central
+  `Spawner` object running the `horde` behaviour (escalating enemy waves), one initial enemy (Enemy tag +
+  enemy + reward) on the far side, and `enemy_count` scattered `loot` pickups. The initial enemy is
+  deliberate: it starts the arena populated AND ensures AutopilotEnemy.cs + AutopilotReward.cs are
+  imported in the SAME single recompile as AutopilotHorde, which AddComponents those types (so the horde
+  spawner compiles). Registered in BLUEPRINTS (8 games: collectathon/dodge/survival/platformer/chase/
+  maze/arena/horde); `horde` added to game_qa.INTERACTIVE_BEHAVIOURS; seeded via the shared _apply_seed
+  (loot ring jitter), so every seed is deterministic, validates (all behaviours templated, tools
+  whitelisted), and plays; plan_game_variations works. The code-derived capability summary now reports
+  "8 playable game types" automatically; a landing-doc row keeps the no-phantom guard green. +10 tests
+  (registration/8th, fully-armed player, central horde spawner, initial-enemy-imports-enemy+reward,
+  horde-interactive, loot scattered, valid+playable per seed, determinism, clamp, variations). Also
+  loosened two brittle exact-game-count assertions (arena tests) to survive catalog growth. Live-proved
+  the horde structure + the 8-game summary. Generate-only; deterministic. — tests: 841 passed

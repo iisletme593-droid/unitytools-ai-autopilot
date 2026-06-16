@@ -16,7 +16,7 @@ from .game_blueprint import group_execution_plan, BLUEPRINTS, plan_game
 # not a game.
 INTERACTIVE_BEHAVIOURS = frozenset({
     "goal", "collectible", "killzone", "mover", "follow", "chase", "spawner", "patrol",
-    "enemy",
+    "enemy", "horde",
 })
 
 

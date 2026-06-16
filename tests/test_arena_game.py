@@ -20,10 +20,9 @@ def _beh_of(plan, obj_prefix):
             if str(s.get("script_behaviour", {}).get("object", "")).startswith(obj_prefix)}
 
 
-def test_registered_as_seventh_game():
+def test_registered_in_catalog():
     assert "arena" in BLUEPRINTS
     assert plan_game("arena", 4)["game"] == "arena"
-    assert len(BLUEPRINTS) == 7
 
 
 def test_player_is_armed_with_health_score_xp_and_inventory():

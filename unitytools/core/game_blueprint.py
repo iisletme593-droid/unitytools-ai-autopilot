@@ -333,6 +333,65 @@ def plan_arena_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     }
 
 
+def plan_horde_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan a horde / survival-brawler: a fully-armed player versus ESCALATING waves
+    of enemies driven by a central wave spawner (the action-RPG "horde" mode).
+
+    The player (tag Player) gets the full combat kit (player + health + attack +
+    ranged + score + xp + inventory). A central `Spawner` object runs the `horde`
+    behaviour, which spawns growing waves of enemies (each tagged Enemy, with the
+    enemy AI + reward). One initial enemy is placed up front so the game starts
+    populated AND so AutopilotEnemy.cs + AutopilotReward.cs are imported (the horde
+    spawner AddComponents them). `enemy_count` sets the number of `loot` pickups
+    scattered on the field. Same step schema as the others; the seed jitters loot.
+    """
+    n = max(1, min(int(enemy_count), 30))
+    size = max(6.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) the fully-armed player, off to one side of the arena
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5, "position_z": -size / 3.0}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    for b in ("player", "health", "attack", "ranged", "score", "xp", "inventory"):
+        steps.append({"script_behaviour": {"object": "Player", "behaviour": b}})
+
+    # 3) a central wave spawner that rains escalating enemy waves
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Spawner", "position_y": 0.5}})
+    steps.append({"script_behaviour": {"object": "Spawner", "behaviour": "horde"}})
+
+    # 4) one initial enemy so AutopilotEnemy.cs + AutopilotReward.cs are imported
+    #    (the horde spawner AddComponents them) and the arena starts populated
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Enemy_0", "position_y": 0.5, "position_z": size / 3.0}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Enemy_0", "tag": "Enemy"}})
+    steps.append({"script_behaviour": {"object": "Enemy_0", "behaviour": "enemy"}})
+    steps.append({"script_behaviour": {"object": "Enemy_0", "behaviour": "reward"}})
+
+    # 5) loot scattered on the field to grab while you survive
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Sphere",
+            "count": n,
+            "pattern": "scatter",
+            "spacing": max(2.0, size / (2.0 * float(n))),
+            "name_prefix": "Loot",
+        },
+    })
+    for i in range(n):
+        steps.append({"script_behaviour": {"object": f"Loot_{i}", "behaviour": "loot"}})
+
+    return {
+        "ok": True,
+        "game": "horde",
+        "summary": f"Horde: armed player (health+attack+ranged+xp+inventory) + a central wave spawner (escalating enemy waves) + {n} loot ({len(steps)} steps).",
+        "enemy_count": n,
+        "steps": steps,
+    }
+
+
 # Decorative (non-gameplay) scripted behaviours that give a scene "juice".
 DECOR_BEHAVIOURS = ["bob", "orbit", "rotate", "wander"]
 
@@ -476,6 +535,7 @@ BLUEPRINTS = {
     "chase": plan_chase_game,
     "maze": plan_maze_game,
     "arena": plan_arena_game,
+    "horde": plan_horde_game,
 }
 
 

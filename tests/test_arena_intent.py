@@ -56,6 +56,6 @@ def test_other_game_intents_unchanged():
     assert _kw("toplama oyunu yap")["game_type"] == "collectathon"
 
 
-def test_capabilities_summary_lists_arena_and_seven_games():
+def test_capabilities_summary_lists_arena():
     text = build_game_capabilities_summary()
-    assert "arena" in text and "7 playable game types" in text
+    assert "arena" in text and "playable game types" in text

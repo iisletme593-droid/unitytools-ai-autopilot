@@ -553,5 +553,15 @@ terrain (a big separate effort).
   aliases (verified unchanged). Pure ASCII, balanced; no NEEDS_SCRIPT behaviour un-templated. GAMES.md
   row + doc guard. +7 tests. **Next:** a horde/`arena` survival mode — an arena variant driven by the
   horde spawner instead of a fixed enemy ring (cycle 62); NL intent + integration (cycle 63).
+- [x] Horde blueprint (cycle 62): `plan_horde_game` — the **8th game type**, a survival-brawler. The
+  player (tag Player) gets the full combat kit (player + health + attack + ranged + score + xp +
+  inventory); a central `Spawner` object runs the `horde` behaviour (escalating enemy waves); and one
+  initial enemy (Enemy tag + enemy + reward) starts the arena populated AND ensures AutopilotEnemy.cs +
+  AutopilotReward.cs are imported in the same recompile so the horde spawner (which AddComponents them)
+  compiles; `enemy_count` scatters that many `loot` pickups. Registered in BLUEPRINTS (8 games); `horde`
+  added to INTERACTIVE_BEHAVIOURS; seeded via _apply_seed (loot jitter); every seed validates + plays;
+  variations work; landing-doc row keeps the guard green. The code-derived capability summary now reports
+  8 game types automatically. +10 tests. **Next:** horde NL intent ("horde / survival brawler / dalga
+  modu / akın oyunu" + size + seed) + GAMES.md/catalog row (cycle 63); state review (cycle 64).
 
 > Check items off in this file as they land. Add new items as discovered.
