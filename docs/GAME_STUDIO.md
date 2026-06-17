@@ -9,7 +9,7 @@ This page is the one-screen tour; every section links to the deep doc.
 
 ## What it makes
 
-Sixteen playable game types (plus a freeform **custom composer** — describe an element mix and it
+Seventeen playable game types (plus a freeform **custom composer** — describe an element mix and it
 assembles a custom game from the same blocks), each composed from the same gameplay building blocks:
 
 | game_type | One-liner |
@@ -30,6 +30,7 @@ assembles a custom game from the same blocks), each composed from the same gamep
 | `hold` | King of the hill: hold a central zone (no attack) while N enemies try to push you out; fill the meter to win, die to lose |
 | `escort` | An escort/VIP mission: a moving NPC (tagged Player) walks itself to the goal while enemies march at it; you play a separate Hero bodyguard who clears them. Deliver the VIP to win, lose if it falls. The first type won by protecting something that isn't you |
 | `boss` | A boss fight: an armed player (melee + ranged) duels one (or more) high-HP boss with an on-screen HP bar; whittle it down to win, die to lose. The first sustained single-target fight |
+| `collector_race` | A collector race: grab all N collectibles before a countdown runs out (collect them all to win, run out of time to lose). The first type where the clock is your enemy |
 
 Plus **living scenes** — decorative `bob`/`orbit`/`rotate`/`wander` motion as scene juice (not a game).
 

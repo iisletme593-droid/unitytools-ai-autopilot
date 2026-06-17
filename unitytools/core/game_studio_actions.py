@@ -283,6 +283,12 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         if has("boss fight", "boss arena", "boss rush", "boss savasi", "boss dovus", "boss oyunu",
                "patron savasi", "patron dovus", "patron oyunu"):
             return "boss"
+        # collector race: collect everything before a deadline. MULTI-WORD phrases (NOT bare
+        # "toplama" -- that is the collectathon) so "toplama oyunu" still builds a collectathon
+        # while "toplama yarisi" / "sureli toplama" race the clock.
+        if has("collector race", "collect race", "collection race", "toplama yarisi",
+               "sureli toplama", "zamanli toplama", "zamana karsi toplama"):
+            return "collector_race"
         # runner: its terms ("kosu/kosma/endless") are distinct from every other type,
         # so an early return can't shadow anything (and "endless runner" is clear)
         if has("runner", "endless", "kosu oyunu", "kosma oyunu", "sonsuz kosu"):
@@ -627,7 +633,9 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "king of the hill", "bolge tut", "bolge kontrol", "hold the zone", "zone control",
             "escort", "eskort", "refakat", "vip", "escort oyunu", "refakat gorevi",
             "boss fight", "boss arena", "boss rush", "boss savasi", "boss oyunu", "patron savasi",
-            "patron oyunu")
+            "patron oyunu",
+            "collector race", "collect race", "collection race", "toplama yarisi", "sureli toplama",
+            "zamanli toplama", "zamana karsi toplama")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:

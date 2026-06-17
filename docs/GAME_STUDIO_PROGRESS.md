@@ -1134,3 +1134,21 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   row; GAME_STUDIO_GAMES game-row + behaviour-row + NL lists. Live-proved source(ascii/balanced/decoupled)
   + blueprint + 16/16 health + boss campaign + critique(foe-aware) + intent(no save-name theft) + report
   line. Generate-only; deterministic (no Math.random). +38 tests. -- tests: 1403 passed
+- [cycle 95] Collector race -- the 17th game type, the first won by BEATING A DEADLINE (the clock is your
+  enemy). New collectrace behaviour in core/gameplay.py (AutopilotCollectRace): a manager that each frame
+  counts objects named "Collectible_*" by name (decoupled, no tags) and SendMessages a one-time
+  "ReachedGoal" (reuses gameover's WIN hook) when the last is gone, or "PlayerDied" (the LOSE) if its
+  countdown (Time.deltaTime, so it freezes on the title screen) reaches zero first; draws "Collected
+  got/total" + remaining time (OnGUI). plan_collector_race_game in core/game_blueprint.py: a WASD player +
+  score + N collectibles (named Collectible_*) + GameManager(collectrace + gameover + title + sound) --
+  reuses gameover entirely, NO gameover change. Distinct from collectathon (collect all, no clock) and
+  time_survival (the timer is a WIN). critique_design taught a collectrace is a valid WIN trigger (added
+  `and collectrace == 0` to the no-win-trigger check), so a gameover+collectrace game is coherent;
+  backward compatible. collectrace categorized under "game feel" (drift guard); registered in BLUEPRINTS
+  (17). studio_health + every campaign now audit 17/17 valid+playable+coherent. Intent keyed on MULTI-WORD
+  phrases (collector race / collect race / collection race / toplama yarisi / sureli toplama / zamanli
+  toplama / zamana karsi toplama) so a bare "toplama oyunu" still builds a collectathon (no theft, and
+  time_survival's "sureli hayatta" is distinct from "sureli toplama"). Docs: GAME_STUDIO Sixteen->Seventeen
+  + row; GAME_STUDIO_GAMES game-row + behaviour-row + NL lists. Live-proved source(ascii/balanced/decoupled)
+  + blueprint + 17/17 health + collector_race campaign + critique(win-trigger) + intent(no collectathon
+  theft) + report line. Generate-only; deterministic (no Math.random). +38 tests. -- tests: 1441 passed

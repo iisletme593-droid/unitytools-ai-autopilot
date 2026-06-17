@@ -79,7 +79,7 @@ def critique_design(behaviour_counts: dict[str, int]) -> list[str]:
         notes.append("the player can attack but there are no enemies to fight")
     if ranged > 0 and foes == 0:
         notes.append("a ranged attacker has no enemies in range to target")
-    if gameover > 0 and foes == 0 and timer == 0 and goal == 0:
+    if gameover > 0 and foes == 0 and timer == 0 and goal == 0 and c("collectrace", 0) == 0:
         notes.append("the win/lose manager has no WIN trigger (no enemies to clear, no "
                      "survival timer, no goal to reach) -- the game can only be lost")
     if timer > 0 and (foes == 0 or health == 0):
@@ -219,7 +219,7 @@ _BEHAVIOUR_CATEGORIES: dict[str, list[str]] = {
     "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle", "holdzone", "escort"],
     "combat": ["health", "attack", "enemy", "ranged", "reward", "horde", "boss"],
     "progression": ["xp", "loot", "inventory", "score"],
-    "game feel": ["title", "gameover", "sound", "timer"],
+    "game feel": ["title", "gameover", "sound", "timer", "collectrace"],
 }
 
 # Game-feel behaviours whose presence-per-game the report surfaces.

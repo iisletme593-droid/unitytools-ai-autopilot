@@ -892,5 +892,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   ...) because a bare "boss" is a very common SAVE NAME -- so "boss olarak kaydet" / "kaydet boss" keep
   working untouched, and "boss arena" picks boss before the "arena" term. Docs Fifteen->Sixteen + rows.
   +38 tests. 1403 passed.
+- [x] **Collector race -- the 17th game type (cycle 95).** The first type won by BEATING A DEADLINE (the
+  clock is your enemy). New `collectrace` behaviour (AutopilotCollectRace) -- a manager that counts the
+  remaining "Collectible_*" by name (decoupled, no tags) and SendMessages a one-time "ReachedGoal"
+  (reusing gameover's WIN hook) when the last is gone, or "PlayerDied" (the LOSE -- the studio's first
+  losing deadline) if its countdown reaches zero first. `plan_collector_race_game`: a WASD player + score
+  + N collectibles + the manager (collectrace + gameover + title + sound). Distinct from `collectathon`
+  (no clock) and `time_survival` (the timer is a WIN). The design critique learned a `collectrace` is a
+  valid WIN trigger (so a gameover paired with it is coherent, not "can only be lost"); backward
+  compatible. Categorized under "game feel" (drift guard). studio_health + every campaign now audit 17/17
+  clean. Intent routes on MULTI-WORD phrases (collector race / toplama yarisi / sureli toplama / ...) so a
+  bare "toplama" still builds a collectathon. Docs Sixteen->Seventeen + rows. +38 tests. 1441 passed.
 
 > Check items off in this file as they land. Add new items as discovered.

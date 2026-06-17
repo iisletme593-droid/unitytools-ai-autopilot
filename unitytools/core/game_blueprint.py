@@ -889,6 +889,59 @@ def plan_boss_game(boss_count: int = 1, arena_size: float = 20.0) -> dict[str, A
     }
 
 
+def plan_collector_race_game(collectible_count: int = 6, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan a collector race -- the 17th type, and the first won by BEATING A DEADLINE.
+
+    Distinct from `collectathon` (collect all, no clock) and `time_survival` (outlast a
+    timer to WIN): here the clock is your ENEMY. A WASD player + score HUD races to grab all
+    N collectibles before a countdown runs out. The hidden GameManager runs the new
+    `collectrace` manager -- it counts the remaining "Collectible_*" by name (decoupled, no
+    tags) and SendMessages "ReachedGoal" (reusing gameover's WIN hook) the instant the last
+    one is gone, or "PlayerDied" (the LOSE) if the countdown hits zero first -- plus gameover
+    + title + sound. Same step schema; the seed jitters the collectible layout.
+    """
+    n = max(1, min(int(collectible_count), 50))
+    size = max(6.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) player: WASD + a score HUD (collectibles message it +1 each)
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "score"}})
+
+    # 3) N collectibles to race for (named Collectible_* so the manager can count them)
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Sphere",
+            "count": n,
+            "pattern": "scatter",
+            "spacing": max(2.0, size / float(n)),
+            "name_prefix": "Collectible",
+        },
+    })
+    for i in range(n):
+        steps.append({"script_behaviour": {"object": f"Collectible_{i}", "behaviour": "collectible"}})
+
+    # 4) GameManager: the collect-race win/lose manager (all collected -> WIN, clock out ->
+    #    LOSE) + gameover (the end screen it drives) + title + sound
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    for behaviour in ("collectrace", "gameover", "title", "sound"):
+        steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
+
+    return {
+        "ok": True,
+        "game": "collector_race",
+        "summary": f"Collector race: ground + WASD player + score HUD + {n} collectibles + a countdown -- grab them all before time runs out to WIN, run out to LOSE ({len(steps)} steps).",
+        "collectible_count": n,
+        "steps": steps,
+    }
+
+
 def compose_custom_game(
     player: bool = True,
     enemy: int = 0,
@@ -1212,6 +1265,7 @@ BLUEPRINTS = {
     "hold": plan_hold_game,
     "escort": plan_escort_game,
     "boss": plan_boss_game,
+    "collector_race": plan_collector_race_game,
 }
 
 
