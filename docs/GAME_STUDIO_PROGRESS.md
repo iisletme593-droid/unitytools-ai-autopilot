@@ -1265,3 +1265,18 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   200). studio_health stays 17/17 (killzone is interactive, no critique impact); maze coherent. Docs:
   GAME_STUDIO + GAME_STUDIO_GAMES maze rows. Generate-only; deterministic (no runtime RNG). +26 tests.
   -- tests: 1569 passed
+- [cycle 103] Twin-stick shooter -- the 18th game type, the first RANGED-PRIMARY game (a genre gap). New
+  plan_twinstick_game in core/game_blueprint.py: a LEAN KITER -- player + health + ranged (auto-aim gun) +
+  score, with NO melee attack and no xp/loot/inventory -- vs a ring of N enemies (enemy AI + reward, tag
+  Enemy). The loop is kite-and-shoot: the player out-runs the chasers (player moveSpeed 5 > enemy 2.5)
+  while the ranged weapon auto-targets the nearest Enemy. WIN by clearing the ring (gameover enemy-clear),
+  LOSE if cornered (health Die). No new C# -- reuses existing behaviours. Distinct from arena (melee +
+  xp/loot + mini-boss) and horde (full kit + wave spawner). Registered in BLUEPRINTS (18). Coherent by
+  critique_design (foes>0, health>0, ranged>0 -> no false flags). Intent on DISTINCT phrases (twin stick /
+  twin-stick / twinstick / top down shooter / iki yon ates / ust acidan ates) kept clear of the composer
+  ranged FLAG ("nisan"/"menzilli") so "5 dusman menzilli oyun yap" still composes (ranged=True), not builds
+  twin_stick (verified). Added a _GAME_EXAMPLES showcase entry ("twin stick oyunu kur") -- showcase routing
+  now 18/18; studio_health + report all read 18/18; every twin_stick campaign audits clean; arena/horde
+  intact. Docs: GAME_STUDIO Seventeen->Eighteen + row, GAME_STUDIO_GAMES game-row + NL lists. Live-proved
+  blueprint(ranged-only kiter) + 18/18 health/showcase/report + campaign + intent(no ranged-composer theft).
+  Generate-only; deterministic. +34 tests. -- tests: 1603 passed

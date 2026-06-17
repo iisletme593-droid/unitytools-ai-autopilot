@@ -295,6 +295,11 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         if has("collector race", "collect race", "collection race", "toplama yarisi",
                "sureli toplama", "zamanli toplama", "zamana karsi toplama"):
             return "collector_race"
+        # twin-stick shooter: a ranged-primary kiter. Distinct terms only (NOT "nisan/menzilli"
+        # -- those are the composer ranged flag), so a composed ranged game is not stolen.
+        if has("twin stick", "twin-stick", "twinstick", "top down shooter", "topdown shooter",
+               "iki yon ates", "ust acidan ates"):
+            return "twin_stick"
         # runner: its terms ("kosu/kosma/endless") are distinct from every other type,
         # so an early return can't shadow anything (and "endless runner" is clear)
         if has("runner", "endless", "kosu oyunu", "kosma oyunu", "sonsuz kosu"):
@@ -665,7 +670,9 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "boss fight", "boss arena", "boss rush", "boss savasi", "boss oyunu", "patron savasi",
             "patron oyunu",
             "collector race", "collect race", "collection race", "toplama yarisi", "sureli toplama",
-            "zamanli toplama", "zamana karsi toplama")
+            "zamanli toplama", "zamana karsi toplama",
+            "twin stick", "twin-stick", "twinstick", "top down shooter", "topdown shooter",
+            "iki yon ates", "ust acidan ates")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:

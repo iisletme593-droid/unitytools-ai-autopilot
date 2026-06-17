@@ -450,6 +450,7 @@ _GAME_EXAMPLES: dict[str, tuple[str, str]] = {
     "escort": ("escort oyunu kur", "guide and protect a moving VIP to the goal"),
     "boss": ("boss arena oyunu kur", "duel a high-HP boss with a melee + ranged kit"),
     "collector_race": ("toplama yarisi yap", "collect everything before the clock runs out"),
+    "twin_stick": ("twin stick oyunu kur", "kite a swarm and gun it down with an auto-aiming weapon"),
 }
 
 

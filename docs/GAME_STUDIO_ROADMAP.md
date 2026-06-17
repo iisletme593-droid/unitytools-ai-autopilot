@@ -987,4 +987,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   jitter-only seed-independent-object-count invariant + added a maze-specific bounded-count test (walls
   stay seed-independent). studio_health stays 17/17. +26 tests. 1569 passed.
 
+- [x] **Twin-stick shooter -- the 18th game type (cycle 103).** The first RANGED-PRIMARY game, filling a
+  recognizable genre gap. plan_twinstick_game: a lean KITER -- movement + `health` + a `ranged` auto-aim
+  weapon + score, with NO melee attack, no xp/loot/inventory -- backs away from a ring of N enemies (enemy
+  AI + reward, tag Enemy) while the gun mows them down. WIN by clearing the ring (gameover's enemy-clear),
+  LOSE if cornered. No new C# -- reuses existing behaviours. Distinct from `arena` (melee brawler with
+  xp/loot + a mini-boss) and `horde` (full kit + a wave spawner). Purely additive: new blueprint + registry
+  + a _GAME_EXAMPLES showcase entry (verified to route) + intent on distinct phrases (twin stick / twinstick
+  / top down shooter / iki yon ates) kept clear of the composer's `ranged` flag ("nisan/menzilli"), so a
+  composed ranged game is not stolen. studio_health + showcase + the report all read 18/18; every
+  twin_stick campaign audits clean. Coherent by the critique (ranged + enemies + gameover, no false flags).
+  Docs Seventeen->Eighteen + rows + NL lists. +34 tests. 1603 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

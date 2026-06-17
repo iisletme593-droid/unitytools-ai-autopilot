@@ -903,6 +903,62 @@ def plan_boss_game(boss_count: int = 1, arena_size: float = 20.0) -> dict[str, A
     }
 
 
+def plan_twinstick_game(enemy_count: int = 6, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan a twin-stick shooter -- the 18th type, and the first RANGED-PRIMARY game.
+
+    Distinct from `arena` (a melee brawler with xp/loot + a mini-boss) and `horde` (a
+    full-kit player vs escalating wave-spawner waves): here the player is a LEAN KITER.
+    It gets movement + `health` + a `ranged` weapon (auto-aims + fires at the nearest
+    Enemy in range) + a score HUD -- but NO melee attack, no xp/inventory. So the loop is
+    pure kite-and-shoot: back away from the ring of N enemies (enemy AI + reward, tag
+    Enemy, faster to chase but the player out-runs them) while the gun mows them down. WIN
+    by clearing them (gameover's enemy-clear), LOSE if they corner and kill you. Same step
+    schema; the seed jitters the enemy ring.
+    """
+    n = max(1, min(int(enemy_count), 30))
+    size = max(6.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) the lean ranged kiter: movement + health + a ranged weapon (auto-targets the
+    #    nearest Enemy) + score. Deliberately NO melee attack -- the gun is the whole game.
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    for behaviour in ("player", "health", "ranged", "score"):
+        steps.append({"script_behaviour": {"object": "Player", "behaviour": behaviour}})
+
+    # 3) enemies: a ring of cubes tagged Enemy that chase the player, killable by the gun
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Cube",
+            "count": n,
+            "pattern": "circle",
+            "spacing": max(3.0, size / float(n)),
+            "name_prefix": "Enemy",
+        },
+    })
+    for i in range(n):
+        steps.append({"tool": "unity_set_tag", "kwargs": {"name": f"Enemy_{i}", "tag": "Enemy"}})
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "enemy"}})
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "reward"}})
+
+    # 4) GameManager: title + gameover (WIN clears the ring, LOSE on death) + sound
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    for behaviour in ("title", "gameover", "sound"):
+        steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
+
+    return {
+        "ok": True,
+        "game": "twin_stick",
+        "summary": f"Twin-stick shooter: ground + a ranged-only kiter (health + auto-aim gun + score) vs {n} chasing enemies -- kite and gun them all down to WIN, get cornered to LOSE ({len(steps)} steps).",
+        "enemy_count": n,
+        "steps": steps,
+    }
+
+
 def plan_collector_race_game(collectible_count: int = 6, arena_size: float = 20.0) -> dict[str, Any]:
     """Plan a collector race -- the 17th type, and the first won by BEATING A DEADLINE.
 
@@ -1327,6 +1383,7 @@ BLUEPRINTS = {
     "escort": plan_escort_game,
     "boss": plan_boss_game,
     "collector_race": plan_collector_race_game,
+    "twin_stick": plan_twinstick_game,
 }
 
 
