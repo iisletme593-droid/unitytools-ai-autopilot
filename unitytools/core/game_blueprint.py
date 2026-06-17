@@ -1119,6 +1119,77 @@ def plan_speedrun_game(hazard_count: int = 5, arena_size: float = 20.0) -> dict[
     }
 
 
+def plan_keydoor_game(key_count: int = 3, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan a key-and-door game -- the 20th type, and the first with a FETCH-THEN-EXIT gate.
+
+    Grab every Key first, THEN reach the locked exit. A WASD player + score HUD collects N
+    keys (Sphere "Key_*", the `collectible` behaviour -- picked up + destroyed), dodging deadly
+    `killzone` hazards that respawn you. The exit is a new `lockgoal` (AutopilotLockGoal): it
+    counts the remaining "Key_*" by name and stays LOCKED until none are left, then -- when the
+    player reaches it -- SendMessages "ReachedGoal" (the WIN, reusing gameover's hook). Distinct
+    from `collectathon` (collect all AT the goal, no gate) and `collector_race` (a clock): here
+    the keys UNLOCK a separate exit you must then reach. No hard lose (a hazard just respawns
+    you). Same step schema; the seed jitters the key + hazard layout.
+    """
+    n = max(1, min(int(key_count), 40))
+    size = max(8.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) player at the near end: WASD + a score HUD (keys message it +1 each)
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5, "position_z": -size / 2.0}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "score"}})
+
+    # 3) N keys to collect (named Key_* so the lockgoal can count them by name)
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Sphere",
+            "count": n,
+            "pattern": "scatter",
+            "spacing": max(2.0, size / float(n)),
+            "name_prefix": "Key",
+        },
+    })
+    for i in range(n):
+        steps.append({"script_behaviour": {"object": f"Key_{i}", "behaviour": "collectible"}})
+
+    # 4) deadly hazards between you and the keys/exit -- touching one RESPAWNS you
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Cube",
+            "count": n,
+            "pattern": "circle",
+            "spacing": max(2.5, size / float(n)),
+            "name_prefix": "Hazard",
+        },
+    })
+    for i in range(n):
+        steps.append({"script_behaviour": {"object": f"Hazard_{i}", "behaviour": "killzone"}})
+
+    # 5) the LOCKED exit at the far end -- opens once every Key_* is gone, then reaching it WINS
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Door", "position_y": 0.5, "position_z": size / 2.0}})
+    steps.append({"script_behaviour": {"object": "Door", "behaviour": "lockgoal"}})
+
+    # 6) GameManager: gameover (WIN on the lockgoal's ReachedGoal) + title + sound
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    for behaviour in ("gameover", "title", "sound"):
+        steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
+
+    return {
+        "ok": True,
+        "game": "keydoor",
+        "summary": f"Key-and-door: ground + WASD player + score HUD + {n} keys + {n} deadly hazards + a LOCKED exit -- grab every key to unlock the door, then reach it to WIN ({len(steps)} steps).",
+        "key_count": n,
+        "steps": steps,
+    }
+
+
 def compose_custom_game(
     player: bool = True,
     enemy: int = 0,
@@ -1513,6 +1584,7 @@ BLUEPRINTS = {
     "collector_race": plan_collector_race_game,
     "twin_stick": plan_twinstick_game,
     "speedrun": plan_speedrun_game,
+    "keydoor": plan_keydoor_game,
 }
 
 

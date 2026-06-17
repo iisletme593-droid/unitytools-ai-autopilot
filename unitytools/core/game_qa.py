@@ -16,7 +16,7 @@ from .game_blueprint import group_execution_plan, BLUEPRINTS, plan_game
 # not a game.
 INTERACTIVE_BEHAVIOURS = frozenset({
     "goal", "collectible", "killzone", "mover", "follow", "chase", "spawner", "patrol",
-    "enemy", "horde", "pushable", "holdzone", "boss", "turret",
+    "enemy", "horde", "pushable", "holdzone", "boss", "turret", "lockgoal",
 })
 
 
@@ -79,7 +79,8 @@ def critique_design(behaviour_counts: dict[str, int]) -> list[str]:
         notes.append("the player can attack but there are no enemies to fight")
     if ranged > 0 and foes == 0:
         notes.append("a ranged attacker has no enemies in range to target")
-    if gameover > 0 and foes == 0 and timer == 0 and goal == 0 and c("collectrace", 0) == 0:
+    if (gameover > 0 and foes == 0 and timer == 0 and goal == 0
+            and c("collectrace", 0) == 0 and c("lockgoal", 0) == 0):
         notes.append("the win/lose manager has no WIN trigger (no enemies to clear, no "
                      "survival timer, no goal to reach) -- the game can only be lost")
     if timer > 0 and (foes == 0 or health == 0):
@@ -107,7 +108,8 @@ def assess_game_readiness(plan: dict[str, Any]) -> dict[str, Any]:
     # a "player" is anything that gives the user a controllable avatar: the WASD
     # `player` controller or the endless-runner's auto-run `runner` controller
     has_player = behaviour_counts.get("player", 0) > 0 or behaviour_counts.get("runner", 0) > 0
-    has_goal = behaviour_counts.get("goal", 0) > 0
+    # a "goal" is any explicit exit/win zone: the plain `goal` OR the key-and-door `lockgoal`
+    has_goal = behaviour_counts.get("goal", 0) > 0 or behaviour_counts.get("lockgoal", 0) > 0
     has_score = behaviour_counts.get("score", 0) > 0
     collectible_count = behaviour_counts.get("collectible", 0)
     hazard_count = behaviour_counts.get("killzone", 0)
@@ -216,7 +218,7 @@ def build_game_capabilities_summary() -> str:
 _BEHAVIOUR_CATEGORIES: dict[str, list[str]] = {
     "control": ["player", "runner"],
     "movement": ["rotate", "move", "bob", "bounce", "patrol", "follow", "orbit", "wander"],
-    "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle", "holdzone", "escort"],
+    "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle", "holdzone", "escort", "lockgoal"],
     "combat": ["health", "attack", "enemy", "ranged", "reward", "horde", "boss", "turret"],
     "progression": ["xp", "loot", "inventory", "score"],
     "game feel": ["title", "gameover", "sound", "timer", "deadline", "collectrace", "hitflash"],
@@ -454,6 +456,7 @@ _GAME_EXAMPLES: dict[str, tuple[str, str]] = {
     "collector_race": ("toplama yarisi yap", "collect everything before the clock runs out"),
     "twin_stick": ("twin stick oyunu kur", "kite a swarm and gun it down with an auto-aiming weapon"),
     "speedrun": ("speedrun oyunu kur", "race to the exit before the deadline runs out, dodging deadly hazards"),
+    "keydoor": ("anahtarli kapi oyunu kur", "grab every key to unlock the exit, then reach it -- dodging hazards"),
 }
 
 
@@ -592,6 +595,8 @@ def game_howto_from_plan(plan: dict[str, Any]) -> dict[str, list[str]]:
         win.append("Stand in the zone and hold it until the meter fills.")
     if c("escort"):
         win.append("Guide the VIP safely to the goal.")
+    if c("lockgoal"):
+        win.append("Collect every key to unlock the exit, then reach it.")
     if c("goal") and not (c("escort") or c("collectrace")):
         reach = "Reach the goal / exit"
         if c("collectible"):

@@ -1438,3 +1438,20 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   fourteen-script set already contained hitflash). Live-proved all 6 presets flash + stay playable, the
   other 13 types unchanged, _games_with_behaviour("hitflash") now lists 6 games, audit 19/19. Generate-
   only; deterministic. +0 tests. -- tests: 1755 passed
+- [cycle 114] BREADTH -- the 20th game type, `keydoor` (key-and-door / fetch-then-exit gate). New
+  `lockgoal` behaviour (AutopilotLockGoal): a LOCKED exit that counts the remaining "Key_*" by name
+  (decoupled, like collectrace) and stays locked until none remain, then -- when the player reaches it --
+  SendMessages "ReachedGoal" (the WIN, reusing gameover's hook). plan_keydoor_game: a WASD player + score
+  collects N keys (reusing `collectible`, named Key_*) and dodges N `killzone` hazards, then reaches the
+  unlocked Door. Distinct from collectathon (collect AT the goal, no gate) and collector_race (a clock):
+  the keys UNLOCK a separate exit you must then reach. No hard lose (a hazard just respawns you). The QA
+  surfaces learned lockgoal, following the collectrace precedent: it is INTERACTIVE (so playable), counts
+  as a goal/exit (has_goal true -> no false 'no goal' warning), is a WIN trigger in the critique (a
+  gameover+lockgoal game is NOT flagged 'can only be lost'), is categorized under 'world' (drift guard),
+  and the how-to derives "Collect every key to unlock the exit, then reach it." Registered behaviour +
+  blueprint + detect/wants_game intent (distinct phrases, NOT bare "kapi" -- that is the composer's goal
+  flag, verified no theft) + _GAME_EXAMPLES (20/20 showcase routing). Live-proved 20/20 self-audit, the
+  lockgoal counts keys + wins on reach (ascii+balanced), the how-to reads right, intent routes without
+  stealing collectathon or the composer goal flag. Docs: GAME_STUDIO (Twenty + table row), GAME_STUDIO_
+  GAMES (game row + lockgoal behaviour row + NL list). Generate-only; deterministic. +47 tests.
+  -- tests: 1802 passed

@@ -275,6 +275,11 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         if has("speedrun", "speed run", "speed-run", "beat the clock", "hizli bitir",
                "sure dolmadan", "zaman dolmadan", "sureli kacis"):
             return "speedrun"
+        # key-and-door: collect the keys to unlock the exit. Distinct multi-word phrases (NOT
+        # bare "kapi" -- that is the composer's goal flag word), so it can't shadow or be stolen.
+        if has("keydoor", "key door", "key-door", "anahtarli kapi", "anahtar kapi",
+               "kilitli kapi", "kilitli cikis", "locked door", "locked exit"):
+            return "keydoor"
         # puzzle/sokoban: distinct push-the-crate terms. ("crate"/"kutu" alone are NOT
         # here -- they route a freeform count to the composer's crate element instead;
         # the PUSH phrasing "kutu it(me)" / sokoban / bulmaca picks the preset.)
@@ -729,7 +734,9 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "twin stick", "twin-stick", "twinstick", "top down shooter", "topdown shooter",
             "iki yon ates", "ust acidan ates",
             "speedrun", "speed run", "speed-run", "beat the clock", "hizli bitir",
-            "sure dolmadan", "zaman dolmadan", "sureli kacis")
+            "sure dolmadan", "zaman dolmadan", "sureli kacis",
+            "keydoor", "key door", "key-door", "anahtarli kapi", "anahtar kapi",
+            "kilitli kapi", "kilitli cikis", "locked door", "locked exit")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:

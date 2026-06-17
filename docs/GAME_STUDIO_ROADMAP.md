@@ -1123,4 +1123,18 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   seen). Mechanical churn: 6 player-set assertions updated, no new tests. Generate-only; deterministic.
   +0 tests. 1755 passed.
 
+- [x] **Key-and-door -- the 20th game type, the first with a FETCH-THEN-EXIT gate (cycle 114).** New
+  `lockgoal` behaviour (AutopilotLockGoal): a LOCKED exit that counts the remaining "Key_*" by name
+  (decoupled, like collectrace) and stays locked until none remain, then -- when the player reaches it --
+  SendMessages "ReachedGoal" (the WIN, reusing gameover's hook). `plan_keydoor_game`: a WASD player +
+  score grabs N keys (reusing `collectible`, named Key_*) and dodges N `killzone` hazards, then reaches
+  the unlocked Door. Distinct from collectathon (collect AT the goal, no gate) and collector_race (a
+  clock): the keys UNLOCK a separate exit you must then reach; no hard lose (a hazard respawns you). QA
+  surfaces learned lockgoal on the collectrace precedent: INTERACTIVE (playable), counts as a goal/exit
+  (has_goal -> no false 'no goal' warning), a WIN trigger in the critique (gameover+lockgoal not flagged),
+  'world' category (drift guard), how-to "collect every key to unlock the exit, then reach it." Registered
+  behaviour + blueprint + intent (distinct phrases, NOT bare "kapi" = the composer goal flag, no theft) +
+  _GAME_EXAMPLES (20/20 routing). Live-proved 20/20 self-audit + lockgoal counts keys/wins on reach + the
+  how-to + intent (no theft). Generate-only; deterministic. +47 tests. 1802 passed.
+
 > Check items off in this file as they land. Add new items as discovered.
