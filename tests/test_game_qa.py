@@ -42,9 +42,11 @@ def test_readiness_fields_for_collectathon():
     assert r["warnings"] == []                       # complete game, nothing missing
 
 
-def test_survival_warns_about_missing_goal_but_still_playable():
-    r = assess_game_readiness(plan_game("survival", 3))
-    assert r["playable"] is True                      # player + spawners is playable
+def test_a_goalless_game_warns_about_missing_goal_but_is_still_playable():
+    # arena is a clear-the-enemies brawl with no goal zone (survival USED to be the example
+    # here, but as of cycle 108 survival gained a goal exit). The warning logic is the point.
+    r = assess_game_readiness(plan_game("arena", 4))
+    assert r["playable"] is True                      # player + enemies is playable
     assert r["has_goal"] is False
     assert any("no goal" in w for w in r["warnings"])
 

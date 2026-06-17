@@ -16,7 +16,7 @@ assembles a custom game from the same blocks), each composed from the same gamep
 |-----------|-----------|
 | `collectathon` | WASD player + score HUD, grab all the collectibles, reach the goal |
 | `dodge` | Survive moving hazards (mover + killzone) and reach the goal |
-| `survival` | Endure elevated spawners raining physics-cube hazards |
+| `survival` | Brave elevated spawners raining physics-cube chaos + deadly floor patches and reach the exit to win |
 | `platformer` | Jump up a staircase of solid platforms to a goal on top, timing your jumps past patrolling hazards on every other ledge (touch one and you respawn) |
 | `chase` | Outrun enemies that hunt the player while you grab collectibles |
 | `maze` | Escape a deterministic, always-solvable procedural labyrinth (seeded), now with deadly traps in the dead-ends (a wrong turn respawns you — but the solution path is always trap-free) |

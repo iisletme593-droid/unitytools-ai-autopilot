@@ -107,8 +107,11 @@ def plan_dodge_game(obstacle_count: int = 6, arena_size: float = 20.0) -> dict[s
 
 
 def plan_survival_game(spawner_count: int = 3, arena_size: float = 20.0) -> dict[str, Any]:
-    """Plan a survival game: ground, a controllable player, M elevated spawners that
-    rain physics-cube hazards in waves. Survive the onslaught. Same return schema.
+    """Plan a survival game: ground, a controllable player, M elevated spawners that rain
+    physics-cube hazards (chaos + cover-blocking clutter), N deadly `killzone` patches on the
+    floor (touch -> respawn), and a GOAL at the far side. Brave the cluttered, hazard-strewn
+    arena and reach the exit to WIN (a hidden GameManager's title + gameover land the screen).
+    Same return schema. This gives survival a real objective + threat (it used to have neither).
     """
     n = max(1, min(int(spawner_count), 20))
     size = max(6.0, float(arena_size))
@@ -116,10 +119,11 @@ def plan_survival_game(spawner_count: int = 3, arena_size: float = 20.0) -> dict
 
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
 
-    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5, "position_z": -size / 2.0}})
     steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
 
+    # elevated spawners raining physics cubes (clutter + chaos you push through)
     steps.append({
         "tool": "unity_place_primitives",
         "kwargs": {
@@ -134,11 +138,29 @@ def plan_survival_game(spawner_count: int = 3, arena_size: float = 20.0) -> dict
     for i in range(n):
         steps.append({"script_behaviour": {"object": f"Spawner_{i}", "behaviour": "spawner"}})
 
+    # N deadly floor patches between you and the exit (killzone -> respawn on touch). NOT a
+    # hard block (you weave around them); the seed jitters their scatter.
+    steps.append({"tool": "unity_place_primitives", "kwargs": {
+        "type": "Cube", "count": n, "pattern": "scatter",
+        "spacing": max(2.0, size / float(n)), "name_prefix": "Hazard"}})
+    for i in range(n):
+        steps.append({"script_behaviour": {"object": f"Hazard_{i}", "behaviour": "killzone"}})
+
+    # the exit at the far end: reaching it WINS (its OnTriggerEnter SendMessages "ReachedGoal")
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_y": 0.5, "position_z": size / 2.0}})
+    steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
+
+    # a hidden GameManager: title start screen + gameover (WIN on ReachedGoal) + sound cue
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    for behaviour in ("title", "gameover", "sound"):
+        steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
+
     return {
         "ok": True,
         "game": "survival",
-        "summary": f"Survival: ground + WASD player + {n} hazard spawners ({len(steps)} steps).",
+        "summary": f"Survival: ground + WASD player + {n} hazard spawners + {n} deadly floor patches + a goal exit -- brave the chaos and reach the exit to WIN ({len(steps)} steps).",
         "spawner_count": n,
+        "hazard_count": n,
         "steps": steps,
     }
 

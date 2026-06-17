@@ -1045,4 +1045,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   seed still only jitters platform x). studio_health stays 18/18; coherent (killzone has no critique
   impact). +1 test. 1655 passed.
 
+- [x] **Survival real objective + threat -- depth for the 3rd type (cycle 108).** Survival was the WEAKEST
+  type: harmless physics-cube rain, NO threat, NO win. plan_survival_game now keeps the spawner rain (chaos
+  + cover-blocking clutter) but adds N deadly `killzone` floor patches (touch -> respawn; a real threat) and
+  a GOAL exit at the far side, with a hidden GameManager (title + gameover) -- brave the cluttered,
+  hazard-strewn arena and reach the exit to WIN. It used to have neither a win nor a danger; now it has
+  both, reusing only existing behaviours (NO new C#). Coherent by the critique (a goal-win game, foes=0,
+  no timer -> no false flags); playable + has_goal now true. The hazard count is fixed per spawner_count,
+  so the object count stays seed-INDEPENDENT, and variations stay ascending. studio_health stays 18/18.
+  One legitimate test follow-on: test_game_qa's "a playable game can lack a goal" example moved off survival
+  (it now HAS one) onto arena (which genuinely has no goal). Churn limited to the unique-scripts test.
+  +1 test. 1656 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

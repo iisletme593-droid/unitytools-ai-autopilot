@@ -33,10 +33,32 @@ def test_registered_in_catalog():
     assert plan_game("survival", 2)["game"] == "survival"
 
 
-def test_survival_groups_to_two_unique_scripts():
+def test_survival_groups_to_its_unique_scripts():
     grouped = group_execution_plan(plan_survival_game(spawner_count=4)["steps"])
-    assert grouped["script_behaviours"] == ["player", "spawner"]   # 2 unique
-    assert len(grouped["attachments"]) == 5                        # player + 4 spawners
+    # cycle 108: survival gained a goal + deadly floor hazards + a win/lose manager
+    assert set(grouped["script_behaviours"]) == {
+        "player", "spawner", "killzone", "goal", "title", "gameover", "sound"}
+
+
+def test_survival_now_has_a_real_objective_and_threat():
+    # cycle 108 depth: survival used to be harmless + unwinnable. Now it has a goal (WIN) and
+    # deadly floor hazards (threat), and is coherent + playable + has a win condition.
+    from unitytools.core.game_qa import assess_game_readiness, studio_health
+    plan = plan_survival_game(spawner_count=3)
+    assert plan["hazard_count"] == 3
+    # N killzone hazards + a goal + a gameover manager
+    haz = [s["script_behaviour"]["object"] for s in plan["steps"]
+           if s.get("script_behaviour", {}).get("behaviour") == "killzone"]
+    assert haz == [f"Hazard_{i}" for i in range(3)]
+    assert any(s.get("script_behaviour") == {"object": "Goal", "behaviour": "goal"} for s in plan["steps"])
+    gm = {s["script_behaviour"]["behaviour"] for s in plan["steps"]
+          if s.get("script_behaviour", {}).get("object") == "GameManager"}
+    assert gm == {"title", "gameover", "sound"}
+    r = assess_game_readiness(plan)
+    assert r["playable"] is True and r["has_goal"] is True and r["design_notes"] == []
+    h = studio_health()
+    sv = next(g for g in h["games"] if g["game_type"] == "survival")
+    assert sv["valid"] and sv["playable"] and sv["coherent"]
 
 
 def test_intent_routes_to_survival():

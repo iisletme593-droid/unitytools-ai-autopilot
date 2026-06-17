@@ -1344,3 +1344,20 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   no critique impact); anatomy now lists patrol+killzone. Docs: GAME_STUDIO + GAME_STUDIO_GAMES platformer
   rows. Live-proved hazards(odd platforms, patrol+killzone, first safe) + 18/18 health + seed-independent
   + intent + anatomy. Generate-only; deterministic. +1 test. -- tests: 1655 passed
+- [cycle 108] Survival real objective + threat -- DEPTH for the 3rd (and weakest) type. Survival shipped as
+  harmless physics-cube rain with NO threat and NO win. plan_survival_game now keeps the elevated spawners
+  (rain = chaos + cover-blocking clutter you push through) but adds N deadly killzone floor patches
+  (scatter, touch -> respawn = a real threat) + a GOAL exit at position_z = +size/2 + a hidden GameManager
+  (title + gameover + sound). The player starts at -size/2 and braves the cluttered, hazard-strewn arena to
+  reach the exit -> WIN (the goal SendMessages ReachedGoal to gameover). Used to have neither a win nor a
+  danger; now both, reusing ONLY existing behaviours (killzone/goal/gameover/title/sound -- NO new C#).
+  Coherent by critique_design (a goal-win game; foes=0, timer=0 -> no false flags); assess now playable +
+  has_goal True. The hazard count is fixed per spawner_count (= n), so survival's object count stays
+  seed-INDEPENDENT (verified 3 seeds) and game_variations stays strictly ascending ([8,12,16]). studio_health
+  + survival campaign + anatomy all clean (18/18). One legitimate follow-on: test_game_qa's
+  test_survival_warns_about_missing_goal used survival as the "playable-but-no-goal" example -- survival now
+  HAS a goal, so I repointed that test to arena (genuinely goalless, win-by-clearing). Churn otherwise
+  limited to test_survival_groups (script set now {player, spawner, killzone, goal, title, gameover, sound}).
+  Docs: GAME_STUDIO + GAME_STUDIO_GAMES survival rows. Live-proved goal+hazards + 18/18 health + campaign +
+  intent + anatomy + seed-independent + variations-ascending. Generate-only; deterministic. +1 test.
+  -- tests: 1656 passed
