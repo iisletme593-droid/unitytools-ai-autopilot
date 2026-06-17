@@ -100,6 +100,35 @@ def test_endless_has_no_goal_or_gameover():
     assert "goal" not in behaviours and "gameover" not in behaviours
 
 
+# --- cycle 121 depth: coins to grab while running --------------------------
+
+def test_runner_has_coins_to_grab_on_a_different_lane():
+    plan = plan_runner_game(5)
+    # one coin (collectible) per obstacle, just before it
+    coins = [s["script_behaviour"]["object"] for s in plan["steps"]
+             if s.get("script_behaviour", {}).get("behaviour") == "collectible"]
+    assert coins == [f"Coin_{i}" for i in range(5)]
+    # each coin sits ahead of the player but BEFORE its obstacle, and on a different lane
+    lanes = (-2.5, 0.0, 2.5)
+    pos = {s["kwargs"]["name"]: s["kwargs"] for s in plan["steps"]
+           if s.get("tool") == "unity_create_primitive"}
+    for i in range(5):
+        coin, obs = pos[f"Coin_{i}"], pos[f"Obstacle_{i}"]
+        assert coin["position_z"] < obs["position_z"]          # reach the coin first
+        assert coin["position_x"] != obs["position_x"]         # a strafe away from the obstacle
+        assert obs["position_x"] == lanes[i % 3]               # the weave is unchanged
+
+
+def test_coins_feed_the_same_score_hud_and_keep_it_endless():
+    plan = plan_runner_game(4)
+    # the player still carries exactly runner+score+sound (coins are separate objects), and
+    # there is still no goal/gameover -> it remains an endless score chase, now with pickups
+    assert _beh_of(plan, "Player") == {"runner", "score", "sound"}
+    behaviours = {s["script_behaviour"]["behaviour"] for s in plan["steps"] if "script_behaviour" in s}
+    assert "goal" not in behaviours and "gameover" not in behaviours
+    assert "collectible" in behaviours
+
+
 @pytest.mark.parametrize("seed", ["a", "b", "42", "run"])
 def test_valid_and_playable(seed):
     plan = plan_game("runner", 6, seed=seed)

@@ -1535,3 +1535,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   minimalist composer sandboxes -- against the studio's clean-audit invariant). Live-proved all 21 tagged,
   the genre groupings (combat 8, reach-the-exit 11, timed 3 = the clock games), intent (no theft). Docs:
   GAME_STUDIO intent table. Generate-only; deterministic. +21 tests. -- tests: 1899 passed
+- [cycle 121] Runner depth -- coins to grab while running. The runner was the only type with NO
+  collectibles and no goal (a pure distance-survival chase). plan_runner_game now places N coins
+  (`collectible`, reused -- no new C#) along the track, one just BEFORE each obstacle and on a DIFFERENT
+  lane, so you weave to collect the coin then weave again to dodge the obstacle (a real risk/reward loop).
+  Coins feed the SAME score HUD as the distance ticks (both SendMessage AddScore), so grabbing them is
+  worth the risk. Still endless (no goal/gameover added) -- it stays a score chase, now with pickups. The
+  coins (named Coin_*, individual creates) are seed-static while the obstacles still shift per seed, so
+  object_count stays seed-INDEPENDENT and the existing runner seed test (Obstacle_* lanes shift) is
+  untouched. Near-zero churn: every existing runner test holds (player kit, no-goal, obstacle track all
+  unchanged) -- only +2 new coin tests. The genre taxonomy auto-reclassifies runner as collection +
+  hazard-dodging; the how-to is unchanged ("endless -- highest score"). Live-proved coins on the off-lane
+  reached first + 21/21 audit + seed-independence + taxonomy. Docs: GAME_STUDIO_GAMES runner row.
+  Generate-only; deterministic. +2 tests. -- tests: 1901 passed

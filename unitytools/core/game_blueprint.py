@@ -495,7 +495,10 @@ def plan_runner_game(obstacle_count: int = 8, arena_size: float = 20.0) -> dict[
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "score"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "sound"}})
 
-    # 3) a weaving lane of killzone obstacles ahead (each snaps the player to start on touch)
+    # 3) a weaving lane of killzone obstacles ahead (each snaps the player to start on touch),
+    #    with a COIN (`collectible`) to grab just before each one -- placed on a DIFFERENT lane,
+    #    so you weave to collect it then weave again to dodge (the runner's reward loop). Coins
+    #    feed the SAME score HUD as the distance ticks, so grabbing them is worth the risk.
     for i in range(n):
         oz = (i + 1) * gap
         ox = lanes[i % len(lanes)]
@@ -503,6 +506,10 @@ def plan_runner_game(obstacle_count: int = 8, arena_size: float = 20.0) -> dict[
                       "kwargs": {"type": "Cube", "name": f"Obstacle_{i}", "position_y": 0.5,
                                  "position_z": oz, "position_x": ox}})
         steps.append({"script_behaviour": {"object": f"Obstacle_{i}", "behaviour": "killzone"}})
+        steps.append({"tool": "unity_create_primitive",
+                      "kwargs": {"type": "Sphere", "name": f"Coin_{i}", "position_y": 0.5,
+                                 "position_z": round(oz - gap / 2.0, 3), "position_x": lanes[(i + 1) % len(lanes)]}})
+        steps.append({"script_behaviour": {"object": f"Coin_{i}", "behaviour": "collectible"}})
 
     # 4) a hidden GameManager with a title/start screen: the run begins paused on the
     #    title and starts on Space (title pauses in Start; position is irrelevant for it)
@@ -512,7 +519,7 @@ def plan_runner_game(obstacle_count: int = 8, arena_size: float = 20.0) -> dict[
     return {
         "ok": True,
         "game": "runner",
-        "summary": f"Runner: ground + auto-running player (distance score + hit sound) + {n} weaving killzone obstacles + title screen ({len(steps)} steps).",
+        "summary": f"Runner: ground + auto-running player (distance score + hit sound) + {n} weaving killzone obstacles + {n} coins to grab + title screen ({len(steps)} steps).",
         "obstacle_count": n,
         "steps": steps,
     }

@@ -1203,4 +1203,13 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   deepening the design critique (new checks would either never fire or risk flagging valid minimalist
   composer sandboxes). +21 tests. 1899 passed.
 
+- [x] **Runner depth -- coins to grab while running (cycle 121).** The runner was the only type with no
+  collectibles and no goal (a pure distance chase). plan_runner_game now places N coins (`collectible`,
+  reused -- no new C#) along the track, one just BEFORE each obstacle on a DIFFERENT lane, so you weave to
+  collect then weave to dodge (a risk/reward loop). Coins feed the SAME score HUD as the distance ticks.
+  Still endless (no goal/gameover). The coins (Coin_*, individual creates) are seed-static while obstacles
+  still shift per seed -> object_count seed-INDEPENDENT, the existing seed test untouched. Near-zero churn:
+  every existing runner test holds; +2 new coin tests. Taxonomy auto-reclassifies runner as collection +
+  hazard-dodging; how-to unchanged. +2 tests. 1901 passed.
+
 > Check items off in this file as they land. Add new items as discovered.
