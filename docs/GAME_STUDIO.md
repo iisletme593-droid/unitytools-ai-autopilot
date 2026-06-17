@@ -9,7 +9,7 @@ This page is the one-screen tour; every section links to the deep doc.
 
 ## What it makes
 
-Fourteen playable game types (plus a freeform **custom composer** — describe an element mix and it
+Fifteen playable game types (plus a freeform **custom composer** — describe an element mix and it
 assembles a custom game from the same blocks), each composed from the same gameplay building blocks:
 
 | game_type | One-liner |
@@ -28,6 +28,7 @@ assembles a custom game from the same blocks), each composed from the same gamep
 | `stealth` | Slip past N patrolling guards (line-of-sight) and reach the exit unseen to win; get spotted to lose. The first type won by avoiding combat |
 | `puzzle` | A sokoban: push N crates onto N targets; solve them all to win. A push mechanic, no combat or timer |
 | `hold` | King of the hill: hold a central zone (no attack) while N enemies try to push you out; fill the meter to win, die to lose |
+| `escort` | An escort/VIP mission: a moving NPC (tagged Player) walks itself to the goal while enemies march at it; you play a separate Hero bodyguard who clears them. Deliver the VIP to win, lose if it falls. The first type won by protecting something that isn't you |
 
 Plus **living scenes** — decorative `bob`/`orbit`/`rotate`/`wander` motion as scene juice (not a game).
 

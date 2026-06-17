@@ -762,6 +762,78 @@ def plan_hold_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str, 
     }
 
 
+def plan_escort_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan an escort / VIP mission -- the 15th type, and the first won by GUIDING a
+    moving NPC to safety. A new mechanic: protect a thing that ISN'T you.
+
+    The Escort is a VIP tagged Player (so the existing enemy AI -- which targets
+    FindWithTag("Player") -- marches at the thing you protect, the tower-defense trick
+    but with a MOVING base). It walks itself from the near end to the Goal at the far
+    end (the new `escort` behaviour: MoveTowards a named goal, deterministic) and carries
+    `health`, so if the enemies destroy it the game is LOST (health Die -> PlayerDied).
+    You play a separate Hero bodyguard -- the `player` controller + a melee `attack` +
+    score, NOT tagged Player -- who clears the N enemies (enemy AI + reward, tag Enemy)
+    before they kill the VIP. WIN when the escort reaches the goal (its arrival
+    SendMessages ReachedGoal, and the goal zone fires the same for the Player-tagged VIP)
+    OR when every enemy is cleared (gameover). Same step schema; the seed jitters the
+    enemy ring.
+    """
+    n = max(1, min(int(enemy_count), 30))
+    size = max(8.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) the Escort VIP at the near end: tagged Player (enemies march at IT), walks to the
+    #    goal (escort), killable (health -> Die signals PlayerDied = LOSE)
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Capsule", "name": "Escort", "position_y": 0.5, "position_z": -size / 2.0}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Escort", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Escort", "behaviour": "escort"}})
+    steps.append({"script_behaviour": {"object": "Escort", "behaviour": "health"}})
+
+    # 3) the goal the VIP walks to (its arrival -> WIN; the goal zone also fires it for
+    #    the Player-tagged escort, so the win is doubly robust)
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_y": 0.5, "position_z": size / 2.0}})
+    steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
+
+    # 4) the Hero bodyguard: WASD + a melee attack (hits Enemy) + score. NOT tagged Player,
+    #    so the enemies ignore the hero and head for the VIP (the tower-defense hero trick).
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Hero", "position_y": 0.5, "position_z": -size / 2.0 + 3.0}})
+    steps.append({"script_behaviour": {"object": "Hero", "behaviour": "player"}})
+    steps.append({"script_behaviour": {"object": "Hero", "behaviour": "attack"}})
+    steps.append({"script_behaviour": {"object": "Hero", "behaviour": "score"}})
+
+    # 5) enemies between the VIP and the goal: chase the VIP, killable by the hero
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Cube",
+            "count": n,
+            "pattern": "circle",
+            "spacing": max(3.0, size / float(n)),
+            "name_prefix": "Enemy",
+        },
+    })
+    for i in range(n):
+        steps.append({"tool": "unity_set_tag", "kwargs": {"name": f"Enemy_{i}", "tag": "Enemy"}})
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "enemy"}})
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "reward"}})
+
+    # 6) GameManager: title + gameover (WIN on ReachedGoal/clear, LOSE on PlayerDied) + sound
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    for behaviour in ("title", "gameover", "sound"):
+        steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
+
+    return {
+        "ok": True,
+        "game": "escort",
+        "summary": f"Escort: ground + a VIP (walks to the goal, lose if it falls) + a Hero bodyguard + {n} enemies (chase the VIP) + a goal + title/win-lose/sound ({len(steps)} steps).",
+        "enemy_count": n,
+        "steps": steps,
+    }
+
+
 def compose_custom_game(
     player: bool = True,
     enemy: int = 0,
@@ -1083,6 +1155,7 @@ BLUEPRINTS = {
     "stealth": plan_stealth_game,
     "puzzle": plan_puzzle_game,
     "hold": plan_hold_game,
+    "escort": plan_escort_game,
 }
 
 

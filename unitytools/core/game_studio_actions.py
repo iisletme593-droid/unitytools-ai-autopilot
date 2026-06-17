@@ -272,6 +272,10 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         if has("king of the hill", "bolge tut", "bolge kontrol", "bolgeyi tut", "tepeyi tut",
                "hold the zone", "zone control", "kapma noktasi", "hakimiyet"):
             return "hold"
+        # escort / VIP: guide+protect a moving NPC to the goal. Distinct terms (NOT
+        # "koru"/"koruma" -- those are stealth-guard composer words), so no theft.
+        if has("escort", "eskort", "refakat", "vip", "escort mission", "refakat gorevi"):
+            return "escort"
         # runner: its terms ("kosu/kosma/endless") are distinct from every other type,
         # so an early return can't shadow anything (and "endless runner" is clear)
         if has("runner", "endless", "kosu oyunu", "kosma oyunu", "sonsuz kosu"):
@@ -613,7 +617,8 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "zamana karsi", "survive the clock", "sureli hayatta", "time survival", "gerisayim oyunu",
             "stealth", "gizlilik", "gizli gec", "sneak", "gizlilik oyunu",
             "puzzle", "bulmaca", "sokoban", "kutu itme", "puzzle oyunu",
-            "king of the hill", "bolge tut", "bolge kontrol", "hold the zone", "zone control")
+            "king of the hill", "bolge tut", "bolge kontrol", "hold the zone", "zone control",
+            "escort", "eskort", "refakat", "vip", "escort oyunu", "refakat gorevi")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:

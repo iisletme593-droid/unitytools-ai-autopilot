@@ -213,7 +213,7 @@ def build_game_capabilities_summary() -> str:
 _BEHAVIOUR_CATEGORIES: dict[str, list[str]] = {
     "control": ["player", "runner"],
     "movement": ["rotate", "move", "bob", "bounce", "patrol", "follow", "orbit", "wander"],
-    "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle", "holdzone"],
+    "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle", "holdzone", "escort"],
     "combat": ["health", "attack", "enemy", "ranged", "reward", "horde"],
     "progression": ["xp", "loot", "inventory", "score"],
     "game feel": ["title", "gameover", "sound", "timer"],

@@ -1100,3 +1100,19 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   carries the new flags automatically (it only drops each level's full plan -- no tool change needed).
   Every game type's campaign audits clean (parametrized over all 14). Live-proved the 14 campaigns +
   aggregate + lean view. Generate-only; deterministic. +16 tests. -- tests: 1327 passed
+- [cycle 93] Escort / VIP -- the 15th game type, the first won by PROTECTING something that isn't you.
+  New escort behaviour in core/gameplay.py (AutopilotEscort): walks itself toward a goal object (found by
+  name, decoupled, MoveTowards) and fires a one-time SendMessage("ReachedGoal") on arrival -- reuses
+  gameover's existing WIN hook, so NO gameover change. plan_escort_game in core/game_blueprint.py is the
+  tower-defense inversion with a MOVING base: the Escort VIP is a Capsule tagged Player (so the existing
+  enemy AI marches at IT) + health (destroyed -> PlayerDied = LOSE); a separate untagged Hero is the
+  controllable bodyguard (player + attack + score) who clears the N enemies (enemy + reward, tag Enemy).
+  WIN by delivering the VIP (ReachedGoal, also fired by the goal zone for the Player-tagged VIP) or by
+  clearing every enemy (gameover); LOSE if the VIP falls. escort registered in BLUEPRINTS (15), aliased
+  escort/eskort/refakat/vip (NOT koru/koruma -- those are guard composer words), categorized under "world"
+  (drift guard). studio_health + every campaign now audit 15/15 valid+playable+coherent. Intent routes
+  "escort/refakat/vip oyunu" to the build with no theft of the guard composer or other intents (verified).
+  Docs: GAME_STUDIO Fourteen->Fifteen + row; GAME_STUDIO_GAMES game-row + behaviour-row + NL lists.
+  Live-proved source(ascii/balanced/decoupled) + blueprint(VIP-tagged-Player/untagged-Hero) + 15/15 health
+  + escort campaign + intent + report line. Generate-only; deterministic (no Math.random). +38 tests.
+  -- tests: 1365 passed

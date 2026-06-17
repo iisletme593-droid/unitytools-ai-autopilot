@@ -870,5 +870,15 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   `unity_plan_campaign` lean view carries the new flags automatically (it only drops each level's full
   plan). Every game type's campaign audits clean. +16 tests. 1327 passed. The studio now audits all
   four of its output shapes: blueprints, composer, and campaigns (single games via assess).
+- [x] **Escort / VIP -- the 15th game type (cycle 93).** A new mechanic: protect a thing that ISN'T you.
+  New `escort` behaviour (AutopilotEscort) -- a VIP that walks ITSELF toward a named goal (MoveTowards,
+  deterministic) and fires a one-time "ReachedGoal" on arrival (reusing gameover's WIN hook, no gameover
+  change). `plan_escort_game` is the tower-defense inversion with a MOVING base: the Escort is tagged
+  Player (so the existing enemy AI marches at the thing you protect) + `health` (destroyed -> LOSE); a
+  separate, untagged Hero is the controllable bodyguard (player + attack + score) who clears the N enemies
+  before they reach the VIP. Deliver the VIP (ReachedGoal) -- or clear every enemy -- to WIN. Categorized
+  under "world" (drift guard); studio_health + every campaign now audit 15/15 clean. Intent routes
+  escort/refakat/vip/eskort, kept distinct from the guard-composer word "koruma" (no theft). Docs
+  Fourteen->Fifteen + game/behaviour rows + NL lists. +38 tests. 1365 passed.
 
 > Check items off in this file as they land. Add new items as discovered.
