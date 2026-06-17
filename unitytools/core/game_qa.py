@@ -766,3 +766,60 @@ def build_behaviour_reference() -> str:
             lines.append(f"- **{b}** (`{cls}`) -- {purpose}{tail}")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
+
+
+# A game's DESIGN-PATTERN genre tags, derived from the behaviours it contains. A cross-cutting
+# discovery lens (group the catalog by what KIND of game each is) -- distinct from the catalog
+# (a flat list), the anatomy (one game), and the behaviour glossary (the blocks). Curated tag ->
+# behaviours mapping; a game earns a tag if it has ANY of that tag's behaviours. Guarded so every
+# game type earns at least one tag (test_game_taxonomy), so the lens can never leave a game
+# uncategorised.
+_GENRE_TAGS: dict[str, list[str]] = {
+    "combat": ["enemy", "boss", "horde", "attack"],
+    "ranged": ["ranged", "turret"],
+    "collection": ["collectible"],
+    "reach-the-exit": ["goal", "lockgoal"],
+    "stealth": ["detector"],
+    "puzzle": ["pushable", "puzzle"],
+    "survival": ["spawner", "horde"],
+    "timed": ["timer", "deadline", "collectrace"],
+    "territory": ["holdzone"],
+    "escort": ["escort"],
+    "hazard-dodging": ["killzone", "wrapmover"],
+}
+
+
+def game_genre_tags(plan: dict[str, Any]) -> list[str]:
+    """The design-pattern genre tags a plan earns, derived purely from its behaviour counts.
+    Order follows _GENRE_TAGS. Pure; works on a preset OR a composed plan."""
+    counts = summarize_plan(plan)["behaviour_counts"]
+    return [tag for tag, behs in _GENRE_TAGS.items() if any(counts.get(b, 0) for b in behs)]
+
+
+def build_game_taxonomy(count: int = 4) -> str:
+    """A CODE-DERIVED genre taxonomy of the whole catalog: every game type's design-pattern tags
+    (game_genre_tags), and the inverse view -- which games fall under each genre. A discovery lens
+    for the growing catalog ('show me your TIMED games / your STEALTH games'). Pure ASCII markdown;
+    reads only. Tags are derived from behaviours, so this never drifts."""
+    per_game: dict[str, list[str]] = {}
+    by_tag: dict[str, list[str]] = {tag: [] for tag in _GENRE_TAGS}
+    for gt in sorted(BLUEPRINTS):
+        tags = game_genre_tags(plan_game(gt, count))
+        per_game[gt] = tags
+        for t in tags:
+            by_tag[t].append(gt)
+
+    lines = ["# Game Design Taxonomy", ""]
+    lines.append(f"The {len(BLUEPRINTS)} game types grouped by design pattern (genre). Tags are derived "
+                 "from each game's behaviours, so this never drifts.")
+    lines.append("")
+    lines.append("## By genre")
+    for tag in _GENRE_TAGS:
+        games = by_tag[tag]
+        if games:
+            lines.append(f"- **{tag}** ({len(games)}): {', '.join(games)}")
+    lines.append("")
+    lines.append("## Each game's tags")
+    for gt in sorted(BLUEPRINTS):
+        lines.append(f"- `{gt}`: {', '.join(per_game[gt])}")
+    return "\n".join(lines)

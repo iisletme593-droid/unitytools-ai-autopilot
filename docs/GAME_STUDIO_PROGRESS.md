@@ -1520,3 +1520,18 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   showcase routing). Live-proved 21/21 self-audit, the wrapmover glides+wraps (ascii+balanced), the how-to
   + intent (no theft of dodge/stealth). Docs: GAME_STUDIO (Twenty-one + table row), GAME_STUDIO_GAMES
   (game row + wrapmover behaviour row + NL list). Generate-only; deterministic. +45 tests. -- tests: 1878 passed
+- [cycle 120] Game design taxonomy -- the 9th self-awareness surface, a cross-cutting GENRE lens. The
+  studio could list its games (catalog), zoom into one (anatomy/howto), and describe its blocks (behaviour
+  reference) -- but not classify the catalog by KIND. New game_genre_tags(plan): derives design-pattern
+  tags (combat / ranged / collection / reach-the-exit / stealth / puzzle / survival / timed / territory /
+  escort / hazard-dodging) purely from a plan's behaviours (a curated tag->behaviours map, _GENRE_TAGS).
+  build_game_taxonomy() groups all 21 types by genre + lists each game's tags. A discovery lens ('show me
+  your TIMED games' -> speedrun/collector_race/time_survival; 'your STEALTH games' -> stealth). Tags are
+  derived so it never drifts; guarded so every game earns >=1 tag (no game left uncategorised). Works on
+  composed games too. Exposed as unity_game_taxonomy + an intent ('oyun taksonomisi / turleri grupla /
+  genre / tasarim deseni / game taxonomy / by genre') keyed on genre phrases, verified it steals NEITHER
+  the flat catalog ('hangi oyunlar' / 'oyun turleri') NOR the behaviour reference NOR a build. Chose this
+  over deepening the design critique (new lint checks would either never fire or risk flagging valid
+  minimalist composer sandboxes -- against the studio's clean-audit invariant). Live-proved all 21 tagged,
+  the genre groupings (combat 8, reach-the-exit 11, timed 3 = the clock games), intent (no theft). Docs:
+  GAME_STUDIO intent table. Generate-only; deterministic. +21 tests. -- tests: 1899 passed

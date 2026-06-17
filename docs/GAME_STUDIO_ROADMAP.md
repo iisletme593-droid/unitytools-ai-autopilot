@@ -1192,4 +1192,15 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   _GAME_EXAMPLES (21/21 routing). Live-proved 21/21 self-audit + wrapmover glides+wraps + intent (no
   theft). Generate-only; deterministic. +45 tests. 1878 passed.
 
+- [x] **Game design taxonomy -- the 9th self-awareness surface, a genre lens (cycle 120).** The studio
+  could list its games (catalog), zoom into one (anatomy/howto), and describe its blocks (behaviour
+  reference) but not classify the catalog by KIND. New `game_genre_tags(plan)` derives design-pattern tags
+  (combat/ranged/collection/reach-the-exit/stealth/puzzle/survival/timed/territory/escort/hazard-dodging)
+  from a plan's behaviours (`_GENRE_TAGS`); `build_game_taxonomy()` groups all 21 types by genre + lists
+  each game's tags. A discovery lens ('show me your TIMED games'). Derived so it never drifts; guarded so
+  every game earns >=1 tag. Works on composed games too. Exposed as `unity_game_taxonomy` + an intent,
+  verified it steals neither the flat catalog nor the behaviour reference nor a build. Chosen over
+  deepening the design critique (new checks would either never fire or risk flagging valid minimalist
+  composer sandboxes). +21 tests. 1899 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

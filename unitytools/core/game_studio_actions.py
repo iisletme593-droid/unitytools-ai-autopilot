@@ -586,6 +586,25 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "reason": "behaviour-reference intent -> unity_behaviour_reference",
         }
 
+    # Game-taxonomy intent ("group the games by genre / design pattern") -> the code-derived
+    # taxonomy. Keyed on genre/taxonomy phrases (distinct from the catalog's "oyun turleri" and
+    # "hangi oyunlar"), so it can never be confused with the flat GAME catalog.
+    if has("taksonomi", "oyun taksonomisi", "tur taksonomisi", "game taxonomy", "genre",
+           "genreler", "tasarim deseni", "tasarim desenleri", "design pattern", "by genre",
+           "turleri grupla", "oyunlari grupla", "tur etiketleri", "oyun etiketleri"):
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_game_taxonomy",
+                "kwargs": {},
+                "write": False,
+                "note": "code-derived game taxonomy: every type's genre tags + the games under each genre (pure, no scene changes)",
+            }],
+            "safety_notes": ["read-only; no scene changes"],
+            "reason": "game-taxonomy intent -> unity_game_taxonomy",
+        }
+
     # Game-catalog intent ("what games can you make?") — must be specific enough
     # that bare "katalog"/"catalog" (the SCENE catalog) is not stolen, so it keys
     # on game-scoped phrases only.
