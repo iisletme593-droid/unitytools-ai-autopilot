@@ -85,7 +85,8 @@ def test_parse_counts_and_flags():
     spec = parse_custom_spec("ozel oyun: 5 dusman 3 toplanabilir ve bir sayac olsun")
     assert spec == {"player": True, "enemy": 5, "collectible": 3, "hazard": 0,
                     "goal": False, "timer": True, "spawner": 0, "ranged": False, "guard": 0,
-                    "crate": 0, "moving_hazard": 0, "turret": 0, "deadline": False}
+                    "crate": 0, "moving_hazard": 0, "turret": 0, "deadline": False,
+                    "player_flash": False}
 
 
 def test_parse_number_words_and_goal():
@@ -425,3 +426,52 @@ def test_compose_deadline_tool_plumbs_the_flag():
     out = tool.fn(deadline=True, hazard=2)
     assert out["ok"] is True and out["spec"]["deadline"] is True
     assert out["assessment"]["playable"] is True and out["assessment"]["design_notes"] == []
+
+
+# --- cycle 112: the player_flash juice flag (hit feedback on the player) ------
+
+def test_compose_player_flash_adds_hitflash_to_the_player():
+    plan = compose_custom_game(player=True, enemy=4, player_flash=True)
+    assert "hitflash" in _beh_of(plan, "Player")
+    assert plan["spec"]["player_flash"] is True
+    # purely cosmetic: it changes nothing about playability or the design critique
+    r = assess_game_readiness(plan)
+    assert r["playable"] is True and r["design_notes"] == []
+
+
+def test_compose_without_player_flash_has_no_hitflash():
+    plan = compose_custom_game(player=True, enemy=4)
+    assert "hitflash" not in _beh_of(plan, "Player")
+    assert plan["spec"]["player_flash"] is False
+
+
+def test_compose_player_flash_is_deterministic():
+    a = compose_custom_game(player=True, enemy=3, player_flash=True, seed="z")
+    assert a == compose_custom_game(player=True, enemy=3, player_flash=True, seed="z")
+    assert validate_plan(a)["ok"] is True
+
+
+def test_parse_recognizes_player_flash():
+    for phrase in ("ozel oyun 4 dusman parlama olsun", "5 dusman hitflash oyunu yap",
+                   "custom game with 3 enemies and flash"):
+        spec = parse_custom_spec(phrase)
+        assert spec["player_flash"] is True, phrase
+    # absent by default
+    assert parse_custom_spec("ozel oyun 4 dusman")["player_flash"] is False
+
+
+def test_player_flash_is_juice_not_an_element_so_it_does_not_route_alone():
+    # a juice word with NO real elements must NOT route to the composer (it is not a game)
+    def tool(p):
+        return plan_unity_fast_action(p)["steps"][0]["tool"]
+    assert tool("parlama olan oyun yap") != "unity_compose_game"
+    # ...but combined with a real element it composes WITH the flag on
+    step = plan_unity_fast_action("4 dusman parlamali oyun yap")["steps"][0]
+    assert step["tool"] == "unity_compose_game" and step["kwargs"]["player_flash"] is True
+
+
+def test_compose_player_flash_tool_plumbs_the_flag():
+    tool = {t.name: t for t in get_all_tools()}.get("unity_compose_game")
+    out = tool.fn(enemy=3, player_flash=True)
+    assert out["ok"] is True and out["spec"]["player_flash"] is True
+    assert out["assessment"]["playable"] is True

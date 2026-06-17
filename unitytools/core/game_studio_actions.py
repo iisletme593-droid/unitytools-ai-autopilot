@@ -1363,6 +1363,7 @@ _SPEC_FLAG_WORDS = {
     "goal": ("hedef", "goal", "kapi"),
     "timer": ("sayac", "sure", "zaman", "countdown", "gerisayim", "kronometre"),
     "ranged": ("menzilli", "nisan", "ranged", "tufek"),
+    "player_flash": ("hitflash", "parlama", "flash", "yanip sonme", "hasar parlamasi"),
 }
 # phrase-based flags: their trigger is a MULTI-WORD phrase that may CONTAIN a single-word
 # flag trigger (e.g. "sure dolmadan" / "sayac dolmadan" contain the timer words "sure"/"sayac"),
@@ -1457,6 +1458,7 @@ _COMPOSER_COUPLINGS = [
     ("crate", "the same number of targets + a puzzle win-manager (push every crate onto a target)"),
     ("timer", "the manager runs a countdown -> outlast the clock to win"),
     ("deadline", "a goal is auto-added (the WIN) + the manager runs a LOSING countdown (the LOSE) -- reach the goal before time runs out"),
+    ("player_flash", "the player gains hit-flash juice -- it flashes red when damaged (visible when there are enemies/turrets to hit it)"),
 ]
 
 

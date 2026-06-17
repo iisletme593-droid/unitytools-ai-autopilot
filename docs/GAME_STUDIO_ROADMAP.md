@@ -1100,4 +1100,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   playable + auto-goal, no timer double-fire, freeform composes while the speedrun preset still builds.
   Generate-only; deterministic. +6 tests. 1749 passed.
 
+- [x] **Composer `player_flash` juice flag -- hit feedback on the player (cycle 112).** The cycle-101
+  `hitflash` (until now boss-only) becomes player-facing in the composer. `compose_custom_game(player_flash
+  =True)` appends `hitflash` to the player kit, so the player flashes red when it takes damage. The juice
+  is real because enemies + turrets damage the player via `SendMessage("TakeDamage")`, which the
+  same-object `AutopilotHitFlash` reacts to alongside `AutopilotHealth` -- purely cosmetic + decoupled, so
+  validity/playability/coherence are unchanged (a no-op when nothing can hit you). NL parser learns it as
+  a flag ("hitflash"/"parlama"/"flash"/...); deliberately NOT a game ELEMENT, so a juice-word-only prompt
+  does NOT route to the composer while element + juice composes WITH the flag on. Both compose tools +
+  couplings + report carry it; `compose_health` grew to 17 cases, all clean. Low churn (additive). Future:
+  extend player hit-flash to the combat PRESETS (arena/horde/boss/time_survival/twin_stick) -- deferred
+  this cycle to avoid the multi-blueprint exact-set churn. Generate-only; deterministic. +6 tests. 1755 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

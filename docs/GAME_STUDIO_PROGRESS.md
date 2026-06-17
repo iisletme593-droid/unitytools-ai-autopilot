@@ -1410,3 +1410,17 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   is coherent + playable + auto-goal, the parser never double-fires the timer, freeform "deadline" composes
   while the speedrun PRESET still builds, 16/16 compose_health. Generate-only; deterministic. +6 tests.
   -- tests: 1749 passed
+- [cycle 112] Composer gains a `player_flash` juice flag -- hit feedback on the PLAYER (the cycle-101
+  hitflash, now player-facing in the composer). compose_custom_game(player_flash=True) appends `hitflash`
+  to the player kit, so the player's renderer flashes red whenever it takes damage. The juice is real
+  because enemies (AutopilotEnemy) and turrets (AutopilotTurret) damage the player via
+  SendMessage("TakeDamage"), which the same-object AutopilotHitFlash reacts to alongside AutopilotHealth --
+  purely cosmetic + decoupled, so it changes nothing about validity/playability/coherence (a no-op when
+  nothing can hit you). The NL parser learns it as a flag ("hitflash"/"parlama"/"flash"/"yanip sonme"/
+  "hasar parlamasi"); deliberately NOT counted as a game ELEMENT, so a juice-word-only prompt ("parlama
+  olan oyun yap") does NOT route to the composer (it falls through to the default build) while a real
+  element + the juice word ("4 dusman parlamali oyun yap") composes WITH the flag on. Both compose tools +
+  _COMPOSER_COUPLINGS + the composer report carry it; compose_health grew to 17 cases (an enemy + flash
+  mix), all valid+playable+coherent. Low churn (additive; only the parse exact-dict test updated). Live-
+  proved: the flag adds hitflash only when asked, the behaviour reacts to TakeDamage, juice alone doesn't
+  route, 17/17 compose_health. Generate-only; deterministic. +6 tests. -- tests: 1755 passed

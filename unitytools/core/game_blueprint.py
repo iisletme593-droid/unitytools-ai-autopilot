@@ -1129,6 +1129,7 @@ def compose_custom_game(
     moving_hazard: int = 0,
     turret: int = 0,
     deadline: bool = False,
+    player_flash: bool = False,
     arena_size: float = 20.0,
     seed: object = None,
 ) -> dict[str, Any]:
@@ -1159,7 +1160,11 @@ def compose_custom_game(
       - if deadline=True, the GameManager runs a `deadline` -> a LOSING countdown (the
         mirror of `timer`): it implies a goal to reach (auto-added if none) so the WIN is
         getting to the exit before time runs out (a speedrun-feel custom game). The
-        deadline is the LOSE (PlayerDied at zero); reaching the goal wins first.
+        deadline is the LOSE (PlayerDied at zero); reaching the goal wins first;
+      - if player_flash=True, the player gains `hitflash` (juice): its renderer flashes red
+        when it takes damage. Purely cosmetic + decoupled (it only reacts to TakeDamage), so
+        it is visible feedback when there is a damage source (enemies / turrets) and a
+        harmless no-op otherwise.
     Pure + deterministic; same step schema as the blueprints, so it validates, assesses
     and persists exactly like them. Counts are clamped to [0, 30].
     """
@@ -1199,6 +1204,8 @@ def compose_custom_game(
             player_behaviours.append("ranged")                   # a long-range weapon too
         if collectible > 0 or enemy > 0:
             player_behaviours.append("score")                    # a HUD to read
+        if player_flash:
+            player_behaviours.append("hitflash")                 # flash red when the player is hit (juice)
         for behaviour in player_behaviours:
             steps.append({"script_behaviour": {"object": "Player", "behaviour": behaviour}})
 
@@ -1304,7 +1311,8 @@ def compose_custom_game(
     spec = {"player": bool(player), "enemy": enemy, "collectible": collectible,
             "hazard": hazard, "goal": bool(goal), "timer": bool(timer),
             "spawner": spawner, "ranged": bool(ranged), "guard": guard, "crate": crate,
-            "moving_hazard": moving_hazard, "turret": turret, "deadline": bool(deadline)}
+            "moving_hazard": moving_hazard, "turret": turret, "deadline": bool(deadline),
+            "player_flash": bool(player_flash)}
     parts = []
     if player:
         parts.append("a ranged player" if ranged else "a player")
