@@ -174,6 +174,13 @@ bridge); the pure function is `core/game_qa.summarize_catalog`. Routed by intent
 "hangi oyunlar yapabilirsin", "neler yapabilirsin", "what games can you make", "list games" — while
 bare "katalog" still means the *scene* catalog (`unity_get_scene_catalog`).
 
+`unity_game_showcase()` is the discovery counterpart: a "say this -> get this game" gallery that, for
+every game type, gives the example natural-language prompt that builds it, a one-line pitch, and its
+object count. Each example is verified **live** to route to its own build (`core/game_qa.showcase_routing`),
+so the showcase doubles as a regression guard for the whole NL-intent layer -- break any game's detection
+and it (and its test) go red. Pure; routed by intent — "örnek oyunlar", "örnek göster", "show me examples",
+"game examples". The pure function is `core/game_qa.build_game_showcase`.
+
 ## 8. Living scenes (decorative, not a game)
 
 Not every scene is a game. `unity_animate_group` brings a scene to life: it places N props

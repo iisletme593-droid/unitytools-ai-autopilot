@@ -517,6 +517,26 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "reason": "studio-report intent -> unity_studio_report",
         }
 
+    # Game-showcase intent ("show me example prompts") -> the code-derived, self-verifying
+    # "say this -> get this game" gallery. Keyed on example/showcase phrases (distinct from
+    # the catalog's "hangi oyunlar" and from a build's "ornek oyun yap"), checked before the
+    # catalog + build intents so "ornek oyunlar" shows the gallery rather than building one.
+    if has("ornek oyunlar", "ornek goster", "ornekleri goster", "ornek oyun goster",
+           "ornek prompt", "ornekler goster", "showcase", "game examples", "example games",
+           "show me examples", "show examples", "ornek oyun ver"):
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_game_showcase",
+                "kwargs": {},
+                "write": False,
+                "note": "code-derived showcase: an example prompt per game type, routing verified (pure, no scene changes)",
+            }],
+            "safety_notes": ["read-only; no scene changes"],
+            "reason": "game-showcase intent -> unity_game_showcase",
+        }
+
     # Game-catalog intent ("what games can you make?") — must be specific enough
     # that bare "katalog"/"catalog" (the SCENE catalog) is not stolen, so it keys
     # on game-scoped phrases only.

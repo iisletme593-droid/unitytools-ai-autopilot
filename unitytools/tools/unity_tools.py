@@ -1368,6 +1368,12 @@ def unity_composer_report() -> dict:
     return {"ok": True, "report": build_composer_report()}
 
 
+@tool(description="Show a code-derived GAME SHOWCASE WITHOUT touching the scene (pure, no bridge): for every game type, the example natural-language prompt that builds it (each verified LIVE to route to that game), a one-line pitch, and its object count. A 'say this -> get this game' discovery gallery; the example->build routing is self-checked so it never drifts. Use to answer 'ornek oyunlar / ornek goster / show me examples / game examples / what should i type'. Returns {ok, showcase (markdown), all_route}.")
+def unity_game_showcase() -> dict:
+    from ..core.game_qa import build_game_showcase, showcase_routing
+    return {"ok": True, "showcase": build_game_showcase(), "all_route": showcase_routing()["all_route"]}
+
+
 @tool(description="Show which Cloudflare Workers AI models the studio routes between and how (pure, no bridge): the task->model catalog (reasoning/general/coding/creative/fast + vision/image), which support tool-calling, and how a model is chosen per turn (auto-detect + chat override). Use to answer 'hangi modeller var / model raporu / which models / model routing'. Returns {ok, report} (markdown).")
 def unity_model_report() -> dict:
     from ..core.model_router import build_model_router_report, list_models

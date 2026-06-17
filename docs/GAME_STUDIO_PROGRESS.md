@@ -1152,3 +1152,18 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   + row; GAME_STUDIO_GAMES game-row + behaviour-row + NL lists. Live-proved source(ascii/balanced/decoupled)
   + blueprint + 17/17 health + collector_race campaign + critique(win-trigger) + intent(no collectathon
   theft) + report line. Generate-only; deterministic (no Math.random). +38 tests. -- tests: 1441 passed
+- [cycle 96] Game showcase -- a different KIND of value after three straight new game types: a user-facing
+  "say this -> get this game" discovery gallery that ALSO self-verifies the whole NL-intent layer. New in
+  core/game_qa.py: _GAME_EXAMPLES (a curated example prompt + one-line pitch per game type), showcase_routing()
+  (lazily imports plan_unity_fast_action and checks LIVE that each example routes to unity_build_simple_game
+  for its own game_type -- so it never claims an example that doesn't actually build), and build_game_showcase()
+  (the pure-ASCII markdown gallery: example prompt + pitch + object count per type, plus a routing self-check
+  line). Exposed as the unity_game_showcase tool (in tools/unity_tools.py) and an intent in
+  core/game_studio_actions.py keyed on "ornek oyunlar / ornek goster / show me examples / game examples"
+  (placed BEFORE the catalog + build intents so "ornek oyunlar" shows the gallery instead of building one;
+  verified it steals neither catalog, report, nor build). A test guards that EVERY BLUEPRINTS type has an
+  example (drift) and every example builds its type (parametrized x17), so breaking any game's detection
+  turns the showcase red -- the first per-type regression guard for the intent layer. The 5th
+  self-awareness surface (catalog, report, health, composer-report, showcase). All 17 examples verified to
+  route. Docs: GAME_STUDIO intent table + GAME_STUDIO_GAMES catalog section. Live-proved routing(17/17) +
+  ascii + intent(no theft) + tool. Generate-only; deterministic. +29 tests. -- tests: 1470 passed

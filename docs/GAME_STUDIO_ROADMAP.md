@@ -903,5 +903,15 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   compatible. Categorized under "game feel" (drift guard). studio_health + every campaign now audit 17/17
   clean. Intent routes on MULTI-WORD phrases (collector race / toplama yarisi / sureli toplama / ...) so a
   bare "toplama" still builds a collectathon. Docs Sixteen->Seventeen + rows. +38 tests. 1441 passed.
+- [x] **Game showcase -- a self-verifying discovery gallery (cycle 96).** A different KIND of value after
+  three straight new types: a user-facing "say this -> get this game" gallery AND the first regression
+  guard for the whole NL-intent layer per game type. New `_GAME_EXAMPLES` (a curated example prompt +
+  pitch per game type), `showcase_routing()` (checks LIVE that each example routes to unity_build_simple_game
+  for its own type), and `build_game_showcase()` (the markdown gallery: example + pitch + object count).
+  A test asserts every BLUEPRINTS type has an example (drift guard) and every example builds its type, so
+  breaking any game's detection turns the showcase red. Exposed as the `unity_game_showcase` tool + the
+  "ornek oyunlar / show me examples / game examples" intent (placed before catalog + build so it isn't
+  shadowed; verified it steals neither). The 5th self-awareness surface (after catalog, report, health,
+  composer-report). All 17 examples verified to route. +29 tests. 1470 passed.
 
 > Check items off in this file as they land. Add new items as discovered.

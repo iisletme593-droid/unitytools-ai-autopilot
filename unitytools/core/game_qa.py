@@ -423,3 +423,73 @@ def build_studio_report() -> str:
     lines.append("execute=False plans only (safe, no scene change); execute=True builds and triggers "
                  "a Unity recompile.")
     return "\n".join(lines)
+
+
+# --- the game showcase: "say this -> get this game" -------------------------
+# A curated (example NL prompt, one-line pitch) per game type. The example is VERIFIED
+# (live, by showcase_routing + a test) to actually route to that game's build, so the
+# showcase is a self-checking discovery surface, not hand-waved claims. Guarded by a test
+# that every BLUEPRINTS type has an entry, so a new game type forces an example here.
+_GAME_EXAMPLES: dict[str, tuple[str, str]] = {
+    "collectathon": ("toplama oyunu yap", "grab every pickup and reach the goal"),
+    "dodge": ("dodge oyunu kur", "weave through moving hazards to the exit"),
+    "survival": ("hayatta kalma oyunu kur", "endure spawners raining hazards"),
+    "platformer": ("platformer oyunu kur", "jump up the platforms to a goal on top"),
+    "chase": ("kovalamaca oyunu kur", "outrun the enemies hunting you while you grab loot"),
+    "maze": ("labirent oyunu kur", "escape a procedurally generated labyrinth"),
+    "arena": ("arena oyunu kur", "an armed brawl against a ring of enemies"),
+    "horde": ("horde oyunu kur", "survive escalating waves from a central spawner"),
+    "runner": ("runner oyunu kur", "an endless runner -- strafe and jump for distance"),
+    "tower_defense": ("tower defense oyunu kur", "towers + a hero defend a base from a march of enemies"),
+    "time_survival": ("zamana karsi hayatta kalma oyunu kur", "outlast the countdown in a fight"),
+    "stealth": ("stealth oyunu kur", "slip past patrolling guards to the exit unseen"),
+    "puzzle": ("puzzle oyunu kur", "push every crate onto a target (sokoban)"),
+    "hold": ("king of the hill oyunu kur", "hold a zone under pressure (king of the hill)"),
+    "escort": ("escort oyunu kur", "guide and protect a moving VIP to the goal"),
+    "boss": ("boss arena oyunu kur", "duel a high-HP boss with a melee + ranged kit"),
+    "collector_race": ("toplama yarisi yap", "collect everything before the clock runs out"),
+}
+
+
+def showcase_routing() -> dict[str, Any]:
+    """Verify (live) that each game type's curated example prompt routes to its build. Pure
+    aside from a lazy import of the intent planner. Returns {ok, all_route, rows:[{game_type,
+    prompt, routes_to, builds}]} -- ``builds`` is True iff the example plans
+    unity_build_simple_game for exactly that game_type. A regression guard for the WHOLE
+    NL-intent layer: break any game's detection and this (and its test) goes red.
+    """
+    from .game_studio_actions import plan_unity_fast_action      # lazy: avoid an import cycle
+    rows: list[dict[str, Any]] = []
+    all_route = True
+    for gt in sorted(BLUEPRINTS):
+        prompt = _GAME_EXAMPLES.get(gt, (f"{gt} oyunu kur", ""))[0]
+        steps = plan_unity_fast_action(prompt).get("steps", [])
+        step = steps[0] if steps else {}
+        builds = (step.get("tool") == "unity_build_simple_game"
+                  and step.get("kwargs", {}).get("game_type") == gt)
+        rows.append({"game_type": gt, "prompt": prompt, "routes_to": step.get("tool"), "builds": builds})
+        all_route = all_route and builds
+    return {"ok": True, "all_route": all_route, "rows": rows}
+
+
+def build_game_showcase() -> str:
+    """A user-facing, CODE-DERIVED showcase: for every game type, the example NL prompt that
+    builds it (routing verified live), a one-line pitch, and its size. Pure ASCII markdown;
+    reads only (no bridge, no I/O). The discovery counterpart to the studio report.
+    """
+    route = showcase_routing()
+    verified = sum(1 for r in route["rows"] if r["builds"])
+    lines = ["# Unity Autopilot -- Game Showcase", ""]
+    lines.append("Say the prompt, get the game. Every example below is verified (live) to route to its "
+                 "game type, and the counts are code-derived, so this never drifts.")
+    lines.append("")
+    lines.append(f"## {len(route['rows'])} games -- say it, play it")
+    for gt in sorted(BLUEPRINTS):
+        prompt, pitch = _GAME_EXAMPLES.get(gt, (f"{gt} oyunu kur", ""))
+        report = assess_game_readiness(plan_game(gt, 4))
+        lines.append(f"- `{gt}` -- say \"{prompt}\" -> {pitch} ({report['object_count']} objects).")
+    lines.append("")
+    status = "all routing OK" if route["all_route"] else "SOME EXAMPLES DO NOT ROUTE"
+    lines.append(f"Routing self-check: {status} ({verified}/{len(route['rows'])} examples verified to build "
+                 "their game type).")
+    return "\n".join(lines)
