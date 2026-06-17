@@ -1181,4 +1181,15 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   one chase unique-scripts test (six -> seven). Live-proved the clamp + determinism + chase seed-
   independence + 20/20 audit + glossary. Generate-only; deterministic. +10 tests. 1833 passed.
 
+- [x] **Frogger -- the 21st game type, crossing lanes of traffic (cycle 119).** New `wrapmover` behaviour
+  (AutopilotWrapMover): glides +X and WRAPS (past +bound -> reappears at -bound), so each lane is an
+  endless stream. plan_frogger_game: a player at the near edge threads the gaps in L PHASE-STAGGERED lanes
+  of `wrapmover`+`killzone` traffic to reach a `goal` at the far edge. Distinct from `dodge` (scattered
+  drifting hazards): the threats are ORGANISED into crossing lanes whose gaps are offset. A reach-the-goal
+  WIN (gameover), no combat -> ZERO QA-surface changes (like speedrun). Built from individual cubes named
+  Obstacle_* so the existing seed handling shifts them laterally per seed while object_count stays seed-
+  INDEPENDENT. Registered behaviour + blueprint + intent (distinct phrases, NOT bare "gec" = stealth) +
+  _GAME_EXAMPLES (21/21 routing). Live-proved 21/21 self-audit + wrapmover glides+wraps + intent (no
+  theft). Generate-only; deterministic. +45 tests. 1878 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

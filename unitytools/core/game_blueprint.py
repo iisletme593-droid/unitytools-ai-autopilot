@@ -1195,6 +1195,65 @@ def plan_keydoor_game(key_count: int = 3, arena_size: float = 20.0) -> dict[str,
     }
 
 
+def plan_frogger_game(lane_count: int = 4, arena_size: float = 22.0) -> dict[str, Any]:
+    """Plan a Frogger-style crossing -- the 21st type, and the first about CROSSING LANES OF
+    TRAFFIC. The player starts at the near edge and must reach the goal at the far edge by
+    threading the gaps in L lanes of one-way traffic. Each lane is a row of Cube obstacles that
+    carry the new `wrapmover` (glide +X and wrap around -- an endless stream) + `killzone` (touch
+    -> respawn). The lanes are PHASE-STAGGERED so their gaps do not line up, so you weave lane by
+    lane. Distinct from `dodge` (scattered drifting hazards): here the threats are ORGANISED into
+    crossing lanes. A reach-the-goal WIN (gameover) -- no hard combat. Built from individual
+    placed cubes (named Obstacle_* so the seed shifts them laterally, varying the gaps).
+    """
+    lanes = max(2, min(int(lane_count), 12))
+    size = max(10.0, float(arena_size))
+    per_lane = 4
+    half = size / 2.0
+    span = size - 4.0                                  # the x-range the obstacles occupy
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) player at the near edge
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5, "position_z": -half}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
+
+    # 3) the lanes: rows of wrapping traffic (wrapmover + killzone) between the player and goal,
+    #    PHASE-STAGGERED so the gaps do not align (you cross one lane at a time)
+    idx = 0
+    for lane in range(lanes):
+        z = round(-half + (lane + 1) * (size / (lanes + 1)), 3)     # strictly between the edges
+        phase = (float(lane) / lanes) * (span / per_lane)           # offset this lane's gaps
+        for k in range(per_lane):
+            x = -span / 2.0 + k * (span / float(per_lane)) + phase
+            if x > span / 2.0:
+                x -= span                                           # keep it inside the band
+            steps.append({"tool": "unity_create_primitive", "kwargs": {
+                "type": "Cube", "name": f"Obstacle_{idx}", "position_x": round(x, 3), "position_y": 0.5, "position_z": z}})
+            steps.append({"script_behaviour": {"object": f"Obstacle_{idx}", "behaviour": "wrapmover"}})
+            steps.append({"script_behaviour": {"object": f"Obstacle_{idx}", "behaviour": "killzone"}})
+            idx += 1
+
+    # 4) the goal at the far edge -- reach it to WIN
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_y": 0.5, "position_z": half}})
+    steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
+
+    # 5) GameManager: title + gameover (WIN on the goal's ReachedGoal) + sound
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    for behaviour in ("title", "gameover", "sound"):
+        steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
+
+    return {
+        "ok": True,
+        "game": "frogger",
+        "summary": f"Frogger: ground + player + {lanes} lanes of wrapping traffic ({lanes * per_lane} obstacles) + a goal at the far edge -- thread the gaps to cross to the WIN ({len(steps)} steps).",
+        "lane_count": lanes,
+        "steps": steps,
+    }
+
+
 def compose_custom_game(
     player: bool = True,
     enemy: int = 0,
@@ -1617,6 +1676,7 @@ BLUEPRINTS = {
     "twin_stick": plan_twinstick_game,
     "speedrun": plan_speedrun_game,
     "keydoor": plan_keydoor_game,
+    "frogger": plan_frogger_game,
 }
 
 

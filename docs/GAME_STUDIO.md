@@ -9,7 +9,7 @@ This page is the one-screen tour; every section links to the deep doc.
 
 ## What it makes
 
-Twenty playable game types (plus a freeform **custom composer** — describe an element mix and it
+Twenty-one playable game types (plus a freeform **custom composer** — describe an element mix and it
 assembles a custom game from the same blocks), each composed from the same gameplay building blocks:
 
 | game_type | One-liner |
@@ -34,6 +34,7 @@ assembles a custom game from the same blocks), each composed from the same gamep
 | `twin_stick` | A twin-stick shooter: a ranged-only kiter (auto-aim gun, no melee) backs away from a ring of chasing enemies and guns them down; clear them to win, get cornered to lose. The first ranged-primary type |
 | `speedrun` | A race to the exit: cross from the start to the goal before a **losing countdown** (the new `deadline`) runs out, dodging deadly hazards that respawn you and bleed the clock. The first type that races a deadline to a destination |
 | `keydoor` | Key-and-door: grab every key (collectibles named `Key_*`) to unlock a sealed exit (the new `lockgoal`), then reach it to win — dodging deadly hazards along the way. The first type with a **fetch-then-exit gate** (the exit stays locked until you have them all) |
+| `frogger` | Cross the traffic: thread the gaps in N **phase-staggered lanes** of wrapping traffic (the new `wrapmover` + killzone) to reach the goal at the far edge. The first type about **crossing lanes** — distinct from `dodge`'s scattered drifting hazards |
 
 Plus **living scenes** — decorative `bob`/`orbit`/`rotate`/`wander` motion as scene juice (not a game).
 

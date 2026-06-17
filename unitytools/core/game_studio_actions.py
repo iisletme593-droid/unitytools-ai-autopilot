@@ -280,6 +280,11 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         if has("keydoor", "key door", "key-door", "anahtarli kapi", "anahtar kapi",
                "kilitli kapi", "kilitli cikis", "locked door", "locked exit"):
             return "keydoor"
+        # frogger: cross lanes of traffic. Distinct terms (NOT bare "gec" -- "gizli gec" is
+        # stealth), so it can't shadow or be stolen.
+        if has("frogger", "crossy road", "crossy", "karsidan karsiya", "yoldan gec",
+               "trafikten gec", "serit gec", "lane crossing", "cross the road"):
+            return "frogger"
         # puzzle/sokoban: distinct push-the-crate terms. ("crate"/"kutu" alone are NOT
         # here -- they route a freeform count to the composer's crate element instead;
         # the PUSH phrasing "kutu it(me)" / sokoban / bulmaca picks the preset.)
@@ -757,7 +762,9 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "speedrun", "speed run", "speed-run", "beat the clock", "hizli bitir",
             "sure dolmadan", "zaman dolmadan", "sureli kacis",
             "keydoor", "key door", "key-door", "anahtarli kapi", "anahtar kapi",
-            "kilitli kapi", "kilitli cikis", "locked door", "locked exit")
+            "kilitli kapi", "kilitli cikis", "locked door", "locked exit",
+            "frogger", "crossy road", "crossy", "karsidan karsiya", "yoldan gec",
+            "trafikten gec", "serit gec", "lane crossing", "cross the road")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:

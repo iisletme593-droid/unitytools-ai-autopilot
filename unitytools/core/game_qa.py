@@ -217,7 +217,7 @@ def build_game_capabilities_summary() -> str:
 # and the drift test fails until it is categorized here -- the report stays honest.
 _BEHAVIOUR_CATEGORIES: dict[str, list[str]] = {
     "control": ["player", "runner"],
-    "movement": ["rotate", "move", "bob", "bounce", "patrol", "follow", "orbit", "wander"],
+    "movement": ["rotate", "move", "bob", "bounce", "patrol", "follow", "orbit", "wander", "wrapmover"],
     "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle", "holdzone", "escort", "lockgoal", "safezone"],
     "combat": ["health", "attack", "enemy", "ranged", "reward", "horde", "boss", "turret"],
     "progression": ["xp", "loot", "inventory", "score"],
@@ -458,6 +458,7 @@ _GAME_EXAMPLES: dict[str, tuple[str, str]] = {
     "twin_stick": ("twin stick oyunu kur", "kite a swarm and gun it down with an auto-aiming weapon"),
     "speedrun": ("speedrun oyunu kur", "race to the exit before the deadline runs out, dodging deadly hazards"),
     "keydoor": ("anahtarli kapi oyunu kur", "grab every key to unlock the exit, then reach it -- dodging hazards"),
+    "frogger": ("frogger oyunu kur", "thread the gaps in lanes of wrapping traffic to cross to the far side"),
 }
 
 
@@ -702,6 +703,7 @@ _BEHAVIOUR_PURPOSES: dict[str, str] = {
     "follow": "homes in on the Player each frame (a chaser).",
     "orbit": "circles a point at a fixed radius (decor / satellite motion).",
     "wander": "drifts in lazy, deterministic pseudo-random arcs (ambient life).",
+    "wrapmover": "lane traffic: glides along +X and wraps around (an endless crossing stream).",
     # world
     "collectible": "a pickup: on touch it scores, pops, and destroys itself.",
     "goal": "a trigger win zone: entering it SendMessages ReachedGoal (the WIN).",

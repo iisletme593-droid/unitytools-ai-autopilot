@@ -1506,3 +1506,17 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   chase unique-scripts test (six -> seven, +1 attachment). Live-proved the clamp + determinism + chase
   seed-independence + 20/20 audit + the glossary documents it. Docs: GAME_STUDIO_GAMES (chase row +
   safezone behaviour row). Generate-only; deterministic. +10 tests. -- tests: 1833 passed
+- [cycle 119] BREADTH -- the 21st game type, `frogger` (cross lanes of traffic). New `wrapmover`
+  behaviour (AutopilotWrapMover): glides +X and WRAPS (once past +bound it reappears at -bound), so each
+  lane is an endless stream. plan_frogger_game: a player at the near edge threads the gaps in L PHASE-
+  STAGGERED lanes of `wrapmover`+`killzone` traffic to reach a `goal` at the far edge. Distinct from
+  `dodge` (scattered drifting hazards): the threats are ORGANISED into crossing lanes whose gaps are
+  offset so they do not align (you weave one lane at a time). A reach-the-goal WIN (gameover), no combat --
+  so ZERO QA-surface changes (no critique/assess/howto edits; goal is the win, like speedrun). Built from
+  individual placed cubes named Obstacle_* so the existing seed handling shifts them laterally per seed
+  (varying the gaps) while object_count stays seed-INDEPENDENT. Registered behaviour (NEEDS_SCRIPT /
+  aliases / templates / movement category / glossary purpose) + blueprint + detect/wants_game intent
+  (distinct phrases, NOT bare "gec" -- "gizli gec" is stealth, verified no theft) + _GAME_EXAMPLES (21/21
+  showcase routing). Live-proved 21/21 self-audit, the wrapmover glides+wraps (ascii+balanced), the how-to
+  + intent (no theft of dodge/stealth). Docs: GAME_STUDIO (Twenty-one + table row), GAME_STUDIO_GAMES
+  (game row + wrapmover behaviour row + NL list). Generate-only; deterministic. +45 tests. -- tests: 1878 passed
