@@ -1297,3 +1297,19 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   + GAME_STUDIO_GAMES catalog section. Live-proved 18/18 anatomies(ascii+code-derived) + intent(routes,
   no theft) + the maze breakdown (50 wall static_obstacles + 2 dead-end killzones). Generate-only;
   deterministic. +46 tests. -- tests: 1649 passed
+- [cycle 105] Tower-defense wave spawner -- DEPTH for the 10th type. Tower-defense shipped with only a
+  FIXED enemy group; the genre-defining ESCALATING WAVES were missing. plan_tower_defense_game now adds a
+  Spawner (Cube at position_z = +size/2, the far enemy side) running the existing `horde` behaviour (NO new
+  C#): it rains escalating waves of cubes (tagged Enemy, with AutopilotEnemy + AutopilotReward it
+  AddComponents -- already imported by the fixed group), and since AutopilotEnemy targets
+  FindWithTag("Player") = the Player-tagged Base, every wave marches at the base exactly like the fixed
+  group, defended by the same ranged towers. Now a real escalating defense, won by clearing every wave
+  (gameover enemy-clear, finite horde maxWaves so winnable). Near-zero churn by design: the Spawner is a
+  SEPARATE object (not Enemy_*, not the GameManager), so every existing tower_defense assertion holds
+  untouched (Base={health}, Hero={player,attack,score}, towers ranged, manager={title,gameover,sound}, the
+  fixed Enemy_* tags == n, "reuses only existing behaviours" still true since horde is one). studio_health
+  stays 18/18; the td campaign + game-anatomy (now lists horde under combat) + showcase all stay clean; the
+  build-integration + bridge-parity tests recompute from the plan so they auto-adjust (horde emits only the
+  known import/attach methods). Docs: GAME_STUDIO_GAMES tower_defense row + the blueprint docstring.
+  Live-proved Spawner(horde) + 18/18 health + campaign + intent + anatomy. Generate-only; deterministic.
+  +1 test. -- tests: 1650 passed

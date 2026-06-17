@@ -1011,4 +1011,15 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   token-PREFIX so a build's "yap"/"yapsana" never matches it (verified build/assess/showcase/catalog
   intents are all untouched). +46 tests. 1649 passed.
 
+- [x] **Tower-defense wave spawner -- depth for the 10th type (cycle 105).** Tower-defense had only a
+  FIXED enemy group -- the genre-defining ESCALATING WAVES were missing. plan_tower_defense_game now adds a
+  `horde` wave spawner on the far enemy side (the existing behaviour -- NO new C#): it rains escalating
+  waves of enemies (tagged Enemy, with the enemy AI + reward it AddComponents, already imported by the
+  fixed group), and since the enemy AI targets FindWithTag("Player") = the Player-tagged Base, every wave
+  marches at the base just like the fixed group. So it is now a real escalating defense, won by clearing
+  every wave. Near-zero churn: the Spawner is a separate object (not Enemy_*, not the GameManager), so all
+  existing tower_defense assertions hold untouched (Base/Hero/towers/manager unchanged, the fixed Enemy_*
+  group intact, "only existing behaviours" still true since horde is one). studio_health stays 18/18, the
+  td campaign + anatomy + showcase all stay clean. +1 test. 1650 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

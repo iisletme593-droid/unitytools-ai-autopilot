@@ -486,8 +486,10 @@ def plan_tower_defense_game(enemy_count: int = 6, arena_size: float = 24.0) -> d
     `ranged` towers (they already auto-target the nearest "Enemy") plus a mobile hero
     (the `player` controller, so the scene has a controllable avatar and assesses as
     playable) who is deliberately NOT tagged Player, so the enemies ignore the hero
-    and head for the base. WIN when every enemy is cleared (gameover). Reuses
-    health/player/attack/score/ranged/enemy/reward/title/gameover/sound -- no new
+    and head for the base. A `horde` wave SPAWNER on the far side then rains escalating
+    waves of enemies that also march at the base, so it is a real escalating defense (not
+    just a fixed group). WIN when every enemy is cleared (gameover). Reuses
+    health/player/attack/score/ranged/enemy/reward/horde/title/gameover/sound -- no new
     behaviour. Same step schema; the seed jitters the tower line and enemy wave.
     """
     n = max(1, min(int(enemy_count), 30))
@@ -544,6 +546,13 @@ def plan_tower_defense_game(enemy_count: int = 6, arena_size: float = 24.0) -> d
         steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "enemy"}})
         steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "reward"}})
 
+    # 5b) a wave SPAWNER on the far enemy side: the `horde` driver rains escalating waves of
+    #     enemies (tagged Enemy, with the enemy AI + reward it AddComponents -- already imported
+    #     by the initial wave above). The enemy AI targets FindWithTag("Player") = the Base, so
+    #     each wave marches at it -- turning the fixed group into a real escalating defense.
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Spawner", "position_y": 0.5, "position_z": size / 2.0}})
+    steps.append({"script_behaviour": {"object": "Spawner", "behaviour": "horde"}})
+
     # 6) GameManager bookend: title start screen + gameover (WIN clear enemies / LOSE
     #    base falls) + a sound cue
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
@@ -554,7 +563,7 @@ def plan_tower_defense_game(enemy_count: int = 6, arena_size: float = 24.0) -> d
     return {
         "ok": True,
         "game": "tower_defense",
-        "summary": f"Tower Defense: ground + a Base (enemies' target, lose if it falls) + a mobile hero + {towers} ranged towers + {n} marching enemies + title/win-lose/sound ({len(steps)} steps).",
+        "summary": f"Tower Defense: ground + a Base (enemies' target, lose if it falls) + a mobile hero + {towers} ranged towers + {n} marching enemies + a wave spawner (escalating horde waves) + title/win-lose/sound ({len(steps)} steps).",
         "enemy_count": n,
         "tower_count": towers,
         "steps": steps,

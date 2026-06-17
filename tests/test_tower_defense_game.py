@@ -67,6 +67,18 @@ def test_has_the_feel_loop_manager():
     assert _beh_of(plan, "GameManager") == {"title", "gameover", "sound"}
 
 
+def test_a_wave_spawner_rains_escalating_horde_waves():
+    # cycle 105 depth: a horde wave spawner (NOT tagged Enemy) escalates the defense; its
+    # spawned waves (enemy AI) march at the Player-tagged Base just like the fixed group
+    plan = plan_tower_defense_game(6)
+    assert _beh_of(plan, "Spawner") == {"horde"}
+    assert _tag_of(plan, "Spawner") == set()                  # the spawner itself is not an enemy
+    # the fixed Enemy_* group is untouched (the waves are extra, spawned at runtime)
+    enemy_tags = [s["kwargs"]["tag"] for s in plan["steps"] if s.get("tool") == "unity_set_tag"
+                  and s["kwargs"]["name"].startswith("Enemy")]
+    assert enemy_tags == ["Enemy"] * 6
+
+
 def test_reuses_only_existing_behaviours_no_new_template():
     # tower-defense must not introduce a new scripted behaviour; it is pure recomposition
     from unitytools.core.gameplay import _SCRIPT_TEMPLATES
