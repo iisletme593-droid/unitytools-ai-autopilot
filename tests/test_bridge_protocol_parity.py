@@ -59,7 +59,7 @@ def _emit_methods_for_full_studio(monkeypatch) -> set[str]:
     for gt in sorted(BLUEPRINTS):
         ut.unity_build_simple_game(execute=True, game_type=gt, collectible_count=4)
     ut.unity_compose_game(enemy=3, collectible=2, hazard=2, moving_hazard=2, spawner=1,
-                          guard=1, crate=1, goal=True, timer=True, ranged=True, execute=True)
+                          guard=1, crate=1, turret=2, goal=True, timer=True, ranged=True, execute=True)
     ut.unity_animate_group(count=4, execute=True)
     # a representative sweep of the scene-editing tools (each is one bridge method)
     ut.unity_get_editor_state()

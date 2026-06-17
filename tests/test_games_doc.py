@@ -52,6 +52,6 @@ def test_documented_scripted_behaviours_generate():
               "bob", "bounce", "patrol", "follow", "chase", "orbit", "wander", "health", "attack",
               "enemy", "xp", "reward", "loot", "inventory", "ranged", "horde", "gameover", "title", "sound",
               "runner", "timer", "detector", "pushable", "puzzle", "holdzone", "escort", "boss",
-              "collectrace"):
+              "collectrace", "turret"):
         assert b in TEXT
         assert generate_behaviour_script(b)["ok"] is True

@@ -16,7 +16,7 @@ from .game_blueprint import group_execution_plan, BLUEPRINTS, plan_game
 # not a game.
 INTERACTIVE_BEHAVIOURS = frozenset({
     "goal", "collectible", "killzone", "mover", "follow", "chase", "spawner", "patrol",
-    "enemy", "horde", "pushable", "holdzone", "boss",
+    "enemy", "horde", "pushable", "holdzone", "boss", "turret",
 })
 
 
@@ -217,7 +217,7 @@ _BEHAVIOUR_CATEGORIES: dict[str, list[str]] = {
     "control": ["player", "runner"],
     "movement": ["rotate", "move", "bob", "bounce", "patrol", "follow", "orbit", "wander"],
     "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle", "holdzone", "escort"],
-    "combat": ["health", "attack", "enemy", "ranged", "reward", "horde", "boss"],
+    "combat": ["health", "attack", "enemy", "ranged", "reward", "horde", "boss", "turret"],
     "progression": ["xp", "loot", "inventory", "score"],
     "game feel": ["title", "gameover", "sound", "timer", "collectrace"],
 }
@@ -286,6 +286,7 @@ _COMPOSE_HEALTH_SPECS = [
     {"crate": 3}, {"goal": True, "collectible": 3}, {"enemy": 3, "timer": True},
     {"enemy": 3, "collectible": 3, "ranged": True}, {"enemy": 2, "crate": 2, "guard": 2},
     {"moving_hazard": 4}, {"moving_hazard": 3, "collectible": 3, "goal": True},
+    {"turret": 4}, {"turret": 3, "collectible": 3},
 ]
 
 

@@ -965,6 +965,7 @@ def compose_custom_game(
     guard: int = 0,
     crate: int = 0,
     moving_hazard: int = 0,
+    turret: int = 0,
     arena_size: float = 20.0,
     seed: object = None,
 ) -> dict[str, Any]:
@@ -986,6 +987,8 @@ def compose_custom_game(
       - stealth `guard`s (`patrol` + `detector` line-of-sight, NOT tagged Enemy) that
         make it a 'sneak past them' game: any guard or timer also creates the GameManager,
         and guards imply a goal to reach (auto-added if none) so there IS a way to win;
+      - `turret`s (stationary ranged threats that shoot the player, NOT tagged Enemy): the
+        player gains `health` and a goal is auto-added -- dodge the fire to reach the exit;
       - sokoban `crate`s (`pushable`) + the same number of `Target_*` markers + a `puzzle`
         win manager on the GameManager (push every crate onto a target to win);
       - if timer=True, the GameManager runs a `timer` -> outlast the clock to WIN
@@ -1000,9 +1003,11 @@ def compose_custom_game(
     guard = max(0, min(int(guard), 30))
     crate = max(0, min(int(crate), 20))
     moving_hazard = max(0, min(int(moving_hazard), 30))
+    turret = max(0, min(int(turret), 30))
     # stealth guards need a goal to slip through to, so there is a real win condition;
-    # add one if the user didn't ask for it (mirrors enemy -> health+attack coupling)
-    if guard > 0 and not goal:
+    # add one if the user didn't ask for it (mirrors enemy -> health+attack coupling).
+    # turrets are the same: an unkillable ranged threat you DODGE to the goal, so they imply one.
+    if (guard > 0 or turret > 0) and not goal:
         goal = True
     size = max(6.0, float(arena_size))
     steps: list[dict[str, Any]] = []
@@ -1017,6 +1022,8 @@ def compose_custom_game(
         player_behaviours = ["player"]
         if enemy > 0:
             player_behaviours += ["health", "attack"]            # so the fight works both ways
+        if turret > 0 and "health" not in player_behaviours:
+            player_behaviours.append("health")                   # turrets can kill you -> need HP to lose
         if ranged:
             player_behaviours.append("ranged")                   # a long-range weapon too
         if collectible > 0 or enemy > 0:
@@ -1091,7 +1098,17 @@ def compose_custom_game(
             "type": "Cylinder", "count": crate, "pattern": "circle",
             "spacing": max(3.0, size / float(crate)), "name_prefix": "Target"}})
 
-    # 6) an optional goal zone (auto-added above when there are guards)
+    # 5e) stationary turrets: cylinders that shoot the player on a cooldown (`turret`). NOT
+    #     tagged Enemy -- you DODGE them to the goal, not kill them (a 'run the gauntlet'
+    #     threat). The player got `health` above so their fire can actually defeat you.
+    if turret:
+        steps.append({"tool": "unity_place_primitives", "kwargs": {
+            "type": "Cylinder", "count": turret, "pattern": "scatter",
+            "spacing": max(3.0, size / float(turret)), "name_prefix": "Turret"}})
+        for i in range(turret):
+            steps.append({"script_behaviour": {"object": f"Turret_{i}", "behaviour": "turret"}})
+
+    # 6) an optional goal zone (auto-added above when there are guards or turrets)
     if goal:
         steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_y": 0.5, "position_z": size / 2.0}})
         steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
@@ -1099,10 +1116,10 @@ def compose_custom_game(
     # 7) a GameManager when there is anything to win or lose. `gameover` lands the
     #    enemy/guard/timer win-lose signals; `puzzle` lands the sokoban win; `timer`
     #    runs the countdown. title + sound give it feel.
-    if enemy or timer or guard or crate:
+    if enemy or timer or guard or crate or turret:
         steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
         manager = ["title", "sound"]
-        if enemy or timer or guard:
+        if enemy or timer or guard or turret:
             manager.append("gameover")
         if timer:
             manager.append("timer")                              # outlast the clock -> WIN (Survived)
@@ -1114,14 +1131,14 @@ def compose_custom_game(
     spec = {"player": bool(player), "enemy": enemy, "collectible": collectible,
             "hazard": hazard, "goal": bool(goal), "timer": bool(timer),
             "spawner": spawner, "ranged": bool(ranged), "guard": guard, "crate": crate,
-            "moving_hazard": moving_hazard}
+            "moving_hazard": moving_hazard, "turret": turret}
     parts = []
     if player:
         parts.append("a ranged player" if ranged else "a player")
     for label, c in (("enemies", enemy), ("collectibles", collectible),
                      ("hazards", hazard), ("moving hazards", moving_hazard),
                      ("wave spawners", spawner), ("stealth guards", guard),
-                     ("pushable crates", crate)):
+                     ("pushable crates", crate), ("turrets", turret)):
         if c:
             parts.append(f"{c} {label}")
     if goal:
@@ -1138,7 +1155,7 @@ def compose_custom_game(
     # an optional seed jitters the placed-element layout (deterministic), reusing the
     # same machinery the blueprints use; seed=None is a no-op (the plain plan)
     return _apply_seed(plan, "custom",
-                       enemy + collectible + hazard + spawner + guard + crate + moving_hazard, seed)
+                       enemy + collectible + hazard + spawner + guard + crate + moving_hazard + turret, seed)
 
 
 # Decorative (non-gameplay) scripted behaviours that give a scene "juice".

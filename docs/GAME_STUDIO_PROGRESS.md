@@ -1216,3 +1216,20 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   docs/INTEGRATION_STATUS.md (layer table + what's CI-proven vs needs-a-live-editor + run commands).
   Live-proved chat-string->39-call-build + parity(emitted subset of C#) + safe default(0 calls). +30 tests.
   -- tests: 1517 passed
+- [cycle 100] Turret composer element -- back to game-making: a 12th freeform element, a stationary RANGED
+  threat. New turret behaviour in core/gameplay.py (AutopilotTurret, the mirror of the player's `ranged`):
+  stationary, FindWithTag("Player") in range, aims (transform.forward) and damages via
+  SendMessage("TakeDamage") on a cooldown; decoupled + deterministic (distance + time, no RNG). In
+  compose_custom_game it is placed as Cylinders NOT tagged Enemy (so it can't be cleared), reusing the
+  guard coupling: turret > 0 -> player gains health (turret fire can defeat you) + a goal is auto-added
+  (the win) + a gameover manager -- a 'dodge the fire to the exit' gauntlet. With enemies present the
+  player still gets attack; turret-only keeps just health (no attack). Coherent by critique_design (a
+  goal-win + health-lose game; no false flags). turret added to INTERACTIVE_BEHAVIOURS + the combat drift
+  category; parse_custom_spec element words ("taret"/"turret" -- distinct from tower_defense's "kule
+  savunma", verified no theft); _COMPOSER_COUPLINGS prose; both unity_compose_game + unity_save_composed_game
+  plumb it; compose_health grew to 14 cases ({turret:4} + a mix), all valid+playable+coherent (studio report
+  "14/14 composer cases"). The cycle-99 build opt-in composes with it ("3 taret oyunu kur ve uygula" ->
+  execute=True). Updated the exact-dict parse test (turret:0) + the doc-guard behaviour list + parity sweep.
+  Docs: GAME_STUDIO_GAMES behaviour row + composer docstring. Live-proved behaviour(ascii/decoupled) +
+  coupling(health+goal+gameover, not-Enemy) + 14/14 compose_health + intent(no tower_defense theft) +
+  report line. Generate-only; deterministic. +15 tests. -- tests: 1532 passed

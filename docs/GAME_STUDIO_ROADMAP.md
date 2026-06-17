@@ -951,4 +951,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   counterpart to live_check.py -- snapshots then builds a real game) and `docs/INTEGRATION_STATUS.md`
   (what's wired, what's CI-proven, what needs a live editor + exact commands). +30 tests. 1517 passed.
 
+- [x] **Turret composer element -- a 'run the gauntlet' threat (cycle 100).** Back to game-making after the
+  integration cycle: the freeform composer gains a 12th element, a stationary RANGED threat. New `turret`
+  behaviour (AutopilotTurret -- the mirror of the player's `ranged`): it does not move, finds the Player in
+  range and damages it via SendMessage("TakeDamage") on a cooldown. In the composer it is NOT tagged Enemy
+  (you cannot clear it), so it reuses the proven guard coupling: `turret > 0` -> the player gains `health`
+  (so the fire can defeat you) + a goal is auto-added (the way to win) + a gameover manager -- i.e. dodge
+  the turret fire to reach the exit. Coherent by the critique (a goal-win + health-lose game, no false
+  flags); `turret` added to INTERACTIVE_BEHAVIOURS + the combat drift category; compose_health grew to 14
+  cases, all clean (studio report now "14/14 composer cases"). Triggers "taret"/"turret" (distinct from
+  tower_defense's "kule savunma" -- no theft), and the cycle-99 build opt-in works with it ("3 taret oyunu
+  kur ve uygula" -> a real build). Both compose tools plumb it. +15 tests. 1532 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

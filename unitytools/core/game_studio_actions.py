@@ -418,7 +418,7 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         save_has_elements = bool(save_spec["enemy"] or save_spec["collectible"] or save_spec["hazard"]
                                  or save_spec["timer"] or save_spec["goal"] or save_spec["spawner"]
                                  or save_spec["ranged"] or save_spec["guard"] or save_spec["crate"]
-                                 or save_spec["moving_hazard"])
+                                 or save_spec["moving_hazard"] or save_spec["turret"])
         save_custom_framing = has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun",
                                   "kendi oyun", "kendi oyunu", "karisik oyun", "kendine gore oyun")
         if save_custom_framing or (save_has_elements and detect_game_type() == "collectathon"
@@ -620,7 +620,7 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     spec = parse_custom_spec(lower_no_seed)
     has_elements = bool(spec["enemy"] or spec["collectible"] or spec["hazard"]
                         or spec["timer"] or spec["goal"] or spec["spawner"] or spec["ranged"]
-                        or spec["guard"] or spec["crate"] or spec["moving_hazard"])
+                        or spec["guard"] or spec["crate"] or spec["moving_hazard"] or spec["turret"])
     custom_framing = has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun",
                          "kendi oyun", "kendi oyunu", "karisik oyun", "kendine gore oyun")
     keywordless_custom = (build_verb and has_elements
@@ -1292,6 +1292,7 @@ _SPEC_ELEMENT_WORDS = {
     "spawner": ("spawner", "uretici", "dalga", "wave"),
     "guard": ("muhafiz", "guard", "nobetci", "koruma", "bekci"),
     "crate": ("kutu", "crate", "sandik", "kasa"),
+    "turret": ("taret", "turret"),
 }
 # presence-only flags (no count) -> the compose_custom_game bool arg
 _SPEC_FLAG_WORDS = {
@@ -1367,6 +1368,7 @@ _COMPOSER_COUPLINGS = [
     ("ranged", "the player also gets a ranged weapon (auto-hits the nearest enemy)"),
     ("collectible", "a score HUD is added (also when there are enemies)"),
     ("guard", "a goal is auto-added so there is a way to win (slip past the guards to reach it)"),
+    ("turret", "the player gains health + a goal is auto-added (dodge the turret fire to reach it)"),
     ("crate", "the same number of targets + a puzzle win-manager (push every crate onto a target)"),
     ("timer", "the manager runs a countdown -> outlast the clock to win"),
 ]
