@@ -1379,3 +1379,19 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   (technical) anatomy. Live-proved 18/18 howtos(ascii+derived) + win-matches-the-game(parametrized) +
   composed-game support + intent(no theft). Docs: GAME_STUDIO intent table + GAME_STUDIO_GAMES catalog
   section. Generate-only; deterministic. +38 tests. -- tests: 1694 passed
+- [cycle 110] BREADTH -- the 19th game type, `speedrun` (race a DEADLINE TO THE EXIT). New `deadline`
+  behaviour (AutopilotDeadline): the MIRROR of `timer` -- a countdown that SendMessages "PlayerDied"
+  (the LOSE) at zero instead of "Survived" (the WIN). plan_speedrun_game: player at the near end ->
+  `goal` at the far end, with N `killzone` hazards between that RESPAWN you (a setback that bleeds the
+  clock); the GameManager runs deadline + gameover (reach the goal -> ReachedGoal WIN, which fires
+  first if you make it) + title + sound. Distinct from time_survival (outlast a timer to WIN) and
+  collector_race (collect all before the clock): here you race a deadline to a DESTINATION; the hazards
+  are NOT tagged Enemy so the only win is the exit. critique stays clean (a goal is the WIN, the
+  deadline is the LOSE). Wired the how-to deriver to read `deadline` (win: "...before the deadline runs
+  out"; a deadline threat; lose: "the deadline runs out"). Registered behaviour (NEEDS_SCRIPT/aliases/
+  templates, game-feel category) + blueprint + detect/wants_game intent (distinct terms, NOT "sure"/
+  "zaman" so it can't shadow the timer games) + _GAME_EXAMPLES (19/19 showcase). Live-proved: 19/19
+  self-audit (valid+playable+coherent), deadline fires PlayerDied not Survived (ascii+balanced), the
+  derived how-to races the deadline, intent routes + does NOT steal runner/dodge/the clock games. Docs:
+  GAME_STUDIO (Nineteen + table row), GAME_STUDIO_GAMES (game row + deadline behaviour row + NL list).
+  Generate-only; deterministic (no Math.random). +49 tests. -- tests: 1743 passed

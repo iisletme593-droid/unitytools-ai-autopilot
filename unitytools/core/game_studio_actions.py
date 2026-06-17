@@ -269,6 +269,12 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         # stealth: distinct terms, can't shadow anything else
         if has("stealth", "gizlilik", "gizli gec", "gizlice", "sneak", "sinsi"):
             return "stealth"
+        # speedrun: race a LOSING countdown to the exit. Distinct terms (NOT "sure"/"zaman"
+        # alone -- those are timer/time-survival), so it can't shadow or be stolen by the
+        # other clock games. BEFORE runner so "speedrun" never reads as "runner".
+        if has("speedrun", "speed run", "speed-run", "beat the clock", "hizli bitir",
+               "sure dolmadan", "zaman dolmadan", "sureli kacis"):
+            return "speedrun"
         # puzzle/sokoban: distinct push-the-crate terms. ("crate"/"kutu" alone are NOT
         # here -- they route a freeform count to the composer's crate element instead;
         # the PUSH phrasing "kutu it(me)" / sokoban / bulmaca picks the preset.)
@@ -720,7 +726,9 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "collector race", "collect race", "collection race", "toplama yarisi", "sureli toplama",
             "zamanli toplama", "zamana karsi toplama",
             "twin stick", "twin-stick", "twinstick", "top down shooter", "topdown shooter",
-            "iki yon ates", "ust acidan ates")
+            "iki yon ates", "ust acidan ates",
+            "speedrun", "speed run", "speed-run", "beat the clock", "hizli bitir",
+            "sure dolmadan", "zaman dolmadan", "sureli kacis")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:

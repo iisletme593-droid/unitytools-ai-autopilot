@@ -219,7 +219,7 @@ _BEHAVIOUR_CATEGORIES: dict[str, list[str]] = {
     "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle", "holdzone", "escort"],
     "combat": ["health", "attack", "enemy", "ranged", "reward", "horde", "boss", "turret"],
     "progression": ["xp", "loot", "inventory", "score"],
-    "game feel": ["title", "gameover", "sound", "timer", "collectrace", "hitflash"],
+    "game feel": ["title", "gameover", "sound", "timer", "deadline", "collectrace", "hitflash"],
 }
 
 # Game-feel behaviours whose presence-per-game the report surfaces.
@@ -451,6 +451,7 @@ _GAME_EXAMPLES: dict[str, tuple[str, str]] = {
     "boss": ("boss arena oyunu kur", "duel a high-HP boss with a melee + ranged kit"),
     "collector_race": ("toplama yarisi yap", "collect everything before the clock runs out"),
     "twin_stick": ("twin stick oyunu kur", "kite a swarm and gun it down with an auto-aiming weapon"),
+    "speedrun": ("speedrun oyunu kur", "race to the exit before the deadline runs out, dodging deadly hazards"),
 }
 
 
@@ -593,6 +594,8 @@ def game_howto_from_plan(plan: dict[str, Any]) -> dict[str, list[str]]:
         reach = "Reach the goal / exit"
         if c("collectible"):
             reach += " (grab the collectibles for score along the way)"
+        if c("deadline"):
+            reach += " before the deadline runs out"
         win.append(reach + ".")
     if c("timer"):
         win.append("Outlast the countdown timer.")
@@ -619,6 +622,8 @@ def game_howto_from_plan(plan: dict[str, Any]) -> dict[str, list[str]]:
         threats.append("deadly hazards that respawn you on touch")
     if c("spawner"):
         threats.append("spawners raining physics cubes")
+    if c("deadline"):
+        threats.append("a ticking deadline -- run out of time and you lose")
     if not threats:
         threats.append("no direct threats -- just the challenge of the objective")
 
@@ -629,6 +634,8 @@ def game_howto_from_plan(plan: dict[str, Any]) -> dict[str, list[str]]:
         lose.append("A guard spots you.")
     if c("collectrace"):
         lose.append("The countdown reaches zero before you have collected everything.")
+    if c("deadline"):
+        lose.append("The deadline runs out before you reach the exit.")
     if not lose:
         lose.append("You cannot truly lose -- a hazard just respawns you, so keep trying.")
 

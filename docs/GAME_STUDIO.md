@@ -9,7 +9,7 @@ This page is the one-screen tour; every section links to the deep doc.
 
 ## What it makes
 
-Eighteen playable game types (plus a freeform **custom composer** — describe an element mix and it
+Nineteen playable game types (plus a freeform **custom composer** — describe an element mix and it
 assembles a custom game from the same blocks), each composed from the same gameplay building blocks:
 
 | game_type | One-liner |
@@ -32,6 +32,7 @@ assembles a custom game from the same blocks), each composed from the same gamep
 | `boss` | A boss fight: an armed player (melee + ranged) duels one (or more) high-HP boss with an on-screen HP bar; whittle it down to win, die to lose. The first sustained single-target fight |
 | `collector_race` | A collector race: grab all N collectibles before a countdown runs out (collect them all to win, run out of time to lose). The first type where the clock is your enemy |
 | `twin_stick` | A twin-stick shooter: a ranged-only kiter (auto-aim gun, no melee) backs away from a ring of chasing enemies and guns them down; clear them to win, get cornered to lose. The first ranged-primary type |
+| `speedrun` | A race to the exit: cross from the start to the goal before a **losing countdown** (the new `deadline`) runs out, dodging deadly hazards that respawn you and bleed the clock. The first type that races a deadline to a destination |
 
 Plus **living scenes** — decorative `bob`/`orbit`/`rotate`/`wander` motion as scene juice (not a game).
 

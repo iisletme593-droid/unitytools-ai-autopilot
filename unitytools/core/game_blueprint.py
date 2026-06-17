@@ -1056,6 +1056,65 @@ def plan_collector_race_game(collectible_count: int = 6, arena_size: float = 20.
     }
 
 
+def plan_speedrun_game(hazard_count: int = 5, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan a speedrun -- the 19th type, and the first won by BEATING A DEADLINE TO THE EXIT.
+
+    Race from the near end to the goal at the far end before a LOSING countdown runs out.
+    Deadly floor hazards (killzones) between you and the exit RESPAWN you on contact -- a
+    setback that bleeds the clock. The hidden GameManager runs the new `deadline` manager (a
+    countdown that SendMessages "PlayerDied" -- the LOSE -- when it hits zero) plus gameover
+    (reaching the goal SendMessages "ReachedGoal" -> WIN, which fires first if you make it) +
+    title + sound. Distinct from `time_survival` (outlast a timer to WIN) and `collector_race`
+    (collect all before the clock): here you RACE A DEADLINE TO A DESTINATION. The hazards are
+    NOT tagged Enemy, so the only win is reaching the exit. Same step schema; the seed jitters
+    the hazard layout.
+    """
+    n = max(1, min(int(hazard_count), 40))
+    size = max(8.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) player at the near end
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5, "position_z": -size / 2.0}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
+
+    # 3) the exit to race to (reaching it -> WIN via gameover.ReachedGoal)
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_y": 0.5, "position_z": size / 2.0}})
+    steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
+
+    # 4) deadly hazards between start and exit -- touching one RESPAWNS you (a setback that
+    #    bleeds the clock); NOT tagged Enemy, so clearing them is neither possible nor a win
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Cube",
+            "count": n,
+            "pattern": "scatter",
+            "spacing": max(2.5, size / float(n)),
+            "name_prefix": "Hazard",
+        },
+    })
+    for i in range(n):
+        steps.append({"script_behaviour": {"object": f"Hazard_{i}", "behaviour": "killzone"}})
+
+    # 5) GameManager: the losing countdown (deadline) + gameover (WIN on ReachedGoal, LOSE on
+    #    the deadline's PlayerDied) + title + sound
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    for behaviour in ("deadline", "gameover", "title", "sound"):
+        steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
+
+    return {
+        "ok": True,
+        "game": "speedrun",
+        "summary": f"Speedrun: ground + player + a goal exit + {n} deadly hazards + a losing countdown -- reach the exit before time runs out to WIN, run out (or get stuck respawning) to LOSE ({len(steps)} steps).",
+        "hazard_count": n,
+        "steps": steps,
+    }
+
+
 def compose_custom_game(
     player: bool = True,
     enemy: int = 0,
@@ -1428,6 +1487,7 @@ BLUEPRINTS = {
     "boss": plan_boss_game,
     "collector_race": plan_collector_race_game,
     "twin_stick": plan_twinstick_game,
+    "speedrun": plan_speedrun_game,
 }
 
 
