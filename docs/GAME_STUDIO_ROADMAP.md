@@ -854,5 +854,13 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   flags genuinely one-sided fights. holdzone added to INTERACTIVE_BEHAVIOURS + the report category.
   studio_health audits 14/14 valid+playable+coherent. Intent routes "king of the hill / bolge tut /
   hold the zone / zone control" (no theft). Docs Thirteen->Fourteen. +40 tests. 1310 passed.
+- [x] **Composer self-audit (cycle 91).** The self-audit now covers the composer too, not just the
+  blueprints. New `compose_health()` composes a representative matrix of element specs (each type alone +
+  a few mixes: enemy/collectible/hazard/spawner/guard/crate, enemy+timer, enemy+collectible+ranged, a
+  mixed enemy+crate+guard) and checks each is valid + playable + coherent -- a regression guard for the
+  composer couplings (enemy -> health+attack, guard -> goal, crate -> puzzle, ...). The studio report's
+  health section now reads "OK (14/14 game types, 10/10 composer cases)" and `unity_studio_health`
+  returns a nested `{blueprints, composer, all_ok}` (its two report tests updated for the richer shape).
+  All 10 composer cases audit clean. +1 test. 1311 passed.
 
 > Check items off in this file as they land. Add new items as discovered.

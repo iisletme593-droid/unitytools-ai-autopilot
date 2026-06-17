@@ -276,6 +276,46 @@ def studio_health(count: int = 4) -> dict[str, Any]:
             "games": games, "flagged": flagged}
 
 
+# a representative matrix of composer specs (each element on its own + a few mixes);
+# the couplings should make every one valid + playable + coherent.
+_COMPOSE_HEALTH_SPECS = [
+    {"enemy": 4}, {"collectible": 5}, {"hazard": 4}, {"spawner": 3}, {"guard": 3},
+    {"crate": 3}, {"goal": True, "collectible": 3}, {"enemy": 3, "timer": True},
+    {"enemy": 3, "collectible": 3, "ranged": True}, {"enemy": 2, "crate": 2, "guard": 2},
+]
+
+
+def compose_health() -> dict[str, Any]:
+    """A CODE-DERIVED self-audit of the freeform COMPOSER: compose a representative
+    matrix of element specs (each type alone + a few mixes) and check each is VALID +
+    PLAYABLE + COHERENT. A regression guard for the composer's couplings (enemy ->
+    health+attack, guard -> goal, crate -> puzzle, ...). Pure. Returns {ok, case_count,
+    all_valid, all_playable, all_coherent, cases:[...], flagged:[...]}.
+    """
+    from .game_blueprint import compose_custom_game
+    from .game_io import validate_plan
+    cases: list[dict[str, Any]] = []
+    flagged: list[dict[str, Any]] = []
+    all_valid = all_playable = all_coherent = True
+    for spec in _COMPOSE_HEALTH_SPECS:
+        plan = compose_custom_game(**spec)
+        report = assess_game_readiness(plan)
+        valid = bool(validate_plan(plan)["ok"])
+        playable = bool(report["playable"])
+        notes = report["design_notes"]
+        coherent = not notes
+        cases.append({"spec": spec, "valid": valid, "playable": playable,
+                      "coherent": coherent, "design_notes": notes})
+        all_valid = all_valid and valid
+        all_playable = all_playable and playable
+        all_coherent = all_coherent and coherent
+        if not (valid and playable and coherent):
+            flagged.append({"spec": spec, "valid": valid, "playable": playable, "design_notes": notes})
+    return {"ok": True, "case_count": len(cases), "all_valid": all_valid,
+            "all_playable": all_playable, "all_coherent": all_coherent,
+            "cases": cases, "flagged": flagged}
+
+
 def build_studio_report() -> str:
     """A comprehensive, user-facing, CODE-DERIVED studio report (markdown string).
 
@@ -299,12 +339,18 @@ def build_studio_report() -> str:
         lines.append(f"- `{g['game_type']}` -- {g['summary']}")
     lines.append("")
 
-    # (a2) self-audit: every blueprint must be valid + playable + coherent
+    # (a2) self-audit: every blueprint AND a matrix of composed games must be valid +
+    # playable + coherent
     health = studio_health()
-    if health["all_valid"] and health["all_playable"] and health["all_coherent"]:
-        lines.append(f"## Studio health: OK ({health['game_count']}/{health['game_count']})")
-        lines.append("Every game type builds valid (whitelisted tools, no traversal), playable "
-                     "(a player + something to do), and coherent (passes the design critique).")
+    comp = compose_health()
+    ok = (health["all_valid"] and health["all_playable"] and health["all_coherent"]
+          and comp["all_valid"] and comp["all_playable"] and comp["all_coherent"])
+    if ok:
+        lines.append(f"## Studio health: OK ({health['game_count']}/{health['game_count']} game types, "
+                     f"{comp['case_count']}/{comp['case_count']} composer cases)")
+        lines.append("Every game type and a representative matrix of composed games build valid "
+                     "(whitelisted tools, no traversal), playable (a player + something to do), and "
+                     "coherent (pass the design critique).")
     else:
         lines.append("## Studio health: NEEDS ATTENTION")
         for f in health["flagged"]:
@@ -316,6 +362,9 @@ def build_studio_report() -> str:
             if f["design_notes"]:
                 issues.append("; ".join(f["design_notes"]))
             lines.append(f"- `{f['game_type']}`: {', '.join(issues)}")
+        for f in comp["flagged"]:
+            lines.append(f"- composer {f['spec']}: "
+                         f"{'; '.join(f['design_notes']) if f['design_notes'] else 'invalid/not playable'}")
     lines.append("")
 
     # (b) behaviour catalog, categorized (scripted MonoBehaviours + physics primitives)

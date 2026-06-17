@@ -1083,3 +1083,12 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   doc-guard list. studio_health audits 14/14 valid+playable+coherent. Intent routes king-of-the-hill/
   bolge-tut/hold-the-zone/zone-control (no theft). Docs Thirteen->Fourteen + rows. Live-proved source +
   blueprint + critique + health + intent. Generate-only; deterministic. +40 tests. -- tests: 1310 passed
+- [cycle 91] Composer self-audit -- the self-audit now covers the COMPOSER too, not just the blueprints.
+  New compose_health() in core/game_qa.py composes a representative matrix of 10 element specs (each type
+  alone: enemy/collectible/hazard/spawner/guard/crate; + mixes: enemy+timer, enemy+collectible+ranged,
+  goal+collectible, enemy+crate+guard) and checks each valid+playable+coherent -- a regression guard for
+  the composer's couplings (enemy->health+attack, guard->goal, crate->puzzle, ...). The studio report's
+  health section now reads "OK (14/14 game types, 10/10 composer cases)"; unity_studio_health returns a
+  nested {blueprints, composer, all_ok} (updated its two report tests for the richer shape). All 10
+  composer cases audit clean. Live-proved compose_health (10/10) + the report line + the nested tool.
+  Generate-only; deterministic. +1 test. -- tests: 1311 passed

@@ -36,12 +36,17 @@ def test_studio_health_audits_every_blueprint_clean():
 
 
 def test_studio_health_tool_and_intent():
-    # the self-audit is queryable from chat via its own tool + intent
+    # the self-audit is queryable from chat via its own tool + intent. It now audits both
+    # the blueprints AND a matrix of composed games.
     tool = {t.name: t for t in get_all_tools()}.get("unity_studio_health")
     assert tool is not None
     out = tool.fn()
-    assert out["game_count"] == len(BLUEPRINTS)
-    assert out["all_valid"] and out["all_playable"] and out["all_coherent"] and out["flagged"] == []
+    assert out["all_ok"] is True
+    bp = out["blueprints"]
+    assert bp["game_count"] == len(BLUEPRINTS)
+    assert bp["all_valid"] and bp["all_playable"] and bp["all_coherent"] and bp["flagged"] == []
+    comp = out["composer"]
+    assert comp["all_valid"] and comp["all_playable"] and comp["all_coherent"] and comp["flagged"] == []
     for prompt in ("studio sagligi nasil", "saglik denetimi yap", "studio health",
                    "her sey yolunda mi", "oyunlar saglikli mi"):
         assert plan_unity_fast_action(prompt)["steps"][0]["tool"] == "unity_studio_health", prompt
@@ -55,11 +60,23 @@ def test_health_intent_does_not_steal_the_report_intent():
     assert tool("yeteneklerin neler") == "unity_studio_report"
 
 
+def test_compose_health_audits_the_composer_couplings_clean():
+    from unitytools.core.game_qa import compose_health
+    h = compose_health()
+    assert h["case_count"] >= 10
+    assert h["all_valid"] and h["all_playable"] and h["all_coherent"]
+    assert h["flagged"] == []                          # every representative spec is coherent
+    for c in h["cases"]:
+        assert c["valid"] and c["playable"] and c["coherent"]
+
+
 def test_report_shows_an_ok_health_section():
-    # the report surfaces the self-audit; with all games clean it reads OK N/N
+    # the report surfaces the self-audit of blueprints AND composer cases; all clean -> OK
+    from unitytools.core.game_qa import compose_health
     n = len(BLUEPRINTS)
-    assert f"## Studio health: OK ({n}/{n})" in REPORT
-    assert "passes the design critique" in REPORT
+    c = compose_health()["case_count"]
+    assert f"## Studio health: OK ({n}/{n} game types, {c}/{c} composer cases)" in REPORT
+    assert "pass the design critique" in REPORT
 
 
 def test_report_counts_are_code_derived():

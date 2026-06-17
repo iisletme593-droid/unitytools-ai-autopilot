@@ -1352,10 +1352,14 @@ def unity_studio_report() -> dict:
     return {"ok": True, "report": build_studio_report()}
 
 
-@tool(description="Run a self-audit of the whole game catalog WITHOUT touching the scene (pure, no bridge): build every game type and check it is VALID (whitelisted tools, no path traversal), PLAYABLE (a player + something to do), and COHERENT (passes the design critique). Use to answer 'studio sagligi / saglik denetimi / studio health / is everything healthy'. Returns {ok, game_count, all_valid, all_playable, all_coherent, games:[...], flagged:[...]} -- flagged is empty when every game is clean.")
+@tool(description="Run a self-audit of the whole studio WITHOUT touching the scene (pure, no bridge): build every game type AND a representative matrix of composed games, and check each is VALID (whitelisted tools, no path traversal), PLAYABLE (a player + something to do), and COHERENT (passes the design critique). Use to answer 'studio sagligi / saglik denetimi / studio health / is everything healthy'. Returns {ok, blueprints:{...}, composer:{...}, all_ok} -- flagged lists are empty when everything is clean.")
 def unity_studio_health() -> dict:
-    from ..core.game_qa import studio_health
-    return studio_health()
+    from ..core.game_qa import studio_health, compose_health
+    bp = studio_health()
+    comp = compose_health()
+    all_ok = all(bp[k] for k in ("all_valid", "all_playable", "all_coherent")) and \
+        all(comp[k] for k in ("all_valid", "all_playable", "all_coherent"))
+    return {"ok": True, "all_ok": all_ok, "blueprints": bp, "composer": comp}
 
 
 @tool(description="Describe the freeform game COMPOSER WITHOUT touching the scene (pure, no bridge): the element types you can mix into a custom game (enemies/collectibles/hazards/spawners/guards/crates + goal/timer/ranged flags), their trigger words, and the automatic couplings that keep a mix coherent. Code-derived from the live spec parser. Use to answer 'composer raporu / ne tarif edebilirim / what can i compose / custom oyun ogeleri'. Returns {ok, report} (markdown).")
