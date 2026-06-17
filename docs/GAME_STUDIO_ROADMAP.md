@@ -843,5 +843,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   what can i compose / hangi ogeler") kept distinct from the studio-report, health, and catalog intents.
   The studio can now describe itself four ways: capabilities, models, health, and the composer. +3
   tests. 1270 passed.
+- [x] **King of the hill -- the 14th game type (cycle 90, milestone)**, a genuinely new mechanic: won by
+  HOLDING a position (not fighting / reaching / avoiding). New `holdzone` behaviour (AutopilotHoldZone):
+  while the Player is within `radius` a meter fills, and at `holdTime` it SendMessages "Survived" to the
+  GameManager -- reusing gameover's existing WIN hook, no new manager code. `plan_hold_game`: a player
+  with movement + `health` but NO attack + a central hold zone + N enemies (chase + attack to shove you
+  out). WIN by holding; LOSE by dying; since the player can't attack, clearing enemies is not a win path.
+  The design critique was refined: the "no attack -> one-sided" note now only fires when there is NO
+  non-combat win path (a `goal` or `holdzone` makes avoiding the enemies the intended play) -- it still
+  flags genuinely one-sided fights. holdzone added to INTERACTIVE_BEHAVIOURS + the report category.
+  studio_health audits 14/14 valid+playable+coherent. Intent routes "king of the hill / bolge tut /
+  hold the zone / zone control" (no theft). Docs Thirteen->Fourteen. +40 tests. 1310 passed.
 
 > Check items off in this file as they land. Add new items as discovered.

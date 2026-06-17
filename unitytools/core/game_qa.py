@@ -16,7 +16,7 @@ from .game_blueprint import group_execution_plan, BLUEPRINTS, plan_game
 # not a game.
 INTERACTIVE_BEHAVIOURS = frozenset({
     "goal", "collectible", "killzone", "mover", "follow", "chase", "spawner", "patrol",
-    "enemy", "horde", "pushable",
+    "enemy", "horde", "pushable", "holdzone",
 })
 
 
@@ -61,13 +61,15 @@ def critique_design(behaviour_counts: dict[str, int]) -> list[str]:
     c = behaviour_counts.get
     enemy, health, attack = c("enemy", 0), c("health", 0), c("attack", 0)
     timer, gameover, ranged = c("timer", 0), c("gameover", 0), c("ranged", 0)
-    goal = c("goal", 0)
+    goal, holdzone = c("goal", 0), c("holdzone", 0)
     notes: list[str] = []
 
     if enemy > 0 and health == 0:
         notes.append("enemies are present but nothing has health, so the player cannot be "
                      "defeated -- the fight has no lose condition")
-    if enemy > 0 and attack == 0 and ranged == 0:
+    if enemy > 0 and attack == 0 and ranged == 0 and goal == 0 and holdzone == 0:
+        # "no attack" is only a flaw when there is NO non-combat way to win; a goal to
+        # reach or a zone to hold makes avoiding the enemies the intended play
         notes.append("the player faces enemies but has no attack, so they can only flee -- "
                      "combat is one-sided")
     if attack > 0 and enemy == 0:
@@ -211,7 +213,7 @@ def build_game_capabilities_summary() -> str:
 _BEHAVIOUR_CATEGORIES: dict[str, list[str]] = {
     "control": ["player", "runner"],
     "movement": ["rotate", "move", "bob", "bounce", "patrol", "follow", "orbit", "wander"],
-    "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle"],
+    "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle", "holdzone"],
     "combat": ["health", "attack", "enemy", "ranged", "reward", "horde"],
     "progression": ["xp", "loot", "inventory", "score"],
     "game feel": ["title", "gameover", "sound", "timer"],

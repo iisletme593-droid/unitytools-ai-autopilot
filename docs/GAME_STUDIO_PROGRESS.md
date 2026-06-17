@@ -1071,3 +1071,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   (report), models (model router), health (audit), and the composer. Live-proved the report
   (ascii/all-keys/couplings) + tool + intent + no theft. Generate-only; deterministic. +3 tests. --
   tests: 1270 passed
+- [cycle 90] MILESTONE 14th game type: KING OF THE HILL -- a genuinely new mechanic, won by HOLDING a
+  position (not fight/reach/avoid). New holdzone behaviour (AutopilotHoldZone): while the Player is
+  within radius a meter fills; at holdTime it SendMessages "Survived" to the GameManager, REUSING
+  gameover's existing WIN hook (no new manager code). plan_hold_game (14th in BLUEPRINTS): a player with
+  player+health but NO attack + a central holdzone + N enemies (enemy+reward, chase+attack to push you
+  off). WIN by holding; LOSE by dying; the player can't attack so clearing enemies is not a win path.
+  critique_design refined: the "no attack -> one-sided" note now only fires when there is NO non-combat
+  win path (a goal or holdzone makes avoiding the enemies the intended play); still flags genuinely
+  one-sided fights (verified both). holdzone added to INTERACTIVE_BEHAVIOURS + report drift category;
+  doc-guard list. studio_health audits 14/14 valid+playable+coherent. Intent routes king-of-the-hill/
+  bolge-tut/hold-the-zone/zone-control (no theft). Docs Thirteen->Fourteen + rows. Live-proved source +
+  blueprint + critique + health + intent. Generate-only; deterministic. +40 tests. -- tests: 1310 passed

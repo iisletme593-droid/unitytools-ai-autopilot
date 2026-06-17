@@ -710,6 +710,58 @@ def plan_puzzle_game(crate_count: int = 3, arena_size: float = 20.0) -> dict[str
     }
 
 
+def plan_hold_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan a king-of-the-hill -- the 14th type, won by HOLDING a position (not fighting,
+    not reaching, not avoiding). A new mechanic: stand your ground under pressure.
+
+    The player has movement + `health` but NO attack -- you can't fight the N enemies
+    (enemy AI + reward, tag Enemy) that chase and try to shove you out. A central
+    `holdzone` fills a meter while you stay inside it; full -> it SendMessages "Survived"
+    to the GameManager (reusing gameover's WIN hook). LOSE if the enemies kill you
+    (health Die -> PlayerDied). Since the player can't attack, clearing enemies is not a
+    win path -- holding the zone is the only way to win. Same step schema; the seed
+    jitters the enemy ring.
+    """
+    n = max(1, min(int(enemy_count), 30))
+    size = max(8.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) player: movement + health, but NO attack -- you hold, you don't fight
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "health"}})
+
+    # 3) the hold zone at the centre -- stand in it to fill the meter and WIN
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cylinder", "name": "HoldZone", "position_y": 0.1}})
+    steps.append({"script_behaviour": {"object": "HoldZone", "behaviour": "holdzone"}})
+
+    # 4) enemies that chase + attack to push you off the zone (you can't kill them)
+    steps.append({"tool": "unity_place_primitives", "kwargs": {
+        "type": "Cube", "count": n, "pattern": "circle",
+        "spacing": max(3.0, size / float(n)), "name_prefix": "Enemy"}})
+    for i in range(n):
+        steps.append({"tool": "unity_set_tag", "kwargs": {"name": f"Enemy_{i}", "tag": "Enemy"}})
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "enemy"}})
+        steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "reward"}})
+
+    # 5) GameManager: title + gameover (WIN on Survived from the zone, LOSE on PlayerDied) + sound
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    for behaviour in ("title", "gameover", "sound"):
+        steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
+
+    return {
+        "ok": True,
+        "game": "hold",
+        "summary": f"Hold (king of the hill): ground + player (no attack) + a central hold zone + {n} enemies -- hold the zone to WIN, die to LOSE ({len(steps)} steps).",
+        "enemy_count": n,
+        "steps": steps,
+    }
+
+
 def compose_custom_game(
     player: bool = True,
     enemy: int = 0,
@@ -1030,6 +1082,7 @@ BLUEPRINTS = {
     "time_survival": plan_time_survival_game,
     "stealth": plan_stealth_game,
     "puzzle": plan_puzzle_game,
+    "hold": plan_hold_game,
 }
 
 

@@ -268,6 +268,10 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         # the PUSH phrasing "kutu it(me)" / sokoban / bulmaca picks the preset.)
         if has("puzzle", "bulmaca", "sokoban", "kutu it", "kutu itme", "kutu-itme"):
             return "puzzle"
+        # hold / king of the hill: hold a zone under pressure
+        if has("king of the hill", "bolge tut", "bolge kontrol", "bolgeyi tut", "tepeyi tut",
+               "hold the zone", "zone control", "kapma noktasi", "hakimiyet"):
+            return "hold"
         # runner: its terms ("kosu/kosma/endless") are distinct from every other type,
         # so an early return can't shadow anything (and "endless runner" is clear)
         if has("runner", "endless", "kosu oyunu", "kosma oyunu", "sonsuz kosu"):
@@ -608,7 +612,8 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "tower defense", "tower-defense", "kule savunma", "kule savunmasi", "td oyunu",
             "zamana karsi", "survive the clock", "sureli hayatta", "time survival", "gerisayim oyunu",
             "stealth", "gizlilik", "gizli gec", "sneak", "gizlilik oyunu",
-            "puzzle", "bulmaca", "sokoban", "kutu itme", "puzzle oyunu")
+            "puzzle", "bulmaca", "sokoban", "kutu itme", "puzzle oyunu",
+            "king of the hill", "bolge tut", "bolge kontrol", "hold the zone", "zone control")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:
