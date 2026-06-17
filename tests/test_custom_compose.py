@@ -275,6 +275,40 @@ def test_guard_routes_keywordless_to_composer_without_stealing_stealth():
     assert route("stealth oyunu yap") == ("unity_build_simple_game", "stealth")
 
 
+def test_composer_report_is_code_derived_from_the_spec_parser():
+    from unitytools.core.game_studio_actions import (
+        build_composer_report, _SPEC_ELEMENT_WORDS, _SPEC_FLAG_WORDS, _COMPOSER_COUPLINGS)
+    rep = build_composer_report()
+    assert all(ord(c) < 128 for c in rep)
+    # every element + flag the parser knows is listed (so the report can't drift)
+    for key in list(_SPEC_ELEMENT_WORDS) + list(_SPEC_FLAG_WORDS):
+        assert f"**{key}**" in rep, key
+        for word in (list(_SPEC_ELEMENT_WORDS.get(key, ())) + list(_SPEC_FLAG_WORDS.get(key, ()))):
+            assert word in rep, (key, word)
+    assert "## Automatic couplings" in rep and "health + attack" in rep
+    # every coupling names a real spec element (no phantom couplings)
+    for key, _effect in _COMPOSER_COUPLINGS:
+        assert key in _SPEC_ELEMENT_WORDS or key in _SPEC_FLAG_WORDS, key
+
+
+def test_composer_report_tool_and_intent():
+    tool = {t.name: t for t in get_all_tools()}.get("unity_composer_report")
+    assert tool is not None
+    assert "Custom Game Composer" in tool.fn()["report"]
+    for prompt in ("composer raporu ver", "ne tarif edebilirim", "hangi ogeler var",
+                   "what can i compose"):
+        assert plan_unity_fast_action(prompt)["steps"][0]["tool"] == "unity_composer_report", prompt
+
+
+def test_composer_report_intent_does_not_steal_other_reports():
+    def tool(p):
+        return plan_unity_fast_action(p)["steps"][0]["tool"]
+    assert tool("studio raporu ver") == "unity_studio_report"
+    assert tool("studio sagligi") == "unity_studio_health"
+    assert tool("neler yapabilirsin") == "unity_game_catalog"
+    assert tool("3 kutu olan oyun yap") == "unity_compose_game"
+
+
 def test_compose_crates_make_a_sokoban_style_game():
     plan = compose_custom_game(player=True, crate=3)
     # N pushable crates + N Target_* markers + a puzzle win manager

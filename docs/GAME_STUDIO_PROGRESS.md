@@ -1059,3 +1059,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   phrasing "kutu it(me)" + sokoban/bulmaca/puzzle still build the PRESET (verified both directions, no
   theft). Updated the cycle-75 exact-spec parse test for the new crate key. Live-proved compose+parse+
   intent + coherence. Generate-only; deterministic. +5 tests. -- tests: 1267 passed
+- [cycle 89] Composer report -- the studio's 4th self-awareness surface. The composer now has 10 element
+  types; build_composer_report() in core/game_studio_actions.py makes them discoverable: a CODE-DERIVED
+  markdown guide listing each counted element (enemy/collectible/hazard/spawner/guard/crate) + flag
+  (goal/timer/ranged) with its trigger words -- read straight from the live _SPEC_ELEMENT_WORDS /
+  _SPEC_FLAG_WORDS so it can never drift -- plus the automatic couplings (curated prose in
+  _COMPOSER_COUPLINGS, guarded by a test that every coupling names a real spec key). New
+  unity_composer_report @tool + an NL intent ("composer raporu / ne tarif edebilirim / what can i
+  compose / hangi ogeler / ozel oyun ogeleri") kept distinct from the studio-report, health, and
+  game-catalog intents (verified no theft). The studio now describes itself four ways: capabilities
+  (report), models (model router), health (audit), and the composer. Live-proved the report
+  (ascii/all-keys/couplings) + tool + intent + no theft. Generate-only; deterministic. +3 tests. --
+  tests: 1270 passed

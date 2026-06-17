@@ -1358,6 +1358,12 @@ def unity_studio_health() -> dict:
     return studio_health()
 
 
+@tool(description="Describe the freeform game COMPOSER WITHOUT touching the scene (pure, no bridge): the element types you can mix into a custom game (enemies/collectibles/hazards/spawners/guards/crates + goal/timer/ranged flags), their trigger words, and the automatic couplings that keep a mix coherent. Code-derived from the live spec parser. Use to answer 'composer raporu / ne tarif edebilirim / what can i compose / custom oyun ogeleri'. Returns {ok, report} (markdown).")
+def unity_composer_report() -> dict:
+    from ..core.game_studio_actions import build_composer_report
+    return {"ok": True, "report": build_composer_report()}
+
+
 @tool(description="Show which Cloudflare Workers AI models the studio routes between and how (pure, no bridge): the task->model catalog (reasoning/general/coding/creative/fast + vision/image), which support tool-calling, and how a model is chosen per turn (auto-detect + chat override). Use to answer 'hangi modeller var / model raporu / which models / model routing'. Returns {ok, report} (markdown).")
 def unity_model_report() -> dict:
     from ..core.model_router import build_model_router_report, list_models

@@ -445,6 +445,24 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     # Studio-report intent ("describe the whole studio") -> the richer, code-derived
     # report. Keyed on report-specific phrases so it doesn't steal the game-catalog
     # intent's "neler yapabilirsin / what games" (that still lists the games).
+    # Composer-report intent ("what can I describe?") -> the freeform-composer guide.
+    # Keyed on composer-specific phrases so it doesn't touch the studio report/health
+    # or the game-catalog intents.
+    if has("composer raporu", "composer report", "ne tarif edebilirim", "what can i compose",
+           "ozel oyun ogeleri", "custom oyun ogeleri", "hangi ogeler", "composer ogeleri"):
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_composer_report",
+                "kwargs": {},
+                "write": False,
+                "note": "code-derived guide to the freeform composer's elements (pure, no scene changes)",
+            }],
+            "safety_notes": ["read-only; no scene changes"],
+            "reason": "composer-report intent -> unity_composer_report",
+        }
+
     # Studio-health intent ("is everything OK?") -> the self-audit. Keyed on health
     # phrases (distinct from "studio raporu"), checked before the report intent so
     # "studio sagligi" runs the audit rather than the descriptive report.
@@ -1244,6 +1262,46 @@ def parse_custom_spec(lower: str) -> dict[str, object]:
     for key, words in _SPEC_FLAG_WORDS.items():
         spec[key] = any(re.search(r"\b" + re.escape(w), lower) for w in words)
     return spec
+
+
+# the automatic couplings compose_custom_game wires in (so a mix is coherent); curated
+# prose, guarded by a test that every named element is a real spec key.
+_COMPOSER_COUPLINGS = [
+    ("enemy", "the player gains health + attack, and a win/lose manager appears"),
+    ("ranged", "the player also gets a ranged weapon (auto-hits the nearest enemy)"),
+    ("collectible", "a score HUD is added (also when there are enemies)"),
+    ("guard", "a goal is auto-added so there is a way to win (slip past the guards to reach it)"),
+    ("crate", "the same number of targets + a puzzle win-manager (push every crate onto a target)"),
+    ("timer", "the manager runs a countdown -> outlast the clock to win"),
+]
+
+
+def build_composer_report() -> str:
+    """A CODE-DERIVED report of the freeform composer: the element types you can mix,
+    their trigger words, and the couplings that keep a mix coherent. The element/flag
+    lists are read from the live spec parser (so they never drift); couplings are
+    curated prose guarded by a test. Pure ASCII markdown."""
+    lines = ["# Custom Game Composer", ""]
+    lines.append("Describe an element mix and the studio assembles a custom, playable game -- no "
+                 "preset needed. Counts clamp to a small maximum; couplings are added automatically "
+                 "so the result holds together. This report is generated from the live spec parser.")
+    lines.append("")
+    lines.append("## Counted elements (e.g. \"5 dusman\", \"3 kutu\")")
+    for key, words in _SPEC_ELEMENT_WORDS.items():
+        lines.append(f"- **{key}** -- triggers: {', '.join(words)}")
+    lines.append("")
+    lines.append("## Flags (mentioning a trigger turns it on)")
+    for key, words in _SPEC_FLAG_WORDS.items():
+        lines.append(f"- **{key}** -- triggers: {', '.join(words)}")
+    lines.append("")
+    lines.append("## Automatic couplings (so a composed game is coherent)")
+    for key, effect in _COMPOSER_COUPLINGS:
+        lines.append(f"- **{key}** -> {effect}")
+    lines.append("")
+    lines.append("A player is always included. Save a creation with \"... olarak kaydet\" and make it "
+                 "reproducible with \"tohum 7\". Examples: \"ozel oyun 5 dusman 3 toplanabilir bir "
+                 "sayac\", \"3 muhafiz olan oyun yap\", \"4 kutu olan oyun\".")
+    return "\n".join(lines)
 
 
 def _infer_count(lower: str, default: int) -> int:

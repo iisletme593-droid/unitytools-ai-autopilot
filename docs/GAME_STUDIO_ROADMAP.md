@@ -834,5 +834,14 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   Intent collision resolved carefully: "crate" is no longer a puzzle-preset trigger on its own, so a
   freeform "3 kutu olan oyun" composes while the push phrasing ("kutu itme") and sokoban/bulmaca/puzzle
   still build the PRESET (verified both ways). +5 tests. 1267 passed.
+- [x] **Composer report -- the 4th self-awareness surface (cycle 89).** The composer now has 10 element
+  types; `build_composer_report()` makes them discoverable: a CODE-DERIVED markdown guide listing each
+  counted element (enemy/collectible/hazard/spawner/guard/crate) and flag (goal/timer/ranged) with its
+  trigger words -- read straight from the live `_SPEC_ELEMENT_WORDS`/`_SPEC_FLAG_WORDS` so it can't drift
+  -- plus the automatic couplings (curated prose, guarded by a test that every coupling names a real
+  spec key). Exposed as `unity_composer_report` + an intent ("composer raporu / ne tarif edebilirim /
+  what can i compose / hangi ogeler") kept distinct from the studio-report, health, and catalog intents.
+  The studio can now describe itself four ways: capabilities, models, health, and the composer. +3
+  tests. 1270 passed.
 
 > Check items off in this file as they land. Add new items as discovered.
