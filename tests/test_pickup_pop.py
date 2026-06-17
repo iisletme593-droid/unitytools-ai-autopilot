@@ -46,11 +46,29 @@ def test_still_decoupled_and_deterministic_and_ascii():
         assert forbidden not in src
 
 
+# --- cycle 122: a gentle magnet pull on the collect moment ------------------
+
+def test_collectible_has_a_short_range_magnet_pull():
+    src = _src()
+    # before pickup, it drifts toward the Player when close (a satisfying magnetic pull)
+    assert "magnetRange" in src and "magnetSpeed" in src
+    assert 'FindWithTag("Player")' in src                  # finds the player decoupled, by tag
+    assert "transform.position +=" in src                  # it moves toward them
+    assert "< magnetRange" in src                          # only a SHORT-range assist
+    # the magnet runs only while NOT collected (the pop/destroy path is unchanged)
+    assert "if (!collected" in src
+    # still deterministic + decoupled (no RNG, no hard score ref) -- re-asserted with the magnet
+    for forbidden in ("Random.", "Math.random", "DateTime", "AutopilotScore."):
+        assert forbidden not in src
+    assert all(ord(c) < 128 for c in src)
+    assert src.count("{") == src.count("}") and src.count("(") == src.count(")")
+
+
 # --- it changes the SOURCE only, never the plan structure -------------------
 
 def test_no_blueprint_structure_changed():
     # the behaviour name is unchanged, so the grouped script/attachment sets are identical
-    for gt in ("collectathon", "chase", "collector_race"):
+    for gt in ("collectathon", "chase", "collector_race", "keydoor", "runner"):
         grouped = group_execution_plan(plan_game(gt, 5)["steps"])
         assert "collectible" in grouped["script_behaviours"], gt
     # and the whole catalog is still clean

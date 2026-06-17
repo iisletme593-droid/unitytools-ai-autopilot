@@ -1212,4 +1212,14 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   every existing runner test holds; +2 new coin tests. Taxonomy auto-reclassifies runner as collection +
   hazard-dodging; how-to unchanged. +2 tests. 1901 passed.
 
+- [x] **Magnetic collectibles -- universal, zero-churn pickup juice (cycle 122).** The third feel layer on
+  the collectible (after the cycle-106 pop). Before collection it gently DRIFTS toward the Player within a
+  short `magnetRange` (~2.5). A pure SOURCE enrichment: the class is unchanged, so every collectible game
+  (collectathon/chase/collector_race/keydoor/runner + composer) gets it free with NO structural change
+  (grouped sets identical, studio_health 21/21). The cycle-106 pickup contract is preserved (AddScore
+  once + pop + Destroy; magnet runs only in the not-collected branch); deterministic + decoupled. Short
+  range = a gentle assist, not a trivialiser; no wall-based collectible game exists; keydoor keys still
+  counted normally. Verified by the full suite PLUS a 3-lens adversarial review (determinism / contract /
+  design-soundness), all clean. +1 test. 1902 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

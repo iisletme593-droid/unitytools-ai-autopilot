@@ -1548,3 +1548,18 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   hazard-dodging; the how-to is unchanged ("endless -- highest score"). Live-proved coins on the off-lane
   reached first + 21/21 audit + seed-independence + taxonomy. Docs: GAME_STUDIO_GAMES runner row.
   Generate-only; deterministic. +2 tests. -- tests: 1901 passed
+- [cycle 122] Magnetic collectibles -- a UNIVERSAL, zero-churn pickup-feel upgrade (the third feel layer
+  on the collectible, after the cycle-106 pickup pop). The `collectible` behaviour (AutopilotCollectible)
+  now, BEFORE collection, gently DRIFTS toward the Player when within a short `magnetRange` (~2.5 units,
+  `magnetSpeed` ~4) -- a satisfying magnetic pull. A pure SOURCE enrichment: the behaviour name/class is
+  unchanged, so EVERY collectible game (collectathon / chase / collector_race / keydoor[keys] / runner
+  [coins] + composer) gets it FREE with NO plan/structure change (grouped sets identical, studio_health
+  21/21). The cycle-106 pickup contract is fully preserved -- OnTriggerEnter + CompareTag, AddScore fired
+  exactly once (the `collected` guard), the scale-up pop then Destroy -- the magnet runs ONLY in the
+  not-collected branch; deterministic (FindWithTag + positions + Time, no RNG) + still decoupled (no
+  AutopilotScore ref). Short range so it is a gentle ASSIST, not a trivialiser (you still come get it);
+  no wall-based collectible game exists (the maze has none) so no through-geometry pull; keydoor keys are
+  still counted/collected normally. Verified by the full suite (the collectible source contract tests
+  across all games hold) PLUS a 3-lens adversarial review (determinism / contract / design-soundness),
+  all clean. Low churn -- only +1 new magnet source assertion. Docs: GAME_STUDIO_GAMES collectible row.
+  Generate-only; deterministic. +1 test. -- tests: 1902 passed

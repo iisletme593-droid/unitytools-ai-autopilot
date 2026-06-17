@@ -60,7 +60,7 @@ Give one object a behaviour with `unity_add_gameplay_behaviour(object, behaviour
 | `move` / `mover` | AutopilotMover | Translates every frame |
 | `wrapmover` / `lanemover` / `trafik` | AutopilotWrapMover | **Lane traffic** for a crossing (Frogger) game: glides along +X at `speed` and **wraps** — once past +`bound` it reappears at -`bound`, so each lane is an endless stream. Pair with `killzone` (touch → respawn). Deterministic (position + time, no RNG) |
 | `player` / `controller` | AutopilotPlayerController | WASD movement + Space jump |
-| `collectible` | AutopilotCollectible | OnTriggerEnter(Player) → +1 score (SendMessage) **immediately**, then a short scale-up **"pop"** (`popTime`/`popScale`, Time-driven) before Destroy — juice on the collect moment. A `collected` guard scores exactly once; deterministic, decoupled |
+| `collectible` | AutopilotCollectible | When the Player comes within a short `magnetRange` the pickup **drifts toward them** (a gentle magnet pull); OnTriggerEnter(Player) → +1 score (SendMessage) **immediately**, then a short scale-up **"pop"** (`popTime`/`popScale`, Time-driven) before Destroy — juice on the collect moment. A `collected` guard scores exactly once; the magnet runs only pre-pickup; deterministic (positions + Time, no RNG), decoupled |
 | `goal` | AutopilotGoalZone | OnTriggerEnter(Player) → win flag |
 | `killzone` | AutopilotKillZone | OnTriggerEnter(Player) → respawn |
 | `spawner` | AutopilotSpawner | InvokeRepeating spawns physics cubes (waves) |
