@@ -1395,3 +1395,18 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   derived how-to races the deadline, intent routes + does NOT steal runner/dodge/the clock games. Docs:
   GAME_STUDIO (Nineteen + table row), GAME_STUDIO_GAMES (game row + deadline behaviour row + NL list).
   Generate-only; deterministic (no Math.random). +49 tests. -- tests: 1743 passed
+- [cycle 111] Composer gains a `deadline` element -- the cycle-110 speedrun mechanic, now freeform.
+  compose_custom_game(deadline=True) wires the LOSING countdown into a custom game: it implies a goal
+  (auto-added if none -- the WIN) and the GameManager runs `deadline` + `gameover` (PlayerDied at zero
+  = the LOSE), so any element mix can become a "race the clock to the exit" game. The NL parser learns
+  it as a PHRASE FLAG (_SPEC_FLAG_PHRASES): "deadline"/"beat the clock"/"sure dolmadan"/"sayac dolmadan"
+  etc. are detected + STRIPPED before the single-word flags so an inner timer word ("sure"/"sayac")
+  can't ALSO trip the WINNING timer, plus a mutual-exclusion rule (a named deadline forces timer off) --
+  the two countdown semantics never both light up. Both compose tools + the keyword-less route + the
+  composer report (a new phrase-flags section) + _COMPOSER_COUPLINGS carry it; compose_health grew to 16
+  cases ({deadline} + a mix), all valid+playable+coherent (studio report now "16/16 composer cases"). The
+  how-to deriver (cycle 110) already reads `deadline`, so a composed deadline game self-documents ("reach
+  the goal before the deadline runs out" / "the deadline runs out"). Live-proved: composed deadline game
+  is coherent + playable + auto-goal, the parser never double-fires the timer, freeform "deadline" composes
+  while the speedrun PRESET still builds, 16/16 compose_health. Generate-only; deterministic. +6 tests.
+  -- tests: 1749 passed

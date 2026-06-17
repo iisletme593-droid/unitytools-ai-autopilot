@@ -1086,4 +1086,18 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   deadline fires PlayerDied not Survived (ascii+balanced) + the derived how-to races the clock + intent
   routes without stealing runner/dodge/the clock games. Generate-only; deterministic. +49 tests. 1743 passed.
 
+- [x] **Composer gains a `deadline` element -- the speedrun mechanic, now freeform (cycle 111).**
+  `compose_custom_game(deadline=True)` wires the cycle-110 LOSING countdown into a custom game: it implies
+  a goal (auto-added -- the WIN) and the GameManager runs `deadline` + `gameover` (PlayerDied at zero =
+  the LOSE), so any element mix can become a "race the clock to the exit" game. The NL parser learns it as
+  a PHRASE FLAG (`_SPEC_FLAG_PHRASES`): the deadline phrases ("deadline" / "beat the clock" / "sure
+  dolmadan" / "sayac dolmadan" ...) are detected + STRIPPED before the single-word flags so an inner timer
+  word can't ALSO trip the WINNING timer, plus a mutual-exclusion rule (a named deadline forces timer off)
+  -- the two countdown semantics never both light up. Both compose tools + the keyword-less route + the
+  composer report (a new phrase-flags section) + `_COMPOSER_COUPLINGS` carry it; `compose_health` grew to
+  16 cases, all valid+playable+coherent (studio report "16/16 composer cases"). The cycle-110 how-to
+  deriver already reads `deadline`, so a composed deadline game self-documents. Live-proved coherent +
+  playable + auto-goal, no timer double-fire, freeform composes while the speedrun preset still builds.
+  Generate-only; deterministic. +6 tests. 1749 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

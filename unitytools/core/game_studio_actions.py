@@ -679,7 +679,8 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     spec = parse_custom_spec(lower_no_seed)
     has_elements = bool(spec["enemy"] or spec["collectible"] or spec["hazard"]
                         or spec["timer"] or spec["goal"] or spec["spawner"] or spec["ranged"]
-                        or spec["guard"] or spec["crate"] or spec["moving_hazard"] or spec["turret"])
+                        or spec["guard"] or spec["crate"] or spec["moving_hazard"] or spec["turret"]
+                        or spec["deadline"])
     custom_framing = has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun",
                          "kendi oyun", "kendi oyunu", "karisik oyun", "kendine gore oyun")
     keywordless_custom = (build_verb and has_elements
@@ -1363,6 +1364,15 @@ _SPEC_FLAG_WORDS = {
     "timer": ("sayac", "sure", "zaman", "countdown", "gerisayim", "kronometre"),
     "ranged": ("menzilli", "nisan", "ranged", "tufek"),
 }
+# phrase-based flags: their trigger is a MULTI-WORD phrase that may CONTAIN a single-word
+# flag trigger (e.g. "sure dolmadan" / "sayac dolmadan" contain the timer words "sure"/"sayac"),
+# so they are detected + STRIPPED before the single-word flags to avoid mis-firing the timer.
+# `deadline` is a LOSING countdown (the mirror of `timer`); the strip + the mutual-exclusion
+# rule below keep the two countdown semantics from both lighting up on the same phrase.
+_SPEC_FLAG_PHRASES = {
+    "deadline": ("deadline", "beat the clock", "sure dolmadan", "zaman dolmadan",
+                 "sayac dolmadan", "son sure", "sureli kacis"),
+}
 # phrase-based counted elements: their trigger is a MULTI-WORD phrase that CONTAINS a
 # single-word element trigger (e.g. "hareketli engel" contains the static-hazard "engel"),
 # so they are extracted + STRIPPED before the single-word elements to avoid double-counting.
@@ -1417,10 +1427,22 @@ def parse_custom_spec(lower: str) -> dict[str, object]:
     # static-hazard "engel" inside "hareketli engel") is not double-counted below
     for key, words in _SPEC_PHRASE_ELEMENTS.items():
         spec[key], lower = _count_and_strip_phrase(lower, words)
+    # phrase flags (deadline) next: detect + STRIP so an inner timer word (e.g. "sure" in
+    # "sure dolmadan") can't ALSO trip the timer flag below
+    for key, words in _SPEC_FLAG_PHRASES.items():
+        present = any(re.search(r"\b" + re.escape(w), lower) for w in words)
+        spec[key] = present
+        if present:
+            for w in words:
+                lower = re.sub(re.escape(w), " ", lower)
     for key, words in _SPEC_ELEMENT_WORDS.items():
         spec[key] = _spec_count_before(lower, words)
     for key, words in _SPEC_FLAG_WORDS.items():
         spec[key] = any(re.search(r"\b" + re.escape(w), lower) for w in words)
+    # a deadline (a LOSING countdown) and a timer (a WINNING countdown) are mutually
+    # exclusive countdown semantics; a named deadline wins so the mix stays coherent.
+    if spec.get("deadline"):
+        spec["timer"] = False
     return spec
 
 
@@ -1434,6 +1456,7 @@ _COMPOSER_COUPLINGS = [
     ("turret", "the player gains health + a goal is auto-added (dodge the turret fire to reach it)"),
     ("crate", "the same number of targets + a puzzle win-manager (push every crate onto a target)"),
     ("timer", "the manager runs a countdown -> outlast the clock to win"),
+    ("deadline", "a goal is auto-added (the WIN) + the manager runs a LOSING countdown (the LOSE) -- reach the goal before time runs out"),
 ]
 
 
@@ -1455,6 +1478,8 @@ def build_composer_report() -> str:
     lines.append("")
     lines.append("## Flags (mentioning a trigger turns it on)")
     for key, words in _SPEC_FLAG_WORDS.items():
+        lines.append(f"- **{key}** -- triggers: {', '.join(words)}")
+    for key, words in _SPEC_FLAG_PHRASES.items():
         lines.append(f"- **{key}** -- triggers: {', '.join(words)}")
     lines.append("")
     lines.append("## Automatic couplings (so a composed game is coherent)")

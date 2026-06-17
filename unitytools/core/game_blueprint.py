@@ -1128,6 +1128,7 @@ def compose_custom_game(
     crate: int = 0,
     moving_hazard: int = 0,
     turret: int = 0,
+    deadline: bool = False,
     arena_size: float = 20.0,
     seed: object = None,
 ) -> dict[str, Any]:
@@ -1154,7 +1155,11 @@ def compose_custom_game(
       - sokoban `crate`s (`pushable`) + the same number of `Target_*` markers + a `puzzle`
         win manager on the GameManager (push every crate onto a target to win);
       - if timer=True, the GameManager runs a `timer` -> outlast the clock to WIN
-        (Survived), and gets a title + sound for feel.
+        (Survived), and gets a title + sound for feel;
+      - if deadline=True, the GameManager runs a `deadline` -> a LOSING countdown (the
+        mirror of `timer`): it implies a goal to reach (auto-added if none) so the WIN is
+        getting to the exit before time runs out (a speedrun-feel custom game). The
+        deadline is the LOSE (PlayerDied at zero); reaching the goal wins first.
     Pure + deterministic; same step schema as the blueprints, so it validates, assesses
     and persists exactly like them. Counts are clamped to [0, 30].
     """
@@ -1170,6 +1175,10 @@ def compose_custom_game(
     # add one if the user didn't ask for it (mirrors enemy -> health+attack coupling).
     # turrets are the same: an unkillable ranged threat you DODGE to the goal, so they imply one.
     if (guard > 0 or turret > 0) and not goal:
+        goal = True
+    # a deadline is a LOSING countdown, so it needs a WIN path: it implies a goal to reach
+    # before the clock runs out (mirrors the speedrun preset; the deadline is the LOSE).
+    if deadline and not goal:
         goal = True
     size = max(6.0, float(arena_size))
     steps: list[dict[str, Any]] = []
@@ -1278,13 +1287,15 @@ def compose_custom_game(
     # 7) a GameManager when there is anything to win or lose. `gameover` lands the
     #    enemy/guard/timer win-lose signals; `puzzle` lands the sokoban win; `timer`
     #    runs the countdown. title + sound give it feel.
-    if enemy or timer or guard or crate or turret:
+    if enemy or timer or guard or crate or turret or deadline:
         steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
         manager = ["title", "sound"]
-        if enemy or timer or guard or turret:
+        if enemy or timer or guard or turret or deadline:
             manager.append("gameover")
         if timer:
             manager.append("timer")                              # outlast the clock -> WIN (Survived)
+        if deadline:
+            manager.append("deadline")                           # clock runs out -> LOSE (PlayerDied)
         if crate:
             manager.append("puzzle")                             # all crates on targets -> WIN
         for behaviour in manager:
@@ -1293,7 +1304,7 @@ def compose_custom_game(
     spec = {"player": bool(player), "enemy": enemy, "collectible": collectible,
             "hazard": hazard, "goal": bool(goal), "timer": bool(timer),
             "spawner": spawner, "ranged": bool(ranged), "guard": guard, "crate": crate,
-            "moving_hazard": moving_hazard, "turret": turret}
+            "moving_hazard": moving_hazard, "turret": turret, "deadline": bool(deadline)}
     parts = []
     if player:
         parts.append("a ranged player" if ranged else "a player")
@@ -1307,6 +1318,8 @@ def compose_custom_game(
         parts.append("a goal")
     if timer:
         parts.append("a countdown")
+    if deadline:
+        parts.append("a deadline")
     plan = {
         "ok": True,
         "game": "custom",

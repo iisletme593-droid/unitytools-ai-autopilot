@@ -85,7 +85,7 @@ def test_parse_counts_and_flags():
     spec = parse_custom_spec("ozel oyun: 5 dusman 3 toplanabilir ve bir sayac olsun")
     assert spec == {"player": True, "enemy": 5, "collectible": 3, "hazard": 0,
                     "goal": False, "timer": True, "spawner": 0, "ranged": False, "guard": 0,
-                    "crate": 0, "moving_hazard": 0, "turret": 0}
+                    "crate": 0, "moving_hazard": 0, "turret": 0, "deadline": False}
 
 
 def test_parse_number_words_and_goal():
@@ -278,18 +278,20 @@ def test_guard_routes_keywordless_to_composer_without_stealing_stealth():
 
 def test_composer_report_is_code_derived_from_the_spec_parser():
     from unitytools.core.game_studio_actions import (
-        build_composer_report, _SPEC_ELEMENT_WORDS, _SPEC_FLAG_WORDS, _COMPOSER_COUPLINGS)
+        build_composer_report, _SPEC_ELEMENT_WORDS, _SPEC_FLAG_WORDS, _SPEC_FLAG_PHRASES,
+        _COMPOSER_COUPLINGS)
     rep = build_composer_report()
     assert all(ord(c) < 128 for c in rep)
-    # every element + flag the parser knows is listed (so the report can't drift)
-    for key in list(_SPEC_ELEMENT_WORDS) + list(_SPEC_FLAG_WORDS):
+    # every element + flag (single-word AND phrase) the parser knows is listed (no drift)
+    all_flags = {**_SPEC_FLAG_WORDS, **_SPEC_FLAG_PHRASES}
+    for key in list(_SPEC_ELEMENT_WORDS) + list(all_flags):
         assert f"**{key}**" in rep, key
-        for word in (list(_SPEC_ELEMENT_WORDS.get(key, ())) + list(_SPEC_FLAG_WORDS.get(key, ()))):
+        for word in (list(_SPEC_ELEMENT_WORDS.get(key, ())) + list(all_flags.get(key, ()))):
             assert word in rep, (key, word)
     assert "## Automatic couplings" in rep and "health + attack" in rep
     # every coupling names a real spec element (no phantom couplings)
     for key, _effect in _COMPOSER_COUPLINGS:
-        assert key in _SPEC_ELEMENT_WORDS or key in _SPEC_FLAG_WORDS, key
+        assert key in _SPEC_ELEMENT_WORDS or key in all_flags, key
 
 
 def test_composer_report_tool_and_intent():
@@ -365,3 +367,61 @@ def test_spawner_ranged_route_keywordless_without_stealing_horde():
     # ...but the horde preset ("dalga modu") is NOT stolen by the spawner word "dalga"
     assert route("dalga modu oyunu kur") == ("unity_build_simple_game", "horde")
     assert route("horde oyunu kur") == ("unity_build_simple_game", "horde")
+
+
+# --- cycle 111: the deadline composer flag (speedrun-feel custom games) -------
+
+def test_compose_deadline_adds_a_losing_countdown_and_implies_a_goal():
+    plan = compose_custom_game(player=True, deadline=True)
+    # a deadline implies a goal (the WIN) + a manager running the deadline (the LOSE)
+    assert plan["spec"]["deadline"] is True and plan["spec"]["goal"] is True
+    assert _beh_of(plan, "Goal") == {"goal"}
+    assert _beh_of(plan, "GameManager") == {"title", "gameover", "sound", "deadline"}
+
+
+def test_compose_deadline_game_is_coherent_valid_playable_deterministic():
+    # reach-the-goal WIN + deadline LOSE with a gameover manager must NOT be flagged
+    plan = compose_custom_game(player=True, deadline=True, hazard=3, seed="dash")
+    assert validate_plan(plan)["ok"] is True
+    r = assess_game_readiness(plan)
+    assert r["playable"] is True and r["has_goal"] is True and r["design_notes"] == []
+    assert plan == compose_custom_game(player=True, deadline=True, hazard=3, seed="dash")
+
+
+def test_compose_deadline_howto_races_the_clock():
+    from unitytools.core.game_qa import game_howto_from_plan
+    h = game_howto_from_plan(compose_custom_game(player=True, deadline=True, hazard=3))
+    assert any("before the deadline" in w.lower() for w in h["win"])
+    assert any("deadline runs out" in l.lower() for l in h["lose"])
+
+
+def test_parse_recognizes_deadline_and_does_not_double_fire_the_timer():
+    # the deadline phrase contains the timer word "sure"/"sayac", but the phrase-strip +
+    # mutual-exclusion keep timer OFF -- a deadline is a LOSE, not the outlast-WIN timer
+    for phrase in ("ozel oyun deadline olsun", "oyun yap sure dolmadan cik",
+                   "sayac dolmadan bitir oyunu", "beat the clock game"):
+        spec = parse_custom_spec(phrase)
+        assert spec["deadline"] is True, phrase
+        assert spec["timer"] is False, phrase
+    # a plain timer phrase is still a timer (deadline OFF)
+    plain = parse_custom_spec("ozel oyun bir sayac olsun")
+    assert plain["timer"] is True and plain["deadline"] is False
+
+
+def test_deadline_routes_keywordless_to_composer_without_stealing_the_speedrun_preset():
+    def route(p):
+        s = plan_unity_fast_action(p)["steps"][0]
+        return (s["tool"], s["kwargs"].get("game_type"), s["kwargs"].get("deadline"))
+    # a freeform "deadline" element composes a custom game with the flag set...
+    tool, _gt, dl = route("deadline olan oyun yap")
+    assert tool == "unity_compose_game" and dl is True
+    # ...but the speedrun PRESET keywords still build the speedrun blueprint
+    assert route("speedrun oyunu kur")[:2] == ("unity_build_simple_game", "speedrun")
+    assert route("beat the clock oyunu kur")[:2] == ("unity_build_simple_game", "speedrun")
+
+
+def test_compose_deadline_tool_plumbs_the_flag():
+    tool = {t.name: t for t in get_all_tools()}.get("unity_compose_game")
+    out = tool.fn(deadline=True, hazard=2)
+    assert out["ok"] is True and out["spec"]["deadline"] is True
+    assert out["assessment"]["playable"] is True and out["assessment"]["design_notes"] == []
