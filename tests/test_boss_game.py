@@ -86,7 +86,7 @@ def test_registered_as_sixteenth_game():
 def test_player_is_armed_and_the_boss_is_the_enemy():
     plan = plan_boss_game(1)
     assert _beh_of(plan, "Player") == {"player", "health", "attack", "ranged", "score", "xp"}
-    assert _beh_of(plan, "Boss") == {"boss"}
+    assert _beh_of(plan, "Boss") == {"boss", "hitflash"}      # boss + juice (flash on hit)
     assert _beh_of(plan, "GameManager") == {"title", "gameover", "sound"}
     tags = [s["kwargs"]["tag"] for s in plan["steps"] if s.get("tool") == "unity_set_tag"]
     assert "Player" in tags and tags.count("Enemy") == 1       # one boss, tagged Enemy

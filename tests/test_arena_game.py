@@ -88,18 +88,18 @@ def test_manager_bookends_with_title_gameover_and_sound():
     assert _beh_of(plan, "GameManager") == {"title", "gameover", "sound"}
 
 
-def test_groups_to_thirteen_unique_scripts():
+def test_groups_to_fourteen_unique_scripts():
     grouped = group_execution_plan(plan_arena_game(4)["steps"])
     assert set(grouped["script_behaviours"]) == {
         "player", "health", "attack", "score", "xp", "inventory",
-        "enemy", "reward", "loot", "title", "gameover", "sound", "boss"}
+        "enemy", "reward", "loot", "title", "gameover", "sound", "boss", "hitflash"}
 
 
 def test_arena_has_a_single_mini_boss():
     plan = plan_arena_game(4)
     # one elite Boss, tagged Enemy (so the clear-all-enemies WIN includes it), running the
     # high-HP boss behaviour -- and it is NOT one of the Enemy_* swarm
-    assert _beh_of(plan, "Boss") == {"boss"}
+    assert _beh_of(plan, "Boss") == {"boss", "hitflash"}      # boss + juice (flash on hit)
     boss_tags = [s["kwargs"]["tag"] for s in plan["steps"] if s.get("tool") == "unity_set_tag"
                  and s["kwargs"]["name"] == "Boss"]
     assert boss_tags == ["Enemy"]

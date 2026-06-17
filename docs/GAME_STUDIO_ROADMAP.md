@@ -963,4 +963,15 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   tower_defense's "kule savunma" -- no theft), and the cycle-99 build opt-in works with it ("3 taret oyunu
   kur ve uygula" -> a real build). Both compose tools plumb it. +15 tests. 1532 passed.
 
+- [x] **Hitflash -- the first feel/juice layer (cycle 101).** A different KIND of value: visual hit
+  feedback. New `hitflash` behaviour (AutopilotHitFlash) -- on SendMessage("TakeDamage") the renderer
+  flashes `flashColor` then lerps back over `flashTime`. Purely cosmetic + decoupled (runs alongside the
+  real damage handler), deterministic (only Time, no RNG), a no-op without a Renderer. Wired onto BOSSES
+  only (the `boss` type's bosses + the arena mini-boss) -- a design-correct choice: a flash only reads on a
+  HIGH-HP, multi-hit target; the one-hit swarm (which dies instantly) would never show it, so it does not
+  get the behaviour. Cosmetic, so it changes nothing in the critique/playability: studio_health stays
+  17/17, both blueprints stay coherent. Low churn -- only the two Boss behaviour-set assertions changed
+  (+ arena unique-scripts thirteen -> fourteen). Categorized under "game feel" (drift guard); doc behaviour
+  row added. A reusable juice primitive future cycles can extend to other targets. +11 tests. 1543 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

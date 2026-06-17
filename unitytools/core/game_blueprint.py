@@ -319,6 +319,7 @@ def plan_arena_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Boss", "position_y": 0.5, "position_z": size / 2.0}})
     steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Boss", "tag": "Enemy"}})
     steps.append({"script_behaviour": {"object": "Boss", "behaviour": "boss"}})
+    steps.append({"script_behaviour": {"object": "Boss", "behaviour": "hitflash"}})  # juice: flash on hit
 
     # 4) loot scattered on the field: spheres the player picks up for items while
     #    fighting (a simple, decoupled item economy — collect -> inventory HUD).
@@ -885,6 +886,8 @@ def plan_boss_game(boss_count: int = 1, arena_size: float = 20.0) -> dict[str, A
     for i in range(n):
         steps.append({"tool": "unity_set_tag", "kwargs": {"name": f"Boss_{i}", "tag": "Enemy"}})
         steps.append({"script_behaviour": {"object": f"Boss_{i}", "behaviour": "boss"}})
+        # juice: the boss flashes white each time it is hit (visible because it is high-HP)
+        steps.append({"script_behaviour": {"object": f"Boss_{i}", "behaviour": "hitflash"}})
 
     # 4) GameManager bookend: title + gameover (WIN clears the boss, LOSE on death) + sound
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})

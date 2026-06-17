@@ -1233,3 +1233,18 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   Docs: GAME_STUDIO_GAMES behaviour row + composer docstring. Live-proved behaviour(ascii/decoupled) +
   coupling(health+goal+gameover, not-Enemy) + 14/14 compose_health + intent(no tower_defense theft) +
   report line. Generate-only; deterministic. +15 tests. -- tests: 1532 passed
+- [cycle 101] Hitflash -- the first feel/juice layer (a different KIND of value: visual hit feedback). New
+  hitflash behaviour in core/gameplay.py (AutopilotHitFlash): on SendMessage("TakeDamage") it sets a flash
+  timer and, in Update, lerps the renderer color from baseColor toward flashColor and back over flashTime;
+  reads/sets GetComponent<Renderer>().material.color, caches baseColor in Start. Purely cosmetic + decoupled
+  (runs ALONGSIDE the real damage handler -- Unity SendMessage hits every matching TakeDamage), deterministic
+  (only Time, no RNG), a no-op without a Renderer. Wired onto BOSSES only: plan_boss_game's Boss_* and
+  plan_arena_game's mini-boss each get boss + hitflash. Design-correct: a flash only reads on a high-HP,
+  multi-hit target -- the one-hit reward swarm dies instantly and would never show it, so it is deliberately
+  NOT given the behaviour (verified arena Enemy_0 stays {enemy, reward}). Cosmetic -> no critique/playability
+  impact: hitflash NOT in INTERACTIVE_BEHAVIOURS, categorized under "game feel" (drift guard); studio_health
+  stays 17/17, boss + arena stay coherent. Low churn: the two _beh_of(Boss) assertions -> {boss, hitflash}
+  and arena unique-scripts thirteen -> fourteen; doc-guard behaviour list + a GAME_STUDIO_GAMES behaviour row.
+  A reusable juice primitive (future cycles can extend to other targets or a composer juice flag).
+  Live-proved source(ascii/Color.Lerp/TakeDamage) + boss+arena wiring + swarm-excluded + 17/17 health.
+  Generate-only; deterministic (no runtime RNG). +11 tests. -- tests: 1543 passed

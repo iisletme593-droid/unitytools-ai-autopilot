@@ -219,7 +219,7 @@ _BEHAVIOUR_CATEGORIES: dict[str, list[str]] = {
     "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle", "holdzone", "escort"],
     "combat": ["health", "attack", "enemy", "ranged", "reward", "horde", "boss", "turret"],
     "progression": ["xp", "loot", "inventory", "score"],
-    "game feel": ["title", "gameover", "sound", "timer", "collectrace"],
+    "game feel": ["title", "gameover", "sound", "timer", "collectrace", "hitflash"],
 }
 
 # Game-feel behaviours whose presence-per-game the report surfaces.
