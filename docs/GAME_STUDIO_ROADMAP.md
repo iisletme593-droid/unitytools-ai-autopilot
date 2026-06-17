@@ -934,4 +934,21 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   still 17/17, the showcase still routes "arena oyunu kur" to arena, and the dedicated `boss` duel type
   stays distinct ("boss arena" still picks the boss type). +2 tests. 1487 passed.
 
+- [x] **Integration hardening -- prove the chat -> Unity build path (cycle 99).** The studio was deeply
+  unit-tested at the PLAN level but the actual EXECUTE path (turning a plan into live bridge calls) had
+  ZERO automated coverage, and the live check (scripts/live_check.py) never built a game -- so "does it
+  really work end to end" was unproven. Closed that honestly: (1) `tests/test_game_build_integration.py`
+  drives `unity_build_simple_game(execute=True)` for ALL 17 game types + composed games against a recording
+  fake bridge and asserts the real phase order (geometry -> import each UNIQUE script once -> poll
+  get_editor_state -> attach a component per object); (2) `tests/test_bridge_protocol_parity.py` parses the
+  C# command vocabulary out of `unity_plugin/Editor/Bridge/CommandHandlers.cs` and asserts EVERY RPC method
+  the Python build path emits (create_primitive/set_tag/import_asset/get_editor_state/add_component/
+  add_collider/get_object_details) is handled by the editor -- the exact drift that would silently break a
+  live build now fails CI; (3) a full chat-loop test: the sentence "boss arena oyunu kur ve uygula" drives
+  a real 39-call build through run_unity_fast_action, while plain "kur" makes ZERO bridge calls. Added an
+  explicit BUILD opt-in to the fast path (multi-word "ve uygula" / "sahneye uygula" / "build and apply" ->
+  execute=True + write=True; safe execute=False default preserved). Added `scripts/build_check.py` (the live
+  counterpart to live_check.py -- snapshots then builds a real game) and `docs/INTEGRATION_STATUS.md`
+  (what's wired, what's CI-proven, what needs a live editor + exact commands). +30 tests. 1517 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

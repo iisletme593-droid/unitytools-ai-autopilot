@@ -254,6 +254,12 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     steps: list[dict[str, Any]] = []
     safety_notes: list[str] = []
     build_verb = has("kur", "olustur", "yap", "build", "create", "generate", "uret", "insa")
+    # Explicit opt-in to ACTUALLY BUILD in the live scene (vs the safe default: plan only).
+    # MULTI-WORD phrases only, so a bare "uygula"/"kur" can never trigger a real scene
+    # mutation -- a plain "boss oyunu kur" still just plans; "boss oyunu kur ve uygula" builds.
+    execute_now = has("sahneye uygula", "sahneye kur", "sahneye ekle", "ve uygula", "kur ve uygula",
+                      "yap ve uygula", "gercekten kur", "gercekten yap", "build and apply",
+                      "apply to scene", "execute et", "canli kur", "gercek build")
 
     def detect_game_type() -> str:
         # tower-defense first: keyed on distinct multi-word phrases (+ the "td" token)
@@ -621,7 +627,7 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
                           and detect_game_type() == "collectathon"
                           and not has("toplama", "collectathon"))
     if custom_framing or keywordless_custom:
-        kwargs = {**spec, "execute": False}
+        kwargs = {**spec, "execute": execute_now}
         if seed_for_custom:
             kwargs["seed"] = seed_for_custom
         return {
@@ -630,11 +636,14 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "steps": [{
                 "tool": "unity_compose_game",
                 "kwargs": kwargs,
-                "write": False,
-                "note": "compose a custom game from the described element mix (pure, no scene changes)",
+                "write": execute_now,
+                "note": ("compose AND build a custom game from the described element mix in the live scene "
+                         "(execute=True: geometry + script import -> a Unity recompile)" if execute_now else
+                         "compose a custom game from the described element mix (execute=False; add 've uygula' to build it)"),
             }],
-            "safety_notes": ["read-only; no scene changes"],
-            "reason": "custom-compose intent -> unity_compose_game",
+            "safety_notes": (["builds for real: imports scripts + mutates the scene (Unity recompiles)"]
+                             if execute_now else ["read-only; no scene changes"]),
+            "reason": "custom-compose intent -> unity_compose_game" + (" (execute)" if execute_now else ""),
         }
 
     # Build-a-game intent takes priority so "oyun" doesn't fall into scene branches.
@@ -662,21 +671,29 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     if wants_game:
         game_type = detect_game_type()
         seed, count_text = extract_seed(lower)   # strip the seed so its digit isn't read as count
-        kwargs = {"game_type": game_type, "collectible_count": difficulty_count(5, count_text), "execute": False}
+        kwargs = {"game_type": game_type, "collectible_count": difficulty_count(5, count_text), "execute": execute_now}
         if seed:
             kwargs["seed"] = seed
+        note = (f"BUILD a {game_type} game in the live scene{f' (seed {seed})' if seed else ''} "
+                "(execute=True: creates geometry + imports behaviour scripts -> a Unity recompile)"
+                if execute_now else
+                f"plan a {game_type} game{f' (seed {seed})' if seed else ''}"
+                " (execute=False; add 've uygula' / 'build and apply' to actually build it)")
         return {
             "ok": True,
             "engine": "unity",
             "steps": [{
                 "tool": "unity_build_simple_game",
                 "kwargs": kwargs,
-                "write": False,
-                "note": f"plan a {game_type} game{f' (seed {seed})' if seed else ''}"
-                        " (execute=False; real build needs execute=True + a Unity recompile)",
+                "write": execute_now,
+                "note": note,
             }],
-            "safety_notes": ["game-build plan only (execute=False); building for real triggers Unity recompiles"],
-            "reason": f"build-game intent -> {game_type}" + (f" seed={seed}" if seed else ""),
+            "safety_notes": (["builds for real: imports scripts + mutates the scene (Unity recompiles); "
+                              "the orchestrator auto-snapshots before destructive steps"]
+                             if execute_now else
+                             ["game-build plan only (execute=False); add 've uygula' to build for real"]),
+            "reason": f"build-game intent -> {game_type}" + (" (execute)" if execute_now else "")
+                      + (f" seed={seed}" if seed else ""),
         }
 
     # Decorative "living scene" intent (juice, not a game) -> animate a group.

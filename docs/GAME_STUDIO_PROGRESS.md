@@ -1195,3 +1195,24 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   stays distinct ("boss arena" still picks boss). Docs: arena one-liners in GAME_STUDIO + GAME_STUDIO_GAMES.
   Live-proved blueprint(swarm+boss both Enemy) + 17/17 health + arena campaign + intent(no theft) +
   determinism. Generate-only; deterministic (no runtime RNG). +2 tests. -- tests: 1487 passed
+- [cycle 99] Integration hardening -- user asked "does this work fully integrated, can we make games by
+  chatting like with you?" Honest finding: there IS a real Unity C# plugin (unity_plugin/Editor/Bridge/
+  BridgeServer.cs + CommandHandlers.cs + ChatWindow.cs), a CLI, a live_check.py and a few integration
+  tests -- the pipeline is WIRED -- but the game-BUILD execute path had ZERO automated coverage and even
+  live_check never built a game, so end-to-end was unproven. Closed it: (1) tests/test_game_build_integration.py
+  -- a recording fake bridge runs unity_build_simple_game(execute=True) for all 17 types + composed games
+  and asserts the real bridge sequence (geometry create_primitive/set_tag -> import each UNIQUE script once
+  via import_asset -> poll get_editor_state until compiled -> add_component per object; import-once/
+  attach-per-object invariants verified per type). (2) tests/test_bridge_protocol_parity.py -- parses the
+  C# `case \"x\": return Handler(p)` vocabulary from CommandHandlers.cs and asserts every method the Python
+  build path emits is handled by the editor (the 7 it emits all are; place_primitives is NOT a bridge
+  method -- it loops create_primitive, guarded). (3) full chat loop: run_unity_fast_action(\"boss arena
+  oyunu kur ve uygula\") drives a real 39-call build; plain \"kur\" emits 0 calls (safe default). Enabled
+  the chat->build experience: added an explicit BUILD opt-in to the fast path in core/game_studio_actions.py
+  (multi-word execute_now: \"ve uygula\"/\"sahneye uygula\"/\"build and apply\"/... -> execute=True +
+  write=True on both the build and composer intents; default stays execute=False so nothing mutates a scene
+  by accident -- verified existing execute=False intent tests still pass). Added scripts/build_check.py (live
+  counterpart to live_check.py: snapshots then BUILDS a real game in the open scene) and
+  docs/INTEGRATION_STATUS.md (layer table + what's CI-proven vs needs-a-live-editor + run commands).
+  Live-proved chat-string->39-call-build + parity(emitted subset of C#) + safe default(0 calls). +30 tests.
+  -- tests: 1517 passed
