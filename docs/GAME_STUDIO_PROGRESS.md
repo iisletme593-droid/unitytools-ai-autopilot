@@ -1482,3 +1482,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   ("collect every key to unlock the exit, then reach it"). Live-proved coherent + playable + has_goal (via
   lockgoal), key+deadline replaces the plain goal, freeform "3 anahtar" composes while the keydoor PRESET
   still builds, 20/20 compose_health. Generate-only; deterministic. +7 tests. -- tests: 1822 passed
+- [cycle 117] Enemy death-pop -- a UNIVERSAL, zero-churn kill-moment juice (the kill cousin of the
+  cycle-106 pickup pop). The `reward` behaviour (AutopilotReward) is the enemy's HP + death handler:
+  TakeDamage drains HP, and at zero it grants XP + destroys the enemy. Now, on death, it marks `dying`,
+  plays a short Time-driven scale-up "pop" (popTime/popScale), THEN destroys -- so a kill finally feels
+  good. A pure SOURCE enrichment: the behaviour name/class is unchanged, so EVERY game whose enemies carry
+  reward (arena/horde/twin_stick/time_survival/hold + escort + tower_defense, AND composer enemies) gets
+  the juice for FREE with NO plan/structure change (verified the grouped geometry/script/attachment sets
+  are identical and studio_health stays 20/20). A `dying` guard ignores further hits (XP granted exactly
+  once); the XP-on-death + destroy contract is preserved (existing reward source assertions all hold);
+  deterministic (only Time, no RNG) + still decoupled (no AutopilotXP ref). Boss death left as-is (it
+  already has its HP bar + hitflash). Live-proved the pop + the preserved contract + 7 games byte-identical
+  in structure + 20/20 audit. Generate-only; deterministic. +1 test. -- tests: 1823 passed

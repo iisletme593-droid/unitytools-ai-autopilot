@@ -187,6 +187,22 @@ def test_reward_aliases(alias):
     assert generate_behaviour_script(alias)["class_name"] == "AutopilotReward"
 
 
+def test_reward_has_a_death_pop_juice():
+    # cycle 117: enemies scale-pop on death (the kill-moment cousin of the pickup pop). A pure
+    # source enrichment -- the class is unchanged, so it stays decoupled + deterministic and the
+    # XP grant + destroy still happen (the pop just plays first).
+    src = generate_behaviour_script("reward")["source"]
+    assert "popTime" in src and "popScale" in src and "baseScale" in src
+    assert "dying" in src and "Time.deltaTime" in src and "localScale" in src
+    # the XP-on-death contract is preserved, and destroy now follows the pop
+    assert 'SendMessage("AddXP", xpReward' in src and "Destroy(gameObject)" in src
+    # still deterministic + decoupled
+    for forbidden in ("Random.", "Math.random", "DateTime", "AutopilotXP."):
+        assert forbidden not in src
+    assert all(ord(c) < 128 for c in src)
+    assert src.count("{") == src.count("}") and src.count("(") == src.count(")")
+
+
 # --- loot + inventory (item pickups) ----------------------------------------
 
 def test_loot_source():

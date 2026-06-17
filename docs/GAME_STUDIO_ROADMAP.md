@@ -1161,4 +1161,13 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   freeform composes while the keydoor preset still builds, 20/20 compose_health. Generate-only;
   deterministic. +7 tests. 1822 passed.
 
+- [x] **Enemy death-pop -- universal, zero-churn kill-moment juice (cycle 117).** The kill cousin of the
+  cycle-106 pickup pop. The `reward` behaviour (AutopilotReward) is the enemy's HP + death handler; now on
+  death it marks `dying`, plays a short Time-driven scale-up "pop" (popTime/popScale), THEN destroys -- so
+  a kill feels good. A pure SOURCE enrichment: the class is unchanged, so every game whose enemies carry
+  reward (arena/horde/twin_stick/time_survival/hold + escort + tower_defense + composer enemies) gets it
+  FREE with NO plan/structure change (grouped sets identical, studio_health 20/20). A `dying` guard grants
+  XP exactly once; the XP-on-death + destroy contract is preserved (existing reward assertions hold);
+  deterministic + decoupled. Boss death left as-is (HP bar + hitflash already). +1 test. 1823 passed.
+
 > Check items off in this file as they land. Add new items as discovered.
