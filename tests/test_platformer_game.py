@@ -64,14 +64,29 @@ def test_registered_in_catalog():
     assert plan_game("platformer", 3)["game"] == "platformer"
 
 
-def test_platformer_groups_to_two_unique_scripts():
+def test_platformer_groups_to_four_unique_scripts():
     grouped = group_execution_plan(plan_platformer_game(platform_count=4)["steps"])
-    # only player + goal are scripted; platforms are physics (tool steps, no recompile)
-    assert grouped["script_behaviours"] == ["player", "goal"]
-    assert len(grouped["attachments"]) == 2
+    # player + goal + the moving-hazard patrol + killzone; platforms are physics (no recompile)
+    assert set(grouped["script_behaviours"]) == {"player", "goal", "patrol", "killzone"}
     # the static_obstacle steps live in geometry (no recompile)
     solids = [g for g in grouped["geometry"] if g["tool"] == "unity_add_gameplay_behaviour"]
     assert len(solids) == 4
+
+
+def test_odd_platforms_carry_a_patrolling_killzone_hazard():
+    # cycle 107 depth: every OTHER platform (odd index) gets a moving hazard; the first is safe
+    plan = plan_platformer_game(platform_count=5)
+    # platforms 1 + 3 are guarded -> 2 hazards
+    assert plan["hazard_count"] == 2
+    haz = [s["script_behaviour"]["object"] for s in plan["steps"]
+           if s.get("script_behaviour", {}).get("behaviour") == "patrol"]
+    assert haz == ["Hazard_0", "Hazard_1"]
+    # each hazard both patrols (sweeps, stays in play) and kills on touch (respawn)
+    assert {s["script_behaviour"]["behaviour"] for s in plan["steps"]
+            if s.get("script_behaviour", {}).get("object") == "Hazard_0"} == {"patrol", "killzone"}
+    # the hazards are NOT platforms (the staircase + goal assertions are untouched)
+    assert not any(str(s.get("kwargs", {}).get("name", "")).startswith("Hazard_")
+                   and s.get("tool") == "unity_add_gameplay_behaviour" for s in plan["steps"])
 
 
 def test_intent_routes_to_platformer():

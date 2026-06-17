@@ -1329,3 +1329,18 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   collector_race's name-based count drops 0.12s later (after the pop) -- negligible. Docs: GAME_STUDIO_GAMES
   collectible behaviour row. Live-proved source(pop+immediate-score+ascii) + universal(3 games unchanged) +
   18/18 health. Generate-only; deterministic. +4 tests. -- tests: 1654 passed
+- [cycle 107] Platformer moving hazards -- DEPTH for the 4th (and weakest) type. The platformer was just
+  "climb a staircase to the goal" with NO threat; now every OTHER ledge (odd-indexed platforms; the first is
+  always safe) carries a moving HAZARD at player height (position_y = platform_y + 1.0). Each hazard reuses
+  `patrol` (the ping-pong mover -- it STAYS in play and sweeps across the ledge along x, unlike a
+  one-direction `mover` that drifts off) + `killzone` (touch -> respawn). Time your jump onto a guarded
+  platform for when the hazard is at the far end -- real danger, never a hard block (only respawns, so it
+  stays winnable). plan_platformer_game places a Hazard_j inside the platform loop for i % 2 == 1; records
+  hazard_count = floor(n/2). NO new C#. Low churn by design: hazards are SEPARATE Hazard_* objects, so the
+  staircase (test_platforms_climb), goal-on-top, clamp, structure, and seed tests hold untouched; the only
+  change is test_platformer_groups_to_two -> four (script set now {player, goal, patrol, killzone}). The
+  hazard count is fixed per platform_count, so the platformer's object count stays seed-INDEPENDENT (the
+  seed still only jitters platform x; verified across 4 seeds). studio_health 18/18; coherent (killzone has
+  no critique impact); anatomy now lists patrol+killzone. Docs: GAME_STUDIO + GAME_STUDIO_GAMES platformer
+  rows. Live-proved hazards(odd platforms, patrol+killzone, first safe) + 18/18 health + seed-independent
+  + intent + anatomy. Generate-only; deterministic. +1 test. -- tests: 1655 passed

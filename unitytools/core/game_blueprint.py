@@ -167,9 +167,15 @@ def plan_platformer_game(platform_count: int = 5, arena_size: float = 20.0) -> d
     steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
 
-    # 3) platforms: cubes climbing up-and-away, each a solid (static_obstacle) ledge
+    # 3) platforms: cubes climbing up-and-away, each a solid (static_obstacle) ledge. Every
+    #    OTHER platform (the odd ones, so the first is always safe) also carries a moving
+    #    HAZARD hovering at player height: a `patrol` (ping-pongs along x, so it stays in play
+    #    and sweeps across the ledge) + `killzone` (touch -> respawn). You must time your jump
+    #    onto a guarded platform for when the hazard is at the far end -- real platformer
+    #    danger, and never a hard block (it only respawns you). No new behaviour.
     top_y = 0.0
     top_z = 0.0
+    hazards = 0
     for i in range(n):
         py = 1.0 + i * step_y
         pz = (i + 1) * step_z
@@ -182,6 +188,12 @@ def plan_platformer_game(platform_count: int = 5, arena_size: float = 20.0) -> d
             "tool": "unity_add_gameplay_behaviour",
             "kwargs": {"object_name": f"Platform_{i}", "behaviour": "static_obstacle"},
         })
+        if i % 2 == 1:
+            steps.append({"tool": "unity_create_primitive",
+                          "kwargs": {"type": "Cube", "name": f"Hazard_{hazards}", "position_y": py + 1.0, "position_z": pz}})
+            steps.append({"script_behaviour": {"object": f"Hazard_{hazards}", "behaviour": "patrol"}})
+            steps.append({"script_behaviour": {"object": f"Hazard_{hazards}", "behaviour": "killzone"}})
+            hazards += 1
 
     # 4) goal sitting on top of the last (highest) platform
     steps.append({
@@ -193,8 +205,9 @@ def plan_platformer_game(platform_count: int = 5, arena_size: float = 20.0) -> d
     return {
         "ok": True,
         "game": "platformer",
-        "summary": f"Platformer: ground + WASD+jump player + {n} climbing platforms + goal on top ({len(steps)} steps).",
+        "summary": f"Platformer: ground + WASD+jump player + {n} climbing platforms ({hazards} with a patrolling hazard) + goal on top ({len(steps)} steps).",
         "platform_count": n,
+        "hazard_count": hazards,
         "steps": steps,
     }
 

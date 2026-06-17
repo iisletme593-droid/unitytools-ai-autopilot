@@ -1033,4 +1033,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   collectible-source assertions (OnTriggerEnter / CompareTag / Destroy / isTrigger / SendMessage AddScore /
   no hard score ref) are preserved, so nothing broke -- only the C# got richer. +4 tests. 1654 passed.
 
+- [x] **Platformer moving hazards -- depth for the 4th type (cycle 107).** The platformer was the weakest
+  type: just climb a staircase to the goal, NO threat. Now every OTHER ledge (the odd-indexed platforms; the
+  first is always safe) carries a moving HAZARD at player height -- a `patrol` (ping-pongs it along x, so it
+  STAYS in play and sweeps across the ledge, unlike a one-direction mover) + a `killzone` (touch ->
+  respawn). You must time your jump onto a guarded platform for when the hazard is at the far end -- real
+  platformer danger, and never a hard block (it only respawns you, so it stays winnable). No new C# (reuses
+  patrol + killzone). Low churn: the hazards are separate Hazard_* objects, so the staircase/goal/clamp/seed
+  assertions hold untouched; only the unique-scripts test changed (two -> four, +patrol/killzone). The
+  hazard count is fixed per platform_count (floor(n/2)), so the object count stays seed-INDEPENDENT (the
+  seed still only jitters platform x). studio_health stays 18/18; coherent (killzone has no critique
+  impact). +1 test. 1655 passed.
+
 > Check items off in this file as they land. Add new items as discovered.
