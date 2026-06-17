@@ -1313,3 +1313,19 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   known import/attach methods). Docs: GAME_STUDIO_GAMES tower_defense row + the blueprint docstring.
   Live-proved Spawner(horde) + 18/18 health + campaign + intent + anatomy. Generate-only; deterministic.
   +1 test. -- tests: 1650 passed
+- [cycle 106] Pickup pop -- a UNIVERSAL feel/juice upgrade on the collect moment, with ZERO churn. The
+  existing collectible behaviour (_COLLECTIBLE_TEMPLATE / AutopilotCollectible) in core/gameplay.py now
+  scores IMMEDIATELY on OnTriggerEnter (decoupled SendMessage, as before) then, instead of destroying
+  instantly, sets collected=true + a timer and in Update lerps transform.localScale from baseScale up to
+  popScale over popTime, then Destroy -- a satisfying scale-up "pop". Pure SOURCE enrichment: the behaviour
+  name/class is unchanged, so EVERY game that uses collectibles (collectathon, chase, collector_race + the
+  composer) gets the juice for free with NO plan/structure change -- verified the grouped
+  script/attachment sets are identical and the whole catalog stays 18/18 valid+playable+coherent. The
+  `collected` guard (if (!collected ...)) keeps the score firing exactly once even while the pop plays;
+  deterministic (only Time.deltaTime, no RNG); still fully decoupled (no AutopilotScore reference, no
+  GetComponent<AutopilotScore>). All existing collectible-source assertions are preserved (OnTriggerEnter /
+  CompareTag(Player) / Destroy(gameObject) / isTrigger / SendMessage AddScore / DontRequireReceiver / no
+  hard score ref), plus the global ASCII+balanced guard -- so nothing broke, the C# just got richer. Note:
+  collector_race's name-based count drops 0.12s later (after the pop) -- negligible. Docs: GAME_STUDIO_GAMES
+  collectible behaviour row. Live-proved source(pop+immediate-score+ascii) + universal(3 games unchanged) +
+  18/18 health. Generate-only; deterministic. +4 tests. -- tests: 1654 passed

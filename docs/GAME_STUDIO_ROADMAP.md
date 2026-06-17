@@ -1022,4 +1022,15 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   group intact, "only existing behaviours" still true since horde is one). studio_health stays 18/18, the
   td campaign + anatomy + showcase all stay clean. +1 test. 1650 passed.
 
+- [x] **Pickup pop -- universal collect-moment juice (cycle 106).** A second feel layer, but UNIVERSAL and
+  zero-churn: the existing `collectible` behaviour (AutopilotCollectible) now scores IMMEDIATELY on pickup
+  then plays a short scale-up "pop" (Time-driven `popTime`/`popScale`) before destroying itself -- a grab
+  finally feels good. It is a pure SOURCE enrichment: the behaviour name/class is unchanged, so every game
+  that uses collectibles (collectathon / chase / collector_race + the composer) gets the juice for free
+  with NO plan/structure change (verified the grouped script/attachment sets are identical and
+  studio_health stays 18/18). A `collected` guard keeps scoring exactly once even during the pop;
+  deterministic (only Time, no RNG); still fully decoupled (no AutopilotScore reference). All the existing
+  collectible-source assertions (OnTriggerEnter / CompareTag / Destroy / isTrigger / SendMessage AddScore /
+  no hard score ref) are preserved, so nothing broke -- only the C# got richer. +4 tests. 1654 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

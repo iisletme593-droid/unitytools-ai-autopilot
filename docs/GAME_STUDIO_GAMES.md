@@ -56,7 +56,7 @@ Give one object a behaviour with `unity_add_gameplay_behaviour(object, behaviour
 | `rotate` / `spin` / `spinner` | AutopilotRotator | Spins every frame |
 | `move` / `mover` | AutopilotMover | Translates every frame |
 | `player` / `controller` | AutopilotPlayerController | WASD movement + Space jump |
-| `collectible` | AutopilotCollectible | OnTriggerEnter(Player) → +1 score (SendMessage) then Destroy (pickup) |
+| `collectible` | AutopilotCollectible | OnTriggerEnter(Player) → +1 score (SendMessage) **immediately**, then a short scale-up **"pop"** (`popTime`/`popScale`, Time-driven) before Destroy — juice on the collect moment. A `collected` guard scores exactly once; deterministic, decoupled |
 | `goal` | AutopilotGoalZone | OnTriggerEnter(Player) → win flag |
 | `killzone` | AutopilotKillZone | OnTriggerEnter(Player) → respawn |
 | `spawner` | AutopilotSpawner | InvokeRepeating spawns physics cubes (waves) |
