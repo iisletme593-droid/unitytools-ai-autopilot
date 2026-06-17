@@ -276,6 +276,13 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         # "koru"/"koruma" -- those are stealth-guard composer words), so no theft.
         if has("escort", "eskort", "refakat", "vip", "escort mission", "refakat gorevi"):
             return "escort"
+        # boss fight: a single high-HP duel. MULTI-WORD phrases only -- a bare "boss"/"patron"
+        # is a very common SAVE NAME ("boss olarak kaydet", "kaydet boss"), so keying on
+        # phrases keeps detection from hijacking a save/load name. BEFORE arena so
+        # "boss arena" picks boss, not the "arena" term.
+        if has("boss fight", "boss arena", "boss rush", "boss savasi", "boss dovus", "boss oyunu",
+               "patron savasi", "patron dovus", "patron oyunu"):
+            return "boss"
         # runner: its terms ("kosu/kosma/endless") are distinct from every other type,
         # so an early return can't shadow anything (and "endless runner" is clear)
         if has("runner", "endless", "kosu oyunu", "kosma oyunu", "sonsuz kosu"):
@@ -618,7 +625,9 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "stealth", "gizlilik", "gizli gec", "sneak", "gizlilik oyunu",
             "puzzle", "bulmaca", "sokoban", "kutu itme", "puzzle oyunu",
             "king of the hill", "bolge tut", "bolge kontrol", "hold the zone", "zone control",
-            "escort", "eskort", "refakat", "vip", "escort oyunu", "refakat gorevi")
+            "escort", "eskort", "refakat", "vip", "escort oyunu", "refakat gorevi",
+            "boss fight", "boss arena", "boss rush", "boss savasi", "boss oyunu", "patron savasi",
+            "patron oyunu")
         or ((has("oyun", "game") and build_verb))
     )
     if wants_game:

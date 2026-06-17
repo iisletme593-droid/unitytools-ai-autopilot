@@ -1116,3 +1116,21 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   Live-proved source(ascii/balanced/decoupled) + blueprint(VIP-tagged-Player/untagged-Hero) + 15/15 health
   + escort campaign + intent + report line. Generate-only; deterministic (no Math.random). +38 tests.
   -- tests: 1365 passed
+- [cycle 94] Boss fight -- the 16th game type, the first sustained single-target DUEL (one tough foe, not
+  a swarm). New boss behaviour in core/gameplay.py (AutopilotBoss): a single high-HP enemy that chases +
+  melee-attacks the player (like the enemy AI) but with a big HP pool you whittle down; takes damage via
+  SendMessage("TakeDamage"); on death grants xpReward (SendMessage "AddXP") and DESTROYS itself so
+  gameover's clear-all-enemies WIN fires; draws an on-screen boss HP bar (OnGUI). plan_boss_game in
+  core/game_blueprint.py: an armed player (player+health+attack+ranged+score+xp) vs N bosses (tag Enemy,
+  default 1 = a clean duel, >1 = a boss rush). critique_design taught that a boss is a foe like enemy
+  (foes = enemy + boss), so a boss-only duel is coherent -- no false "attack with no enemies" / "ranged
+  with no enemies" / "manager has no win trigger" flags; fully backward compatible (boss-free dicts =
+  enemy behaviour unchanged, verified). boss added to INTERACTIVE_BEHAVIOURS + the "combat" drift category;
+  registered in BLUEPRINTS (16). studio_health + every campaign now audit 16/16 valid+playable+coherent.
+  Intent: keyed on MULTI-WORD phrases ONLY (boss fight / boss arena / boss rush / boss savasi / boss oyunu
+  / patron savasi / patron oyunu) because a bare "boss"/"patron" is a very common SAVE NAME -- so the
+  existing "boss olarak kaydet" / "kaydet boss" / "boss oyununu yukle" name+load tests stay green, and
+  "boss arena" is detected before the "arena" term (no shadowing). Docs: GAME_STUDIO Fifteen->Sixteen +
+  row; GAME_STUDIO_GAMES game-row + behaviour-row + NL lists. Live-proved source(ascii/balanced/decoupled)
+  + blueprint + 16/16 health + boss campaign + critique(foe-aware) + intent(no save-name theft) + report
+  line. Generate-only; deterministic (no Math.random). +38 tests. -- tests: 1403 passed

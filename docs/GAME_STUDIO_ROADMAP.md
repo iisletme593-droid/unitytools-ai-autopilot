@@ -880,5 +880,17 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   under "world" (drift guard); studio_health + every campaign now audit 15/15 clean. Intent routes
   escort/refakat/vip/eskort, kept distinct from the guard-composer word "koruma" (no theft). Docs
   Fourteen->Fifteen + game/behaviour rows + NL lists. +38 tests. 1365 passed.
+- [x] **Boss fight -- the 16th game type (cycle 94).** The first sustained single-target DUEL (one tough
+  foe, not a swarm). New `boss` behaviour (AutopilotBoss) -- a single high-HP enemy that chases +
+  melee-attacks the player, draws an on-screen boss HP bar, and on death grants big XP + DESTROYS itself
+  so gameover's clear-all-enemies WIN fires. `plan_boss_game`: an armed player (health + melee attack +
+  ranged so you can chip it at distance + score + xp) vs N bosses (tag Enemy). The design critique was
+  taught a `boss` is a foe like `enemy` (`foes = enemy + boss`), so a boss-only duel is coherent (no false
+  "attack with no enemies" / "no win trigger" flags) -- backward compatible with every enemy-based note.
+  boss added to INTERACTIVE_BEHAVIOURS + the "combat" drift category. studio_health + every campaign now
+  audit 16/16 clean. Intent routes on MULTI-WORD phrases only (boss fight / boss arena / patron savasi /
+  ...) because a bare "boss" is a very common SAVE NAME -- so "boss olarak kaydet" / "kaydet boss" keep
+  working untouched, and "boss arena" picks boss before the "arena" term. Docs Fifteen->Sixteen + rows.
+  +38 tests. 1403 passed.
 
 > Check items off in this file as they land. Add new items as discovered.

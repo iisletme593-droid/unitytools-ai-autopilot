@@ -16,7 +16,7 @@ from .game_blueprint import group_execution_plan, BLUEPRINTS, plan_game
 # not a game.
 INTERACTIVE_BEHAVIOURS = frozenset({
     "goal", "collectible", "killzone", "mover", "follow", "chase", "spawner", "patrol",
-    "enemy", "horde", "pushable", "holdzone",
+    "enemy", "horde", "pushable", "holdzone", "boss",
 })
 
 
@@ -62,24 +62,27 @@ def critique_design(behaviour_counts: dict[str, int]) -> list[str]:
     enemy, health, attack = c("enemy", 0), c("health", 0), c("attack", 0)
     timer, gameover, ranged = c("timer", 0), c("gameover", 0), c("ranged", 0)
     goal, holdzone = c("goal", 0), c("holdzone", 0)
+    # a "foe" is anything the player must defeat to win: the small `enemy` AI OR a high-HP
+    # `boss`. Counting both keeps the combat critique honest for a boss-only duel (no `enemy`).
+    foes = enemy + c("boss", 0)
     notes: list[str] = []
 
-    if enemy > 0 and health == 0:
+    if foes > 0 and health == 0:
         notes.append("enemies are present but nothing has health, so the player cannot be "
                      "defeated -- the fight has no lose condition")
-    if enemy > 0 and attack == 0 and ranged == 0 and goal == 0 and holdzone == 0:
+    if foes > 0 and attack == 0 and ranged == 0 and goal == 0 and holdzone == 0:
         # "no attack" is only a flaw when there is NO non-combat way to win; a goal to
         # reach or a zone to hold makes avoiding the enemies the intended play
         notes.append("the player faces enemies but has no attack, so they can only flee -- "
                      "combat is one-sided")
-    if attack > 0 and enemy == 0:
+    if attack > 0 and foes == 0:
         notes.append("the player can attack but there are no enemies to fight")
-    if ranged > 0 and enemy == 0:
+    if ranged > 0 and foes == 0:
         notes.append("a ranged attacker has no enemies in range to target")
-    if gameover > 0 and enemy == 0 and timer == 0 and goal == 0:
+    if gameover > 0 and foes == 0 and timer == 0 and goal == 0:
         notes.append("the win/lose manager has no WIN trigger (no enemies to clear, no "
                      "survival timer, no goal to reach) -- the game can only be lost")
-    if timer > 0 and (enemy == 0 or health == 0):
+    if timer > 0 and (foes == 0 or health == 0):
         notes.append("the countdown can be outlasted but there is no combat lose path -- the "
                      "game cannot actually be lost")
     return notes
@@ -214,7 +217,7 @@ _BEHAVIOUR_CATEGORIES: dict[str, list[str]] = {
     "control": ["player", "runner"],
     "movement": ["rotate", "move", "bob", "bounce", "patrol", "follow", "orbit", "wander"],
     "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle", "holdzone", "escort"],
-    "combat": ["health", "attack", "enemy", "ranged", "reward", "horde"],
+    "combat": ["health", "attack", "enemy", "ranged", "reward", "horde", "boss"],
     "progression": ["xp", "loot", "inventory", "score"],
     "game feel": ["title", "gameover", "sound", "timer"],
 }

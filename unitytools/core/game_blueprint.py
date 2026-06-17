@@ -834,6 +834,61 @@ def plan_escort_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str
     }
 
 
+def plan_boss_game(boss_count: int = 1, arena_size: float = 20.0) -> dict[str, Any]:
+    """Plan a boss fight -- the 16th type, and the first sustained single-target DUEL.
+
+    Unlike `arena`/`horde` (a swarm of weak enemies), this is one tough foe: a `boss`
+    (the new behaviour, AutopilotBoss -- a single high-HP enemy that chases + melee-attacks
+    the player, draws a boss HP bar, and on death grants big XP + destroys itself so
+    gameover's clear-all-enemies WIN fires). The player is fully armed (movement + health +
+    a melee `attack` + a `ranged` weapon so you can chip the boss at distance + score + xp).
+    WIN by defeating the boss; LOSE if it kills you (health Die -> PlayerDied). `boss_count`
+    is the number of bosses (default 1, a clean duel; >1 is a boss rush), tagged Enemy and
+    cleared to win. Same step schema; the seed jitters the boss placement.
+    """
+    n = max(1, min(int(boss_count), 10))
+    size = max(8.0, float(arena_size))
+    steps: list[dict[str, Any]] = []
+
+    # 1) ground
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
+
+    # 2) the armed player, off to one side: movement + health + melee + ranged + score + xp
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5, "position_z": -size / 3.0}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
+    for behaviour in ("player", "health", "attack", "ranged", "score", "xp"):
+        steps.append({"script_behaviour": {"object": "Player", "behaviour": behaviour}})
+
+    # 3) the boss(es): high-HP foes tagged Enemy, each running the boss behaviour. Placed
+    #    via place_primitives so the seed can jitter them (and a boss rush rings the arena).
+    steps.append({
+        "tool": "unity_place_primitives",
+        "kwargs": {
+            "type": "Cube",
+            "count": n,
+            "pattern": "circle",
+            "spacing": max(4.0, size / float(n)),
+            "name_prefix": "Boss",
+        },
+    })
+    for i in range(n):
+        steps.append({"tool": "unity_set_tag", "kwargs": {"name": f"Boss_{i}", "tag": "Enemy"}})
+        steps.append({"script_behaviour": {"object": f"Boss_{i}", "behaviour": "boss"}})
+
+    # 4) GameManager bookend: title + gameover (WIN clears the boss, LOSE on death) + sound
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
+    for behaviour in ("title", "gameover", "sound"):
+        steps.append({"script_behaviour": {"object": "GameManager", "behaviour": behaviour}})
+
+    return {
+        "ok": True,
+        "game": "boss",
+        "summary": f"Boss fight: ground + an armed player (health+attack+ranged+xp) vs {n} high-HP boss(es) with an HP bar -- defeat the boss to WIN, die to LOSE ({len(steps)} steps).",
+        "boss_count": n,
+        "steps": steps,
+    }
+
+
 def compose_custom_game(
     player: bool = True,
     enemy: int = 0,
@@ -1156,6 +1211,7 @@ BLUEPRINTS = {
     "puzzle": plan_puzzle_game,
     "hold": plan_hold_game,
     "escort": plan_escort_game,
+    "boss": plan_boss_game,
 }
 
 
