@@ -553,3 +553,117 @@ def build_game_anatomy(game_type: str = "collectathon", count: int = 4) -> str:
                  + (", ".join(scripts) if scripts else "(none)"))
     lines.append(f"3. attach -- {len(grouped['attachments'])} component(s) onto their target objects")
     return "\n".join(lines)
+
+
+def game_howto_from_plan(plan: dict[str, Any]) -> dict[str, list[str]]:
+    """Derive a PLAYER-FACING 'how to play' from a plan's behaviours: the controls, how to win,
+    what to watch out for, and how to lose. Reads ONLY the behaviour counts, so it works on ANY
+    plan -- a preset OR a freeform COMPOSED game (where there is no hand-written description).
+    Pure. Returns {controls, win, threats, lose}, each a list of plain-language strings.
+    """
+    counts = summarize_plan(plan)["behaviour_counts"]
+
+    def c(b: str) -> int:
+        return counts.get(b, 0)
+
+    controls: list[str] = []
+    if c("runner"):
+        controls.append("You auto-run forward -- A/D to switch lanes, Space to jump.")
+    elif c("player"):
+        controls.append("WASD to move, Space to jump.")
+    if c("ranged"):
+        controls.append("Ranged weapons auto-aim and fire at the nearest enemy.")
+    if c("attack"):
+        controls.append("You auto-strike enemies in melee range.")
+    if c("pushable"):
+        controls.append("Walk into a crate to push it.")
+    if not controls:
+        controls.append("WASD to move.")
+
+    win: list[str] = []
+    if c("collectrace"):
+        win.append("Collect every pickup before the countdown reaches zero.")
+    if c("puzzle"):
+        win.append("Push every crate onto a target pad.")
+    if c("holdzone"):
+        win.append("Stand in the zone and hold it until the meter fills.")
+    if c("escort"):
+        win.append("Guide the VIP safely to the goal.")
+    if c("goal") and not (c("escort") or c("collectrace")):
+        reach = "Reach the goal / exit"
+        if c("collectible"):
+            reach += " (grab the collectibles for score along the way)"
+        win.append(reach + ".")
+    if c("timer"):
+        win.append("Outlast the countdown timer.")
+    if (c("enemy") or c("boss") or c("horde")) and c("gameover") and not c("goal"):
+        win.append("Defeat every enemy (and the boss, if there is one).")
+    if not win:
+        if c("collectible") or c("score"):
+            win.append("It is endless -- go for the highest score / longest run.")
+        else:
+            win.append("Survive as long as you can.")
+
+    threats: list[str] = []
+    if c("enemy"):
+        threats.append("enemies that chase and attack you")
+    if c("boss"):
+        threats.append("a high-HP boss")
+    if c("horde"):
+        threats.append("escalating enemy waves")
+    if c("turret"):
+        threats.append("stationary turrets that shoot you")
+    if c("detector"):
+        threats.append("guards that catch you on sight")
+    if c("killzone"):
+        threats.append("deadly hazards that respawn you on touch")
+    if c("spawner"):
+        threats.append("spawners raining physics cubes")
+    if not threats:
+        threats.append("no direct threats -- just the challenge of the objective")
+
+    lose: list[str] = []
+    if c("health") and (c("enemy") or c("boss") or c("turret") or c("horde")):
+        lose.append("Your health runs out.")
+    if c("detector"):
+        lose.append("A guard spots you.")
+    if c("collectrace"):
+        lose.append("The countdown reaches zero before you have collected everything.")
+    if not lose:
+        lose.append("You cannot truly lose -- a hazard just respawns you, so keep trying.")
+
+    return {"controls": controls, "win": win, "threats": threats, "lose": lose}
+
+
+def build_game_howto(game_type: str = "collectathon", count: int = 4) -> str:
+    """A PLAYER-FACING 'how to play' card for one game type: controls, how to win, what to
+    watch out for, how to lose, and the prompt that builds it. Derived from the plan's
+    behaviours (game_howto_from_plan), so it is honest + drift-free and matches what the game
+    actually contains. Pure ASCII markdown. The player-facing counterpart to the (technical)
+    anatomy report.
+    """
+    gt = (game_type or "collectathon").strip().lower()
+    if gt not in BLUEPRINTS:
+        gt = "collectathon"
+    plan = plan_game(gt, count)
+    h = game_howto_from_plan(plan)
+    example, pitch = _GAME_EXAMPLES.get(gt, (f"{gt} oyunu kur", ""))
+
+    lines = [f"# How to play: `{gt}`", ""]
+    if pitch:
+        lines.append(pitch + ".")
+        lines.append("")
+    lines.append("## Controls")
+    lines += [f"- {x}" for x in h["controls"]]
+    lines.append("")
+    lines.append("## How to win")
+    lines += [f"- {x}" for x in h["win"]]
+    lines.append("")
+    lines.append("## Watch out for")
+    lines.append("- " + "; ".join(h["threats"]) + ".")
+    lines.append("")
+    lines.append("## How you lose")
+    lines += [f"- {x}" for x in h["lose"]]
+    lines.append("")
+    lines.append(f"Build it: say \"{example}\" (add 've uygula' to build it in the scene).")
+    return "\n".join(lines)

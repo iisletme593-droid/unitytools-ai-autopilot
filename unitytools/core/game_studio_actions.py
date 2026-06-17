@@ -614,6 +614,29 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "reason": f"game-anatomy intent -> {gt}",
         }
 
+    # Game how-to intent ("how do I PLAY one game"): a player-facing controls/objective card.
+    # Must beat the build intent ("arena oyunu nasil oynanir" has "arena"). Keyed on how-to-play
+    # phrases (distinct from anatomy's "yapisi" and assess's "oynanabilir mi"); needs a game
+    # context. NOTE this is checked BEFORE anatomy is moot since they key on different phrases.
+    howto_verb = has("nasil oynanir", "nasil oynaniyor", "nasil oynarim", "how to play",
+                     "how do i play", "how do you play", "oynanis nasil", "nasil oynanacak",
+                     "kontrolleri", "kontroller", "controls")
+    if howto_verb and (has("oyun", "game") or detect_game_type() != "collectathon"
+                       or has("collectathon", "toplama")):
+        gt = detect_game_type()
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_game_howto",
+                "kwargs": {"game_type": gt},
+                "write": False,
+                "note": f"how to play the {gt} game (controls + win + threats + lose; pure, no scene changes)",
+            }],
+            "safety_notes": ["read-only; no scene changes"],
+            "reason": f"game-howto intent -> {gt}",
+        }
+
     # Multi-level campaign intent: "X kampanyasi" / "3 seviyeli arena" -> an ordered
     # increasing-difficulty sequence of levels. Checked before the build/composer intents
     # so "arena kampanyasi" plans a campaign rather than building a single arena.

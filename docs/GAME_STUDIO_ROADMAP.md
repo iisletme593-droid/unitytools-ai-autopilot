@@ -1057,4 +1057,17 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   (it now HAS one) onto arena (which genuinely has no goal). Churn limited to the unique-scripts test.
   +1 test. 1656 passed.
 
+- [x] **Game how-to -- a player-facing 'how to play' card (cycle 109).** The 7th self-awareness surface,
+  and the first PLAYER-FACING one. New `game_howto_from_plan` derives, straight from a plan's behaviour
+  counts, the controls (WASD/jump/auto-aim/auto-melee/push), how to win (reach the goal / clear enemies /
+  hold the zone / push crates / collect before the clock / guide the VIP / outlast the timer / endless
+  score), what to watch out for (the threats: enemies/boss/turrets/guards/hazards/spawners/waves), and how
+  to lose (health out / spotted / time out). `build_game_howto(game_type)` renders the card. Because it
+  reads only the behaviours, it works on ANY plan -- a preset OR a freeform COMPOSED game (where there is NO
+  hand-written description), which is the real value: a how-to for a game nobody wrote a summary for.
+  Exposed as `unity_game_howto` + an intent ("X nasil oynanir / how to play X / X kontrolleri") that uses
+  `kontrolleri` as a token-PREFIX and is placed after assess + anatomy, before build -- verified it steals
+  none of build / anatomy / assess / showcase / campaign. The player-facing complement to the (technical)
+  anatomy. +38 tests. 1694 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

@@ -1361,3 +1361,21 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   Docs: GAME_STUDIO + GAME_STUDIO_GAMES survival rows. Live-proved goal+hazards + 18/18 health + campaign +
   intent + anatomy + seed-independent + variations-ascending. Generate-only; deterministic. +1 test.
   -- tests: 1656 passed
+- [cycle 109] Game how-to -- a PLAYER-FACING 'how to play' card (the 7th self-awareness surface, and the
+  first that addresses the PLAYER, not the builder). New game_howto_from_plan in core/game_qa.py derives,
+  purely from a plan's behaviour counts, four sections: CONTROLS (runner=auto-run/lanes/jump, else
+  WASD+jump; ranged=auto-aim; attack=auto-melee; pushable=walk-to-push), HOW TO WIN (collectrace->collect
+  before clock, puzzle->crates on pads, holdzone->hold the zone, escort->deliver VIP, goal->reach exit
+  [+mention collectibles], timer->outlast, enemy/boss/horde+gameover+no-goal->defeat all, else
+  endless/survive), WATCH OUT FOR (the threats: enemy/boss/horde/turret/detector/killzone/spawner), and HOW
+  YOU LOSE (health+foe->die, detector->spotted, collectrace->time out, else can't-truly-lose-respawn).
+  build_game_howto renders the markdown card. Because it reads ONLY behaviours, it works on ANY plan --
+  preset OR a freeform COMPOSED game (no hand-written summary), the real value (a how-to for a game nobody
+  documented). Exposed as unity_game_howto(game_type) (tools/unity_tools.py) + an intent in
+  core/game_studio_actions.py keyed on how-to phrases ('nasil oynanir / how to play / kontrolleri /
+  controls'); 'kontrolleri' is a token-PREFIX so 'oyunu kontrolleri' (possessive) matches; placed after
+  assess + anatomy, before campaign/composer/build, gated on a game context. Verified it steals NONE of
+  build, anatomy, assess, showcase, campaign, or the composer. The player-facing complement to the
+  (technical) anatomy. Live-proved 18/18 howtos(ascii+derived) + win-matches-the-game(parametrized) +
+  composed-game support + intent(no theft). Docs: GAME_STUDIO intent table + GAME_STUDIO_GAMES catalog
+  section. Generate-only; deterministic. +38 tests. -- tests: 1694 passed

@@ -184,6 +184,13 @@ so the showcase doubles as a regression guard for the whole NL-intent layer -- b
 and it (and its test) go red. Pure; routed by intent — "örnek oyunlar", "örnek göster", "show me examples",
 "game examples". The pure function is `core/game_qa.build_game_showcase`.
 
+`unity_game_howto(game_type)` is the **player-facing** card: the controls (WASD/jump/auto-aim/...), how to
+win, what to watch out for (the threats), and how to lose -- all DERIVED from the game's actual behaviours
+(`core/game_qa.game_howto_from_plan`), so it matches what the game contains and never drifts. Crucially it
+works on a freeform **composed** game too (where there is no hand-written description). Routed by intent --
+"arena oyunu nasıl oynanır", "how to play the X game", "X kontrolleri". The pure function is
+`core/game_qa.build_game_howto`.
+
 `unity_game_anatomy(game_type)` zooms IN on a single game type: its size (object + unique-script counts),
 its behaviours grouped by category (control / movement / world / combat / progression / game feel /
 physics), the build phases (geometry -> import each unique script once -> attach), the playability verdict
