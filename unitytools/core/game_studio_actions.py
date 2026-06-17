@@ -706,7 +706,7 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     has_elements = bool(spec["enemy"] or spec["collectible"] or spec["hazard"]
                         or spec["timer"] or spec["goal"] or spec["spawner"] or spec["ranged"]
                         or spec["guard"] or spec["crate"] or spec["moving_hazard"] or spec["turret"]
-                        or spec["deadline"])
+                        or spec["deadline"] or spec["key"])
     custom_framing = has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun",
                          "kendi oyun", "kendi oyunu", "karisik oyun", "kendine gore oyun")
     keywordless_custom = (build_verb and has_elements
@@ -1385,6 +1385,7 @@ _SPEC_ELEMENT_WORDS = {
     "guard": ("muhafiz", "guard", "nobetci", "koruma", "bekci"),
     "crate": ("kutu", "crate", "sandik", "kasa"),
     "turret": ("taret", "turret"),
+    "key": ("anahtar", "key"),
 }
 # presence-only flags (no count) -> the compose_custom_game bool arg
 _SPEC_FLAG_WORDS = {
@@ -1487,6 +1488,7 @@ _COMPOSER_COUPLINGS = [
     ("timer", "the manager runs a countdown -> outlast the clock to win"),
     ("deadline", "a goal is auto-added (the WIN) + the manager runs a LOSING countdown (the LOSE) -- reach the goal before time runs out"),
     ("player_flash", "the player gains hit-flash juice -- it flashes red when damaged (visible when there are enemies/turrets to hit it)"),
+    ("key", "keys + a LOCKED exit door (lockgoal) that opens once every key is collected -- a key-and-door game; the locked door replaces the plain goal"),
 ]
 
 

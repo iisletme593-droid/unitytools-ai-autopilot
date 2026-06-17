@@ -1469,3 +1469,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   steals NEITHER the GAME catalog ("hangi oyunlar") NOR the COMPOSER-ELEMENT report ("hangi ogeler") nor a
   build. Live-proved 39/39 documented, classes + used-by derived, intent routes (no theft). Docs:
   GAME_STUDIO intent table. Generate-only; deterministic. +13 tests. -- tests: 1815 passed
+- [cycle 116] Composer gains a `key` element -- the cycle-114 keydoor mechanic, now freeform.
+  compose_custom_game(key=N) turns any mix into a key-and-door game: N keys (`collectible`s named Key_*)
+  + a LOCKED exit Door (`lockgoal`, reusing cycle-114's behaviour) that counts the Key_* by name and opens
+  only once they are all gathered, then reaching it WINS. The locked door REPLACES the plain goal: the
+  goal-implying couplings (guards / turrets / deadline) stand down when key>0, so they route you to the
+  LOCKED exit instead of a free one -- e.g. key+deadline = collect the keys and reach the exit before the
+  clock (no separate goal). Keys also add a score HUD + a gameover manager. The NL parser learns `key`
+  ("anahtar"/"key") as a counted element; both compose tools + _COMPOSER_COUPLINGS + the composer report
+  carry it; compose_health grew to 20 cases ({key}, {key,hazard}, {key,guard}), all valid+playable+
+  coherent. The cycle-110/114 how-to deriver already reads lockgoal, so a composed key game self-documents
+  ("collect every key to unlock the exit, then reach it"). Live-proved coherent + playable + has_goal (via
+  lockgoal), key+deadline replaces the plain goal, freeform "3 anahtar" composes while the keydoor PRESET
+  still builds, 20/20 compose_health. Generate-only; deterministic. +7 tests. -- tests: 1822 passed

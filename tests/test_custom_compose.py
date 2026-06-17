@@ -86,7 +86,7 @@ def test_parse_counts_and_flags():
     assert spec == {"player": True, "enemy": 5, "collectible": 3, "hazard": 0,
                     "goal": False, "timer": True, "spawner": 0, "ranged": False, "guard": 0,
                     "crate": 0, "moving_hazard": 0, "turret": 0, "deadline": False,
-                    "player_flash": False}
+                    "player_flash": False, "key": 0}
 
 
 def test_parse_number_words_and_goal():
@@ -475,3 +475,66 @@ def test_compose_player_flash_tool_plumbs_the_flag():
     out = tool.fn(enemy=3, player_flash=True)
     assert out["ok"] is True and out["spec"]["player_flash"] is True
     assert out["assessment"]["playable"] is True
+
+
+# --- cycle 116: the key element (keydoor mechanic, freeform) ------------------
+
+def test_compose_keys_make_a_key_and_door_game():
+    plan = compose_custom_game(player=True, key=3)
+    # N keys (collectibles named Key_*) + a LOCKED Door (lockgoal) + score + a gameover manager
+    keys = [s["script_behaviour"]["object"] for s in plan["steps"]
+            if s.get("script_behaviour", {}).get("behaviour") == "collectible"]
+    assert keys == [f"Key_{i}" for i in range(3)]
+    assert _beh_of(plan, "Door") == {"lockgoal"}
+    assert "score" in _beh_of(plan, "Player")
+    assert "gameover" in _beh_of(plan, "GameManager")
+    assert plan["spec"]["key"] == 3
+    # no plain Goal object -- the locked door IS the exit
+    assert _beh_of(plan, "Goal") == set()
+
+
+def test_compose_key_game_is_coherent_valid_playable_deterministic():
+    plan = compose_custom_game(player=True, key=3, hazard=2, seed="lock")
+    assert validate_plan(plan)["ok"] is True
+    r = assess_game_readiness(plan)
+    assert r["playable"] is True and r["has_goal"] is True       # lockgoal counts as the exit
+    assert r["design_notes"] == []                               # lockgoal is a real WIN trigger
+    assert plan == compose_custom_game(player=True, key=3, hazard=2, seed="lock")
+
+
+def test_compose_key_replaces_the_plain_goal_even_with_a_deadline():
+    # a deadline normally auto-adds a plain goal; with keys, the LOCKED door is the exit instead
+    plan = compose_custom_game(player=True, key=2, deadline=True)
+    assert _beh_of(plan, "Door") == {"lockgoal"}
+    assert _beh_of(plan, "Goal") == set()
+    assert "deadline" in _beh_of(plan, "GameManager")            # reach the locked exit before the clock
+    assert assess_game_readiness(plan)["design_notes"] == []
+
+
+def test_compose_key_count_clamped():
+    assert compose_custom_game(key=99)["spec"]["key"] == 30
+
+
+def test_parse_recognizes_key():
+    spec = parse_custom_spec("ozel oyun 3 anahtar olsun")
+    assert spec["key"] == 3
+    assert parse_custom_spec("custom game with 2 keys")["key"] == 2
+
+
+def test_key_routes_keywordless_to_composer_without_stealing_the_keydoor_preset():
+    def route(p):
+        s = plan_unity_fast_action(p)["steps"][0]
+        return (s["tool"], s["kwargs"].get("game_type"), s["kwargs"].get("key"))
+    # a freeform key count composes a custom game with the key element...
+    tool, _gt, k = route("3 anahtar olan oyun yap")
+    assert tool == "unity_compose_game" and k == 3
+    # ...but the keydoor PRESET phrases still build the keydoor blueprint
+    assert route("anahtarli kapi oyunu kur")[:2] == ("unity_build_simple_game", "keydoor")
+    assert route("keydoor oyunu kur")[:2] == ("unity_build_simple_game", "keydoor")
+
+
+def test_compose_key_tool_plumbs_the_element():
+    tool = {t.name: t for t in get_all_tools()}.get("unity_compose_game")
+    out = tool.fn(key=3, hazard=2)
+    assert out["ok"] is True and out["spec"]["key"] == 3
+    assert out["assessment"]["playable"] is True and out["assessment"]["design_notes"] == []

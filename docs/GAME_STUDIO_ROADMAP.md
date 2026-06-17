@@ -1149,4 +1149,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   the composer report nor a build. Live-proved 39/39 documented + derived columns + intent (no theft).
   Generate-only; deterministic. +13 tests. 1815 passed.
 
+- [x] **Composer gains a `key` element -- the keydoor mechanic, now freeform (cycle 116).**
+  `compose_custom_game(key=N)` turns any mix into a key-and-door game: N keys (`collectible`s named
+  Key_*) + a LOCKED exit Door (`lockgoal`, reusing cycle-114) that opens once every key is collected, then
+  reaching it WINS. The locked door REPLACES the plain goal: the goal-implying couplings (guards / turrets
+  / deadline) stand down when key>0, routing you to the locked exit instead of a free one (key+deadline =
+  collect the keys and reach the exit before the clock). Keys add a score HUD + a gameover manager. NL
+  parser learns `key` ("anahtar"/"key"); both compose tools + couplings + report carry it; compose_health
+  grew to 20 cases, all clean. The how-to deriver already reads lockgoal, so a composed key game
+  self-documents. Live-proved coherent + playable + has_goal, key+deadline replaces the plain goal,
+  freeform composes while the keydoor preset still builds, 20/20 compose_health. Generate-only;
+  deterministic. +7 tests. 1822 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

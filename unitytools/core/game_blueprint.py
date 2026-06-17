@@ -1205,6 +1205,7 @@ def compose_custom_game(
     turret: int = 0,
     deadline: bool = False,
     player_flash: bool = False,
+    key: int = 0,
     arena_size: float = 20.0,
     seed: object = None,
 ) -> dict[str, Any]:
@@ -1239,7 +1240,12 @@ def compose_custom_game(
       - if player_flash=True, the player gains `hitflash` (juice): its renderer flashes red
         when it takes damage. Purely cosmetic + decoupled (it only reacts to TakeDamage), so
         it is visible feedback when there is a damage source (enemies / turrets) and a
-        harmless no-op otherwise.
+        harmless no-op otherwise;
+      - if key>0, it becomes a KEY-AND-DOOR game (the keydoor preset's mechanic, freeform): N
+        keys (`collectible`s named Key_*) + a LOCKED exit Door (`lockgoal`) that counts the
+        Key_* by name and opens only once they are all gathered, then reaching it WINS. The
+        locked door REPLACES the plain goal (so guards/turrets/deadline route you to the locked
+        exit instead of a free one) and adds a score HUD + a gameover manager.
     Pure + deterministic; same step schema as the blueprints, so it validates, assesses
     and persists exactly like them. Counts are clamped to [0, 30].
     """
@@ -1251,14 +1257,19 @@ def compose_custom_game(
     crate = max(0, min(int(crate), 20))
     moving_hazard = max(0, min(int(moving_hazard), 30))
     turret = max(0, min(int(turret), 30))
+    key = max(0, min(int(key), 30))
+    # keys turn this into a key-and-door game: the EXIT is a LOCKED door (it opens once every
+    # key is collected). It replaces the plain goal, so the goal-implying couplings below stand
+    # down -- guards/turrets/deadline route you to the locked exit, not a free one.
+    wants_locked_exit = key > 0
     # stealth guards need a goal to slip through to, so there is a real win condition;
     # add one if the user didn't ask for it (mirrors enemy -> health+attack coupling).
     # turrets are the same: an unkillable ranged threat you DODGE to the goal, so they imply one.
-    if (guard > 0 or turret > 0) and not goal:
+    if (guard > 0 or turret > 0) and not goal and not wants_locked_exit:
         goal = True
     # a deadline is a LOSING countdown, so it needs a WIN path: it implies a goal to reach
     # before the clock runs out (mirrors the speedrun preset; the deadline is the LOSE).
-    if deadline and not goal:
+    if deadline and not goal and not wants_locked_exit:
         goal = True
     size = max(6.0, float(arena_size))
     steps: list[dict[str, Any]] = []
@@ -1277,8 +1288,8 @@ def compose_custom_game(
             player_behaviours.append("health")                   # turrets can kill you -> need HP to lose
         if ranged:
             player_behaviours.append("ranged")                   # a long-range weapon too
-        if collectible > 0 or enemy > 0:
-            player_behaviours.append("score")                    # a HUD to read
+        if collectible > 0 or enemy > 0 or key > 0:
+            player_behaviours.append("score")                    # a HUD to read (keys score too)
         if player_flash:
             player_behaviours.append("hitflash")                 # flash red when the player is hit (juice)
         for behaviour in player_behaviours:
@@ -1301,6 +1312,15 @@ def compose_custom_game(
             "spacing": max(2.0, size / (2.0 * float(collectible))), "name_prefix": "Collectible"}})
         for i in range(collectible):
             steps.append({"script_behaviour": {"object": f"Collectible_{i}", "behaviour": "collectible"}})
+
+    # 4b) keys: collectibles named Key_* -- the locked exit (below) counts them by name and
+    #     unlocks once they are all gathered (a key-and-door gate, freeform)
+    if key:
+        steps.append({"tool": "unity_place_primitives", "kwargs": {
+            "type": "Sphere", "count": key, "pattern": "scatter",
+            "spacing": max(2.0, size / (2.0 * float(key))), "name_prefix": "Key"}})
+        for i in range(key):
+            steps.append({"script_behaviour": {"object": f"Key_{i}", "behaviour": "collectible"}})
 
     # 5) hazards: killzone cubes (touch -> respawn the player)
     if hazard:
@@ -1361,18 +1381,23 @@ def compose_custom_game(
         for i in range(turret):
             steps.append({"script_behaviour": {"object": f"Turret_{i}", "behaviour": "turret"}})
 
-    # 6) an optional goal zone (auto-added above when there are guards or turrets)
-    if goal:
+    # 6) the exit: a LOCKED door (key-and-door) if there are keys, else an optional plain goal
+    #    zone (auto-added above when there are guards or turrets). The locked door is the WIN
+    #    once every key is collected; the plain goal is a free WIN on reach.
+    if wants_locked_exit:
+        steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Door", "position_y": 0.5, "position_z": size / 2.0}})
+        steps.append({"script_behaviour": {"object": "Door", "behaviour": "lockgoal"}})
+    elif goal:
         steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_y": 0.5, "position_z": size / 2.0}})
         steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
 
     # 7) a GameManager when there is anything to win or lose. `gameover` lands the
-    #    enemy/guard/timer win-lose signals; `puzzle` lands the sokoban win; `timer`
+    #    enemy/guard/timer/lockgoal win-lose signals; `puzzle` lands the sokoban win; `timer`
     #    runs the countdown. title + sound give it feel.
-    if enemy or timer or guard or crate or turret or deadline:
+    if enemy or timer or guard or crate or turret or deadline or key:
         steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "GameManager", "position_y": -10.0}})
         manager = ["title", "sound"]
-        if enemy or timer or guard or turret or deadline:
+        if enemy or timer or guard or turret or deadline or key:
             manager.append("gameover")
         if timer:
             manager.append("timer")                              # outlast the clock -> WIN (Survived)
@@ -1387,17 +1412,19 @@ def compose_custom_game(
             "hazard": hazard, "goal": bool(goal), "timer": bool(timer),
             "spawner": spawner, "ranged": bool(ranged), "guard": guard, "crate": crate,
             "moving_hazard": moving_hazard, "turret": turret, "deadline": bool(deadline),
-            "player_flash": bool(player_flash)}
+            "player_flash": bool(player_flash), "key": key}
     parts = []
     if player:
         parts.append("a ranged player" if ranged else "a player")
     for label, c in (("enemies", enemy), ("collectibles", collectible),
-                     ("hazards", hazard), ("moving hazards", moving_hazard),
+                     ("keys", key), ("hazards", hazard), ("moving hazards", moving_hazard),
                      ("wave spawners", spawner), ("stealth guards", guard),
                      ("pushable crates", crate), ("turrets", turret)):
         if c:
             parts.append(f"{c} {label}")
-    if goal:
+    if wants_locked_exit:
+        parts.append("a locked exit")
+    elif goal:
         parts.append("a goal")
     if timer:
         parts.append("a countdown")
@@ -1413,7 +1440,7 @@ def compose_custom_game(
     # an optional seed jitters the placed-element layout (deterministic), reusing the
     # same machinery the blueprints use; seed=None is a no-op (the plain plan)
     return _apply_seed(plan, "custom",
-                       enemy + collectible + hazard + spawner + guard + crate + moving_hazard + turret, seed)
+                       enemy + collectible + hazard + spawner + guard + crate + moving_hazard + turret + key, seed)
 
 
 # Decorative (non-gameplay) scripted behaviours that give a scene "juice".

@@ -1251,15 +1251,15 @@ def unity_compose_game(player: bool = True, enemy: int = 0, collectible: int = 0
                        hazard: int = 0, goal: bool = False, timer: bool = False,
                        spawner: int = 0, ranged: bool = False, guard: int = 0,
                        crate: int = 0, moving_hazard: int = 0, turret: int = 0,
-                       deadline: bool = False, player_flash: bool = False, seed: str = "",
-                       execute: bool = False) -> dict:
+                       deadline: bool = False, player_flash: bool = False, key: int = 0,
+                       seed: str = "", execute: bool = False) -> dict:
     from ..core.game_blueprint import compose_custom_game
     from ..core.game_qa import assess_game_readiness
     plan = compose_custom_game(player=player, enemy=enemy, collectible=collectible,
                                hazard=hazard, goal=goal, timer=timer, spawner=spawner,
                                ranged=ranged, guard=guard, crate=crate,
                                moving_hazard=moving_hazard, turret=turret, deadline=deadline,
-                               player_flash=player_flash, seed=seed or None)
+                               player_flash=player_flash, key=key, seed=seed or None)
     if not execute:
         return {
             "ok": True,
@@ -1433,14 +1433,14 @@ def unity_save_composed_game(name: str = "", player: bool = True, enemy: int = 0
                              timer: bool = False, spawner: int = 0, ranged: bool = False,
                              guard: int = 0, crate: int = 0, moving_hazard: int = 0,
                              turret: int = 0, deadline: bool = False,
-                             player_flash: bool = False, seed: str = "") -> dict:
+                             player_flash: bool = False, key: int = 0, seed: str = "") -> dict:
     from ..core.game_blueprint import compose_custom_game
     from ..core.game_io import save_plan_to_file
     plan = compose_custom_game(player=player, enemy=enemy, collectible=collectible,
                                hazard=hazard, goal=goal, timer=timer, spawner=spawner,
                                ranged=ranged, guard=guard, crate=crate,
                                moving_hazard=moving_hazard, turret=turret, deadline=deadline,
-                               player_flash=player_flash, seed=seed or None)
+                               player_flash=player_flash, key=key, seed=seed or None)
     try:
         return save_plan_to_file(plan, name or "custom")
     except (ValueError, OSError) as e:

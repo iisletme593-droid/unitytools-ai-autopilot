@@ -291,6 +291,7 @@ _COMPOSE_HEALTH_SPECS = [
     {"turret": 4}, {"turret": 3, "collectible": 3},
     {"deadline": True}, {"deadline": True, "hazard": 3, "collectible": 3},
     {"enemy": 3, "player_flash": True},
+    {"key": 3}, {"key": 3, "hazard": 3}, {"key": 2, "guard": 2},
 ]
 
 
