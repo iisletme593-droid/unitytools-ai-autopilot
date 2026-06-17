@@ -681,3 +681,84 @@ def build_game_howto(game_type: str = "collectathon", count: int = 4) -> str:
     lines.append("")
     lines.append(f"Build it: say \"{example}\" (add 've uygula' to build it in the scene).")
     return "\n".join(lines)
+
+
+# One-line, plain-language purpose per CANONICAL scripted behaviour. Curated prose, but the
+# KEY SET is drift-guarded against _BEHAVIOUR_CATEGORIES (test_behaviour_reference): add a
+# behaviour + categorize it and this map must gain an entry too, or the test fails -- so the
+# glossary can never silently omit a building block. Class names + which games use each are
+# derived live (not duplicated here), so only the wording is hand-written.
+_BEHAVIOUR_PURPOSES: dict[str, str] = {
+    # control
+    "player": "WASD + jump avatar the user drives (tagged Player).",
+    "runner": "auto-runs forward; A/D strafe, Space jump -- the endless-runner controller.",
+    # movement
+    "rotate": "spins the object on an axis at a steady rate (decor / spinner).",
+    "move": "glides the object along an axis at a set speed.",
+    "bob": "bobs the object up and down on a sine wave (decor juice).",
+    "bounce": "bounces the object with a springy vertical hop.",
+    "patrol": "walks back and forth between two points (a moving guard / hazard).",
+    "follow": "homes in on the Player each frame (a chaser).",
+    "orbit": "circles a point at a fixed radius (decor / satellite motion).",
+    "wander": "drifts in lazy, deterministic pseudo-random arcs (ambient life).",
+    # world
+    "collectible": "a pickup: on touch it scores, pops, and destroys itself.",
+    "goal": "a trigger win zone: entering it SendMessages ReachedGoal (the WIN).",
+    "killzone": "a deadly trigger: touching it respawns the Player (a setback).",
+    "spawner": "rains physics-cube hazards on a timer (survival-style waves).",
+    "detector": "a guard's line of sight: seeing the Player SendMessages PlayerDied (caught -> LOSE).",
+    "pushable": "a sokoban crate: the Player shoves it one notch away on contact.",
+    "puzzle": "the sokoban manager: WIN once every crate sits on a target.",
+    "holdzone": "a king-of-the-hill zone: stand in it to fill a meter and WIN.",
+    "escort": "a VIP that walks itself to the goal (you protect it -- it is the win condition).",
+    "lockgoal": "a locked exit: opens once every Key_* is collected, then reaching it WINS.",
+    # combat
+    "health": "an HP pool: TakeDamage hurts it, zero HP SendMessages PlayerDied (LOSE).",
+    "attack": "auto-melee: damages enemies that come within range, on a cooldown.",
+    "enemy": "chases the Player and melee-attacks it; killable, tagged Enemy.",
+    "ranged": "an auto-aim gun: fires at the nearest enemy at range.",
+    "reward": "grants XP/score to the killer when this object dies (a bounty).",
+    "horde": "a wave spawner of escalating Enemy-tagged foes (survival-brawler pressure).",
+    "boss": "a single high-HP foe with an on-screen HP bar; a sustained duel.",
+    "turret": "a stationary gun that shoots the Player on a cooldown (dodge it, do not kill it).",
+    # progression
+    "xp": "experience + leveling: gain XP, level up at thresholds (a HUD readout).",
+    "loot": "drops a collectible item on death (gather-and-grab progression).",
+    "inventory": "tracks collected items in a small on-screen bag.",
+    "score": "the score HUD: AddScore bumps it; the running total is drawn.",
+    # game feel
+    "title": "a start screen: pauses the game until the player begins.",
+    "gameover": "the win/lose manager + end screen (reacts to ReachedGoal / Survived / PlayerDied).",
+    "sound": "a decoupled audio cue player: PlayCue beeps at a given pitch.",
+    "timer": "a WINNING countdown: at zero it SendMessages Survived (outlast the clock).",
+    "deadline": "a LOSING countdown: at zero it SendMessages PlayerDied (the mirror of timer).",
+    "collectrace": "the collector-race manager: WIN on all collected, LOSE if the clock runs out first.",
+    "hitflash": "juice: the renderer flashes red on TakeDamage, then fades back.",
+}
+
+
+def build_behaviour_reference() -> str:
+    """A CODE-DERIVED glossary of every scripted gameplay behaviour -- the building-block
+    counterpart to the game-level surfaces (catalog / showcase / anatomy / how-to). For each
+    canonical behaviour, grouped by category, it gives the generated MonoBehaviour CLASS (read
+    live from _SCRIPT_TEMPLATES), a one-line purpose (_BEHAVIOUR_PURPOSES), and which game types
+    use it (code-derived via _games_with_behaviour). Pure ASCII markdown; reads only. Because
+    the class + used-by columns are derived, only the wording can age -- and the key set is
+    drift-guarded against the category list, so no behaviour can be silently omitted.
+    """
+    from .gameplay import _SCRIPT_TEMPLATES
+    lines = ["# Gameplay Behaviour Reference", ""]
+    total = sum(len(behs) for behs in _BEHAVIOUR_CATEGORIES.values())
+    lines.append(f"The {total} scripted building blocks every game is composed from. Class names and "
+                 "the \"used by\" games are code-derived, so this never drifts.")
+    lines.append("")
+    for category, behs in _BEHAVIOUR_CATEGORIES.items():
+        lines.append(f"## {category}")
+        for b in behs:
+            cls = _SCRIPT_TEMPLATES[b][0] if b in _SCRIPT_TEMPLATES else "?"
+            purpose = _BEHAVIOUR_PURPOSES.get(b, "")
+            used = _games_with_behaviour(b)
+            tail = f" [used by: {', '.join(used)}]" if used else " [decor / composer only]"
+            lines.append(f"- **{b}** (`{cls}`) -- {purpose}{tail}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"

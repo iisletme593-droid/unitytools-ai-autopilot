@@ -560,6 +560,27 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "reason": "game-showcase intent -> unity_game_showcase",
         }
 
+    # Behaviour-reference intent ("what building blocks are there?") -> the code-derived
+    # glossary of every scripted behaviour. Keyed on behaviour-scoped phrases (distinct from
+    # the game catalog's "hangi oyunlar" and the composer report's "hangi ogeler"), so it can
+    # never be confused with the GAME catalog or the COMPOSER-ELEMENT report.
+    if has("davranis sozlugu", "davranis referansi", "davranis listesi", "davranis katalogu",
+           "hangi davranislar", "davranislar neler", "tum davranislar", "behaviour reference",
+           "behavior reference", "behaviour glossary", "behavior glossary", "behaviour list",
+           "behavior list", "what behaviours", "what behaviors", "list behaviours", "list behaviors"):
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_behaviour_reference",
+                "kwargs": {},
+                "write": False,
+                "note": "code-derived behaviour glossary: every building block + class + purpose + which games use it (pure, no scene changes)",
+            }],
+            "safety_notes": ["read-only; no scene changes"],
+            "reason": "behaviour-reference intent -> unity_behaviour_reference",
+        }
+
     # Game-catalog intent ("what games can you make?") — must be specific enough
     # that bare "katalog"/"catalog" (the SCENE catalog) is not stolen, so it keys
     # on game-scoped phrases only.

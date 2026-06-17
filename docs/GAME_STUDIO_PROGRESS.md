@@ -1455,3 +1455,17 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   stealing collectathon or the composer goal flag. Docs: GAME_STUDIO (Twenty + table row), GAME_STUDIO_
   GAMES (game row + lockgoal behaviour row + NL list). Generate-only; deterministic. +47 tests.
   -- tests: 1802 passed
+- [cycle 115] Behaviour reference -- the 8th self-awareness surface, the first at BEHAVIOUR
+  granularity. The studio could describe its GAMES (catalog/showcase/anatomy/howto) and its COMPOSER
+  ELEMENTS (composer-report), but never its building BLOCKS. New build_behaviour_reference(): for every
+  canonical scripted behaviour, grouped by category, it gives the generated MonoBehaviour CLASS (read live
+  from _SCRIPT_TEMPLATES), a one-line purpose (_BEHAVIOUR_PURPOSES, 39 curated entries), and which game
+  types use it (code-derived via _games_with_behaviour). The class + used-by columns are derived so they
+  never drift; the purpose KEY SET is drift-guarded against the category list (a new behaviour must gain a
+  purpose or the test fails), so no block is silently omitted. I chose this honest, factual reference over
+  a difficulty/balance heuristic (which would invite debatable, embarrassing rankings -- against the
+  project's honesty bar). Exposed as unity_behaviour_reference + an intent ("davranis sozlugu / hangi
+  davranislar / behaviour reference / list behaviours") keyed on behaviour-scoped phrases, verified it
+  steals NEITHER the GAME catalog ("hangi oyunlar") NOR the COMPOSER-ELEMENT report ("hangi ogeler") nor a
+  build. Live-proved 39/39 documented, classes + used-by derived, intent routes (no theft). Docs:
+  GAME_STUDIO intent table. Generate-only; deterministic. +13 tests. -- tests: 1815 passed

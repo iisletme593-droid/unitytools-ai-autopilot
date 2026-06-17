@@ -56,6 +56,7 @@ The deterministic fast-path (`plan_unity_fast_action`) routes plain commands to 
 | "studio raporu", "yeteneklerin", "capabilities", "what can you do" | `unity_studio_report` |
 | "studio sağlığı", "sağlık denetimi", "studio health", "her şey yolunda mı" | `unity_studio_health` |
 | "composer raporu", "ne tarif edebilirim", "what can i compose", "hangi öğeler" | `unity_composer_report` |
+| "davranış sözlüğü", "hangi davranışlar var", "behaviour reference", "list behaviours" | `unity_behaviour_reference` |
 | "sahneyi canlandır", "animate the scene" | `unity_animate_group` |
 | "dodge oyununu boss olarak kaydet", "save as X" | `unity_save_game` |
 | "boss oyununu yükle", "load X" / "kayıtlı oyunlar" | `unity_load_game` / `unity_list_saved_games` |

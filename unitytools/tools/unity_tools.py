@@ -1394,6 +1394,13 @@ def unity_game_howto(game_type: str = "collectathon", count: int = 4) -> dict:
     return {"ok": True, "game_type": gt, "howto": build_game_howto(gt, count)}
 
 
+@tool(description="The studio's BEHAVIOUR GLOSSARY WITHOUT touching the scene (pure, no bridge): every scripted gameplay building block, grouped by category (control/movement/world/combat/progression/game feel), with its generated MonoBehaviour class, a one-line purpose, and which game types use it. The building-block counterpart to the game-level catalog/showcase/anatomy/how-to. Class names + 'used by' games are code-derived so it never drifts. Use to answer 'davranis sozlugu / davranis referansi / hangi davranislar var / behaviour reference / what behaviours / list behaviours'. Returns {ok, reference (markdown), behaviour_count}.")
+def unity_behaviour_reference() -> dict:
+    from ..core.game_qa import build_behaviour_reference, _BEHAVIOUR_CATEGORIES
+    n = sum(len(behs) for behs in _BEHAVIOUR_CATEGORIES.values())
+    return {"ok": True, "reference": build_behaviour_reference(), "behaviour_count": n}
+
+
 @tool(description="Show which Cloudflare Workers AI models the studio routes between and how (pure, no bridge): the task->model catalog (reasoning/general/coding/creative/fast + vision/image), which support tool-calling, and how a model is chosen per turn (auto-detect + chat override). Use to answer 'hangi modeller var / model raporu / which models / model routing'. Returns {ok, report} (markdown).")
 def unity_model_report() -> dict:
     from ..core.model_router import build_model_router_report, list_models

@@ -1137,4 +1137,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   _GAME_EXAMPLES (20/20 routing). Live-proved 20/20 self-audit + lockgoal counts keys/wins on reach + the
   how-to + intent (no theft). Generate-only; deterministic. +47 tests. 1802 passed.
 
+- [x] **Behaviour reference -- the 8th self-awareness surface, BEHAVIOUR granularity (cycle 115).** The
+  studio could describe its GAMES (catalog/showcase/anatomy/howto) and COMPOSER ELEMENTS (composer-report)
+  but never its building BLOCKS. New `build_behaviour_reference()`: per canonical scripted behaviour,
+  grouped by category, the generated MonoBehaviour CLASS (live from _SCRIPT_TEMPLATES), a one-line purpose
+  (`_BEHAVIOUR_PURPOSES`, 39 entries), and which game types use it (code-derived). Class + used-by are
+  derived (never drift); the purpose key set is drift-guarded against the category list (no block silently
+  omitted). Chosen over a difficulty/balance heuristic, which would invite debatable rankings against the
+  project's honesty bar. Exposed as `unity_behaviour_reference` + an intent ("davranis sozlugu / hangi
+  davranislar / behaviour reference / list behaviours"), verified it steals neither the game catalog nor
+  the composer report nor a build. Live-proved 39/39 documented + derived columns + intent (no theft).
+  Generate-only; deterministic. +13 tests. 1815 passed.
+
 > Check items off in this file as they land. Add new items as discovered.
