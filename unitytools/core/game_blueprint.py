@@ -317,11 +317,13 @@ def plan_arena_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     # 1) ground
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
 
-    # 2) the armed player: movement + health + attack (hits "Enemy") + score + xp
+    # 2) the armed player: movement + health + hit-flash (juice: flash red when hit) + attack
+    #    (hits "Enemy") + score + xp
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
     steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "health"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "hitflash"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "attack"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "score"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "xp"}})
@@ -414,7 +416,7 @@ def plan_horde_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     # 2) the fully-armed player, off to one side of the arena
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5, "position_z": -size / 3.0}})
     steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
-    for b in ("player", "health", "attack", "ranged", "score", "xp", "inventory"):
+    for b in ("player", "health", "hitflash", "attack", "ranged", "score", "xp", "inventory"):
         steps.append({"script_behaviour": {"object": "Player", "behaviour": b}})
 
     # 3) a central wave spawner that rains escalating enemy waves
@@ -627,7 +629,7 @@ def plan_time_survival_game(enemy_count: int = 5, arena_size: float = 20.0) -> d
     # 2) the armed player: movement + health (death -> lose) + attack + score
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
     steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
-    for behaviour in ("player", "health", "attack", "score"):
+    for behaviour in ("player", "health", "hitflash", "attack", "score"):
         steps.append({"script_behaviour": {"object": "Player", "behaviour": behaviour}})
 
     # 3) enemies: a ring tagged Enemy, each chasing+attacking the player, killable
@@ -785,11 +787,13 @@ def plan_hold_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str, 
     # 1) ground
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Plane", "name": "Ground"}})
 
-    # 2) player: movement + health, but NO attack -- you hold, you don't fight
+    # 2) player: movement + health + hit-flash (juice: flash red when hit), but NO attack --
+    #    you hold, you don't fight
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
     steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "player"}})
     steps.append({"script_behaviour": {"object": "Player", "behaviour": "health"}})
+    steps.append({"script_behaviour": {"object": "Player", "behaviour": "hitflash"}})
 
     # 3) the hold zone at the centre -- stand in it to fill the meter and WIN
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cylinder", "name": "HoldZone", "position_y": 0.1}})
@@ -912,7 +916,7 @@ def plan_boss_game(boss_count: int = 1, arena_size: float = 20.0) -> dict[str, A
     # 2) the armed player, off to one side: movement + health + melee + ranged + score + xp
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5, "position_z": -size / 3.0}})
     steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
-    for behaviour in ("player", "health", "attack", "ranged", "score", "xp"):
+    for behaviour in ("player", "health", "hitflash", "attack", "ranged", "score", "xp"):
         steps.append({"script_behaviour": {"object": "Player", "behaviour": behaviour}})
 
     # 3) the boss(es): high-HP foes tagged Enemy, each running the boss behaviour. Placed
@@ -970,7 +974,7 @@ def plan_twinstick_game(enemy_count: int = 6, arena_size: float = 20.0) -> dict[
     #    nearest Enemy) + score. Deliberately NO melee attack -- the gun is the whole game.
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Player", "position_y": 0.5}})
     steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Player", "tag": "Player"}})
-    for behaviour in ("player", "health", "ranged", "score"):
+    for behaviour in ("player", "health", "hitflash", "ranged", "score"):
         steps.append({"script_behaviour": {"object": "Player", "behaviour": behaviour}})
 
     # 3) enemies: a ring of cubes tagged Enemy that chase the player, killable by the gun

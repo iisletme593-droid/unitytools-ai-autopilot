@@ -29,8 +29,8 @@ def test_registered_as_eighteenth_game():
 
 def test_player_is_a_ranged_only_kiter():
     plan = plan_twinstick_game(6)
-    # the lean kit: ranged (the gun) + health + score, and crucially NO melee attack
-    assert _beh_of(plan, "Player") == {"player", "health", "ranged", "score"}
+    # the lean kit: ranged (the gun) + health + hit-flash + score, and crucially NO melee attack
+    assert _beh_of(plan, "Player") == {"player", "health", "hitflash", "ranged", "score"}
     assert "attack" not in _beh_of(plan, "Player")
     # the enemies are a chasable, killable ring
     assert _beh_of(plan, "Enemy") == {"enemy", "reward"}

@@ -1424,3 +1424,17 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   mix), all valid+playable+coherent. Low churn (additive; only the parse exact-dict test updated). Live-
   proved: the flag adds hitflash only when asked, the behaviour reacts to TakeDamage, juice alone doesn't
   route, 17/17 compose_health. Generate-only; deterministic. +6 tests. -- tests: 1755 passed
+- [cycle 113] Player hit-flash, now in the combat PRESETS (the cycle-112 deferred item). A single
+  coherent rule -- IF THE PLAYER CAN BE HURT, IT FLASHES WHEN HURT -- applied to every preset whose
+  player carries `health`: arena, horde, time_survival, hold, boss, twin_stick. Each gives the player
+  `hitflash` right after `health`, so the player's renderer flashes red on every enemy/turret hit (they
+  damage it via SendMessage("TakeDamage"), which AutopilotHitFlash reacts to alongside AutopilotHealth).
+  Purely cosmetic + decoupled: studio_health stays 19/19 (valid+playable+coherent unchanged), object
+  counts + seed-independence untouched. unique_scripts is unchanged for arena/boss (they already ran
+  hitflash on the boss/mini-boss) and +1 for horde/time_survival/hold/twin_stick. Non-combat / no-player-
+  health types (collectathon/stealth/speedrun/puzzle/runner/escort/tower_defense) are deliberately
+  untouched -- a flash with no damage source would never be seen. Churn was mechanical: 6 player-behaviour
+  -set assertions updated (no new tests; no unique_scripts test exists for the four that grew, and arena's
+  fourteen-script set already contained hitflash). Live-proved all 6 presets flash + stay playable, the
+  other 13 types unchanged, _games_with_behaviour("hitflash") now lists 6 games, audit 19/19. Generate-
+  only; deterministic. +0 tests. -- tests: 1755 passed

@@ -74,8 +74,8 @@ def test_registered_as_fourteenth_game():
 
 def test_player_has_no_attack_and_the_zone_is_the_win():
     plan = plan_hold_game(4)
-    # the player can move + be hurt but CANNOT attack (holding, not fighting)
-    assert _beh_of(plan, "Player") == {"player", "health"}
+    # the player can move + be hurt (and flash when hit) but CANNOT attack (holding, not fighting)
+    assert _beh_of(plan, "Player") == {"player", "health", "hitflash"}
     assert _beh_of(plan, "HoldZone") == {"holdzone"}
     assert _beh_of(plan, "GameManager") == {"title", "gameover", "sound"}
     tags = [s["kwargs"]["tag"] for s in plan["steps"] if s.get("tool") == "unity_set_tag"

@@ -87,7 +87,7 @@ def test_registered_as_eleventh_game():
 
 def test_player_is_armed_and_manager_has_the_timer():
     plan = plan_time_survival_game(5)
-    assert _beh_of(plan, "Player") == {"player", "health", "attack", "score"}
+    assert _beh_of(plan, "Player") == {"player", "health", "hitflash", "attack", "score"}
     assert _beh_of(plan, "GameManager") == {"title", "gameover", "sound", "timer"}
 
 

@@ -25,7 +25,7 @@ def test_registered_in_catalog():
 
 def test_player_is_fully_armed():
     plan = plan_horde_game(4)
-    assert _beh_of(plan, "Player") == {"player", "health", "attack", "ranged", "score", "xp", "inventory"}
+    assert _beh_of(plan, "Player") == {"player", "health", "hitflash", "attack", "ranged", "score", "xp", "inventory"}
 
 
 def test_central_horde_spawner():

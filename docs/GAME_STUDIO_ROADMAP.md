@@ -1112,4 +1112,15 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   extend player hit-flash to the combat PRESETS (arena/horde/boss/time_survival/twin_stick) -- deferred
   this cycle to avoid the multi-blueprint exact-set churn. Generate-only; deterministic. +6 tests. 1755 passed.
 
+- [x] **Player hit-flash in the combat PRESETS (cycle 113).** The cycle-112 deferred item, landed. A
+  single coherent rule -- IF THE PLAYER CAN BE HURT, IT FLASHES WHEN HURT -- applied to every preset whose
+  player carries `health`: arena, horde, time_survival, hold, boss, twin_stick. Each gives the player
+  `hitflash` after `health`, so it flashes red on every enemy/turret hit (they damage it via
+  `SendMessage("TakeDamage")`, which `AutopilotHitFlash` reacts to alongside `AutopilotHealth`). Purely
+  cosmetic + decoupled: studio_health stays 19/19, object counts + seed-independence untouched;
+  unique_scripts unchanged for arena/boss (already ran hitflash on the boss/mini-boss) and +1 for the
+  other four. Non-combat / no-player-health types stay untouched (a flash with no damage source is never
+  seen). Mechanical churn: 6 player-set assertions updated, no new tests. Generate-only; deterministic.
+  +0 tests. 1755 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

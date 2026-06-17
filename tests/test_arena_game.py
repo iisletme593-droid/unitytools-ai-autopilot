@@ -27,7 +27,7 @@ def test_registered_in_catalog():
 
 def test_player_is_armed_with_health_score_xp_and_inventory():
     plan = plan_arena_game(4)
-    assert _beh_of(plan, "Player") == {"player", "health", "attack", "score", "xp", "inventory"}
+    assert _beh_of(plan, "Player") == {"player", "health", "hitflash", "attack", "score", "xp", "inventory"}
     tags = {s["kwargs"]["tag"] for s in plan["steps"] if s.get("tool") == "unity_set_tag"
             and s["kwargs"]["name"] == "Player"}
     assert tags == {"Player"}
