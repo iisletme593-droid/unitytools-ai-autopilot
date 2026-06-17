@@ -411,7 +411,8 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
         save_spec = parse_custom_spec(save_lower_no_seed)
         save_has_elements = bool(save_spec["enemy"] or save_spec["collectible"] or save_spec["hazard"]
                                  or save_spec["timer"] or save_spec["goal"] or save_spec["spawner"]
-                                 or save_spec["ranged"] or save_spec["guard"] or save_spec["crate"])
+                                 or save_spec["ranged"] or save_spec["guard"] or save_spec["crate"]
+                                 or save_spec["moving_hazard"])
         save_custom_framing = has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun",
                                   "kendi oyun", "kendi oyunu", "karisik oyun", "kendine gore oyun")
         if save_custom_framing or (save_has_elements and detect_game_type() == "collectathon"
@@ -613,7 +614,7 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
     spec = parse_custom_spec(lower_no_seed)
     has_elements = bool(spec["enemy"] or spec["collectible"] or spec["hazard"]
                         or spec["timer"] or spec["goal"] or spec["spawner"] or spec["ranged"]
-                        or spec["guard"] or spec["crate"])
+                        or spec["guard"] or spec["crate"] or spec["moving_hazard"])
     custom_framing = has("ozel oyun", "ozel bir oyun", "custom game", "custom oyun",
                          "kendi oyun", "kendi oyunu", "karisik oyun", "kendine gore oyun")
     keywordless_custom = (build_verb and has_elements
@@ -1281,6 +1282,13 @@ _SPEC_FLAG_WORDS = {
     "timer": ("sayac", "sure", "zaman", "countdown", "gerisayim", "kronometre"),
     "ranged": ("menzilli", "nisan", "ranged", "tufek"),
 }
+# phrase-based counted elements: their trigger is a MULTI-WORD phrase that CONTAINS a
+# single-word element trigger (e.g. "hareketli engel" contains the static-hazard "engel"),
+# so they are extracted + STRIPPED before the single-word elements to avoid double-counting.
+_SPEC_PHRASE_ELEMENTS = {
+    "moving_hazard": ("hareketli engel", "hareketli tehlike", "hareketli tuzak",
+                      "kayan engel", "kayan tuzak", "moving hazard", "moving obstacle"),
+}
 
 
 def _spec_count_before(lower: str, words: tuple[str, ...]) -> int:
@@ -1299,11 +1307,35 @@ def _spec_count_before(lower: str, words: tuple[str, ...]) -> int:
     return 0
 
 
+def _count_and_strip_phrase(lower: str, words: tuple[str, ...]) -> tuple[int, str]:
+    """Count a phrase element (a digit / number-word before the phrase, else 1 if present
+    bare) and return (count, text_with_the_phrase_removed). Removing the phrase keeps an
+    inner single-word trigger inside it (e.g. 'engel' in 'hareketli engel') from ALSO being
+    counted as that single-word element. Counts clamp to [1, 30]."""
+    count = 0
+    for w in words:
+        m = re.search(r"(\d{1,3})\s*" + re.escape(w), lower)
+        if m:
+            count = max(count, max(1, min(30, int(m.group(1)))))
+        else:
+            m2 = re.search(r"\b([a-z]+)\s+" + re.escape(w), lower)
+            if m2 and m2.group(1) in _SPEC_NUM_WORDS:
+                count = max(count, _SPEC_NUM_WORDS[m2.group(1)])
+            elif re.search(r"\b" + re.escape(w), lower):
+                count = max(count, 1)
+        lower = re.sub(re.escape(w), " ", lower)        # strip so the inner word can't recount
+    return count, lower
+
+
 def parse_custom_spec(lower: str) -> dict[str, object]:
     """Parse a freeform element mix ("5 dusman, 3 toplanabilir ve bir sayac") into
     compose_custom_game kwargs. A player is always included. Pure; operates on the
     already-normalized (lower, accent-folded) text."""
     spec: dict[str, object] = {"player": True}
+    # phrase elements first: count + strip so an inner single-word trigger (e.g. the
+    # static-hazard "engel" inside "hareketli engel") is not double-counted below
+    for key, words in _SPEC_PHRASE_ELEMENTS.items():
+        spec[key], lower = _count_and_strip_phrase(lower, words)
     for key, words in _SPEC_ELEMENT_WORDS.items():
         spec[key] = _spec_count_before(lower, words)
     for key, words in _SPEC_FLAG_WORDS.items():
@@ -1333,8 +1365,10 @@ def build_composer_report() -> str:
                  "preset needed. Counts clamp to a small maximum; couplings are added automatically "
                  "so the result holds together. This report is generated from the live spec parser.")
     lines.append("")
-    lines.append("## Counted elements (e.g. \"5 dusman\", \"3 kutu\")")
+    lines.append("## Counted elements (e.g. \"5 dusman\", \"3 kutu\", \"4 hareketli engel\")")
     for key, words in _SPEC_ELEMENT_WORDS.items():
+        lines.append(f"- **{key}** -- triggers: {', '.join(words)}")
+    for key, words in _SPEC_PHRASE_ELEMENTS.items():
         lines.append(f"- **{key}** -- triggers: {', '.join(words)}")
     lines.append("")
     lines.append("## Flags (mentioning a trigger turns it on)")

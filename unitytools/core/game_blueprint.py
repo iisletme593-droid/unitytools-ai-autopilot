@@ -953,6 +953,7 @@ def compose_custom_game(
     ranged: bool = False,
     guard: int = 0,
     crate: int = 0,
+    moving_hazard: int = 0,
     arena_size: float = 20.0,
     seed: object = None,
 ) -> dict[str, Any]:
@@ -968,8 +969,9 @@ def compose_custom_game(
         GameManager runs the win/lose `gameover` (WIN clears enemies, LOSE on death);
       - ranged=True also gives the player a `ranged` weapon (auto-hits the nearest enemy);
       - a `score` HUD when there are collectibles or enemies;
-      - collectibles (`collectible`), hazards (`killzone`), wave `spawner`s (raining
-        hazards, survival-style), an optional `goal` zone;
+      - collectibles (`collectible`), hazards (`killzone`), moving hazards (`mover` +
+        `killzone`, sliding obstacles), wave `spawner`s (raining hazards, survival-style),
+        an optional `goal` zone;
       - stealth `guard`s (`patrol` + `detector` line-of-sight, NOT tagged Enemy) that
         make it a 'sneak past them' game: any guard or timer also creates the GameManager,
         and guards imply a goal to reach (auto-added if none) so there IS a way to win;
@@ -986,6 +988,7 @@ def compose_custom_game(
     spawner = max(0, min(int(spawner), 20))
     guard = max(0, min(int(guard), 30))
     crate = max(0, min(int(crate), 20))
+    moving_hazard = max(0, min(int(moving_hazard), 30))
     # stealth guards need a goal to slip through to, so there is a real win condition;
     # add one if the user didn't ask for it (mirrors enemy -> health+attack coupling)
     if guard > 0 and not goal:
@@ -1035,6 +1038,17 @@ def compose_custom_game(
             "spacing": max(2.0, size / float(hazard)), "name_prefix": "Hazard"}})
         for i in range(hazard):
             steps.append({"script_behaviour": {"object": f"Hazard_{i}", "behaviour": "killzone"}})
+
+    # 5a2) moving hazards: cubes that SLIDE (mover) and respawn the player on contact
+    #      (killzone) -- the dodge game's threat, as a freeform element. Like the static
+    #      `hazard` it is a pure obstacle (no win/lose manager, no health coupling).
+    if moving_hazard:
+        steps.append({"tool": "unity_place_primitives", "kwargs": {
+            "type": "Cube", "count": moving_hazard, "pattern": "scatter",
+            "spacing": max(2.0, size / float(moving_hazard)), "name_prefix": "MovingHazard"}})
+        for i in range(moving_hazard):
+            steps.append({"script_behaviour": {"object": f"MovingHazard_{i}", "behaviour": "mover"}})
+            steps.append({"script_behaviour": {"object": f"MovingHazard_{i}", "behaviour": "killzone"}})
 
     # 5b) wave spawners: elevated cubes that rain physics-cube hazards (survival-style)
     if spawner:
@@ -1088,12 +1102,14 @@ def compose_custom_game(
 
     spec = {"player": bool(player), "enemy": enemy, "collectible": collectible,
             "hazard": hazard, "goal": bool(goal), "timer": bool(timer),
-            "spawner": spawner, "ranged": bool(ranged), "guard": guard, "crate": crate}
+            "spawner": spawner, "ranged": bool(ranged), "guard": guard, "crate": crate,
+            "moving_hazard": moving_hazard}
     parts = []
     if player:
         parts.append("a ranged player" if ranged else "a player")
     for label, c in (("enemies", enemy), ("collectibles", collectible),
-                     ("hazards", hazard), ("wave spawners", spawner), ("stealth guards", guard),
+                     ("hazards", hazard), ("moving hazards", moving_hazard),
+                     ("wave spawners", spawner), ("stealth guards", guard),
                      ("pushable crates", crate)):
         if c:
             parts.append(f"{c} {label}")
@@ -1110,7 +1126,8 @@ def compose_custom_game(
     }
     # an optional seed jitters the placed-element layout (deterministic), reusing the
     # same machinery the blueprints use; seed=None is a no-op (the plain plan)
-    return _apply_seed(plan, "custom", enemy + collectible + hazard + spawner + guard + crate, seed)
+    return _apply_seed(plan, "custom",
+                       enemy + collectible + hazard + spawner + guard + crate + moving_hazard, seed)
 
 
 # Decorative (non-gameplay) scripted behaviours that give a scene "juice".

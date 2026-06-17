@@ -913,5 +913,15 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   "ornek oyunlar / show me examples / game examples" intent (placed before catalog + build so it isn't
   shadowed; verified it steals neither). The 5th self-awareness surface (after catalog, report, health,
   composer-report). All 17 examples verified to route. +29 tests. 1470 passed.
+- [x] **Moving-hazard composer element (cycle 97).** Back to production after the showcase: the freeform
+  composer gains an 11th element, a SLIDING obstacle (`mover` + `killzone`, the dodge game's threat). The
+  interesting part is the parser -- the Turkish trigger "hareketli engel" (moving hazard) CONTAINS the
+  static-hazard word "engel", so a new `_SPEC_PHRASE_ELEMENTS` is extracted + STRIPPED before the
+  single-word elements (`_count_and_strip_phrase`): "2 engel ve 4 hareketli engel" parses to hazard=2 +
+  moving_hazard=4, not a double-count. `compose_custom_game` gains a `moving_hazard` count (a pure
+  obstacle -- no manager/health coupling, like the static hazard); the spec dict + composer report + both
+  compose tools carry it; `compose_health` grew to 12 cases (a moving-hazard-only case + a mix), all
+  clean. While here, fixed a latent gap: `unity_save_composed_game` now plumbs guard/crate/moving_hazard
+  (it silently dropped guard/crate before). +15 tests. 1485 passed.
 
 > Check items off in this file as they land. Add new items as discovered.

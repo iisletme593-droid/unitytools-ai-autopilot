@@ -84,7 +84,8 @@ def test_compose_player_only_is_an_honest_sandbox():
 def test_parse_counts_and_flags():
     spec = parse_custom_spec("ozel oyun: 5 dusman 3 toplanabilir ve bir sayac olsun")
     assert spec == {"player": True, "enemy": 5, "collectible": 3, "hazard": 0,
-                    "goal": False, "timer": True, "spawner": 0, "ranged": False, "guard": 0, "crate": 0}
+                    "goal": False, "timer": True, "spawner": 0, "ranged": False, "guard": 0,
+                    "crate": 0, "moving_hazard": 0}
 
 
 def test_parse_number_words_and_goal():

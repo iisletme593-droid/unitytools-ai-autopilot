@@ -1167,3 +1167,18 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   self-awareness surface (catalog, report, health, composer-report, showcase). All 17 examples verified to
   route. Docs: GAME_STUDIO intent table + GAME_STUDIO_GAMES catalog section. Live-proved routing(17/17) +
   ascii + intent(no theft) + tool. Generate-only; deterministic. +29 tests. -- tests: 1470 passed
+- [cycle 97] Moving-hazard composer element -- back to production after the showcase: the freeform composer
+  gains an 11th element, a SLIDING obstacle (mover + killzone, the dodge game's threat, as a freeform mix
+  element). The parser challenge: the Turkish trigger "hareketli engel" CONTAINS the static-hazard word
+  "engel", so a new _SPEC_PHRASE_ELEMENTS in core/game_studio_actions.py is extracted + STRIPPED before the
+  single-word elements (_count_and_strip_phrase): parse_custom_spec("2 engel ve 4 hareketli engel") ->
+  hazard=2 + moving_hazard=4 (no double-count), and "3 hareketli engel" -> moving_hazard=3/hazard=0.
+  compose_custom_game gains a moving_hazard count (a pure obstacle -- no win/lose manager, no health
+  coupling, like the static hazard; placed via place_primitives so the seed jitters it). The spec dict +
+  build_composer_report (a new phrase-elements section) + unity_compose_game carry it; compose_health grew
+  to 12 cases ({moving_hazard:4} + a mix), all valid+playable+coherent (studio report now "12/12 composer
+  cases"). Also fixed a latent gap: unity_save_composed_game now plumbs guard/crate/moving_hazard (it
+  silently dropped guard/crate). Keyword-less intent: "3 hareketli engel olan oyun yap" -> composer with
+  moving_hazard=3, and a plain "6 engel" still -> hazard=6 (static unaffected). Updated the one exact-dict
+  parse test (added moving_hazard:0). Live-proved parser(overlap split) + compose(valid/playable/coherent)
+  + 12/12 compose_health + report line + intent. Generate-only; deterministic. +15 tests. -- tests: 1485 passed
