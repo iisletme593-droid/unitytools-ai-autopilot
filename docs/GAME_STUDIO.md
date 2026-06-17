@@ -48,6 +48,7 @@ The deterministic fast-path (`plan_unity_fast_action`) routes plain commands to 
 | "arena kampanyası", "3 seviyeli dodge", "horde campaign" | `unity_plan_campaign` |
 | "hangi oyunlar yapabilirsin", "what games" | `unity_game_catalog` |
 | "örnek oyunlar göster", "show me examples", "game examples" | `unity_game_showcase` |
+| "arena oyununun yapısı", "X oyunu anatomisi", "breakdown of the X game" | `unity_game_anatomy` |
 | "özel oyun: 5 düşman 3 toplanabilir bir sayaç", "custom game" | `unity_compose_game` |
 | "studio raporu", "yeteneklerin", "capabilities", "what can you do" | `unity_studio_report` |
 | "studio sağlığı", "sağlık denetimi", "studio health", "her şey yolunda mı" | `unity_studio_health` |

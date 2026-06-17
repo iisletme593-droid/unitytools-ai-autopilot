@@ -589,6 +589,31 @@ def plan_unity_fast_action(text: str) -> dict[str, Any]:
             "reason": f"assess-game intent -> {gt}",
         }
 
+    # Game-anatomy intent ("break down ONE game"): a single-game deep-dive. Must beat the
+    # build intent ("arena oyununun yapisi" has "arena") -- the user wants the breakdown, not
+    # a build. Keyed on anatomy/breakdown phrases (distinct from assess's "degerlendir"), and
+    # requires a game context so it does not grab scene-level prompts.
+    # "yapisi" (its structure) is a single token here: token-PREFIX matched, so a build's
+    # "yap"/"yapsana" never matches it, but "oyununun yapisi" (doubled possessive) does.
+    anatomy_verb = has("anatomi", "anatomy", "yapisi", "oyun anatomisi", "breakdown",
+                       "game anatomy", "game breakdown", "neyden olusuyor", "neyden olusur",
+                       "icinde ne var", "nasil kuruluyor")
+    if anatomy_verb and (has("oyun", "game") or detect_game_type() != "collectathon"
+                         or has("collectathon", "toplama")):
+        gt = detect_game_type()
+        return {
+            "ok": True,
+            "engine": "unity",
+            "steps": [{
+                "tool": "unity_game_anatomy",
+                "kwargs": {"game_type": gt},
+                "write": False,
+                "note": f"break down the {gt} game (size + behaviours by category + build phases; pure, no scene changes)",
+            }],
+            "safety_notes": ["read-only; no scene changes"],
+            "reason": f"game-anatomy intent -> {gt}",
+        }
+
     # Multi-level campaign intent: "X kampanyasi" / "3 seviyeli arena" -> an ordered
     # increasing-difficulty sequence of levels. Checked before the build/composer intents
     # so "arena kampanyasi" plans a campaign rather than building a single arena.

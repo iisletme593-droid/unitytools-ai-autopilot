@@ -1280,3 +1280,20 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   intact. Docs: GAME_STUDIO Seventeen->Eighteen + row, GAME_STUDIO_GAMES game-row + NL lists. Live-proved
   blueprint(ranged-only kiter) + 18/18 health/showcase/report + campaign + intent(no ranged-composer theft).
   Generate-only; deterministic. +34 tests. -- tests: 1603 passed
+- [cycle 104] Game anatomy -- a single-game DEEP-DIVE (the 6th self-awareness surface, at single-game
+  granularity vs the catalog-wide catalog/report/health/composer-report/showcase). New build_game_anatomy
+  in core/game_qa.py: for ONE game type it renders (pure ASCII markdown) the size (object_count +
+  unique_scripts), the curated example prompt, behaviours grouped by _BEHAVIOUR_CATEGORIES
+  (control/movement/world/combat/progression/game feel) plus a separate physics line for non-scripted
+  behaviours (static_obstacle etc.), the playability verdict + design_notes, and the build phases (geometry
+  tool-steps -> import each UNIQUE script once = one recompile -> attach N components). 100% code-derived
+  from plan_game + assess_game_readiness + group_execution_plan, so it never drifts (tested ASCII +
+  numbers-match-the-plan + script-list-matches parametrized over all 18 types). Exposed as
+  unity_game_anatomy(game_type) tool (in tools/unity_tools.py) + an intent in core/game_studio_actions.py
+  keyed on anatomy/breakdown phrases. Intent design: 'yapisi' (its structure) is a single token,
+  token-PREFIX matched, so a build's 'yap'/'yapsana' can NEVER match it while 'oyununun yapisi' (doubled
+  possessive) does; placed after assess + before campaign/composer/build so it beats them; gated on a game
+  context. Verified it steals neither build, assess, showcase, nor catalog. Docs: GAME_STUDIO intent table
+  + GAME_STUDIO_GAMES catalog section. Live-proved 18/18 anatomies(ascii+code-derived) + intent(routes,
+  no theft) + the maze breakdown (50 wall static_obstacles + 2 dead-end killzones). Generate-only;
+  deterministic. +46 tests. -- tests: 1649 passed

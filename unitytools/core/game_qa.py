@@ -496,3 +496,60 @@ def build_game_showcase() -> str:
     lines.append(f"Routing self-check: {status} ({verified}/{len(route['rows'])} examples verified to build "
                  "their game type).")
     return "\n".join(lines)
+
+
+def build_game_anatomy(game_type: str = "collectathon", count: int = 4) -> str:
+    """A single-game DEEP-DIVE (the 'zoom in on one game' counterpart to the catalog-wide
+    reports): for ONE game type, its size, behaviours grouped by category, the build phases
+    (geometry -> import unique scripts -> attach), the playability verdict, and the example
+    prompt that builds it. Everything is code-derived from plan_game + assess_game_readiness
+    + group_execution_plan, so it never drifts. Pure ASCII markdown.
+    """
+    from .gameplay import _SCRIPT_TEMPLATES
+    gt = (game_type or "collectathon").strip().lower()
+    if gt not in BLUEPRINTS:
+        gt = "collectathon"
+    plan = plan_game(gt, count)
+    report = assess_game_readiness(plan)
+    grouped = group_execution_plan(plan["steps"])
+    counts = report["behaviour_counts"]
+    example, pitch = _GAME_EXAMPLES.get(gt, (f"{gt} oyunu kur", ""))
+
+    lines = [f"# Game anatomy: `{gt}`", ""]
+    if pitch:
+        lines.append(pitch + ".")
+        lines.append("")
+    lines.append(f"Say \"{example}\" to build it (add 've uygula' to build it for real in the scene).")
+    lines.append("")
+
+    # size + the playability verdict
+    lines.append(f"## Make-up ({report['object_count']} objects, {report['unique_scripts']} unique "
+                 "scripts -> one recompile)")
+    flags = [("player" if report["has_player"] else "no player"),
+             ("goal" if report["has_goal"] else "no goal"),
+             ("score HUD" if report["has_score"] else "no score")]
+    lines.append(f"- playable: {report['playable']} ({', '.join(flags)})")
+    for note in report["design_notes"]:
+        lines.append(f"- design note: {note}")
+    lines.append("")
+
+    # behaviours grouped by category (scripted MonoBehaviours), then physics primitives
+    lines.append("## Behaviours by category")
+    scripted = set(_SCRIPT_TEMPLATES)
+    for category, behs in _BEHAVIOUR_CATEGORIES.items():
+        present = [(b, counts[b]) for b in behs if counts.get(b)]
+        if present:
+            lines.append(f"- **{category}**: " + ", ".join(f"{b} x{c}" for b, c in present))
+    physics = [(b, c) for b, c in sorted(counts.items()) if b not in scripted]
+    if physics:
+        lines.append("- **physics**: " + ", ".join(f"{b} x{c}" for b, c in physics))
+    lines.append("")
+
+    # how the build runs (the same phases _execute_grouped_behaviour_plan uses)
+    scripts = grouped["script_behaviours"]
+    lines.append("## Build phases (execute=True)")
+    lines.append(f"1. geometry -- {len(grouped['geometry'])} tool steps (primitives / placement / tags)")
+    lines.append(f"2. import {len(scripts)} unique behaviour script(s) -> ONE Unity recompile: "
+                 + (", ".join(scripts) if scripts else "(none)"))
+    lines.append(f"3. attach -- {len(grouped['attachments'])} component(s) onto their target objects")
+    return "\n".join(lines)

@@ -1376,6 +1376,14 @@ def unity_game_showcase() -> dict:
     return {"ok": True, "showcase": build_game_showcase(), "all_route": showcase_routing()["all_route"]}
 
 
+@tool(description="Break down ONE game type in depth WITHOUT touching the scene (pure, no bridge): its size (object + unique-script counts), behaviours grouped by category (control/movement/world/combat/progression/game feel/physics), the build phases (geometry -> import unique scripts -> attach), the playability verdict + any design notes, and the example prompt that builds it. The 'zoom in on one game' counterpart to the catalog. Use to answer 'arena oyununun yapisi / X oyunu anatomisi / breakdown of the X game / X neyden olusuyor'. game_type='arena'/'maze'/'twin_stick'/... Returns {ok, game_type, anatomy (markdown)}.")
+def unity_game_anatomy(game_type: str = "collectathon", count: int = 4) -> dict:
+    from ..core.game_qa import build_game_anatomy
+    from ..core.game_blueprint import BLUEPRINTS
+    gt = game_type if game_type in BLUEPRINTS else "collectathon"
+    return {"ok": True, "game_type": gt, "anatomy": build_game_anatomy(gt, count)}
+
+
 @tool(description="Show which Cloudflare Workers AI models the studio routes between and how (pure, no bridge): the task->model catalog (reasoning/general/coding/creative/fast + vision/image), which support tool-calling, and how a model is chosen per turn (auto-detect + chat override). Use to answer 'hangi modeller var / model raporu / which models / model routing'. Returns {ok, report} (markdown).")
 def unity_model_report() -> dict:
     from ..core.model_router import build_model_router_report, list_models

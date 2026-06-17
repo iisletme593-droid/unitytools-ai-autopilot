@@ -999,4 +999,16 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   twin_stick campaign audits clean. Coherent by the critique (ranged + enemies + gameover, no false flags).
   Docs Seventeen->Eighteen + rows + NL lists. +34 tests. 1603 passed.
 
+- [x] **Game anatomy -- a single-game deep-dive (cycle 104).** A different KIND of value: the 6th
+  self-awareness surface, but at SINGLE-game granularity (the others are catalog-wide). New
+  `build_game_anatomy(game_type)` -- for one type it shows its size (object + unique-script counts),
+  behaviours grouped by category (control/movement/world/combat/progression/game feel/physics), the build
+  phases (geometry -> import each unique script ONCE -> attach), the playability verdict + any design
+  notes, and the example prompt. All code-derived from plan_game + assess_game_readiness +
+  group_execution_plan, so it never drifts (verified ASCII + numbers-match-the-plan for all 18 types).
+  Exposed as `unity_game_anatomy(game_type)` + an intent keyed on anatomy/breakdown phrases ("X oyununun
+  yapisi / X oyunu anatomisi / breakdown of X / X neyden olusuyor"). The intent uses `yapisi` as a
+  token-PREFIX so a build's "yap"/"yapsana" never matches it (verified build/assess/showcase/catalog
+  intents are all untouched). +46 tests. 1649 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

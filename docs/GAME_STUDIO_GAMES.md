@@ -184,6 +184,14 @@ so the showcase doubles as a regression guard for the whole NL-intent layer -- b
 and it (and its test) go red. Pure; routed by intent — "örnek oyunlar", "örnek göster", "show me examples",
 "game examples". The pure function is `core/game_qa.build_game_showcase`.
 
+`unity_game_anatomy(game_type)` zooms IN on a single game type: its size (object + unique-script counts),
+its behaviours grouped by category (control / movement / world / combat / progression / game feel /
+physics), the build phases (geometry -> import each unique script once -> attach), the playability verdict
++ any design notes, and the example prompt. Code-derived from `plan_game` + `assess_game_readiness` +
+`group_execution_plan`, so it never drifts. Routed by intent — "arena oyununun yapısı", "X oyunu
+anatomisi", "breakdown of the X game", "X neyden oluşuyor". The pure function is
+`core/game_qa.build_game_anatomy`.
+
 ## 8. Living scenes (decorative, not a game)
 
 Not every scene is a game. `unity_animate_group` brings a scene to life: it places N props
