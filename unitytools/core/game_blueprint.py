@@ -1220,6 +1220,7 @@ def plan_campaign(
     counts = [2 + i * 2 for i in range(n)]                 # 2, 4, 6, ... -- climbing
 
     from .game_qa import assess_game_readiness             # lazy: game_qa imports this module
+    from .game_io import validate_plan                     # lazy: avoid an import cycle
     level_plans: list[dict[str, Any]] = []
     for i, c in enumerate(counts):
         level_seed = f"{seed}-L{i + 1}" if seed is not None else None
@@ -1230,6 +1231,7 @@ def plan_campaign(
             "label": labels[i] if i < len(labels) else f"level-{i + 1}",
             "count": c,
             "summary": plan.get("summary", ""),
+            "valid": bool(validate_plan(plan)["ok"]),     # whitelisted tools, no traversal
             "playable": report["playable"],
             "design_notes": report["design_notes"],
             "plan": plan,
@@ -1240,6 +1242,9 @@ def plan_campaign(
         "kind": "campaign",
         "game_type": gt,
         "level_count": n,
+        # a per-campaign self-audit, like studio_health but for this progression
+        "all_valid": all(lv["valid"] for lv in level_plans),
         "all_playable": all(lv["playable"] for lv in level_plans),
+        "all_coherent": all(not lv["design_notes"] for lv in level_plans),
         "levels": level_plans,
     }

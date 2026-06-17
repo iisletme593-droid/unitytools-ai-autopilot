@@ -862,5 +862,13 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   health section now reads "OK (14/14 game types, 10/10 composer cases)" and `unity_studio_health`
   returns a nested `{blueprints, composer, all_ok}` (its two report tests updated for the richer shape).
   All 10 composer cases audit clean. +1 test. 1311 passed.
+- [x] **Campaign self-audit (cycle 92).** The self-audit now covers campaigns too -- the last surface it
+  didn't reach. `plan_campaign` now `validate_plan`s each level (previously only `playable` +
+  `design_notes` were checked, so whitelisted-tools / no-traversal wasn't verified per level) and adds a
+  per-level `valid` plus per-campaign aggregate `all_valid` / `all_playable` / `all_coherent` flags --
+  the same shape `studio_health` uses, so a whole progression self-reports its health. The
+  `unity_plan_campaign` lean view carries the new flags automatically (it only drops each level's full
+  plan). Every game type's campaign audits clean. +16 tests. 1327 passed. The studio now audits all
+  four of its output shapes: blueprints, composer, and campaigns (single games via assess).
 
 > Check items off in this file as they land. Add new items as discovered.

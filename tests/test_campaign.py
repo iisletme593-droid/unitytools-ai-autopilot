@@ -24,6 +24,29 @@ def test_campaign_is_ordered_and_climbs_in_difficulty():
     assert [lv["label"] for lv in levels] == ["easy", "medium", "hard"]
 
 
+def test_campaign_carries_a_self_audit():
+    # a campaign self-reports its health like studio_health: every level valid + playable
+    # + coherent, with per-campaign aggregate flags and a per-level `valid`
+    camp = plan_campaign("arena", 3)
+    assert camp["all_valid"] and camp["all_playable"] and camp["all_coherent"]
+    for lv in camp["levels"]:
+        assert lv["valid"] and lv["playable"] and lv["design_notes"] == []
+
+
+@pytest.mark.parametrize("game_type", sorted(BLUEPRINTS))
+def test_every_game_types_campaign_audits_clean(game_type):
+    camp = plan_campaign(game_type, 3)
+    assert camp["all_valid"] and camp["all_playable"] and camp["all_coherent"]
+
+
+def test_campaign_audit_flags_in_the_lean_tool_view():
+    tool = {t.name: t for t in get_all_tools()}.get("unity_plan_campaign")
+    out = tool.fn("hold", 3)
+    # the lean view keeps the aggregate flags + each level's `valid` (drops only the plan)
+    assert out["all_valid"] and out["all_playable"] and out["all_coherent"]
+    assert all("valid" in lv and "plan" not in lv for lv in out["levels"])
+
+
 def test_every_level_is_a_full_playable_plan():
     camp = plan_campaign("arena", 4)
     assert camp["all_playable"] is True

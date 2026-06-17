@@ -1092,3 +1092,11 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   nested {blueprints, composer, all_ok} (updated its two report tests for the richer shape). All 10
   composer cases audit clean. Live-proved compose_health (10/10) + the report line + the nested tool.
   Generate-only; deterministic. +1 test. -- tests: 1311 passed
+- [cycle 92] Campaign self-audit -- the self-audit now reaches campaigns, the last surface it didn't
+  cover. plan_campaign now validate_plan's each level (previously only playable + design_notes were
+  checked per level, so whitelisted-tools / no-traversal wasn't verified) and adds a per-level `valid`
+  plus per-campaign aggregate all_valid / all_playable / all_coherent flags -- the same shape
+  studio_health uses, so a whole progression self-reports its health. The unity_plan_campaign lean view
+  carries the new flags automatically (it only drops each level's full plan -- no tool change needed).
+  Every game type's campaign audits clean (parametrized over all 14). Live-proved the 14 campaigns +
+  aggregate + lean view. Generate-only; deterministic. +16 tests. -- tests: 1327 passed
