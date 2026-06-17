@@ -1182,3 +1182,16 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   moving_hazard=3, and a plain "6 engel" still -> hazard=6 (static unaffected). Updated the one exact-dict
   parse test (added moving_hazard:0). Live-proved parser(overlap split) + compose(valid/playable/coherent)
   + 12/12 compose_health + report line + intent. Generate-only; deterministic. +15 tests. -- tests: 1485 passed
+- [cycle 98] Arena mini-boss -- DEPTH instead of breadth, after 3 new types + a showcase + a composer
+  element. plan_arena_game in core/game_blueprint.py now places a single high-HP MINI-BOSS across the arena
+  (position_z = size/2): a Cube named "Boss", tagged Enemy (so gameover's clear-all-enemies WIN includes
+  it), running the EXISTING boss behaviour (no new C#) -- chases + melee-attacks, draws its own HP bar,
+  grants big XP on death and destroys itself. It is the climax: whittle the boss down while the Enemy_*
+  swarm pressures you; clearing swarm AND boss wins. Named "Boss" (not Enemy_*) so the enemy-swarm
+  assertions (enemy_tags == [Enemy]*n, _beh_of(Enemy) == {enemy,reward}) are untouched -- the ONLY existing
+  arena test that changed is test_groups_to_twelve -> thirteen (+boss). Arena stays coherent (critique
+  foes = enemy + boss, with player health + attack), so studio_health is still 17/17, every arena campaign
+  audits clean, the showcase still routes "arena oyunu kur" -> arena, and the dedicated `boss` duel type
+  stays distinct ("boss arena" still picks boss). Docs: arena one-liners in GAME_STUDIO + GAME_STUDIO_GAMES.
+  Live-proved blueprint(swarm+boss both Enemy) + 17/17 health + arena campaign + intent(no theft) +
+  determinism. Generate-only; deterministic (no runtime RNG). +2 tests. -- tests: 1487 passed

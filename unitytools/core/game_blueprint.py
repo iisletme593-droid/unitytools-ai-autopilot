@@ -270,8 +270,10 @@ def plan_arena_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     the enemy AI (chase + attack the Player) and a `reward` (its HP + XP loot): the
     player can kill them — on death they grant XP to the player and are destroyed —
     and they can hurt the player back. There is no goal: you fight and level up.
-    Same step schema as the other blueprints; the seed (via plan_game) jitters the
-    enemy ring.
+    Across the arena sits a single MINI-BOSS (the high-HP `boss` behaviour, also tagged
+    Enemy, with its own HP bar) — the climax you whittle down while the swarm pressures
+    you; clearing the swarm AND the boss is the WIN. Same step schema as the other
+    blueprints; the seed (via plan_game) jitters the enemy ring.
     """
     n = max(1, min(int(enemy_count), 30))
     size = max(6.0, float(arena_size))
@@ -309,6 +311,15 @@ def plan_arena_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
         steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "enemy"}})
         steps.append({"script_behaviour": {"object": f"Enemy_{i}", "behaviour": "reward"}})
 
+    # 3b) a single MINI-BOSS across the arena: an elite among the swarm. It is tagged Enemy
+    #     (so the same clear-all-enemies WIN includes it) and runs the high-HP `boss`
+    #     behaviour (chases + melee-attacks, draws a boss HP bar, grants big XP on death and
+    #     destroys itself). Named "Boss" (NOT "Enemy_*") so it stays a distinct elite. This
+    #     is the climax: whittle down the boss while the swarm pressures you.
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Boss", "position_y": 0.5, "position_z": size / 2.0}})
+    steps.append({"tool": "unity_set_tag", "kwargs": {"name": "Boss", "tag": "Enemy"}})
+    steps.append({"script_behaviour": {"object": "Boss", "behaviour": "boss"}})
+
     # 4) loot scattered on the field: spheres the player picks up for items while
     #    fighting (a simple, decoupled item economy — collect -> inventory HUD).
     steps.append({
@@ -339,7 +350,7 @@ def plan_arena_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     return {
         "ok": True,
         "game": "arena",
-        "summary": f"Arena: ground + armed WASD player (health+attack+score+xp+inventory) + {n} enemies (chase+attack, reward XP) + {n} loot ({len(steps)} steps).",
+        "summary": f"Arena: ground + armed WASD player (health+attack+score+xp+inventory) + {n} enemies (chase+attack, reward XP) + a mini-boss + {n} loot ({len(steps)} steps).",
         "enemy_count": n,
         "steps": steps,
     }

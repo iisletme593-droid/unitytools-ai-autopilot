@@ -924,4 +924,14 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   clean. While here, fixed a latent gap: `unity_save_composed_game` now plumbs guard/crate/moving_hazard
   (it silently dropped guard/crate before). +15 tests. 1485 passed.
 
+- [x] **Arena mini-boss -- depth for the 7th type (cycle 98).** After three new types, a showcase, and a
+  composer element, this cycle adds DEPTH to an existing game instead of breadth. plan_arena_game now
+  places a single high-HP MINI-BOSS across the arena (the existing `boss` behaviour -- NO new C#), tagged
+  Enemy so the clear-all-enemies WIN includes it, drawing its own HP bar -- the climax you whittle down
+  while the swarm pressures you. It is named "Boss" (not Enemy_*), so the enemy-swarm assertions are
+  untouched and the ONLY existing arena test that changed is the unique-scripts count (twelve -> thirteen,
+  +boss). Arena stays coherent (foes = enemy + boss, with player health + attack), so studio_health is
+  still 17/17, the showcase still routes "arena oyunu kur" to arena, and the dedicated `boss` duel type
+  stays distinct ("boss arena" still picks the boss type). +2 tests. 1487 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

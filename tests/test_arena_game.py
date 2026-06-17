@@ -88,11 +88,32 @@ def test_manager_bookends_with_title_gameover_and_sound():
     assert _beh_of(plan, "GameManager") == {"title", "gameover", "sound"}
 
 
-def test_groups_to_twelve_unique_scripts():
+def test_groups_to_thirteen_unique_scripts():
     grouped = group_execution_plan(plan_arena_game(4)["steps"])
     assert set(grouped["script_behaviours"]) == {
         "player", "health", "attack", "score", "xp", "inventory",
-        "enemy", "reward", "loot", "title", "gameover", "sound"}
+        "enemy", "reward", "loot", "title", "gameover", "sound", "boss"}
+
+
+def test_arena_has_a_single_mini_boss():
+    plan = plan_arena_game(4)
+    # one elite Boss, tagged Enemy (so the clear-all-enemies WIN includes it), running the
+    # high-HP boss behaviour -- and it is NOT one of the Enemy_* swarm
+    assert _beh_of(plan, "Boss") == {"boss"}
+    boss_tags = [s["kwargs"]["tag"] for s in plan["steps"] if s.get("tool") == "unity_set_tag"
+                 and s["kwargs"]["name"] == "Boss"]
+    assert boss_tags == ["Enemy"]
+    # the swarm assertions are unaffected: the Enemy_* count still matches enemy_count
+    enemy_swarm = [s["kwargs"]["name"] for s in plan["steps"] if s.get("tool") == "unity_set_tag"
+                   and s["kwargs"]["name"].startswith("Enemy")]
+    assert enemy_swarm == [f"Enemy_{i}" for i in range(4)]
+
+
+def test_arena_with_boss_is_coherent_by_the_self_audit():
+    from unitytools.core.game_qa import studio_health
+    h = studio_health()
+    arena = next(g for g in h["games"] if g["game_type"] == "arena")
+    assert arena["valid"] and arena["playable"] and arena["coherent"]
 
 
 def test_variations_work_for_arena():
