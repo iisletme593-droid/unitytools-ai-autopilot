@@ -1170,4 +1170,15 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   XP exactly once; the XP-on-death + destroy contract is preserved (existing reward assertions hold);
   deterministic + decoupled. Boss death left as-is (HP bar + hitflash already). +1 test. 1823 passed.
 
+- [x] **Chase depth -- a central SAFE ZONE, a new tactical retreat (cycle 118).** New `safezone` behaviour
+  (AutopilotSafeZone): a circular zone that, in LateUpdate (AFTER the chasers move that frame), finds every
+  object named "Enemy_*" by name within `radius` and clamps it back out to the boundary -- so a player near
+  the middle is safe (the rim is not). Purely defensive + deterministic (positions only, no RNG, decoupled
+  by name), a no-op without chasers. Added a SafeZone Cylinder to plan_chase_game -- chase gains a real
+  tactical layer (venture out to collect/reach the goal, retreat to the middle when cornered) for a fixed
+  +1 object (object_count stays seed-INDEPENDENT, studio_health 20/20). Registered (NEEDS_SCRIPT / aliases
+  avoiding "bolge" = holdzone / templates / world category / glossary purpose / INTERACTIVE). Churn: the
+  one chase unique-scripts test (six -> seven). Live-proved the clamp + determinism + chase seed-
+  independence + 20/20 audit + glossary. Generate-only; deterministic. +10 tests. 1833 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

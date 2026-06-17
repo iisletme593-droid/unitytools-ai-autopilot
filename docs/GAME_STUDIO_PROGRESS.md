@@ -1494,3 +1494,15 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   deterministic (only Time, no RNG) + still decoupled (no AutopilotXP ref). Boss death left as-is (it
   already has its HP bar + hitflash). Live-proved the pop + the preserved contract + 7 games byte-identical
   in structure + 20/20 audit. Generate-only; deterministic. +1 test. -- tests: 1823 passed
+- [cycle 118] Chase depth -- a central SAFE ZONE (a new tactical retreat). New `safezone` behaviour
+  (AutopilotSafeZone): a circular zone that, in LateUpdate (AFTER the chasers move that frame), finds every
+  object named "Enemy_*" by name within `radius` and clamps it back out to the boundary -- so a player
+  standing near the middle is safe from the chase (the rim is not; enemies pile up there). Purely
+  defensive + deterministic (positions only, no RNG, decoupled by name), a no-op without chasers. Added a
+  SafeZone Cylinder to plan_chase_game -- chase gains a real tactical layer (venture out to collect/reach
+  the goal, retreat to the middle when cornered) for a fixed +1 object (object_count stays seed-
+  INDEPENDENT, studio_health stays 20/20). Registered (NEEDS_SCRIPT / aliases that AVOID "bolge" -- that
+  is holdzone -- / templates / world category / glossary purpose / INTERACTIVE_BEHAVIOURS). Churn: the one
+  chase unique-scripts test (six -> seven, +1 attachment). Live-proved the clamp + determinism + chase
+  seed-independence + 20/20 audit + the glossary documents it. Docs: GAME_STUDIO_GAMES (chase row +
+  safezone behaviour row). Generate-only; deterministic. +10 tests. -- tests: 1833 passed

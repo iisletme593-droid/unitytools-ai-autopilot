@@ -283,14 +283,19 @@ def plan_chase_game(enemy_count: int = 4, arena_size: float = 20.0) -> dict[str,
     for i in range(n):
         steps.append({"script_behaviour": {"object": f"Collectible_{i}", "behaviour": "collectible"}})
 
-    # 5) goal zone
+    # 5) a central SAFE ZONE the player can retreat to -- the chasers (Enemy_*) are clamped
+    #    out of it (LateUpdate), so hiding near its middle gives you a breather (depth)
+    steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cylinder", "name": "SafeZone", "position_y": 0.1}})
+    steps.append({"script_behaviour": {"object": "SafeZone", "behaviour": "safezone"}})
+
+    # 6) goal zone
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_y": 0.5, "position_z": size / 2.0}})
     steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
 
     return {
         "ok": True,
         "game": "chase",
-        "summary": f"Chase: ground + WASD player + score HUD + {n} chasing enemies + {n} collectibles + goal ({len(steps)} steps).",
+        "summary": f"Chase: ground + WASD player + score HUD + {n} chasing enemies + {n} collectibles + a central safe zone + goal ({len(steps)} steps).",
         "enemy_count": n,
         "steps": steps,
     }

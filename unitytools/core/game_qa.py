@@ -16,7 +16,7 @@ from .game_blueprint import group_execution_plan, BLUEPRINTS, plan_game
 # not a game.
 INTERACTIVE_BEHAVIOURS = frozenset({
     "goal", "collectible", "killzone", "mover", "follow", "chase", "spawner", "patrol",
-    "enemy", "horde", "pushable", "holdzone", "boss", "turret", "lockgoal",
+    "enemy", "horde", "pushable", "holdzone", "boss", "turret", "lockgoal", "safezone",
 })
 
 
@@ -218,7 +218,7 @@ def build_game_capabilities_summary() -> str:
 _BEHAVIOUR_CATEGORIES: dict[str, list[str]] = {
     "control": ["player", "runner"],
     "movement": ["rotate", "move", "bob", "bounce", "patrol", "follow", "orbit", "wander"],
-    "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle", "holdzone", "escort", "lockgoal"],
+    "world": ["collectible", "goal", "killzone", "spawner", "detector", "pushable", "puzzle", "holdzone", "escort", "lockgoal", "safezone"],
     "combat": ["health", "attack", "enemy", "ranged", "reward", "horde", "boss", "turret"],
     "progression": ["xp", "loot", "inventory", "score"],
     "game feel": ["title", "gameover", "sound", "timer", "deadline", "collectrace", "hitflash"],
@@ -713,6 +713,7 @@ _BEHAVIOUR_PURPOSES: dict[str, str] = {
     "holdzone": "a king-of-the-hill zone: stand in it to fill a meter and WIN.",
     "escort": "a VIP that walks itself to the goal (you protect it -- it is the win condition).",
     "lockgoal": "a locked exit: opens once every Key_* is collected, then reaching it WINS.",
+    "safezone": "a circular retreat the chasers cannot enter -- they are clamped to its edge.",
     # combat
     "health": "an HP pool: TakeDamage hurts it, zero HP SendMessages PlayerDied (LOSE).",
     "attack": "auto-melee: damages enemies that come within range, on a cooldown.",
