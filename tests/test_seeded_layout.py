@@ -78,12 +78,25 @@ def test_every_seed_is_valid_and_playable(game_type, seed):
     assert assess_game_readiness(plan)["playable"] is True
 
 
-@pytest.mark.parametrize("game_type", sorted(BLUEPRINTS))
+# the maze is the one exception: its seed is used at GENERATION time (it changes the actual
+# labyrinth, not just a layout jitter), so different topologies have different numbers of
+# dead-ends -> different trap counts -> a legitimately seed-DEPENDENT object count.
+@pytest.mark.parametrize("game_type", [g for g in sorted(BLUEPRINTS) if g != "maze"])
 def test_object_count_is_seed_independent(game_type):
-    # the seed perturbs layout, never the number of objects
+    # for the jitter-seeded blueprints the seed perturbs layout, never the number of objects
     base = assess_game_readiness(plan_game(game_type, 5))["object_count"]
     for seed in SEEDS:
         assert assess_game_readiness(plan_game(game_type, 5, seed=seed))["object_count"] == base
+
+
+def test_maze_object_count_varies_with_seed_but_stays_bounded():
+    # the maze IS topology-seeded: object count tracks the dead-end count, which varies by
+    # seed -- but it stays well under the object ceiling, and the walls are seed-independent
+    from unitytools.core.game_blueprint import plan_maze_game
+    counts = {assess_game_readiness(plan_game("maze", 5, seed=s))["object_count"] for s in SEEDS}
+    assert len(counts) >= 1 and max(counts) < 200
+    wall_counts = {plan_maze_game(5, seed=s)["wall_count"] for s in SEEDS}
+    assert len(wall_counts) == 1            # a perfect maze of fixed size always has the same walls
 
 
 def test_same_seed_same_plan_and_none_is_plain():

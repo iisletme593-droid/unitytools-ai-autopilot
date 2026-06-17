@@ -1248,3 +1248,20 @@ focused, tested, live-proven, deployed improvement per ~25-min cycle.
   A reusable juice primitive (future cycles can extend to other targets or a composer juice flag).
   Live-proved source(ascii/Color.Lerp/TakeDamage) + boss+arena wiring + swarm-excluded + 17/17 health.
   Generate-only; deterministic (no runtime RNG). +11 tests. -- tests: 1543 passed
+- [cycle 102] Maze dead-end traps -- DEPTH for the 6th type, always-solvable BY CONSTRUCTION. The maze now
+  has stakes: a killzone trap in every DEAD-END cell, so a wrong turn respawns you. The safety is
+  structural: in a perfect maze the dead-ends (leaves of the spanning tree) are GUARANTEED off the unique
+  entrance->exit solution, so a trap there can never block it. New maze_dead_end_cells in core/maze.py (a
+  cell with exactly ONE open passage, excluding entrance + exit; pure + deterministic from the seeded
+  grid). plan_maze_game places a Trap_* killzone at each dead-end cell (reusing cell_world); records
+  trap_count + mentions it in the summary. Verified (live + tests, parametrized over 8 seeds x 3 sizes):
+  every dead-end is a real leaf, never the entrance/exit; the maze stays solvable; traps never sit on the
+  player cell, goal cell, or any wall; object_count stays bounded (size-8 = 174 < 200). One genuine test
+  conflict surfaced and fixed honestly: test_object_count_is_seed_independent assumed EVERY blueprint's
+  object count is seed-independent, but the maze is the ONE type whose seed is used at GENERATION time (it
+  changes the actual topology, not just a layout jitter), so different topologies have different dead-end
+  counts -> a legitimately seed-DEPENDENT object count. Excluded maze from that jitter-only invariant +
+  added test_maze_object_count_varies_with_seed_but_stays_bounded (walls stay seed-independent; count <
+  200). studio_health stays 17/17 (killzone is interactive, no critique impact); maze coherent. Docs:
+  GAME_STUDIO + GAME_STUDIO_GAMES maze rows. Generate-only; deterministic (no runtime RNG). +26 tests.
+  -- tests: 1569 passed

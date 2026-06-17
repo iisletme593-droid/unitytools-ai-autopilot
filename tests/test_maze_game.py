@@ -86,10 +86,43 @@ def test_player_goal_sit_on_entrance_and_exit_cells():
     assert (goal["position_x"], goal["position_z"]) == ((2 * gx + 1) * step, (2 * gy + 1) * step)
 
 
-def test_groups_to_three_unique_scripts_one_recompile():
+def test_groups_to_four_unique_scripts_one_recompile():
     grouped = group_execution_plan(plan_maze_game(5)["steps"])
-    # only player/score/goal are scripted; walls are physics (tool steps, no recompile)
-    assert set(grouped["script_behaviours"]) == {"player", "score", "goal"}
+    # player/score/goal + the dead-end trap killzone; walls are physics (tool steps, no recompile)
+    assert set(grouped["script_behaviours"]) == {"player", "score", "goal", "killzone"}
+
+
+# --- dead-end traps (cycle 102): deadly wrong turns, never block the solution -----
+
+def test_dead_end_traps_are_off_the_solution_and_always_solvable():
+    from unitytools.core.maze import maze_dead_end_cells, maze_is_solvable
+    n, seed = 6, "trapcheck"
+    mz = generate_maze(seed, n, n)
+    dead_ends = maze_dead_end_cells(mz)
+    # dead-ends exclude the entrance + exit, and the maze is still solvable (traps are not walls)
+    assert mz["entrance"] not in dead_ends and mz["exit"] not in dead_ends
+    assert maze_is_solvable(mz) is True
+    plan = plan_maze_game(n, seed=seed)
+    assert plan["trap_count"] == len(dead_ends)
+    # each trap is a killzone; none sits on the player cell, the goal cell, or any wall cell
+    traps = {(_kw(s)["position_x"], _kw(s)["position_z"]) for s in plan["steps"]
+             if str(_kw(s).get("name", "")).startswith("Trap_")}
+    walls = {(_kw(s)["position_x"], _kw(s)["position_z"]) for s in plan["steps"]
+             if str(_kw(s).get("name", "")).startswith("Wall_")}
+    player = next(_kw(s) for s in plan["steps"] if _kw(s).get("name") == "Player")
+    goal = next(_kw(s) for s in plan["steps"] if _kw(s).get("name") == "Goal")
+    assert (player["position_x"], player["position_z"]) not in traps
+    assert (goal["position_x"], goal["position_z"]) not in traps
+    assert traps.isdisjoint(walls)
+    kz = [s for s in plan["steps"] if s.get("script_behaviour", {}).get("behaviour") == "killzone"]
+    assert len(kz) == plan["trap_count"]
+
+
+def test_trapped_maze_stays_clean_by_the_self_audit():
+    from unitytools.core.game_qa import studio_health
+    h = studio_health()
+    mz_health = next(g for g in h["games"] if g["game_type"] == "maze")
+    assert mz_health["valid"] and mz_health["playable"] and mz_health["coherent"]
 
 
 def test_variations_work_for_maze():

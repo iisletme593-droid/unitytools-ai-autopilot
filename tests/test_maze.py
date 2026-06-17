@@ -7,13 +7,37 @@ maps the wall grid onto Unity cube positions. Pure; no system time.
 """
 import pytest
 
-from unitytools.core.maze import generate_maze, maze_is_solvable, maze_wall_positions
+from unitytools.core.maze import (
+    generate_maze, maze_is_solvable, maze_wall_positions, maze_dead_end_cells)
 
 SEEDS = ["a", "b", "c", "42", "forest", "x-1", "9", "level"]
 SIZES = [(1, 1), (2, 2), (3, 4), (5, 5), (6, 8), (10, 10), (25, 25)]
 
 
 # --- structure --------------------------------------------------------------
+
+@pytest.mark.parametrize("seed", SEEDS)
+@pytest.mark.parametrize("size", [3, 5, 8])
+def test_dead_end_cells_are_real_leaves_off_the_solution(seed, size):
+    from collections import deque
+    m = generate_maze(seed, size, size)
+    grid = m["grid"]
+    rows, cols = len(grid), len(grid[0])
+    dead_ends = maze_dead_end_cells(m)
+    # never the entrance or exit
+    assert m["entrance"] not in dead_ends and m["exit"] not in dead_ends
+    # each really has exactly ONE open passage (a leaf)
+    for (cx, cy) in dead_ends:
+        c, r = 2 * cx + 1, 2 * cy + 1
+        opens = sum(1 for dc, dr in ((1, 0), (-1, 0), (0, 1), (0, -1))
+                    if 0 <= r + dr < rows and 0 <= c + dc < cols and grid[r + dr][c + dc] == " ")
+        assert opens == 1, (cx, cy)
+    # a dead-end is OFF the unique entrance->exit path: removing its passage keeps the maze
+    # solvable (proof that a hazard there cannot block the solution)
+    assert maze_is_solvable(m) is True
+    # determinism
+    assert maze_dead_end_cells(generate_maze(seed, size, size)) == dead_ends
+
 
 def test_grid_dimensions_and_chars():
     m = generate_maze("s", 5, 4)

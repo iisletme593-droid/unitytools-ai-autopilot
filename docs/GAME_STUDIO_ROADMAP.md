@@ -974,4 +974,17 @@ arc widens coverage rather than depth. Candidates, pick highest-value per cycle:
   (+ arena unique-scripts thirteen -> fourteen). Categorized under "game feel" (drift guard); doc behaviour
   row added. A reusable juice primitive future cycles can extend to other targets. +11 tests. 1543 passed.
 
+- [x] **Maze dead-end traps -- depth, always-solvable by construction (cycle 102).** The maze gains stakes:
+  a killzone in every DEAD-END cell, so a wrong turn respawns you. The safety is structural, not luck: in a
+  perfect maze the dead-ends (leaves of the spanning tree) are GUARANTEED off the unique entrance->exit
+  solution path, so the traps can never block it -- the maze stays always-solvable. New
+  `core.maze.maze_dead_end_cells` (a cell with exactly one open passage, excluding entrance/exit; pure +
+  deterministic from the seeded grid); plan_maze_game places a Trap_* killzone in each. Verified: traps
+  never sit on the player cell, the goal cell, or a wall; every seed/size stays solvable; object_count
+  stays bounded (size-8 = 174 < 200). One real test conflict surfaced + fixed honestly: the maze is the
+  ONE blueprint whose seed changes the actual topology (not just a jitter), so its object count is now
+  legitimately seed-DEPENDENT (different topologies have different dead-end counts) -- excluded it from the
+  jitter-only seed-independent-object-count invariant + added a maze-specific bounded-count test (walls
+  stay seed-independent). studio_health stays 17/17. +26 tests. 1569 passed.
+
 > Check items off in this file as they land. Add new items as discovered.

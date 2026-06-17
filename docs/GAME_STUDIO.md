@@ -19,7 +19,7 @@ assembles a custom game from the same blocks), each composed from the same gamep
 | `survival` | Endure elevated spawners raining physics-cube hazards |
 | `platformer` | Jump up a staircase of solid platforms to a goal on top |
 | `chase` | Outrun enemies that hunt the player while you grab collectibles |
-| `maze` | Escape a deterministic, always-solvable procedural labyrinth (seeded) |
+| `maze` | Escape a deterministic, always-solvable procedural labyrinth (seeded), now with deadly traps in the dead-ends (a wrong turn respawns you — but the solution path is always trap-free) |
 | `arena` | A blocky brawler: an armed player (health + attack) vs N enemies that chase and attack back, plus a single high-HP **mini-boss** climax (its own HP bar) |
 | `horde` | A survival-brawler: a fully-armed player vs escalating waves of enemies from a central spawner |
 | `runner` | An endless runner: an auto-running player dodging a weaving lane of obstacles, distance is the score |

@@ -98,6 +98,31 @@ def maze_is_solvable(maze: dict[str, Any]) -> bool:
     return (ec, er) in seen
 
 
+def maze_dead_end_cells(maze: dict[str, Any]) -> list[tuple[int, int]]:
+    """Cells with exactly ONE open passage -- the leaves of the maze's spanning tree --
+    EXCLUDING the entrance and exit. In a perfect maze every dead-end lies OFF the unique
+    entrance->exit solution path, so a hazard placed in a dead-end can NEVER block the
+    solution: the maze stays always-solvable. Deterministic (reads the grid). Pure.
+    """
+    grid = maze.get("grid") or []
+    if not grid:
+        return []
+    rows, cols = len(grid), len(grid[0])
+    w, h = int(maze.get("width", 0)), int(maze.get("height", 0))
+    skip = {tuple(maze.get("entrance", (0, 0))), tuple(maze.get("exit", (w - 1, h - 1)))}
+    out: list[tuple[int, int]] = []
+    for cy in range(h):
+        for cx in range(w):
+            if (cx, cy) in skip:
+                continue
+            c, r = _cell_to_grid(cx, cy)
+            opens = sum(1 for dc, dr in _DIRS
+                        if 0 <= r + dr < rows and 0 <= c + dc < cols and grid[r + dr][c + dc] == " ")
+            if opens == 1:
+                out.append((cx, cy))
+    return out
+
+
 def maze_wall_positions(maze: dict[str, Any], cell_size: float = 2.0, origin=(0.0, 0.0)) -> list[tuple[float, float]]:
     """World (x, z) positions for every wall cell, for placing Unity wall cubes.
 

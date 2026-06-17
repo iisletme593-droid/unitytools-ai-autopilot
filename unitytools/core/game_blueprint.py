@@ -1247,7 +1247,7 @@ def plan_maze_game(size: int = 5, arena_size: float = 20.0, seed: object = None)
     survives save/load. Same step schema as the other blueprints; size is clamped
     to 3..8 to keep the wall count (and object count) reasonable.
     """
-    from .maze import generate_maze, maze_wall_positions
+    from .maze import generate_maze, maze_wall_positions, maze_dead_end_cells
 
     n = max(3, min(int(size), 8))
     cell_size = 2.0
@@ -1281,12 +1281,25 @@ def plan_maze_game(size: int = 5, arena_size: float = 20.0, seed: object = None)
     steps.append({"tool": "unity_create_primitive", "kwargs": {"type": "Cube", "name": "Goal", "position_x": gx, "position_y": 0.5, "position_z": gz}})
     steps.append({"script_behaviour": {"object": "Goal", "behaviour": "goal"}})
 
+    # deadly DEAD-ENDS: a killzone in each dead-end cell. In a perfect maze every dead-end
+    # lies OFF the unique entrance->exit solution path, so these can NEVER block it -- the
+    # maze stays ALWAYS-SOLVABLE -- but they make a wrong turn cost you (touch -> respawn).
+    # Deterministic: dead-ends are read from the seeded maze grid.
+    dead_ends = maze_dead_end_cells(mz)
+    for i, cell in enumerate(dead_ends):
+        tx, tz = cell_world(cell)
+        steps.append({"tool": "unity_create_primitive",
+                      "kwargs": {"type": "Cube", "name": f"Trap_{i}", "position_x": tx, "position_y": 0.5, "position_z": tz}})
+        steps.append({"script_behaviour": {"object": f"Trap_{i}", "behaviour": "killzone"}})
+
     plan: dict[str, Any] = {
         "ok": True,
         "game": "maze",
-        "summary": f"Maze: {n}x{n} labyrinth ({len(walls)} walls) + entrance player + exit goal ({len(steps)} steps).",
+        "summary": f"Maze: {n}x{n} labyrinth ({len(walls)} walls) + entrance player + exit goal + "
+                   f"{len(dead_ends)} dead-end traps ({len(steps)} steps).",
         "size": n,
         "wall_count": len(walls),
+        "trap_count": len(dead_ends),
         "steps": steps,
     }
     if seed is not None:
