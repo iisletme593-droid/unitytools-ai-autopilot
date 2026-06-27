@@ -65,7 +65,7 @@ namespace UnityTools.Bridge
                     }
                 }
             }
-            catch { }
+            catch (Exception e) { Debug.LogWarning($"[UnityTools.ChatClient] .env token okunamadi: {e.Message}"); }
             return "";
         }
 

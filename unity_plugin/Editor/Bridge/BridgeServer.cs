@@ -103,7 +103,7 @@ namespace UnityTools.Bridge
                     }
                 }
             }
-            catch { }
+            catch (Exception e) { Debug.LogWarning($"[UnityTools] BridgeServer .env port okunamadi: {e.Message}"); }
 
             return DefaultPort;
         }
@@ -140,7 +140,7 @@ namespace UnityTools.Bridge
                     }
                 }
             }
-            catch { }
+            catch (Exception e) { Debug.LogWarning($"[UnityTools] BridgeServer .env auth token okunamadi: {e.Message}"); }
             return "";
         }
 
